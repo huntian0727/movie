@@ -1,0 +1,65 @@
+name: Windows CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node-tests:
+    name: Node tests and Windows file safety
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.1
+      - id: npm-cache
+        shell: pwsh
+        run: '"path=$(npm config get cache)" >> $env:GITHUB_OUTPUT'
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.npm-cache.outputs.path }}
+          key: windows-node-22.23.1-npm-10.9.8-${{ hashFiles('package-lock.json') }}-abi-node
+      - run: npm install --global npm@10.9.8
+      - run: npm ci
+      - name: Windows data-safety and release regression gate
+        run: npm run test:release-gate
+
+  electron-smoke:
+    name: Electron native and main-process smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.1
+      - id: npm-cache
+        shell: pwsh
+        run: '"path=$(npm config get cache)" >> $env:GITHUB_OUTPUT'
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.npm-cache.outputs.path }}
+          key: windows-node-22.23.1-npm-10.9.8-electron-33.4.11-${{ hashFiles('package-lock.json') }}-abi-electron
+      - run: npm install --global npm@10.9.8
+      - run: npm ci
+      - run: npm run prepare:electron
+      - run: npm run test:electron-smoke
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4

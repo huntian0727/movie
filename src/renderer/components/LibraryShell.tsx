@@ -1,0 +1,1049 @@
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { BookmarkX, ChevronDown, ChevronRight, Clock3, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, Pause, Play, PlaySquare, RotateCw, Settings, Trash2 } from "lucide-react";
+import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreview, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
+import { DirectoryPicker } from "./DirectoryPicker";
+import { Toolbar } from "./Toolbar";
+import { VideoDetailsDialog } from "./VideoDetailsDialog";
+import { VideoGrid } from "./VideoGrid";
+import { VideoTable } from "./VideoTable";
+import { formatBytes } from "./formatters";
+
+const PAGE_SIZE_OPTIONS = [30, 50, 100, 200, 300] as const;
+const GRID_CARD_WIDTH_OPTIONS = [180, 220, 260, 320, 400] as const;
+const GRID_CARD_WIDTH_STORAGE_KEY = "video-manager:grid-card-width";
+const PAGE_SIZE_STORAGE_KEY = "video-manager:library-page-size";
+const EMPTY_FOLDERS: SourceFolder[] = [];
+const EMPTY_DUPLICATE_GROUPS: DuplicateGroup[] = [];
+const EMPTY_RECENT_VIDEO_IDS: string[] = [];
+const EMPTY_SCAN_STATUSES: FolderScanStatus[] = [];
+
+interface LibraryShellProps {
+  videos: VideoRecord[];
+  folders?: SourceFolder[];
+  scanStatuses?: FolderScanStatus[];
+  loading?: boolean;
+  error?: string | null;
+  refreshSequence?: number;
+  onAddFolder?(): void | Promise<void>;
+  onRemoveFolder?(folder: SourceFolder): void | Promise<void>;
+  onPauseFolderScan?(folder: SourceFolder): void | Promise<unknown>;
+  onResumeFolderScan?(folder: SourceFolder): void | Promise<unknown>;
+  onRetryFolderScan?(folder: SourceFolder): void | Promise<unknown>;
+  onRefresh?(): void | Promise<void>;
+  onOpen?(video: VideoRecord, queue: VideoRecord[]): void;
+  onToggleFavorite?(video: VideoRecord): void | Promise<void>;
+  onTogglePendingDelete?(video: VideoRecord): void | Promise<void>;
+  onRename?(video: VideoRecord, baseName: string): void | Promise<void>;
+  onDelete?(video: VideoRecord): void | Promise<void>;
+  onRegenerateCover?(video: VideoRecord): void | Promise<void>;
+  getCoverUrl?(video: VideoRecord): string | null;
+  navigation?: LibraryNavigationSnapshot;
+  onLoadVideoPage?(query: LibraryPageQuery): Promise<LibraryPage>;
+  duplicateGroups?: DuplicateGroup[];
+  onLoadDuplicateGroups?(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
+  recentVideoIds?: string[];
+  onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreview>;
+  onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  onRevealInFolder?(video: VideoRecord): void | Promise<void>;
+  onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
+  onOpenSettings?(): void;
+  onBatchDelete?(videos: VideoRecord[]): Promise<BatchDeleteResult>;
+  onDeleteAllPending?(): Promise<BatchDeleteResult>;
+  onChooseMoveDestination?(): Promise<string | null>;
+  onPreviewBatchMove?(videos: VideoRecord[], targetDirectory: string, addTargetToLibrary: boolean): Promise<BatchMovePreview>;
+  onBatchMove?(videos: VideoRecord[], targetDirectory: string, addTargetToLibrary: boolean): Promise<BatchMoveResult>;
+}
+
+export function LibraryShell({
+  videos,
+  folders = EMPTY_FOLDERS,
+  scanStatuses = EMPTY_SCAN_STATUSES,
+  loading = false,
+  error = null,
+  refreshSequence = 0,
+  onAddFolder,
+  onRemoveFolder,
+  onPauseFolderScan,
+  onResumeFolderScan,
+  onRetryFolderScan,
+  onRefresh,
+  onOpen,
+  onToggleFavorite,
+  onTogglePendingDelete,
+  onRename,
+  onDelete,
+  onRegenerateCover,
+  getCoverUrl,
+  navigation,
+  onLoadVideoPage,
+  duplicateGroups = EMPTY_DUPLICATE_GROUPS,
+  onLoadDuplicateGroups,
+  recentVideoIds = EMPTY_RECENT_VIDEO_IDS,
+  onPreviewDuplicateResolve,
+  onResolveDuplicateGroups,
+  onRevealInFolder,
+  onPreviewRemoveFolder,
+  onOpenSettings
+  , onBatchDelete, onDeleteAllPending, onChooseMoveDestination, onPreviewBatchMove, onBatchMove
+}: LibraryShellProps) {
+  const [view, setView] = useState<LibraryView>("all");
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
+  const [folderScope, setFolderScope] = useState<"recursive" | "exact">("recursive");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [search, setSearch] = useState("");
+  const [sortField, setSortField] = useState<SortField>("filename");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [renameTarget, setRenameTarget] = useState<VideoRecord | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
+  const [detailsTarget, setDetailsTarget] = useState<VideoRecord | null>(null);
+  const [removeFolderTarget, setRemoveFolderTarget] = useState<SourceFolder | null>(null);
+  const [nextBaseName, setNextBaseName] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionPending, setActionPending] = useState(false);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(readStoredPageSize);
+  const [page, setPage] = useState(1);
+  const [gridCardWidth, setGridCardWidth] = useState<(typeof GRID_CARD_WIDTH_OPTIONS)[number]>(readStoredGridCardWidth);
+  const [expandedFolderPaths, setExpandedFolderPaths] = useState<string[]>([]);
+  const [duplicatePageNumber, setDuplicatePageNumber] = useState(1);
+  const [duplicatePageSize, setDuplicatePageSize] = useState<DuplicatePageSize>(20);
+  const [duplicateSortDirection, setDuplicateSortDirection] = useState<SortDirection>("desc");
+  const [duplicatePreferredDirectoryPath, setDuplicatePreferredDirectoryPath] = useState("");
+  const [duplicatePreferredDirectoryScope, setDuplicatePreferredDirectoryScope] = useState<"recursive" | "exact">("recursive");
+  const [duplicatePage, setDuplicatePage] = useState<DuplicateGroupPage>(() => createStaticDuplicatePage(duplicateGroups));
+  const [duplicateLoading, setDuplicateLoading] = useState(false);
+  const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
+  const [duplicateRefreshVersion, setDuplicateRefreshVersion] = useState(0);
+  const [videoPage, setVideoPage] = useState<LibraryPage>({ videos: [], page: 1, pageSize: 100, totalPages: 1, totalCount: 0 });
+  const [videoPageLoading, setVideoPageLoading] = useState(false);
+  const [videoPageError, setVideoPageError] = useState<string | null>(null);
+  const [videoPageRefreshVersion, setVideoPageRefreshVersion] = useState(0);
+  const [removeFolderImpact, setRemoveFolderImpact] = useState<SourceFolderRemovalPreview | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(() => new Set());
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+  const [pendingDeleteClearOpen, setPendingDeleteClearOpen] = useState(false);
+  const [batchMovePreview, setBatchMovePreview] = useState<BatchMovePreview | null>(null);
+  const [batchResult, setBatchResult] = useState<BatchDeleteResult | BatchMoveResult | null>(null);
+  const contentRef = useRef<HTMLElement>(null);
+  const directoryPaths = useMemo(() => navigation?.directoryPaths ?? videos.map((video) => video.directory), [navigation?.directoryPaths, videos]);
+  const directoryEntries = useMemo(() => buildDirectoryEntries(folders, directoryPaths), [directoryPaths, folders]);
+  const scanStatusByFolder = useMemo(() => new Map(scanStatuses.map((status) => [status.folderId, status])), [scanStatuses]);
+  const directoryEntryByPath = useMemo(
+    () => new Map(directoryEntries.map((entry) => [normalizeDirectoryPath(entry.path), entry])),
+    [directoryEntries]
+  );
+  const visibleDirectoryEntries = useMemo(
+    () => directoryEntries.filter((entry) => isDirectoryEntryVisible(entry, expandedFolderPaths, directoryEntryByPath)),
+    [directoryEntries, directoryEntryByPath, expandedFolderPaths]
+  );
+
+  const visibleVideos = useMemo(() => {
+    if (onLoadVideoPage) return videoPage.videos;
+    if (view === "recent") {
+      const byId = new Map(videos.map((video) => [video.id, video]));
+      return recentVideoIds
+        .map((id) => byId.get(id))
+        .filter((video): video is VideoRecord => Boolean(video))
+        .filter((video) => video.filename.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+    }
+
+    const result = videos.filter((video) => {
+      if (view === "favorites" && !video.isFavorite) return false;
+      if (view === "pendingDelete" && !video.isPendingDelete) return false;
+      if (view === "folder" && selectedFolderPath) {
+        const directoryMatches = folderScope === "exact"
+          ? normalizeDirectoryPath(video.directory) === normalizeDirectoryPath(selectedFolderPath)
+          : isPathWithin(video.directory, selectedFolderPath);
+        if (!directoryMatches) return false;
+      }
+      return video.filename.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
+    });
+    return result.sort((left, right) => compareVideos(left, right, sortField) * (sortDirection === "asc" ? 1 : -1));
+  }, [folderScope, onLoadVideoPage, recentVideoIds, search, selectedFolderPath, sortDirection, sortField, videoPage.videos, videos, view]);
+  const favoriteCount = useMemo(() => navigation?.favoriteVideos ?? videos.reduce((count, video) => count + (video.isFavorite ? 1 : 0), 0), [navigation?.favoriteVideos, videos]);
+  const pendingDeleteCount = navigation?.pendingDeleteVideos ?? videos.reduce((count, video) => count + (video.isPendingDelete ? 1 : 0), 0);
+  const pendingDeleteBytes = navigation?.pendingDeleteBytes ?? videos.reduce((total, video) => total + (video.isPendingDelete ? video.sizeBytes : 0), 0);
+
+  useEffect(() => {
+    setPage(1);
+  }, [folderScope, pageSize, search, selectedFolderPath, sortDirection, sortField, view]);
+
+  useEffect(() => {
+    if (!onLoadVideoPage || view === "duplicates") return;
+    let disposed = false;
+    setVideoPageLoading(true);
+    setVideoPageError(null);
+    void onLoadVideoPage({
+      view,
+      directoryPath: view === "folder" ? selectedFolderPath ?? undefined : undefined,
+      folderScope: view === "folder" ? folderScope : undefined,
+      search,
+      sortField,
+      sortDirection,
+      page,
+      pageSize
+    }).then((result) => {
+      if (disposed) return;
+      setVideoPage(result);
+      if (result.page !== page) setPage(result.page);
+    }).catch((cause) => {
+      if (!disposed) setVideoPageError(cause instanceof Error ? cause.message : String(cause));
+    }).finally(() => {
+      if (!disposed) setVideoPageLoading(false);
+    });
+    return () => { disposed = true; };
+  }, [folderScope, onLoadVideoPage, page, pageSize, refreshSequence, search, selectedFolderPath, sortDirection, sortField, videoPageRefreshVersion, view]);
+
+  useEffect(() => {
+    if (!onLoadVideoPage || !videoPage.videos.some((video) => video.metadataStatus === "pending")) return;
+    const timer = window.setInterval(() => setVideoPageRefreshVersion((current) => current + 1), 1500);
+    return () => window.clearInterval(timer);
+  }, [onLoadVideoPage, videoPage.videos]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(GRID_CARD_WIDTH_STORAGE_KEY, String(gridCardWidth));
+    } catch {
+      // Renderer storage can be unavailable in hardened or test environments.
+    }
+  }, [gridCardWidth]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(pageSize));
+    } catch {
+      // Renderer storage can be unavailable in hardened or test environments.
+    }
+  }, [pageSize]);
+
+  useEffect(() => {
+    const existingPaths = new Set(directoryEntries.map((entry) => normalizeDirectoryPath(entry.path)));
+    setExpandedFolderPaths((current) => {
+      const next = current.filter((path) => existingPaths.has(path));
+      return areStringArraysEqual(current, next) ? current : next;
+    });
+  }, [directoryEntries]);
+
+  useEffect(() => {
+    if (selectedFolderPath && !directoryEntryByPath.has(normalizeDirectoryPath(selectedFolderPath))) {
+      setView("all");
+      setSelectedFolderPath(null);
+      setFolderScope("recursive");
+    }
+  }, [directoryEntryByPath, selectedFolderPath]);
+
+  useEffect(() => {
+    if (onLoadDuplicateGroups || view === "duplicates") return;
+    setDuplicatePage(createStaticDuplicatePage(duplicateGroups));
+  }, [duplicateGroups, onLoadDuplicateGroups, view]);
+
+  useEffect(() => {
+    if (view !== "duplicates") return;
+    if (!onLoadDuplicateGroups) {
+      setDuplicatePage(createStaticDuplicatePage(duplicateGroups));
+      return;
+    }
+
+    let disposed = false;
+    setDuplicateLoading(true);
+    setDuplicateLoadError(null);
+    const query: DuplicateGroupPageQuery = {
+      page: duplicatePageNumber,
+      pageSize: duplicatePageSize,
+      sortDirection: duplicateSortDirection
+    };
+    if (duplicatePreferredDirectoryPath) {
+      query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
+      query.preferredDirectoryScope = duplicatePreferredDirectoryScope;
+    }
+    void onLoadDuplicateGroups(query).then((result) => {
+      if (disposed) return;
+      setDuplicatePage(result);
+      if (result.page !== duplicatePageNumber) setDuplicatePageNumber(result.page);
+    }).catch((cause) => {
+      if (!disposed) setDuplicateLoadError(cause instanceof Error ? cause.message : String(cause));
+    }).finally(() => {
+      if (!disposed) setDuplicateLoading(false);
+    });
+
+    return () => { disposed = true; };
+  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectoryPath, duplicatePreferredDirectoryScope, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, refreshSequence, view]);
+
+  const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
+  const toolbarCount = view === "duplicates" ? duplicatePage.totalGroups : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
+  const totalPages = onLoadVideoPage ? videoPage.totalPages : Math.max(1, Math.ceil(visibleVideos.length / pageSize));
+  const currentPage = onLoadVideoPage ? videoPage.page : Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const renderedVideos = useMemo(
+    () => onLoadVideoPage ? visibleVideos : visibleVideos.slice(pageStart, pageStart + pageSize),
+    [onLoadVideoPage, pageSize, pageStart, visibleVideos]
+  );
+  useEffect(() => {
+    const visibleIds = new Set(renderedVideos.map((video) => video.id));
+    setSelectedVideoIds((current) => {
+      const next = new Set([...current].filter((videoId) => visibleIds.has(videoId)));
+      return next.size === current.size && [...next].every((videoId) => current.has(videoId)) ? current : next;
+    });
+  }, [renderedVideos]);
+  const gridCardSizeIndex = GRID_CARD_WIDTH_OPTIONS.indexOf(gridCardWidth);
+
+  useEffect(() => {
+    contentRef.current?.scrollTo?.({ top: 0, behavior: "auto" });
+  }, [currentPage, pageSize]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (view === "duplicates" || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (renameTarget || deleteTarget || detailsTarget || removeFolderTarget) return;
+      if (event.code !== "ArrowLeft" && event.code !== "ArrowRight") return;
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest("input, textarea, select, button, a, [contenteditable='true'], [role='dialog'], [role='alertdialog']")) return;
+
+      const nextPage = event.code === "ArrowLeft"
+        ? Math.max(1, currentPage - 1)
+        : Math.min(totalPages, currentPage + 1);
+      if (nextPage === currentPage) return;
+      event.preventDefault();
+      setPage(nextPage);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [currentPage, deleteTarget, detailsTarget, removeFolderTarget, renameTarget, totalPages, view]);
+  const openVideo = (video: VideoRecord, queue = renderedVideos) => onOpen?.(video, queue);
+  const toggleFavorite = (video: VideoRecord) => void runAction(() => onToggleFavorite?.(video)).then((changed) => {
+    if (changed && onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
+  });
+  const togglePendingDelete = (video: VideoRecord) => void runAction(() => onTogglePendingDelete?.(video)).then((changed) => {
+    if (changed && onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
+  });
+  const renameVideo = (video: VideoRecord) => {
+    setActionError(null);
+    setRenameTarget(video);
+    setNextBaseName(video.basename);
+  };
+  const deleteVideo = (video: VideoRecord) => {
+    setActionError(null);
+    setDeleteTarget(video);
+  };
+  const regenerateCover = (video: VideoRecord) => void runAction(() => onRegenerateCover?.(video)).then((changed) => {
+    if (changed && onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
+  });
+  const viewVideoDetails = (video: VideoRecord) => {
+    setDetailsTarget(video);
+  };
+  const selectDirectory = (directoryPath: string, scope: "recursive" | "exact" = "recursive") => {
+    const normalizedPath = normalizeDirectoryPath(directoryPath);
+    const pathsToExpand: string[] = [];
+    let parentPath = directoryEntryByPath.get(normalizedPath)?.parentPath ?? null;
+    while (parentPath) {
+      pathsToExpand.push(parentPath);
+      parentPath = directoryEntryByPath.get(parentPath)?.parentPath ?? null;
+    }
+    setExpandedFolderPaths((current) => [...new Set([...current, ...pathsToExpand])]);
+    setSearch("");
+    setFolderScope(scope);
+    setSelectedFolderPath(directoryPath);
+    setView("folder");
+  };
+  const showVideoDirectory = (video: VideoRecord) => selectDirectory(video.directory, "exact");
+  const openRemoveFolderDialog = async (folder: SourceFolder) => {
+    setActionError(null);
+    setRemoveFolderTarget(folder);
+    setRemoveFolderImpact(null);
+    try {
+      setRemoveFolderImpact(onPreviewRemoveFolder
+        ? await onPreviewRemoveFolder(folder)
+        : calculateFolderRemovalImpact(folder, folders, videos));
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
+  async function runAction(action: () => void | Promise<void>): Promise<boolean> {
+    setActionPending(true);
+    setActionError(null);
+    try {
+      await action();
+      return true;
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : String(cause));
+      return false;
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  const submitRename = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!renameTarget || !nextBaseName.trim() || nextBaseName === renameTarget.basename) return;
+    if (await runAction(() => onRename?.(renameTarget, nextBaseName))) {
+      setRenameTarget(null);
+      if (onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    if (await runAction(() => onDelete?.(deleteTarget))) {
+      setDeleteTarget(null);
+      if (onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
+    }
+  };
+
+  const confirmRemoveFolder = async () => {
+    if (!removeFolderTarget) return;
+    if (await runAction(() => onRemoveFolder?.(removeFolderTarget))) {
+      setRemoveFolderTarget(null);
+      setRemoveFolderImpact(null);
+    }
+  };
+  const selectedVideos = renderedVideos.filter((video) => selectedVideoIds.has(video.id));
+  const toggleSelectedVideo = (video: VideoRecord) => setSelectedVideoIds((current) => {
+    const next = new Set(current);
+    if (next.has(video.id)) next.delete(video.id); else next.add(video.id);
+    return next;
+  });
+  const selectCurrentPage = () => setSelectedVideoIds(new Set(renderedVideos.map((video) => video.id)));
+  const exitSelection = () => { setSelectionMode(false); setSelectedVideoIds(new Set()); };
+  const previewMoveSelected = async () => {
+    const targetDirectory = await onChooseMoveDestination?.();
+    if (!targetDirectory || selectedVideos.length === 0 || !onPreviewBatchMove) return;
+    setActionPending(true);
+    try { setBatchMovePreview(await onPreviewBatchMove(selectedVideos, targetDirectory, true)); } catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); } finally { setActionPending(false); }
+  };
+  const confirmBatchDelete = async () => {
+    if (!onBatchDelete) return;
+    setActionPending(true);
+    try { setBatchResult(await onBatchDelete(selectedVideos)); setBatchDeleteOpen(false); exitSelection(); setVideoPageRefreshVersion((current) => current + 1); } catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); } finally { setActionPending(false); }
+  };
+  const confirmDeleteAllPending = async () => {
+    if (!onDeleteAllPending) return;
+    setActionPending(true);
+    setActionError(null);
+    try {
+      setBatchResult(await onDeleteAllPending());
+      setPendingDeleteClearOpen(false);
+      setVideoPageRefreshVersion((current) => current + 1);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setActionPending(false);
+    }
+  };
+  const confirmBatchMove = async () => {
+    if (!batchMovePreview || !onBatchMove) return;
+    setActionPending(true);
+    try { setBatchResult(await onBatchMove(selectedVideos, batchMovePreview.targetDirectory, true)); setBatchMovePreview(null); exitSelection(); } catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); } finally { setActionPending(false); }
+  };
+
+  return (
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-mark"><PlaySquare size={22} /></span>
+          <div><strong>映匣</strong><small>本地视频库</small></div>
+        </div>
+        <nav className="primary-nav" aria-label="视频库导航">
+          <button aria-label="查看所有视频" className={view === "all" ? "active" : undefined} onClick={() => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); }}>
+            <Library size={18} /><span>所有视频</span><em>{navigation?.totalVideos ?? videos.length}</em>
+          </button>
+          <button aria-label="查看收藏视频" className={view === "favorites" ? "active" : undefined} onClick={() => { setView("favorites"); setSelectedFolderPath(null); }}>
+            <Heart size={18} /><span>收藏</span><em>{favoriteCount}</em>
+          </button>
+          <button aria-label="查看待删除视频" className={view === "pendingDelete" ? "active" : undefined} onClick={() => { setView("pendingDelete"); setSelectedFolderPath(null); }}>
+            <BookmarkX size={18} /><span>待删除</span><em>{pendingDeleteCount}</em>
+          </button>
+          <button aria-label="查看最近播放" className={view === "recent" ? "active" : undefined} onClick={() => { setView("recent"); setSelectedFolderPath(null); }}>
+            <Clock3 size={18} /><span>最近播放</span><em>{recentVideoIds.length}</em>
+          </button>
+          <button aria-label="查看重复项" className={view === "duplicates" ? "active" : undefined} onClick={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}>
+            <CopyMinus size={18} /><span>重复项</span><em>{duplicatePage.totalGroups}</em>
+          </button>
+        </nav>
+        <div className="sidebar-heading">
+          <span>文件夹</span>
+          <DirectoryPicker
+            directoryPaths={directoryEntries.map((entry) => entry.path)}
+            value={view === "folder" ? selectedFolderPath ?? undefined : undefined}
+            placeholder="搜索已入库目录"
+            ariaLabel="搜索并选择目录"
+            compact
+            onChange={(path) => selectDirectory(path)}
+          />
+          <button aria-label="添加文件夹" title="添加文件夹" onClick={() => void onAddFolder?.()}><FolderPlus size={17} /></button>
+        </div>
+        <nav className="folder-nav" aria-label="视频文件夹">
+          {visibleDirectoryEntries.map((entry) => {
+            const normalizedPath = normalizeDirectoryPath(entry.path);
+            const isExpanded = expandedFolderPaths.includes(normalizedPath);
+            const isSelected = view === "folder" && selectedFolderPath === entry.path;
+            const scanStatus = entry.sourceFolder ? scanStatusByFolder.get(entry.sourceFolder.id) : undefined;
+            const toggleExpanded = () => {
+              setExpandedFolderPaths((current) =>
+                current.includes(normalizedPath)
+                  ? current.filter((path) => path !== normalizedPath)
+                  : [...current, normalizedPath]
+              );
+            };
+
+            return (
+              <div key={entry.path} className={`folder-nav-row${isSelected ? " active" : ""}${entry.sourceFolder ? " source-folder" : ""}`}>
+                {entry.hasChildren ? (
+                  <button
+                    type="button"
+                    className="folder-toggle"
+                    aria-label={`${isExpanded ? "折叠" : "展开"} ${folderName(entry.path)}`}
+                    aria-expanded={isExpanded}
+                    title={isExpanded ? "折叠子目录" : "展开子目录"}
+                    style={{ marginLeft: `${10 + entry.depth * 14}px` }}
+                    onClick={toggleExpanded}
+                  >
+                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </button>
+                ) : (
+                  <span className="folder-toggle-spacer" style={{ marginLeft: `${10 + entry.depth * 14}px` }} aria-hidden="true" />
+                )}
+                <button
+                  type="button"
+                  className={`folder-entry${isSelected ? " active" : ""}`}
+                  title={entry.path}
+                  onClick={() => { setView("folder"); setSelectedFolderPath(entry.path); setFolderScope("recursive"); }}
+                >
+                  <Folder size={17} />
+                  <span className="folder-entry-label"><span>{folderName(entry.path)}</span>{scanStatus && <small title={scanStatus.currentPath ?? scanStatus.message ?? undefined}>{formatScanStatus(scanStatus)}</small>}</span>
+                  {entry.hasScanError && <i title={entry.scanError ?? "目录扫描异常"} />}
+                </button>
+                {entry.sourceFolder && (
+                  <span className="folder-source-actions">
+                    {(scanStatus?.state === "queued" || scanStatus?.state === "scanning") && onPauseFolderScan && <button type="button" aria-label={`暂停扫描 ${folderName(entry.path)}`} title="暂停扫描" onClick={() => void onPauseFolderScan(entry.sourceFolder!)}><Pause size={13} /></button>}
+                    {scanStatus?.state === "paused" && onResumeFolderScan && <button type="button" aria-label={`继续扫描 ${folderName(entry.path)}`} title="继续扫描" onClick={() => void onResumeFolderScan(entry.sourceFolder!)}><Play size={13} /></button>}
+                    {(!scanStatus || scanStatus.state === "completed" || scanStatus.state === "offline" || scanStatus.state === "error") && onRetryFolderScan && <button type="button" aria-label={`重新扫描 ${folderName(entry.path)}`} title="重新扫描" onClick={() => void onRetryFolderScan(entry.sourceFolder!)}><RotateCw size={13} /></button>}
+                    {onRemoveFolder && (!scanStatus || scanStatus.state === "completed" || scanStatus.state === "offline" || scanStatus.state === "error") && <button type="button" className="folder-remove" aria-label={`移除源目录 ${folderName(entry.path)}`} title="从资料库移除源目录（不会删除磁盘文件）" onClick={() => void openRemoveFolderDialog(entry.sourceFolder!)}><Trash2 size={14} /></button>}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+          {directoryEntries.length === 0 && <p className="folder-empty">还没有添加文件夹</p>}
+        </nav>
+        <div className="sidebar-footer">
+          <button onClick={onOpenSettings}><Settings size={17} /><span>设置</span></button>
+          <div className="storage-note"><span>本地资料库</span><small>文件保留在原位置</small></div>
+        </div>
+      </aside>
+
+      <section className="content" ref={contentRef}>
+        <Toolbar
+          title={title}
+          count={toolbarCount}
+          countLabel={view === "duplicates" ? "组重复" : "部视频"}
+          search={search}
+          sortField={sortField}
+          sortDirection={sortDirection}
+          viewMode={viewMode}
+          gridCardSizeIndex={gridCardSizeIndex}
+          gridCardSizeMaxIndex={GRID_CARD_WIDTH_OPTIONS.length - 1}
+          loading={loading}
+          showBrowseControls={view !== "duplicates"}
+          onBack={view === "folder" ? () => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); } : undefined}
+          onSearch={setSearch}
+          onSortField={setSortField}
+          onToggleDirection={() => setSortDirection((current) => (current === "asc" ? "desc" : "asc"))}
+          onViewMode={setViewMode}
+          onGridCardSizeIndex={(index) => {
+            const nextWidth = GRID_CARD_WIDTH_OPTIONS[Math.max(0, Math.min(GRID_CARD_WIDTH_OPTIONS.length - 1, index))];
+            if (nextWidth) setGridCardWidth(nextWidth);
+          }}
+          onRefresh={() => void onRefresh?.()}
+        />
+
+        {view !== "duplicates" && (
+          <div className="batch-toolbar">
+            {!selectionMode ? <>
+              <button type="button" onClick={() => setSelectionMode(true)}><ListChecks size={16} /> 多选</button>
+              {view === "pendingDelete" && <button type="button" className="danger" disabled={pendingDeleteCount === 0 || actionPending} onClick={() => setPendingDeleteClearOpen(true)}><Trash2 size={16} /> 全部永久删除</button>}
+            </> : <>
+              <strong>已选 {selectedVideoIds.size} 个</strong>
+              <button type="button" onClick={selectCurrentPage}>全选当前页</button>
+              <button type="button" disabled={selectedVideos.length === 0} onClick={() => void previewMoveSelected()}><FolderInput size={16} /> 移动到…</button>
+              <button type="button" className="danger" disabled={selectedVideos.length === 0} onClick={() => setBatchDeleteOpen(true)}><Trash2 size={16} /> 永久删除</button>
+              <button type="button" onClick={exitSelection}>取消</button>
+            </>}
+          </div>
+        )}
+
+        {(error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
+        {view === "duplicates" ? (
+          <DuplicateGroupsPage
+            groups={duplicatePage.groups}
+            loading={loading || duplicateLoading}
+            page={duplicatePage.page}
+            pageSize={duplicatePage.pageSize}
+            totalPages={duplicatePage.totalPages}
+            totalGroups={duplicatePage.totalGroups}
+            totalCandidateGroups={duplicatePage.totalCandidateGroups}
+            totalCandidateFiles={duplicatePage.totalCandidateFiles}
+            totalReclaimableBytes={duplicatePage.totalReclaimableBytes}
+            sizeSortDirection={duplicateSortDirection}
+            onPage={setDuplicatePageNumber}
+            onPageSize={(pageSize) => { setDuplicatePageSize(pageSize); setDuplicatePageNumber(1); }}
+            onSizeSortDirection={(direction) => { setDuplicateSortDirection(direction); setDuplicatePageNumber(1); }}
+            directoryOptions={duplicatePage.directoryOptions}
+            preferredDirectoryPath={duplicatePreferredDirectoryPath || undefined}
+            preferredDirectoryScope={duplicatePreferredDirectoryScope}
+            onPreferredDirectoryPathChange={(path) => { setDuplicatePreferredDirectoryPath(path); setDuplicatePageNumber(1); }}
+            onPreferredDirectoryScopeChange={(scope) => { setDuplicatePreferredDirectoryScope(scope); setDuplicatePageNumber(1); }}
+            onOpen={openVideo}
+            onViewDetails={viewVideoDetails}
+            onRevealInFolder={onRevealInFolder}
+            onDelete={onDelete ? async (video) => {
+              await onDelete(video);
+              setDuplicateRefreshVersion((current) => current + 1);
+            } : undefined}
+            onPreviewResolve={async (plan) => {
+              if (!onPreviewDuplicateResolve) {
+                throw new Error("重复项预检查能力未连接");
+              }
+              return onPreviewDuplicateResolve(plan);
+            }}
+            onResolve={async (plan) => {
+              if (!onResolveDuplicateGroups) {
+                throw new Error("重复项清理能力未连接");
+              }
+              const result = await onResolveDuplicateGroups(plan);
+              setDuplicateRefreshVersion((current) => current + 1);
+              return result;
+            }}
+          />
+        ) : (loading || videoPageLoading) && renderedVideos.length === 0 ? (
+          <div className="loading-state"><span /><p>正在读取视频资料...</p></div>
+        ) : visibleVideos.length === 0 ? (
+          <div className="empty-state">
+            <div><PlaySquare size={36} /></div>
+            <h3>{search ? "没有匹配的视频" : "这里还没有视频"}</h3>
+            <p>{search ? "试试其他文件名" : "添加一个本地文件夹，视频会自动出现在这里。"}</p>
+            {!search && <button onClick={() => void onAddFolder?.()}><FolderPlus size={17} />添加文件夹</button>}
+          </div>
+        ) : viewMode === "grid" ? (
+          <>
+            <VideoGrid videos={renderedVideos} getCoverUrl={getCoverUrl} onOpen={openVideo} onViewDetails={viewVideoDetails} onToggleFavorite={toggleFavorite} onTogglePendingDelete={onTogglePendingDelete ? togglePendingDelete : undefined} onRename={renameVideo} onDelete={deleteVideo} onRegenerateCover={onRegenerateCover ? regenerateCover : undefined} onRevealInFolder={onRevealInFolder} onShowDirectory={showVideoDirectory} cardWidth={gridCardWidth} selectionMode={selectionMode} selectedIds={selectedVideoIds} onToggleSelection={toggleSelectedVideo} />
+            <PaginationBar page={currentPage} totalPages={totalPages} pageSize={pageSize} totalCount={onLoadVideoPage ? videoPage.totalCount : visibleVideos.length} onPage={setPage} onPageSize={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
+          </>
+        ) : (
+          <>
+            <VideoTable videos={renderedVideos} onOpen={openVideo} onViewDetails={viewVideoDetails} onToggleFavorite={toggleFavorite} onTogglePendingDelete={onTogglePendingDelete ? togglePendingDelete : undefined} onRename={renameVideo} onDelete={deleteVideo} selectionMode={selectionMode} selectedIds={selectedVideoIds} onToggleSelection={toggleSelectedVideo} />
+            <PaginationBar page={currentPage} totalPages={totalPages} pageSize={pageSize} totalCount={onLoadVideoPage ? videoPage.totalCount : visibleVideos.length} onPage={setPage} onPageSize={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
+          </>
+        )}
+      </section>
+
+      {detailsTarget && <VideoDetailsDialog video={detailsTarget} onClose={() => setDetailsTarget(null)} />}
+
+      {renameTarget && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setRenameTarget(null); }}>
+          <form className="dialog" role="dialog" aria-modal="true" aria-labelledby="rename-title" onSubmit={submitRename}>
+            <h3 id="rename-title">重命名视频</h3>
+            <p>扩展名 {renameTarget.extension} 会保持不变</p>
+            <label>文件名<input autoFocus value={nextBaseName} onChange={(event) => setNextBaseName(event.target.value)} /></label>
+            {actionError && <small className="dialog-error">{actionError}</small>}
+            <div className="dialog-actions">
+              <button type="button" onClick={() => setRenameTarget(null)} disabled={actionPending}>取消</button>
+              <button className="primary" type="submit" disabled={actionPending || !nextBaseName.trim()}>保存</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setDeleteTarget(null); }}>
+          <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
+            <h3 id="delete-title">永久删除视频？</h3>
+            <p className="delete-filename">{deleteTarget.filename}</p>
+            <p>文件将从磁盘中永久删除，此操作无法撤销。</p>
+            {actionError && <small className="dialog-error">{actionError}</small>}
+            <div className="dialog-actions">
+              <button onClick={() => setDeleteTarget(null)} disabled={actionPending}>取消</button>
+              <button className="danger" onClick={() => void confirmDelete()} disabled={actionPending}>永久删除</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {batchDeleteOpen && (
+        <div className="dialog-backdrop" role="presentation"><section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="batch-delete-title">
+          <h3 id="batch-delete-title">确认永久删除选中视频</h3><p>将永久删除 {selectedVideos.length} 个视频，共 {formatBytes(selectedVideos.reduce((total, video) => total + video.sizeBytes, 0))}，此操作无法撤销。</p>
+          <div className="dialog-actions"><button onClick={() => setBatchDeleteOpen(false)} disabled={actionPending}>取消</button><button className="danger" onClick={() => void confirmBatchDelete()} disabled={actionPending}>确认永久删除</button></div>
+        </section></div>
+      )}
+
+      {pendingDeleteClearOpen && (
+        <div className="dialog-backdrop" role="presentation"><section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="pending-delete-clear-title">
+          <h3 id="pending-delete-clear-title">确认清空全部待删除视频？</h3>
+          <p>将永久删除全部 {pendingDeleteCount} 个待删除视频，共 {formatBytes(pendingDeleteBytes)}。此操作无法撤销。</p>
+          {actionError && <small className="dialog-error">{actionError}</small>}
+          <div className="dialog-actions"><button onClick={() => setPendingDeleteClearOpen(false)} disabled={actionPending}>取消</button><button className="danger" onClick={() => void confirmDeleteAllPending()} disabled={actionPending}>确认永久删除</button></div>
+        </section></div>
+      )}
+
+      {batchMovePreview && (
+        <div className="dialog-backdrop" role="presentation"><section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="batch-move-title">
+          <h3 id="batch-move-title">确认批量移动</h3><p>{batchMovePreview.totalCount} 个视频将移动到：{batchMovePreview.targetDirectory}</p>
+          <p>直接移动 {batchMovePreview.directCount} 个；同名时安全改名 {batchMovePreview.renameCount} 个；已在目标目录跳过 {batchMovePreview.skipCount} 个。不会自动覆盖已有文件。</p>
+          {batchMovePreview.targetWillBeAdded && <p>目标目录将同时加入资料库。</p>}
+          {batchMovePreview.failures.length > 0 && <p className="dialog-error">有 {batchMovePreview.failures.length} 个文件无法移动，请取消后检查目标目录。</p>}
+          <div className="dialog-actions"><button onClick={() => setBatchMovePreview(null)} disabled={actionPending}>取消</button><button className="primary" onClick={() => void confirmBatchMove()} disabled={actionPending || batchMovePreview.failures.length > 0}>确认移动</button></div>
+        </section></div>
+      )}
+
+      {batchResult && (
+        <div className="dialog-backdrop" role="presentation"><section className="dialog" role="dialog" aria-modal="true" aria-labelledby="batch-result-title">
+          <h3 id="batch-result-title">批量操作结果</h3><p>成功 {batchResult.successCount} 个，失败 {batchResult.failureCount} 个。</p>
+          {"reclaimedBytes" in batchResult && <p>实际释放 {formatBytes(batchResult.reclaimedBytes)}。</p>}
+          {batchResult.failures.length > 0 && <div className="duplicate-failure-list">{batchResult.failures.map((failure) => <p key={failure.videoId}>{failure.path || failure.videoId}：{failure.message}</p>)}</div>}
+          <div className="dialog-actions"><button className="primary" onClick={() => setBatchResult(null)}>知道了</button></div>
+        </section></div>
+      )}
+
+      {removeFolderTarget && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setRemoveFolderTarget(null); }}>
+          <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-folder-title">
+            <h3 id="remove-folder-title">从资料库移除此文件夹？</h3>
+            <p className="delete-filename">{removeFolderTarget.path}</p>
+            {removeFolderImpact
+              ? <p>本地视频文件不会被删除。当前资料库中，预计移除 {removeFolderImpact.removedVideoCount} 条视频记录，另有 {removeFolderImpact.retainedVideoCount} 条记录因仍属于其他已添加目录而保留。</p>
+              : <p>正在计算此目录的影响范围……</p>}
+            {actionError && <small className="dialog-error">{actionError}</small>}
+            <div className="dialog-actions">
+              <button onClick={() => setRemoveFolderTarget(null)} disabled={actionPending}>取消</button>
+              <button className="danger" onClick={() => void confirmRemoveFolder()} disabled={actionPending || !removeFolderImpact}>从资料库移除</button>
+            </div>
+          </section>
+        </div>
+      )}
+    </main>
+  );
+}
+
+interface PaginationBarProps {
+  page: number;
+  totalPages: number;
+  pageSize: (typeof PAGE_SIZE_OPTIONS)[number];
+  totalCount: number;
+  onPage(page: number): void;
+  onPageSize(pageSize: (typeof PAGE_SIZE_OPTIONS)[number]): void;
+}
+
+function PaginationBar({ page, totalPages, pageSize, totalCount, onPage, onPageSize }: PaginationBarProps) {
+  const [pageDraft, setPageDraft] = useState(String(page));
+
+  useEffect(() => {
+    setPageDraft(String(page));
+  }, [page]);
+
+  const commitPage = () => {
+    const parsedPage = Number(pageDraft);
+    if (!Number.isFinite(parsedPage)) {
+      setPageDraft(String(page));
+      return;
+    }
+    const nextPage = Math.max(1, Math.min(totalPages, Math.trunc(parsedPage)));
+    setPageDraft(String(nextPage));
+    onPage(nextPage);
+  };
+
+  return (
+    <div className="pagination-bar" aria-label="分页">
+      <span>共 {totalCount} 个视频</span>
+      <button disabled={page <= 1} onClick={() => onPage(page - 1)}>上一页</button>
+      <label className="page-jump">
+        <input
+          aria-label="跳转页码"
+          inputMode="numeric"
+          value={pageDraft}
+          onChange={(event) => setPageDraft(event.target.value.replace(/[^0-9]/g, ""))}
+          onBlur={commitPage}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitPage();
+            }
+          }}
+        />
+        <span>/ {totalPages}</span>
+      </label>
+      <button disabled={page >= totalPages} onClick={() => onPage(page + 1)}>下一页</button>
+      <label>
+        每页
+        <select aria-label="每页视频数量" value={pageSize} onChange={(event) => onPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number])}>
+          {PAGE_SIZE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function readStoredGridCardWidth(): (typeof GRID_CARD_WIDTH_OPTIONS)[number] {
+  try {
+    const value = Number(window.localStorage.getItem(GRID_CARD_WIDTH_STORAGE_KEY));
+    if (GRID_CARD_WIDTH_OPTIONS.includes(value as (typeof GRID_CARD_WIDTH_OPTIONS)[number])) {
+      return value as (typeof GRID_CARD_WIDTH_OPTIONS)[number];
+    }
+  } catch {
+    // Fall through to the default when storage is unavailable.
+  }
+  return 260;
+}
+
+function readStoredPageSize(): (typeof PAGE_SIZE_OPTIONS)[number] {
+  try {
+    const value = Number(window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+    if (PAGE_SIZE_OPTIONS.includes(value as (typeof PAGE_SIZE_OPTIONS)[number])) {
+      return value as (typeof PAGE_SIZE_OPTIONS)[number];
+    }
+  } catch {
+    // Fall through to the default when storage is unavailable.
+  }
+  return 100;
+}
+
+function folderName(folderPath: string): string {
+  return folderPath.split(/[\\/]/).filter(Boolean).at(-1) ?? folderPath;
+}
+
+function formatScanStatus(status: FolderScanStatus): string {
+  if (status.state === "queued") return "等待扫描";
+  if (status.state === "paused") return `已暂停 ${status.processedFiles}/${status.totalFiles || "?"}`;
+  if (status.state === "offline") return "暂时离线 · 可重试";
+  if (status.state === "error") return "扫描失败 · 可重试";
+  if (status.state === "completed") return `已完成 ${status.processedFiles}`;
+  if (status.phase === "discovering" && status.totalFiles === 0) return "正在读取目录";
+  return `已发现 ${status.totalFiles} · 已处理 ${status.processedFiles}`;
+}
+
+function calculateFolderRemovalImpact(target: SourceFolder, folders: SourceFolder[], videos: VideoRecord[]): {
+  removedVideoCount: number;
+  retainedVideoCount: number;
+} {
+  const remainingFolders = folders.filter((folder) => folder.id !== target.id);
+  let removedVideoCount = 0;
+  let retainedVideoCount = 0;
+
+  for (const video of videos) {
+    if (!sourceFolderCoversVideo(target, video)) continue;
+    if (remainingFolders.some((folder) => sourceFolderCoversVideo(folder, video))) retainedVideoCount += 1;
+    else removedVideoCount += 1;
+  }
+
+  return { removedVideoCount, retainedVideoCount };
+}
+
+function sourceFolderCoversVideo(folder: SourceFolder, video: VideoRecord): boolean {
+  return folder.recursive
+    ? isPathWithin(video.path, folder.path)
+    : normalizeDirectoryPath(video.directory) === normalizeDirectoryPath(folder.path);
+}
+
+interface DirectoryEntry {
+  path: string;
+  depth: number;
+  parentPath: string | null;
+  hasChildren: boolean;
+  hasScanError: boolean;
+  scanError: string | null;
+  sourceFolder: SourceFolder | null;
+}
+
+function buildDirectoryEntries(folders: SourceFolder[], directoryPaths: string[]): DirectoryEntry[] {
+  const rootByPath = new Map<string, SourceFolder>();
+  const childrenByParent = new Map<string, Set<string>>();
+
+  for (const folder of folders) {
+    rootByPath.set(normalizeDirectoryPath(folder.path), folder);
+    ensureDirectoryNode(childrenByParent, folder.path);
+  }
+
+  for (const directoryPath of directoryPaths) {
+    const root = folders.find((folder) => isPathWithin(directoryPath, folder.path));
+    if (!root) {
+      continue;
+    }
+
+    for (const expandedPath of expandDirectoryPath(directoryPath, root.path)) {
+      ensureDirectoryNode(childrenByParent, expandedPath);
+    }
+  }
+
+  const entries: DirectoryEntry[] = [];
+  const sortedRoots = getTopLevelRoots(folders);
+  const visitedDirectories = new Set<string>();
+
+  for (const folder of sortedRoots) {
+    appendDirectoryEntries(folder.path, 0, null, childrenByParent, rootByPath, entries, visitedDirectories);
+  }
+
+  return entries;
+}
+
+function appendDirectoryEntries(
+  directoryPath: string,
+  depth: number,
+  parentPath: string | null,
+  childrenByParent: Map<string, Set<string>>,
+  rootByPath: Map<string, SourceFolder>,
+  entries: DirectoryEntry[],
+  visitedDirectories: Set<string>
+): void {
+  const normalizedPath = normalizeDirectoryPath(directoryPath);
+  if (visitedDirectories.has(normalizedPath)) {
+    return;
+  }
+  visitedDirectories.add(normalizedPath);
+
+  const rootFolder = rootByPath.get(normalizedPath);
+  const children = [...(childrenByParent.get(normalizedPath) ?? [])].sort(compareDirectoryPaths);
+  entries.push({
+    path: directoryPath,
+    depth,
+    parentPath,
+    hasChildren: children.length > 0,
+    hasScanError: Boolean(rootFolder?.scanError),
+    scanError: rootFolder?.scanError ?? null,
+    sourceFolder: rootFolder ?? null
+  });
+  for (const childPath of children) {
+    appendDirectoryEntries(childPath, depth + 1, normalizedPath, childrenByParent, rootByPath, entries, visitedDirectories);
+  }
+}
+
+function getTopLevelRoots(folders: SourceFolder[]): SourceFolder[] {
+  const dedupedRoots: SourceFolder[] = [];
+  const seenPaths = new Set<string>();
+
+  for (const folder of [...folders].sort((left, right) => compareDirectoryPaths(left.path, right.path))) {
+    const normalizedPath = normalizeDirectoryPath(folder.path);
+    if (seenPaths.has(normalizedPath)) {
+      continue;
+    }
+
+    seenPaths.add(normalizedPath);
+    dedupedRoots.push(folder);
+  }
+
+  return dedupedRoots.filter((folder) => {
+    const normalizedPath = normalizeDirectoryPath(folder.path);
+    return !dedupedRoots.some((otherFolder) => {
+      const otherNormalizedPath = normalizeDirectoryPath(otherFolder.path);
+      return otherNormalizedPath !== normalizedPath && isPathWithin(folder.path, otherFolder.path);
+    });
+  });
+}
+
+function ensureDirectoryNode(childrenByParent: Map<string, Set<string>>, directoryPath: string): void {
+  const normalizedPath = normalizeDirectoryPath(directoryPath);
+  if (!childrenByParent.has(normalizedPath)) {
+    childrenByParent.set(normalizedPath, new Set());
+  }
+
+  const parentPath = getParentDirectory(directoryPath);
+  if (!parentPath) {
+    return;
+  }
+
+  const normalizedParentPath = normalizeDirectoryPath(parentPath);
+  if (!childrenByParent.has(normalizedParentPath)) {
+    childrenByParent.set(normalizedParentPath, new Set());
+  }
+  childrenByParent.get(normalizedParentPath)?.add(directoryPath);
+}
+
+function expandDirectoryPath(directoryPath: string, rootPath: string): string[] {
+  const entries: string[] = [];
+  let currentPath = directoryPath;
+
+  while (isPathWithin(currentPath, rootPath)) {
+    entries.push(currentPath);
+    if (normalizeDirectoryPath(currentPath) === normalizeDirectoryPath(rootPath)) {
+      break;
+    }
+
+    const parentPath = getParentDirectory(currentPath);
+    if (!parentPath || normalizeDirectoryPath(parentPath) === normalizeDirectoryPath(currentPath)) {
+      break;
+    }
+    currentPath = parentPath;
+  }
+
+  return entries.reverse();
+}
+
+function getParentDirectory(directoryPath: string): string | null {
+  const normalizedSeparators = directoryPath.replace(/[\\/]+/g, "\\");
+  const trimmed = normalizedSeparators.replace(/\\+$/, "");
+  const match = /^([A-Za-z]:)$/.exec(trimmed);
+
+  if (match) {
+    return null;
+  }
+
+  const parentPath = trimmed.replace(/\\[^\\]+$/, "");
+  return parentPath && parentPath !== trimmed ? parentPath : null;
+}
+
+function isPathWithin(candidatePath: string, parentPath: string): boolean {
+  const candidate = normalizeDirectoryPath(candidatePath);
+  const parent = normalizeDirectoryPath(parentPath);
+
+  return candidate === parent || candidate.startsWith(`${parent}\\`);
+}
+
+function normalizeDirectoryPath(directoryPath: string): string {
+  return directoryPath.replace(/[\\/]+/g, "\\").replace(/\\+$/, "").toLocaleLowerCase();
+}
+
+function compareDirectoryPaths(left: string, right: string): number {
+  return left.localeCompare(right, "zh-CN", { numeric: true });
+}
+
+function areStringArraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function isDirectoryEntryVisible(
+  entry: DirectoryEntry,
+  expandedFolderPaths: string[],
+  directoryEntryByPath: Map<string, DirectoryEntry>
+): boolean {
+  const expandedPathSet = new Set(expandedFolderPaths);
+  let parentPath = entry.parentPath;
+
+  while (parentPath) {
+    if (!expandedPathSet.has(parentPath)) {
+      return false;
+    }
+    parentPath = directoryEntryByPath.get(parentPath)?.parentPath ?? null;
+  }
+
+  return true;
+}
+
+function compareVideos(left: VideoRecord, right: VideoRecord, field: SortField): number {
+  if (field === "filename") return left.filename.localeCompare(right.filename, "zh-CN", { numeric: true });
+  if (field === "sizeBytes") return left.sizeBytes - right.sizeBytes;
+  if (field === "durationMs") return (left.durationMs ?? -1) - (right.durationMs ?? -1);
+  return left.modifiedAt.localeCompare(right.modifiedAt);
+}
+
+function createStaticDuplicatePage(groups: DuplicateGroup[]): DuplicateGroupPage {
+  return {
+    groups,
+    page: 1,
+    pageSize: 20,
+    totalPages: 1,
+    totalGroups: groups.length,
+    totalCandidateGroups: groups.length,
+    totalCandidateFiles: groups.reduce((total, group) => total + group.items.length, 0),
+    totalReclaimableBytes: groups.reduce((total, group) => total + group.reclaimableBytes, 0),
+    directoryOptions: []
+  };
+}

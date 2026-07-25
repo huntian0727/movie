@@ -1,0 +1,28 @@
+appId: com.local.video.manager
+productName: Local Video Manager
+directories:
+  output: release
+asar: true
+asarUnpack:
+  - node_modules/better-sqlite3/**
+  - node_modules/ffmpeg-static/**
+  - node_modules/ffprobe-static/**
+npmRebuild: false
+files:
+  - dist-main/**
+  - dist-renderer/**
+  - package.json
+  - '!**/*.map'
+  - '!**/.env*'
+  - '!**/*.sqlite*'
+  - '!tests/**'
+  - '!.dbg/**'
+win:
+  artifactName: Local-Video-Manager-${version}-${arch}-Setup.${ext}
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false

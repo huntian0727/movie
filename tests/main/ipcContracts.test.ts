@@ -1,0 +1,51 @@
+import { describe, expect, it } from "vitest";
+import { IPC_CHANNELS } from "../../src/shared/videoTypes";
+
+describe("IPC_CHANNELS", () => {
+  it("defines stable channels for library, folders, files, and settings", () => {
+    expect(IPC_CHANNELS).toEqual({
+      libraryList: "library:list",
+      libraryPage: "library:page",
+      libraryNavigation: "library:navigation",
+      libraryMissingList: "library:missing-list",
+      videoListByIds: "video:list-by-ids",
+      folderList: "folder:list",
+      folderAdd: "folder:add",
+      folderScan: "folder:scan",
+      folderRemove: "folder:remove",
+      folderRemovePreview: "folder:remove-preview",
+      folderScanStatusList: "folder-scan-status:list",
+      folderScanPause: "folder-scan:pause",
+      folderScanResume: "folder-scan:resume",
+      folderScanRetry: "folder-scan:retry",
+      duplicateList: "duplicate:list",
+      duplicatePreviewResolve: "duplicate:preview-resolve",
+      duplicateResolve: "duplicate:resolve",
+      videoRevealInFolder: "video:reveal-in-folder",
+      videoFavorite: "video:favorite",
+      videoPendingDelete: "video:pending-delete",
+      videoPendingDeleteClear: "video:pending-delete-clear",
+      videoChooseMoveDestination: "video:choose-move-destination",
+      videoPreviewMove: "video:preview-move",
+      videoBatchMove: "video:batch-move",
+      videoBatchDelete: "video:batch-delete",
+      videoRename: "video:rename",
+      videoDelete: "video:delete",
+      videoForget: "video:forget",
+      videoRegenerateCover: "video:regenerate-cover",
+      videoOpenPlayer: "video:open-player",
+      videoPlayExternal: "video:play-external",
+      playHistoryList: "play-history:list",
+      playHistoryRecord: "play-history:record",
+      windowSyncSnapshot: "window-sync:snapshot",
+      playerSessionSet: "player-session:set",
+      playerSessionSelect: "player-session:select",
+      domainEvent: "domain:event",
+      diagnosticsPreview: "diagnostics:preview",
+      diagnosticsExport: "diagnostics:export",
+      cacheClear: "cache:clear",
+      settingsGet: "settings:get",
+      settingsSet: "settings:set"
+    });
+  });
+});
