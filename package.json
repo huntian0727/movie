@@ -46,7 +46,7 @@
   "dependencies": {
     "better-sqlite3": "^11.8.1",
     "electron-store": "^10.0.0",
-    "execa": "^9.5.2",
+    "execa": "^10.0.0",
     "ffmpeg-static": "^5.3.0",
     "ffprobe-static": "^3.1.0",
     "lucide-react": "^0.468.0",
