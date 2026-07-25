@@ -57,7 +57,7 @@
   "devDependencies": {
     "@electron/asar": "3.4.1",
     "@electron/rebuild": "3.6.1",
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.1.0",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.2",
