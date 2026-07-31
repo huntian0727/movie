@@ -56,9 +56,17 @@ describe("scanSourceFolder", () => {
     expect(video.sizeBytes).toBe(statSync(goodFilePath).size);
     expect(video.durationMs).toBe(9000);
     expect(updatedSource.lastScannedAt).not.toBeNull();
-    expect(updatedSource.scanError).toContain("1 file");
-    expect(updatedSource.scanError).toContain("bad.mp4");
+    expect(updatedSource.scanError).toContain("1 unresolved scan issue");
     expect(updatedSource.scanError).toContain("ffprobe failed");
+    expect(repo.listScanFailures(source.id)).toEqual([
+      expect.objectContaining({
+        objectType: "file",
+        objectPath: badFilePath,
+        failureStage: "file-processing",
+        errorSummary: "ffprobe failed",
+        status: "unresolved"
+      })
+    ]);
   });
 
   it("clears a previous scan error and updates lastScannedAt after a successful scan", async () => {

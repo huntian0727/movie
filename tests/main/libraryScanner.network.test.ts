@@ -62,7 +62,7 @@ describe("scanSourceFolder network-drive safeguards", () => {
       }
     });
 
-    expect(result).toMatchObject({ state: "completed", totalFiles: 1, processedFiles: 1, failureCount: 1 });
+    expect(result).toMatchObject({ state: "completed-with-errors", totalFiles: 1, processedFiles: 1, failureCount: 1 });
     expect(repo.upsertVideo).toHaveBeenCalledOnce();
     expect(repo.reconcileSourceFolderMissing).not.toHaveBeenCalled();
     expect(repo.updateSourceFolderScanState).toHaveBeenLastCalledWith(

@@ -203,7 +203,7 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
       dbPath
     );
   }
-  requireTables(db, ["source_folders", "videos", "timeline_previews", "play_history"]);
+  requireTables(db, ["source_folders", "videos", "timeline_previews", "play_history", "directory_snapshots", "scan_failures", "scan_tasks"]);
   requireColumns(db, "source_folders", [
     "id", "path", "recursive", "enabled", "last_scanned_at", "created_at", "updated_at", "scan_error"
   ]);
@@ -215,6 +215,17 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
   ]);
   requireColumns(db, "timeline_previews", ["id", "video_id", "time_ms", "cache_path", "created_at"]);
   requireColumns(db, "play_history", ["video_id", "played_at", "position_ms"]);
+  requireColumns(db, "directory_snapshots", [
+    "source_folder_id", "directory_path", "normalized_path", "parent_directory_path", "normalized_parent_path",
+    "directory_mtime", "direct_video_count", "direct_child_count", "direct_entry_digest",
+    "last_successful_scan_at", "is_complete", "has_unresolved_failure", "updated_at"
+  ]);
+  requireColumns(db, "scan_failures", [
+    "id", "source_folder_id", "scan_task_id", "object_type", "object_path", "normalized_path",
+    "failure_stage", "error_code", "error_summary", "first_failed_at", "last_failed_at",
+    "retry_count", "status", "resolved_at"
+  ]);
+  requireColumns(db, "scan_tasks", ["id", "source_folder_id", "mode", "status", "started_at", "completed_at", "counters_json"]);
   validateIntegrity(db);
 }
 

@@ -679,4 +679,129 @@ describe("VideoRepository", () => {
     expect(repo.getVideo(kept.id).sourceFolderId).toBe(child.id);
     expect(repo.listVideos({ view: "all", search: "", sortField: "filename", sortDirection: "asc", includeMissing: true }).map((item) => item.filename)).toEqual(["keep.mp4"]);
   });
+
+  it("persists directory snapshots with normalized path identity", () => {
+    const { repo, folderId } = createRepo();
+    repo.upsertDirectorySnapshot({
+      sourceFolderId: folderId,
+      directoryPath: "D:\\Movies\\Series",
+      parentDirectoryPath: "D:\\Movies",
+      directoryMtime: "2026-08-01T00:00:00.000Z",
+      directVideoCount: 12,
+      directChildCount: 2,
+      directEntryDigest: "digest-1",
+      isComplete: true,
+      hasUnresolvedFailure: false,
+      successful: true
+    });
+
+    expect(repo.getDirectorySnapshot(folderId, "d:\\movies\\series\\")).toMatchObject({
+      directoryPath: "D:\\Movies\\Series",
+      normalizedPath: "d:\\movies\\series",
+      normalizedParentPath: "d:\\movies",
+      directVideoCount: 12,
+      isComplete: true
+    });
+    expect(repo.listDirectChildSnapshots(folderId, "D:\\MOVIES")).toHaveLength(1);
+  });
+
+  it("persists unresolved scan failures and records retry resolution", () => {
+    const { repo, folderId } = createRepo();
+    repo.upsertDirectorySnapshot({
+      sourceFolderId: folderId,
+      directoryPath: "D:\\Movies",
+      parentDirectoryPath: null,
+      directoryMtime: "2026-08-01T00:00:00.000Z",
+      directVideoCount: 1,
+      directChildCount: 0,
+      directEntryDigest: "digest",
+      isComplete: true,
+      hasUnresolvedFailure: false,
+      successful: true
+    });
+    const failure = repo.recordScanFailure({
+      sourceFolderId: folderId,
+      scanTaskId: "task-1",
+      objectType: "file",
+      objectPath: "D:\\Movies\\broken.mp4",
+      failureStage: "metadata",
+      errorCode: "ETIMEDOUT",
+      errorSummary: "ffprobe timed out"
+    });
+
+    repo.markScanFailureRetrying(failure.id);
+    repo.recordScanFailure({
+      sourceFolderId: folderId,
+      scanTaskId: "task-2",
+      objectType: "file",
+      objectPath: "d:\\movies\\BROKEN.mp4",
+      failureStage: "metadata",
+      errorSummary: "ffprobe timed out again",
+      incrementRetry: true
+    });
+    expect(repo.getScanFailureSummary(folderId)).toMatchObject({
+      failedFileCount: 1,
+      totalUnresolved: 1,
+      totalRetryCount: 1
+    });
+    expect(repo.getDirectorySnapshot(folderId, "D:\\Movies")?.hasUnresolvedFailure).toBe(true);
+
+    expect(repo.resolveScanFailuresForObjectStage(folderId, "D:\\Movies\\broken.mp4", "file", "metadata")).toBe(1);
+    expect(repo.listScanFailures(folderId)).toEqual([]);
+    expect(repo.getDirectorySnapshot(folderId, "D:\\Movies")?.hasUnresolvedFailure).toBe(false);
+    expect(repo.listScanFailures(folderId, true)).toEqual([
+      expect.objectContaining({ status: "resolved", retryCount: 1, resolvedAt: expect.any(String) })
+    ]);
+  });
+
+  it("keeps unresolved scan failures after the database is reopened", () => {
+    const databasePath = path.join(tempDir, "library.sqlite");
+    db = createDatabase(databasePath);
+    let repo = new VideoRepository(db);
+    const folder = repo.addSourceFolder("Z:\\Cloud", true);
+    repo.recordScanFailure({
+      sourceFolderId: folder.id,
+      scanTaskId: "task-before-restart",
+      objectType: "directory",
+      objectPath: "Z:\\Cloud\\Offline",
+      failureStage: "directory-enumeration",
+      errorSummary: "network unavailable"
+    });
+    db.close();
+
+    db = createDatabase(databasePath);
+    repo = new VideoRepository(db);
+    expect(repo.listScanFailures(folder.id)).toEqual([
+      expect.objectContaining({
+        objectPath: "Z:\\Cloud\\Offline",
+        status: "unresolved",
+        errorSummary: "network unavailable"
+      })
+    ]);
+    expect(repo.getSourceFolderByPath("z:\\cloud")?.scanError).toBe("network unavailable");
+  });
+
+  it("reconciles only a completely enumerated direct directory or confirmed subtree", () => {
+    const { repo, folderId } = createRepo();
+    const direct = createVideo(repo, folderId);
+    const nested = createVideo(repo, folderId, {
+      path: "D:\\Movies\\Series\\episode.mp4",
+      directory: "D:\\Movies\\Series",
+      filename: "episode.mp4",
+      basename: "episode"
+    });
+    const sibling = createVideo(repo, folderId, {
+      path: "D:\\Movies-Backup\\keep.mp4",
+      directory: "D:\\Movies-Backup",
+      filename: "keep.mp4",
+      basename: "keep"
+    });
+
+    expect(repo.reconcileDirectoryMissing(folderId, "d:\\movies", [])).toBe(1);
+    expect(repo.getVideo(direct.id).isMissing).toBe(true);
+    expect(repo.getVideo(nested.id).isMissing).toBe(false);
+    expect(repo.markDirectorySubtreeMissing(folderId, "D:\\Movies\\Series")).toBe(1);
+    expect(repo.getVideo(nested.id).isMissing).toBe(true);
+    expect(repo.getVideo(sibling.id).isMissing).toBe(false);
+  });
 });

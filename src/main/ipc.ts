@@ -33,6 +33,8 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.duplicateResolve,
   IPC_CHANNELS.folderAdd,
   IPC_CHANNELS.folderScan,
+  IPC_CHANNELS.folderScanAll,
+  IPC_CHANNELS.folderScanFailuresRetry,
   IPC_CHANNELS.folderRemove,
   IPC_CHANNELS.folderScanPause,
   IPC_CHANNELS.folderScanResume,
@@ -364,6 +366,28 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
     return true;
   });
+
+  ipcMain.handle(IPC_CHANNELS.folderScanAll, async () => {
+    await dependencies.scanManager.scanAll(repo.listSourceFolders());
+    dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
+    return true;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.folderScanFailuresRetry, async (_event, folderId: unknown) => {
+    const parsedFolderId = z.string().min(1).parse(folderId);
+    const folder = repo.listSourceFolders().find((candidate) => candidate.id === parsedFolderId);
+    if (!folder) throw new Error(`Source folder not found: ${parsedFolderId}`);
+    await dependencies.scanManager.retryFailures(folder);
+    dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
+    return true;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.folderScanFailureSummary, (_event, folderId: unknown) =>
+    repo.getScanFailureSummary(z.string().min(1).parse(folderId))
+  );
+  ipcMain.handle(IPC_CHANNELS.folderScanFailureList, (_event, folderId: unknown) =>
+    repo.listScanFailures(z.string().min(1).parse(folderId))
+  );
 
   ipcMain.handle(IPC_CHANNELS.folderRemove, (_event, folderId: unknown) => {
     const parsedFolderId = z.string().min(1).parse(folderId);

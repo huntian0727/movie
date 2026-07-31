@@ -2,8 +2,9 @@
 
 - `fileDiscovery.ts`：基于 `opendir` 流式递归枚举支持的视频，跳过临时后缀并隔离子目录错误；网盘保护采用单次目录条目读取 30 秒无响应超时，而不是整个目录的固定总时限。
 - `metadataService.ts`：调用静态 ffprobe 并解析时长/分辨率/格式。
-- `metadataQueue.ts`：单并发后台 FFprobe 队列；按视频 id 去重，启动时恢复数据库中的 `pending` 任务，并用路径/大小/修改时间条件防止旧任务覆盖已重命名或变化的文件。
-- `libraryScanner.ts`：边发现边增量扫描、upsert、失败摘要、缺失 reconcile、启动同步；任一子目录读取不完整时禁止 reconcile，避免把未枚举到的旧记录误标缺失。
+- `metadataQueue.ts`：单并发后台 FFprobe 队列；按视频 id 去重，启动时恢复 `pending` 任务，并用路径/大小/修改时间防止慢任务覆盖新文件版本。FFprobe 失败写入持久 `scan_failures`，成功后只解决 metadata 阶段异常并通知侧栏刷新。
+- `libraryScanner.ts`：实现当前目录快照扫描和异常项重试。每个目录用 mtime、直属视频/子目录计数和排序摘要独立判断；父目录可跳过直属视频但永远不跳过子目录检查。只对完整枚举的直属目录做缺失对账，父目录明确删除子目录后才清理旧子树快照并软标缺失。
+- `scanManager.ts`：三种模式的串行调度、同源互斥、任务状态/计数、暂停和协作式取消；全盘逐源复用当前目录扫描，不启用无界并发。
 - `cacheService.ts`：持久缓存位置、旧缓存安全迁移、缓存 key、FFmpeg 封面/时间轴帧生成，以及短视频封面截帧回退。
 - `cacheManager.ts`：缓存生成事务、近似 LRU/TTL/配额淘汰、清理 epoch、临时文件恢复、缓存状态统计和数据库引用失效通知。
 

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SourceFolder } from "../../src/shared/videoTypes";
 import type { VideoRepository } from "../../src/main/db/videoRepository";
 import { ScanManager } from "../../src/main/media/scanManager";
+import { ScanCancelledError } from "../../src/main/media/libraryScanner";
 import type { MetadataQueue } from "../../src/main/media/metadataQueue";
 
 const folder: SourceFolder = {
@@ -66,5 +67,82 @@ describe("ScanManager", () => {
     await manager.start(folder);
 
     expect(enqueue).toHaveBeenCalledWith("video-1");
+  });
+
+  it("scans every enabled folder sequentially and labels scan-all status", async () => {
+    const secondFolder = { ...folder, id: "folder-2", path: "Y:\\Archive" };
+    const disabledFolder = { ...folder, id: "folder-3", path: "X:\\Disabled", enabled: false };
+    const order: string[] = [];
+    let active = 0;
+    let maxActive = 0;
+    const scan = vi.fn(async (_repo, currentFolder) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      order.push(currentFolder.id);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      return { state: "completed" as const, totalFiles: 0, processedFiles: 0, failureCount: 0, message: null };
+    });
+    const manager = new ScanManager({} as VideoRepository, scan);
+
+    await manager.scanAll([folder, secondFolder, disabledFolder]);
+
+    expect(order).toEqual([folder.id, secondFolder.id]);
+    expect(maxActive).toBe(1);
+    expect(manager.listStatuses()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ folderId: folder.id, mode: "scan-all", state: "completed" }),
+      expect.objectContaining({ folderId: secondFolder.id, mode: "scan-all", state: "completed" })
+    ]));
+  });
+
+  it("deduplicates concurrent requests for the same source folder", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const scan = vi.fn(async () => {
+      await gate;
+      return { state: "completed" as const, totalFiles: 0, processedFiles: 0, failureCount: 0, message: null };
+    });
+    const manager = new ScanManager({} as VideoRepository, scan);
+
+    const first = manager.start(folder);
+    const second = manager.start(folder);
+    release?.();
+    await Promise.all([first, second]);
+
+    expect(scan).toHaveBeenCalledOnce();
+  });
+
+  it("does not start failure retry while a normal scan of the same source is active", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const scan = vi.fn(async () => {
+      await gate;
+      return { state: "completed" as const, totalFiles: 0, processedFiles: 0, failureCount: 0, message: null };
+    });
+    const manager = new ScanManager({} as VideoRepository, scan);
+    const normal = manager.start(folder);
+    const retry = manager.retryFailures(folder);
+    release?.();
+    await Promise.all([normal, retry]);
+    expect(scan).toHaveBeenCalledOnce();
+  });
+
+  it("cancels cooperatively without reporting the task as a failure", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const scan = vi.fn(async (_repo, _folder, dependencies) => {
+      await gate;
+      if (dependencies.isCancelled?.()) throw new ScanCancelledError();
+      return { state: "completed" as const, totalFiles: 0, processedFiles: 0, failureCount: 0, message: null };
+    });
+    const manager = new ScanManager({} as VideoRepository, scan);
+    const task = manager.start(folder);
+    await vi.waitFor(() => expect(manager.listStatuses()[0]?.state).toBe("scanning"));
+
+    expect(manager.cancel(folder.id)).toBe(true);
+    release?.();
+    await task;
+
+    expect(manager.listStatuses()[0]).toMatchObject({ state: "cancelled", message: null });
   });
 });

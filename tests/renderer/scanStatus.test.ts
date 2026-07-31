@@ -4,12 +4,19 @@ import { areVisibleScanStatusesEqual } from "../../src/renderer/scanStatus";
 
 const status: FolderScanStatus = {
   folderId: "folder-1",
+  mode: "current-folder",
   state: "scanning",
   phase: "processing",
   totalFiles: 100,
   processedFiles: 20,
   currentPath: "D:\\Movies\\clip.mp4",
   message: null,
+  counters: {
+    totalFolders: 0, currentFolderIndex: 0, completedFolders: 0, failedFolders: 0,
+    checkedDirectories: 1, changedDirectories: 1, skippedDirectories: 0, processedVideos: 1,
+    skippedVideos: 0, addedVideos: 0, updatedVideos: 0, missingVideos: 0,
+    fileFailures: 0, directoryFailures: 0, pendingFailures: 0, retriedFailures: 0, resolvedFailures: 0
+  },
   updatedAt: "2026-07-17T00:00:00.000Z"
 };
 

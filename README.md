@@ -7,7 +7,8 @@
 ## 当前能力
 
 - 添加或移除源目录、递归发现 9 类视频扩展名，读取大小、时长、分辨率、格式和修改时间；移除源目录只清资料库索引，不删除磁盘文件。
-- 源目录扫描支持后台串行队列、文件级进度、暂停、继续、离线状态和重试。
+- 扫描分为三个互斥入口：左侧圆形按钮只增量扫描当前源目录，异常弹窗只重试未解决文件/目录，右上角“扫描全盘”按顺序扫描全部 enabled 源目录。每一级目录持久化直属条目快照；未变化目录仍会下钻检查子目录，但不会逐个 `stat` 视频或重复运行 FFprobe。
+- 扫描支持进度、暂停、协作式取消、离线/部分成功状态和跨重启异常明细。感叹号与普通刷新按钮可同时存在；根目录离线或子目录读取失败不会触发不安全的缺失清理。
 - 支持同时添加父目录与其子目录；视频规范归属到最具体的已添加目录，移除父目录时保留仍被显式子目录覆盖的视频。
 - 启动/手动同步；路径去重；未变化文件跳过 ffprobe；消失文件标为缺失。
 - 网格/表格、搜索、收藏、最近播放、文件夹视图、排序、30/50/100/200/300 分页、页码直达与左右键翻页；网格预览支持五档大小并记忆偏好。
@@ -91,6 +92,6 @@ npm run test:installer-smoke
 | 视频预览/封面异常 | `src/main/media/{mediaProtocol,cacheService,mediaUrl}.ts`、`PlayerPage.tsx`、CSS、媒体测试 |
 | 桌面端启动失败 | `package.json`、`scripts/start-desktop.mjs`、`src/main/index.ts`、preload 构建输出、原生模块 ABI |
 | 增加排序字段 | `src/shared/videoTypes.ts`、`videoRepository.ts` 的白名单、`Toolbar/LibraryShell`、仓储与组件测试 |
-| 扫描慢或漏文件 | `fileDiscovery.ts`、`metadataService.ts`、`libraryScanner.ts`、数据库索引及扫描测试 |
+| 扫描慢或漏文件 | `libraryScanner.ts`、`scanManager.ts`、`pathNormalization.ts`、v5 快照/异常迁移、`metadataQueue.ts` 及增量扫描测试 |
 | 删除/重命名问题 | `fileOperations.ts`、`ipc.ts`、`videoRepository.ts`、对应测试和 Windows 手测 |
 | 新设置项 | shared 类型、`settingsStore.ts`、IPC Zod schema/preload、`SettingsPage.tsx`、测试 |

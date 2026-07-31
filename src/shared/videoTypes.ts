@@ -36,16 +36,84 @@ export interface SourceFolderRemovalPreview {
   retainedVideoCount: number;
 }
 
-export type FolderScanState = "queued" | "scanning" | "paused" | "completed" | "offline" | "error";
+export type ScanMode = "current-folder" | "retry-failures" | "scan-all";
+export type FolderScanState = "queued" | "scanning" | "paused" | "completed" | "completed-with-errors" | "offline" | "error" | "cancelled";
+export type ScanFailureStatus = "unresolved" | "retrying" | "resolved";
+export type ScanFailureObjectType = "file" | "directory";
+
+export interface DirectorySnapshot {
+  sourceFolderId: string;
+  directoryPath: string;
+  normalizedPath: string;
+  parentDirectoryPath: string | null;
+  normalizedParentPath: string | null;
+  directoryMtime: string;
+  directVideoCount: number;
+  directChildCount: number;
+  directEntryDigest: string;
+  lastSuccessfulScanAt: string | null;
+  isComplete: boolean;
+  hasUnresolvedFailure: boolean;
+  updatedAt: string;
+}
+
+export interface ScanFailure {
+  id: string;
+  sourceFolderId: string;
+  scanTaskId: string;
+  objectType: ScanFailureObjectType;
+  objectPath: string;
+  normalizedPath: string;
+  failureStage: string;
+  errorCode: string | null;
+  errorSummary: string;
+  firstFailedAt: string;
+  lastFailedAt: string;
+  retryCount: number;
+  status: ScanFailureStatus;
+  resolvedAt: string | null;
+}
+
+export interface ScanFailureSummary {
+  sourceFolderId: string;
+  failedFileCount: number;
+  failedDirectoryCount: number;
+  totalUnresolved: number;
+  latestError: string | null;
+  latestFailedAt: string | null;
+  totalRetryCount: number;
+}
+
+export interface ScanCounters {
+  totalFolders: number;
+  currentFolderIndex: number;
+  completedFolders: number;
+  failedFolders: number;
+  checkedDirectories: number;
+  changedDirectories: number;
+  skippedDirectories: number;
+  processedVideos: number;
+  skippedVideos: number;
+  addedVideos: number;
+  updatedVideos: number;
+  missingVideos: number;
+  fileFailures: number;
+  directoryFailures: number;
+  pendingFailures: number;
+  retriedFailures: number;
+  resolvedFailures: number;
+}
 
 export interface FolderScanStatus {
   folderId: string;
+  mode: ScanMode;
   state: FolderScanState;
-  phase: "discovering" | "processing" | null;
+  phase: "discovering" | "comparing-snapshots" | "processing" | "retrying-failures" | null;
   totalFiles: number;
   processedFiles: number;
   currentPath: string | null;
   message: string | null;
+  counters: ScanCounters;
   updatedAt: string;
 }
 
@@ -320,6 +388,7 @@ export type DomainEvent =
   | { sequence: number; type: "favorite:changed"; videoIds: string[] }
   | { sequence: number; type: "playback:changed"; videoIds: string[] }
   | { sequence: number; type: "settings:changed"; videoIds: string[] }
+  | { sequence: number; type: "source-folder:updated"; videoIds: string[] }
   | { sequence: number; type: "library:rescanned"; videoIds: string[] };
 
 export type DomainEventInput =
@@ -328,6 +397,7 @@ export type DomainEventInput =
   | { type: "favorite:changed"; videoIds: string[] }
   | { type: "playback:changed"; videoIds: string[] }
   | { type: "settings:changed"; videoIds: string[] }
+  | { type: "source-folder:updated"; videoIds: string[] }
   | { type: "library:rescanned"; videoIds: string[] };
 
 export interface PlayerSessionSnapshot {
@@ -351,6 +421,10 @@ export const IPC_CHANNELS = {
   folderList: "folder:list",
   folderAdd: "folder:add",
   folderScan: "folder:scan",
+  folderScanAll: "folder:scan-all",
+  folderScanFailuresRetry: "folder-scan-failures:retry",
+  folderScanFailureSummary: "folder-scan-failures:summary",
+  folderScanFailureList: "folder-scan-failures:list",
   folderRemove: "folder:remove",
   folderRemovePreview: "folder:remove-preview",
   folderScanStatusList: "folder-scan-status:list",
@@ -400,6 +474,10 @@ export interface VideoManagerApi {
   listFolders(): Promise<SourceFolder[]>;
   addFolder(): Promise<SourceFolder | null>;
   scanFolder(folderId: string): Promise<boolean>;
+  scanAllFolders(): Promise<boolean>;
+  retryScanFailures(folderId: string): Promise<boolean>;
+  getScanFailureSummary(folderId: string): Promise<ScanFailureSummary>;
+  listScanFailures(folderId: string): Promise<ScanFailure[]>;
   removeFolder(folderId: string): Promise<SourceFolderRemovalResult>;
   previewRemoveFolder(folderId: string): Promise<SourceFolderRemovalPreview>;
   listFolderScanStatuses(): Promise<FolderScanStatus[]>;

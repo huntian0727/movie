@@ -127,6 +127,10 @@ export function App() {
       setPlayHistory(await api.listPlayHistory());
       return;
     }
+    if (event.type === "source-folder:updated") {
+      setFolders(await api.listFolders());
+      return;
+    }
     if (isPlayerWindow) {
       await reload();
       return;
@@ -165,7 +169,7 @@ export function App() {
         const shouldReload = statuses.some((status) => {
           const previous = previousScanStates.current.get(status.folderId);
           return (previous === "queued" || previous === "scanning" || previous === "paused") &&
-            (status.state === "completed" || status.state === "offline" || status.state === "error");
+            (status.state === "completed" || status.state === "completed-with-errors" || status.state === "offline" || status.state === "error");
         });
         previousScanStates.current = new Map(statuses.map((status) => [status.folderId, status.state]));
         setScanStatuses((current) => areVisibleScanStatusesEqual(current, statuses) ? current : statuses);
@@ -222,9 +226,7 @@ export function App() {
     if (!api) return;
     setLoading(true);
     try {
-      for (const folder of folders.filter((candidate) => candidate.enabled)) {
-        await api.scanFolder(folder.id);
-      }
+      await api.scanAllFolders();
       await reload();
     } catch (cause) {
       setError(toMessage(cause));
@@ -453,7 +455,12 @@ export function App() {
       onPreviewRemoveFolder={(folder) => api ? api.previewRemoveFolder(folder.id) : Promise.resolve({ removedVideoCount: 0, retainedVideoCount: 0 })}
       onPauseFolderScan={(folder) => api?.pauseFolderScan(folder.id)}
       onResumeFolderScan={(folder) => api?.resumeFolderScan(folder.id)}
-      onRetryFolderScan={(folder) => api?.retryFolderScan(folder.id)}
+      onRetryFolderScan={(folder) => api?.scanFolder(folder.id)}
+      onRetryFolderFailures={(folder) => api?.retryScanFailures(folder.id)}
+      onLoadScanFailureSummary={(folder) => api
+        ? api.getScanFailureSummary(folder.id)
+        : Promise.resolve({ sourceFolderId: folder.id, failedFileCount: 0, failedDirectoryCount: 0, totalUnresolved: 0, latestError: null, latestFailedAt: null, totalRetryCount: 0 })}
+      onLoadScanFailures={(folder) => api ? api.listScanFailures(folder.id) : Promise.resolve([])}
       onRefresh={refresh}
       onToggleFavorite={toggleFavorite}
       onTogglePendingDelete={togglePendingDelete}

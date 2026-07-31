@@ -38,30 +38,50 @@ describe("MetadataQueue", () => {
   it("marks a matching pending record failed when FFprobe rejects", async () => {
     const video = createVideo("v1", "Z:\\Cloud\\broken.mp4");
     const repo = createRepo(new Map([[video.id, video]]));
-    const queue = new MetadataQueue(repo.value, async () => { throw new Error("ffprobe failed"); });
+    const onSourceFolderUpdated = vi.fn();
+    const queue = new MetadataQueue(
+      repo.value,
+      async () => { throw new Error("ffprobe failed"); },
+      1,
+      undefined,
+      undefined,
+      onSourceFolderUpdated
+    );
 
     queue.enqueue(video.id);
     await queue.whenIdle();
 
     expect(repo.markMetadataFailed).toHaveBeenCalledWith(video.id, video.path, video.sizeBytes, video.modifiedAt);
+    expect(repo.recordScanFailure).toHaveBeenCalledWith(expect.objectContaining({
+      sourceFolderId: video.sourceFolderId,
+      objectType: "file",
+      objectPath: video.path,
+      failureStage: "metadata",
+      errorSummary: "ffprobe failed"
+    }));
+    expect(onSourceFolderUpdated).toHaveBeenCalledWith(video.sourceFolderId);
   });
 
   it("notifies the renderer after metadata retry settles", async () => {
     const video = createVideo("v1", "Z:\\Cloud\\retry.mp4");
     const repo = createRepo(new Map([[video.id, video]]));
     const onVideoUpdated = vi.fn();
+    const onSourceFolderUpdated = vi.fn();
+    repo.resolveScanFailuresForObjectStage.mockReturnValue(1);
     const queue = new MetadataQueue(
       repo.value,
       async () => ({ durationMs: 5000, width: 1280, height: 720, format: "mp4" }),
       1,
       undefined,
-      onVideoUpdated
+      onVideoUpdated,
+      onSourceFolderUpdated
     );
 
     queue.enqueue(video.id);
     await queue.whenIdle();
 
     expect(onVideoUpdated).toHaveBeenCalledWith(video.id);
+    expect(onSourceFolderUpdated).toHaveBeenCalledWith(video.sourceFolderId);
   });
 
   it("restores pending database records on startup", async () => {
@@ -97,6 +117,8 @@ function createRepo(videos: Map<string, VideoRecord>) {
   const markMetadataReady = vi.fn(() => true);
   const markMetadataFailed = vi.fn(() => true);
   const listVideosPendingMetadata = vi.fn(() => [] as VideoRecord[]);
+  const recordScanFailure = vi.fn();
+  const resolveScanFailuresForObjectStage = vi.fn();
   const value = {
     getVideo: (videoId: string) => {
       const video = videos.get(videoId);
@@ -105,9 +127,11 @@ function createRepo(videos: Map<string, VideoRecord>) {
     },
     markMetadataReady,
     markMetadataFailed,
+    recordScanFailure,
+    resolveScanFailuresForObjectStage,
     listVideosPendingMetadata
   } as unknown as VideoRepository;
-  return { value, markMetadataReady, markMetadataFailed, listVideosPendingMetadata };
+  return { value, markMetadataReady, markMetadataFailed, recordScanFailure, resolveScanFailuresForObjectStage, listVideosPendingMetadata };
 }
 
 function createVideo(id: string, filePath: string): VideoRecord {

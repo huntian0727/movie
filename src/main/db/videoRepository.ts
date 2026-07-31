@@ -7,6 +7,7 @@ import type {
   DuplicateGroupPageQuery,
   DuplicateResolvePlan,
   DuplicateResolvePreview,
+  DirectorySnapshot,
   FingerprintStatus,
   LibraryNavigationSnapshot,
   LibraryPage,
@@ -14,6 +15,11 @@ import type {
   LibraryQuery,
   MetadataStatus,
   PlayHistoryEntry,
+  ScanCounters,
+  ScanFailure,
+  ScanFailureObjectType,
+  ScanFailureSummary,
+  ScanMode,
   SortField,
   SourceFolder,
   SourceFolderRemovalPreview,
@@ -21,6 +27,7 @@ import type {
   VideoRecord
 } from "../../shared/videoTypes.js";
 import type { DatabaseConnection } from "./database.js";
+import { isManagedPathWithin, normalizeManagedPath } from "../files/pathNormalization.js";
 
 interface UpsertVideoInput {
   sourceFolderId: string;
@@ -105,6 +112,63 @@ interface DuplicateStatsRow {
 
 interface CountRow {
   count: number;
+}
+
+interface DirectorySnapshotRow {
+  source_folder_id: string;
+  directory_path: string;
+  normalized_path: string;
+  parent_directory_path: string | null;
+  normalized_parent_path: string | null;
+  directory_mtime: string;
+  direct_video_count: number;
+  direct_child_count: number;
+  direct_entry_digest: string;
+  last_successful_scan_at: string | null;
+  is_complete: number;
+  has_unresolved_failure: number;
+  updated_at: string;
+}
+
+interface ScanFailureRow {
+  id: string;
+  source_folder_id: string;
+  scan_task_id: string;
+  object_type: ScanFailureObjectType;
+  object_path: string;
+  normalized_path: string;
+  failure_stage: string;
+  error_code: string | null;
+  error_summary: string;
+  first_failed_at: string;
+  last_failed_at: string;
+  retry_count: number;
+  status: ScanFailure["status"];
+  resolved_at: string | null;
+}
+
+export interface UpsertDirectorySnapshotInput {
+  sourceFolderId: string;
+  directoryPath: string;
+  parentDirectoryPath: string | null;
+  directoryMtime: string;
+  directVideoCount: number;
+  directChildCount: number;
+  directEntryDigest: string;
+  isComplete: boolean;
+  hasUnresolvedFailure: boolean;
+  successful: boolean;
+}
+
+export interface RecordScanFailureInput {
+  sourceFolderId: string;
+  scanTaskId: string;
+  objectType: ScanFailureObjectType;
+  objectPath: string;
+  failureStage: string;
+  errorCode?: string | null;
+  errorSummary: string;
+  incrementRetry?: boolean;
 }
 
 interface LibraryNavigationRow {
@@ -257,6 +321,293 @@ export class VideoRepository {
         scanError,
         updatedAt: new Date().toISOString()
       });
+  }
+
+  getDirectorySnapshot(sourceFolderId: string, directoryPath: string): DirectorySnapshot | null {
+    const row = this.db
+      .prepare("SELECT * FROM directory_snapshots WHERE source_folder_id = ? AND normalized_path = ?")
+      .get(sourceFolderId, normalizeManagedPath(directoryPath)) as DirectorySnapshotRow | undefined;
+    return row ? mapDirectorySnapshot(row) : null;
+  }
+
+  listDirectorySnapshots(sourceFolderId: string): DirectorySnapshot[] {
+    return (this.db
+      .prepare("SELECT * FROM directory_snapshots WHERE source_folder_id = ? ORDER BY normalized_path")
+      .all(sourceFolderId) as DirectorySnapshotRow[]).map(mapDirectorySnapshot);
+  }
+
+  upsertDirectorySnapshot(input: UpsertDirectorySnapshotInput): DirectorySnapshot {
+    const now = new Date().toISOString();
+    const normalizedPath = normalizeManagedPath(input.directoryPath);
+    const normalizedParentPath = input.parentDirectoryPath ? normalizeManagedPath(input.parentDirectoryPath) : null;
+    const existing = this.getDirectorySnapshot(input.sourceFolderId, input.directoryPath);
+    const lastSuccessfulScanAt = input.successful ? now : existing?.lastSuccessfulScanAt ?? null;
+    this.db.prepare(`
+      INSERT INTO directory_snapshots (
+        source_folder_id, directory_path, normalized_path, parent_directory_path, normalized_parent_path,
+        directory_mtime, direct_video_count, direct_child_count, direct_entry_digest,
+        last_successful_scan_at, is_complete, has_unresolved_failure, updated_at
+      ) VALUES (
+        @sourceFolderId, @directoryPath, @normalizedPath, @parentDirectoryPath, @normalizedParentPath,
+        @directoryMtime, @directVideoCount, @directChildCount, @directEntryDigest,
+        @lastSuccessfulScanAt, @isComplete, @hasUnresolvedFailure, @now
+      )
+      ON CONFLICT(source_folder_id, normalized_path) DO UPDATE SET
+        directory_path = excluded.directory_path,
+        parent_directory_path = excluded.parent_directory_path,
+        normalized_parent_path = excluded.normalized_parent_path,
+        directory_mtime = excluded.directory_mtime,
+        direct_video_count = excluded.direct_video_count,
+        direct_child_count = excluded.direct_child_count,
+        direct_entry_digest = excluded.direct_entry_digest,
+        last_successful_scan_at = excluded.last_successful_scan_at,
+        is_complete = excluded.is_complete,
+        has_unresolved_failure = excluded.has_unresolved_failure,
+        updated_at = excluded.updated_at
+    `).run({
+      ...input,
+      normalizedPath,
+      normalizedParentPath,
+      lastSuccessfulScanAt,
+      isComplete: input.isComplete ? 1 : 0,
+      hasUnresolvedFailure: input.hasUnresolvedFailure ? 1 : 0,
+      now
+    });
+    return this.getDirectorySnapshot(input.sourceFolderId, input.directoryPath)!;
+  }
+
+  markDirectorySnapshotIncomplete(sourceFolderId: string, directoryPath: string): void {
+    this.db.prepare(`
+      UPDATE directory_snapshots
+      SET is_complete = 0, has_unresolved_failure = 1, updated_at = ?
+      WHERE source_folder_id = ? AND normalized_path = ?
+    `).run(new Date().toISOString(), sourceFolderId, normalizeManagedPath(directoryPath));
+  }
+
+  listDirectChildSnapshots(sourceFolderId: string, parentDirectoryPath: string): DirectorySnapshot[] {
+    return (this.db.prepare(`
+      SELECT * FROM directory_snapshots
+      WHERE source_folder_id = ? AND normalized_parent_path = ?
+      ORDER BY normalized_path
+    `).all(sourceFolderId, normalizeManagedPath(parentDirectoryPath)) as DirectorySnapshotRow[]).map(mapDirectorySnapshot);
+  }
+
+  deleteDirectorySnapshotSubtree(sourceFolderId: string, directoryPath: string): void {
+    const snapshots = this.listDirectorySnapshots(sourceFolderId)
+      .filter((snapshot) => isManagedPathWithin(snapshot.directoryPath, directoryPath));
+    const remove = this.db.prepare("DELETE FROM directory_snapshots WHERE source_folder_id = ? AND normalized_path = ?");
+    const transaction = this.db.transaction(() => {
+      for (const snapshot of snapshots) remove.run(sourceFolderId, snapshot.normalizedPath);
+    });
+    transaction();
+  }
+
+  reconcileDirectoryMissing(sourceFolderId: string, directoryPath: string, currentPaths: string[]): number {
+    const current = new Set(currentPaths.map(normalizeManagedPath));
+    let changed = 0;
+    const rows = this.db.prepare(`
+      SELECT * FROM videos
+      WHERE source_folder_id = ? AND directory = ? COLLATE NOCASE
+    `).all(sourceFolderId, path.win32.normalize(directoryPath)) as VideoRow[];
+    for (const video of rows.map(mapVideo)) {
+      const shouldBeMissing = !current.has(normalizeManagedPath(video.path));
+      if (video.isMissing !== shouldBeMissing) {
+        this.markMissing(video.id, shouldBeMissing);
+        changed += 1;
+      }
+    }
+    return changed;
+  }
+
+  markDirectorySubtreeMissing(sourceFolderId: string, directoryPath: string): number {
+    let changed = 0;
+    const normalizedDirectory = path.win32.normalize(directoryPath).replace(/[\\/]+$/, "");
+    const escapedLike = `${escapeSqlLike(normalizedDirectory)}\\%`;
+    const rows = this.db.prepare(`
+      SELECT * FROM videos
+      WHERE source_folder_id = ? AND is_missing = 0
+        AND (directory = ? COLLATE NOCASE OR directory LIKE ? ESCAPE '\\')
+    `).all(sourceFolderId, normalizedDirectory, escapedLike) as VideoRow[];
+    for (const video of rows.map(mapVideo)) {
+      if (!video.isMissing && isManagedPathWithin(video.directory, directoryPath)) {
+        this.markMissing(video.id, true);
+        changed += 1;
+      }
+    }
+    return changed;
+  }
+
+  recordScanFailure(input: RecordScanFailureInput): ScanFailure {
+    const now = new Date().toISOString();
+    const normalizedPath = normalizeManagedPath(input.objectPath);
+    const existing = this.db.prepare(`
+      SELECT * FROM scan_failures
+      WHERE source_folder_id = ? AND normalized_path = ? AND failure_stage = ? AND status != 'resolved'
+    `).get(input.sourceFolderId, normalizedPath, input.failureStage) as ScanFailureRow | undefined;
+    const id = existing?.id ?? crypto.randomUUID();
+    if (existing) {
+      this.db.prepare(`
+        UPDATE scan_failures
+        SET scan_task_id = @scanTaskId, object_type = @objectType, object_path = @objectPath,
+            error_code = @errorCode, error_summary = @errorSummary, last_failed_at = @now,
+            retry_count = retry_count + @retryIncrement, status = 'unresolved', resolved_at = NULL
+        WHERE id = @id
+      `).run({ ...input, id, errorCode: input.errorCode ?? null, now, retryIncrement: input.incrementRetry ? 1 : 0 });
+    } else {
+      this.db.prepare(`
+        INSERT INTO scan_failures (
+          id, source_folder_id, scan_task_id, object_type, object_path, normalized_path,
+          failure_stage, error_code, error_summary, first_failed_at, last_failed_at,
+          retry_count, status, resolved_at
+        ) VALUES (
+          @id, @sourceFolderId, @scanTaskId, @objectType, @objectPath, @normalizedPath,
+          @failureStage, @errorCode, @errorSummary, @now, @now, @retryCount, 'unresolved', NULL
+        )
+      `).run({ ...input, id, normalizedPath, errorCode: input.errorCode ?? null, now, retryCount: input.incrementRetry ? 1 : 0 });
+    }
+    const failure = this.getScanFailure(id)!;
+    this.refreshSourceFolderFailureState(input.sourceFolderId);
+    this.refreshDirectoryFailureState(input.sourceFolderId, input.objectPath, input.objectType);
+    return failure;
+  }
+
+  getScanFailure(id: string): ScanFailure | null {
+    const row = this.db.prepare("SELECT * FROM scan_failures WHERE id = ?").get(id) as ScanFailureRow | undefined;
+    return row ? mapScanFailure(row) : null;
+  }
+
+  listScanFailures(sourceFolderId: string, includeResolved = false): ScanFailure[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM scan_failures
+      WHERE source_folder_id = ? ${includeResolved ? "" : "AND status != 'resolved'"}
+      ORDER BY last_failed_at DESC, id ASC
+    `).all(sourceFolderId) as ScanFailureRow[];
+    return rows.map(mapScanFailure);
+  }
+
+  markScanFailureRetrying(failureId: string): void {
+    this.db.prepare("UPDATE scan_failures SET status = 'retrying' WHERE id = ? AND status != 'resolved'").run(failureId);
+  }
+
+  resolveScanFailure(failureId: string): number {
+    const failure = this.getScanFailure(failureId);
+    const now = new Date().toISOString();
+    const changes = this.db.prepare("UPDATE scan_failures SET status = 'resolved', resolved_at = ? WHERE id = ? AND status != 'resolved'").run(now, failureId).changes;
+    if (changes > 0 && failure) {
+      this.refreshSourceFolderFailureState(failure.sourceFolderId);
+      this.refreshDirectoryFailureState(failure.sourceFolderId, failure.objectPath, failure.objectType);
+    }
+    return changes;
+  }
+
+  resolveScanFailuresForObject(sourceFolderId: string, objectPath: string, objectType?: ScanFailureObjectType): number {
+    const matchingFailures = this.listScanFailures(sourceFolderId).filter((failure) =>
+      failure.normalizedPath === normalizeManagedPath(objectPath) && (!objectType || failure.objectType === objectType)
+    );
+    const now = new Date().toISOString();
+    const result = objectType
+      ? this.db.prepare(`UPDATE scan_failures SET status = 'resolved', resolved_at = ? WHERE source_folder_id = ? AND normalized_path = ? AND object_type = ? AND status != 'resolved'`)
+        .run(now, sourceFolderId, normalizeManagedPath(objectPath), objectType)
+      : this.db.prepare(`UPDATE scan_failures SET status = 'resolved', resolved_at = ? WHERE source_folder_id = ? AND normalized_path = ? AND status != 'resolved'`)
+        .run(now, sourceFolderId, normalizeManagedPath(objectPath));
+    if (result.changes > 0) {
+      this.refreshSourceFolderFailureState(sourceFolderId);
+      for (const failure of matchingFailures) this.refreshDirectoryFailureState(sourceFolderId, failure.objectPath, failure.objectType);
+    }
+    return result.changes;
+  }
+
+  resolveScanFailuresForObjectStage(
+    sourceFolderId: string,
+    objectPath: string,
+    objectType: ScanFailureObjectType,
+    failureStage: string
+  ): number {
+    const result = this.db.prepare(`
+      UPDATE scan_failures
+      SET status = 'resolved', resolved_at = ?
+      WHERE source_folder_id = ? AND normalized_path = ? AND object_type = ?
+        AND failure_stage = ? AND status != 'resolved'
+    `).run(
+      new Date().toISOString(),
+      sourceFolderId,
+      normalizeManagedPath(objectPath),
+      objectType,
+      failureStage
+    );
+    if (result.changes > 0) {
+      this.refreshSourceFolderFailureState(sourceFolderId);
+      this.refreshDirectoryFailureState(sourceFolderId, objectPath, objectType);
+    }
+    return result.changes;
+  }
+
+  resolveScanFailuresInSubtree(sourceFolderId: string, directoryPath: string): number {
+    let resolved = 0;
+    for (const failure of this.listScanFailures(sourceFolderId)) {
+      if (isManagedPathWithin(failure.objectPath, directoryPath)) {
+        this.resolveScanFailure(failure.id);
+        resolved += 1;
+      }
+    }
+    return resolved;
+  }
+
+  getScanFailureSummary(sourceFolderId: string): ScanFailureSummary {
+    const failures = this.listScanFailures(sourceFolderId);
+    const latest = failures[0];
+    return {
+      sourceFolderId,
+      failedFileCount: failures.filter((failure) => failure.objectType === "file").length,
+      failedDirectoryCount: failures.filter((failure) => failure.objectType === "directory").length,
+      totalUnresolved: failures.length,
+      latestError: latest?.errorSummary ?? null,
+      latestFailedAt: latest?.lastFailedAt ?? null,
+      totalRetryCount: failures.reduce((total, failure) => total + failure.retryCount, 0)
+    };
+  }
+
+  private refreshSourceFolderFailureState(sourceFolderId: string): void {
+    const latest = this.db.prepare(`
+      SELECT error_summary FROM scan_failures
+      WHERE source_folder_id = ? AND status != 'resolved'
+      ORDER BY last_failed_at DESC, id ASC LIMIT 1
+    `).get(sourceFolderId) as { error_summary: string } | undefined;
+    this.db.prepare("UPDATE source_folders SET scan_error = ?, updated_at = ? WHERE id = ?")
+      .run(latest?.error_summary ?? null, new Date().toISOString(), sourceFolderId);
+  }
+
+  private refreshDirectoryFailureState(
+    sourceFolderId: string,
+    objectPath: string,
+    objectType: ScanFailureObjectType
+  ): void {
+    const directoryPath = objectType === "directory" ? objectPath : path.win32.dirname(objectPath);
+    const normalizedDirectory = normalizeManagedPath(directoryPath);
+    const hasUnresolvedFailure = this.listScanFailures(sourceFolderId).some((failure) => {
+      const failureDirectory = failure.objectType === "directory"
+        ? failure.objectPath
+        : path.win32.dirname(failure.objectPath);
+      return normalizeManagedPath(failureDirectory) === normalizedDirectory;
+    });
+    this.db.prepare(`
+      UPDATE directory_snapshots
+      SET has_unresolved_failure = ?, updated_at = ?
+      WHERE source_folder_id = ? AND normalized_path = ?
+    `).run(hasUnresolvedFailure ? 1 : 0, new Date().toISOString(), sourceFolderId, normalizedDirectory);
+  }
+
+  createScanTask(id: string, sourceFolderId: string | null, mode: ScanMode): void {
+    this.db.prepare(`
+      INSERT INTO scan_tasks (id, source_folder_id, mode, status, started_at, completed_at, counters_json, error_summary)
+      VALUES (?, ?, ?, 'running', ?, NULL, '{}', NULL)
+    `).run(id, sourceFolderId, mode, new Date().toISOString());
+  }
+
+  completeScanTask(id: string, status: string, counters: ScanCounters, errorSummary: string | null): void {
+    this.db.prepare(`
+      UPDATE scan_tasks SET status = ?, completed_at = ?, counters_json = ?, error_summary = ? WHERE id = ?
+    `).run(status, new Date().toISOString(), JSON.stringify(counters), errorSummary, id);
   }
 
   upsertVideo(input: UpsertVideoInput): VideoRecord {
@@ -1131,8 +1482,49 @@ function mapVideo(row: VideoRow): VideoRecord {
   };
 }
 
+function mapDirectorySnapshot(row: DirectorySnapshotRow): DirectorySnapshot {
+  return {
+    sourceFolderId: row.source_folder_id,
+    directoryPath: row.directory_path,
+    normalizedPath: row.normalized_path,
+    parentDirectoryPath: row.parent_directory_path,
+    normalizedParentPath: row.normalized_parent_path,
+    directoryMtime: row.directory_mtime,
+    directVideoCount: row.direct_video_count,
+    directChildCount: row.direct_child_count,
+    directEntryDigest: row.direct_entry_digest,
+    lastSuccessfulScanAt: row.last_successful_scan_at,
+    isComplete: Boolean(row.is_complete),
+    hasUnresolvedFailure: Boolean(row.has_unresolved_failure),
+    updatedAt: row.updated_at
+  };
+}
+
+function mapScanFailure(row: ScanFailureRow): ScanFailure {
+  return {
+    id: row.id,
+    sourceFolderId: row.source_folder_id,
+    scanTaskId: row.scan_task_id,
+    objectType: row.object_type,
+    objectPath: row.object_path,
+    normalizedPath: row.normalized_path,
+    failureStage: row.failure_stage,
+    errorCode: row.error_code,
+    errorSummary: row.error_summary,
+    firstFailedAt: row.first_failed_at,
+    lastFailedAt: row.last_failed_at,
+    retryCount: row.retry_count,
+    status: row.status,
+    resolvedAt: row.resolved_at
+  };
+}
+
 function normalizePathKey(filePath: string): string {
-  return filePath.toLowerCase();
+  return normalizeManagedPath(filePath);
+}
+
+function escapeSqlLike(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
 function escapeLikePattern(value: string): string {
@@ -1192,10 +1584,6 @@ function folderCoversVideo(folder: SourceFolder, filePath: string, directory: st
     return videoPath.startsWith(`${folderPath}\\`);
   }
   return normalizeManagedPath(directory) === folderPath;
-}
-
-function normalizeManagedPath(input: string): string {
-  return input.replace(/[\\/]+/g, "\\").replace(/\\+$/, "").toLowerCase();
 }
 
 function compareDuplicateKeepCandidates(left: VideoRecord, right: VideoRecord): number {

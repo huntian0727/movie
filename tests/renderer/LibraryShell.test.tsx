@@ -68,6 +68,13 @@ const deepNestedVideo: VideoRecord = {
   basename: "episode-02"
 };
 
+const scanCounters = {
+  totalFolders: 0, currentFolderIndex: 0, completedFolders: 0, failedFolders: 0,
+  checkedDirectories: 1, changedDirectories: 1, skippedDirectories: 0, processedVideos: 7,
+  skippedVideos: 0, addedVideos: 0, updatedVideos: 0, missingVideos: 0,
+  fileFailures: 0, directoryFailures: 0, pendingFailures: 0, retriedFailures: 0, resolvedFailures: 0
+};
+
 const duplicateGroups: DuplicateGroup[] = [
   {
     groupKey: "fingerprint-1",
@@ -601,7 +608,7 @@ describe("LibraryShell", () => {
       <LibraryShell
         videos={[video]}
         folders={[folder]}
-        scanStatuses={[{ folderId: folder.id, state: "scanning", phase: "processing", totalFiles: 20, processedFiles: 7, currentPath: "D:\\Movies\\clip.mp4", message: null, updatedAt: "" }]}
+        scanStatuses={[{ folderId: folder.id, mode: "current-folder", state: "scanning", phase: "processing", totalFiles: 20, processedFiles: 7, currentPath: "D:\\Movies\\clip.mp4", message: null, counters: scanCounters, updatedAt: "" }]}
         onPauseFolderScan={onPauseFolderScan}
         onResumeFolderScan={onResumeFolderScan}
       />
@@ -615,7 +622,7 @@ describe("LibraryShell", () => {
       <LibraryShell
         videos={[video]}
         folders={[folder]}
-        scanStatuses={[{ folderId: folder.id, state: "paused", phase: "processing", totalFiles: 20, processedFiles: 7, currentPath: "D:\\Movies\\clip.mp4", message: null, updatedAt: "" }]}
+        scanStatuses={[{ folderId: folder.id, mode: "current-folder", state: "paused", phase: "processing", totalFiles: 20, processedFiles: 7, currentPath: "D:\\Movies\\clip.mp4", message: null, counters: scanCounters, updatedAt: "" }]}
         onPauseFolderScan={onPauseFolderScan}
         onResumeFolderScan={onResumeFolderScan}
       />
@@ -631,7 +638,7 @@ describe("LibraryShell", () => {
       <LibraryShell
         videos={[video]}
         folders={[folderWithOldError]}
-        scanStatuses={[{ folderId: folder.id, state: "scanning", phase: "processing", totalFiles: 20, processedFiles: 7, currentPath: "D:\\Movies\\clip.mp4", message: null, updatedAt: "" }]}
+        scanStatuses={[{ folderId: folder.id, mode: "current-folder", state: "scanning", phase: "processing", totalFiles: 20, processedFiles: 7, currentPath: "D:\\Movies\\clip.mp4", message: null, counters: scanCounters, updatedAt: "" }]}
       />
     );
 
@@ -640,12 +647,22 @@ describe("LibraryShell", () => {
   });
 
   it("opens actionable folder scan details and retries from the warning", async () => {
-    const onRetryFolderScan = vi.fn();
+    const onRetryFolderFailures = vi.fn();
     render(
       <LibraryShell
         videos={[video]}
         folders={[{ ...folder, scanError: "读取子目录 D:\\Movies\\Cloud 超时" }]}
-        onRetryFolderScan={onRetryFolderScan}
+        onRetryFolderFailures={onRetryFolderFailures}
+        onLoadScanFailureSummary={async () => ({
+          sourceFolderId: folder.id,
+          failedFileCount: 0,
+          failedDirectoryCount: 1,
+          totalUnresolved: 1,
+          latestError: "读取子目录 D:\\Movies\\Cloud 超时",
+          latestFailedAt: "2026-08-01T00:00:00.000Z",
+          totalRetryCount: 0
+        })}
+        onLoadScanFailures={async () => []}
       />
     );
 
@@ -655,8 +672,9 @@ describe("LibraryShell", () => {
 
     expect(screen.getByRole("dialog", { name: "上次扫描存在异常" })).toBeInTheDocument();
     expect(screen.getByText("读取子目录 D:\\Movies\\Cloud 超时")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重新扫描此目录" }));
-    await waitFor(() => expect(onRetryFolderScan).toHaveBeenCalledWith(expect.objectContaining({ id: folder.id })));
+    await waitFor(() => expect(screen.getByRole("button", { name: "重试异常项" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "重试异常项" }));
+    await waitFor(() => expect(onRetryFolderFailures).toHaveBeenCalledWith(expect.objectContaining({ id: folder.id })));
   });
 
   it("loads only the requested ordinary library page from the backend", async () => {

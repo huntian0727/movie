@@ -78,6 +78,9 @@ describe("versioned database migrations", () => {
       expect(listColumns(db, "videos")).toEqual(expect.arrayContaining([
         "content_fingerprint", "fingerprint_status", "is_pending_delete"
       ]));
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").pluck().all()).toEqual(expect.arrayContaining([
+        "directory_snapshots", "scan_failures", "scan_tasks"
+      ]));
       expect(db.pragma("foreign_key_check")).toEqual([]);
       expect(db.pragma("quick_check", { simple: true })).toBe("ok");
       const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>;
@@ -138,7 +141,7 @@ describe("versioned database migrations", () => {
     });
   }
 
-  for (const failedVersion of [1, 2, 3, 4]) {
+  for (const failedVersion of [1, 2, 3, 4, 5]) {
     it(`rolls back completely when migration ${failedVersion} fails`, () => {
       const dbPath = createTempDatabasePath();
       const startingVersion = failedVersion - 1;
@@ -165,6 +168,8 @@ describe("versioned database migrations", () => {
           expect(listColumns(db, "videos")).not.toContain("content_fingerprint");
         } else if (failedVersion === 4) {
           expect(listColumns(db, "videos")).not.toContain("is_pending_delete");
+        } else if (failedVersion === 5) {
+          expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'directory_snapshots'").pluck().get()).toBeUndefined();
         }
       } finally {
         db.close();

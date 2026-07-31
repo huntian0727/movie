@@ -30,20 +30,20 @@
 
 ### 1. 文件夹导入与扫描
 
-**当前实现**
-- `src/main/ipc.ts` 提供 `folder:add` 和 `folder:scan`。
-- `src/main/media/fileDiscovery.ts` 负责发现视频文件。
-- `src/main/media/libraryScanner.ts` 读取文件 stat、metadata，并调用 repository upsert。
-- `VideoRepository.getVideoByPath` 和 scanner 的跳过逻辑避免未变化文件重复 ffprobe。
-- 缺失目录或消失文件会标记 missing。
+**当前实现（2026-08-01 更新）**
+- `src/main/ipc.ts` 分别提供当前文件夹扫描、异常项重试和扫描全盘；三者不再落到同一上层接口。
+- `libraryScanner.ts` 为每一级目录持久化直属条目快照；父目录未变化时仍检查子目录，确认未变化的目录不逐个读取视频属性。
+- 新视频先快速入库，`metadataQueue.ts` 单并发补齐 FFprobe；失败阶段进入跨重启 `scan_failures`。
+- 只有目录完整枚举后才对直属文件标记 missing；根离线或子目录失败保留原记录。
+- `scanManager.ts` 提供串行队列、同源去重、进度、暂停和协作式取消。
 
 **风险**
-- 启动同步仍可能扫描大量文件路径，虽然跳过 ffprobe，但极大目录仍有 I/O 成本。
-- 没有进度反馈，用户可能误以为卡住。
+- 每次普通扫描仍必须枚举整棵目录结构；对高延迟 NAS，目录条目读取本身仍可能慢。
+- 单次正在等待的系统目录 I/O 和正在运行的 FFprobe 不能被强制中断；真实 SMB 超时阈值需要验证。
 
 **建议修复/优化**
-- P1：增加扫描中状态和文件夹级进度。
-- P2：启动同步改成延迟后台任务，并限制并发/频率。
+- P1：用真实 10 万级映射盘记录目录枚举、DB 写入和 FFprobe 队列耗时。
+- P2：根据证据评估扫描断点、用户可配置超时和目录排除规则，不启用无界并发。
 
 ### 2. 视频列表基础展示
 

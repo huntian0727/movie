@@ -1,11 +1,18 @@
-# 项目文档索引
+# 文档索引
 
-- `superpowers/specs/2026-07-09-video-manager-design.md`：最初产品决策与架构设计，回答“用户为何这样要求”。
-- `superpowers/plans/2026-07-09-video-manager-implementation.md`：原始分步实施计划，属于历史计划，不代表每项当前状态。
-- `features.md`：功能范围与验收标准。
-- `feature-audit.md`：2026-07-11 的逐项实现自查和风险。
-- `manual-test-checklist.md`：真实 Windows/媒体桌面验收清单。
-- `verification-results.md`：自动检查的实际结果、ABI 阻塞恢复建议和桌面手测证据表。
-- 根目录 `README/ARCHITECTURE/TASK/REPORT/CHANGELOG`：面向未来 AI 的当前记忆入口。
+面向维护 AI 的阅读顺序：先读根目录 `README.md` 与 `ARCHITECTURE.md`，再按问题进入下列专题。历史设计文档保留为决策背景，不能覆盖当前代码和验证记录。
 
-维护原则：保留原始设计和计划作为历史证据；状态变化更新根 TASK/CHANGELOG，并在必要时追加审计，不要重写历史使“原计划”和“已验证事实”混淆。涉及真实手测时记录环境、样本、结果和失败证据。
+| 文档 | 用途 |
+| --- | --- |
+| `scan-modes-and-snapshots.md` | 三种扫描模式、v5 快照、异常恢复、路径与缺失安全不变量 |
+| `verification-results.md` | 已实际运行命令、自动测试结果、ABI 阻塞和待手测证据 |
+| `manual-test-checklist.md` | Windows、真实媒体、网盘、播放器与高风险文件操作手测 |
+| `windows-release-checklist.md` | 发布前数据安全和真实环境签字门禁 |
+| `native-abi-workflow.md` | Node/Electron 的 better-sqlite3 ABI 隔离与恢复 |
+| `electron-security.md` | 窗口角色、preload、IPC sender、CSP 与协议安全边界 |
+| `release-workflow.md` | CI、打包、签名、artifact 与 smoke 流程 |
+| `feature-audit.md` | 功能现状、风险和历史审计（注意各节更新时间） |
+| `features.md` | 产品行为和验收标准 |
+| `plans/`、`superpowers/plans/` | 原始设计/实施计划；只作历史依据，偏差以架构文档为准 |
+
+扫描本轮执行包保留在根目录 `movie-scan-optimization-execution-pack/`，其中任务规格与验收清单是 2026-08-01 扫描优化的交付依据；真实实施结果记录在 `scan-optimization-final-report.md`。

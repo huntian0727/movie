@@ -1,5 +1,19 @@
 # 验证结果记录
 
+## 2026-08-01 扫描快照与异常重试
+
+| 检查 | 真实结果 | 结论 |
+| --- | --- | --- |
+| 类型检查 | `npm run typecheck` | 通过 |
+| 完整自动测试 | Electron Node ABI 130 模式，35 个测试文件、302 个测试 | 全部通过 |
+| 10,000 未变化视频 | 101 次目录枚举、101 次目录属性读取、0 次视频属性读取、203 次内存仓储读、0 写、879.22 ms | 通过 |
+| 9,900 成功 + 100 失败重试 | 0 次目录枚举、100 次视频属性读取、102 次内存仓储读、300 次写、4.30 ms | 通过；为合成内存基准，不代表真实网盘延迟 |
+| v1–v5 migration + repository | 已包含在 302 项完整测试中；真实加载 better-sqlite3 | 通过 |
+| 标准 Node SQLite 测试 | 系统 Node 24 ABI 137，现有 `better-sqlite3` 为 Electron ABI 130 | 环境阻塞；未伪报通过 |
+| Electron native smoke | ABI 130 / Electron 33.4.11，main-process smoke | 通过 |
+| 执行包 `scripts/verify.ps1` | lint/typecheck/build 通过；`npm test` 和包装 smoke 被 Node 22/npm 10 环境门禁阻塞；脚本自身仍返回 0 | 混合结果，不能写成全通过 |
+| 真实 SMB/映射盘与 UI | 尚未执行 | 需要验证 |
+
 ## 2026-07-26 可配置快捷键与设置页精简
 
 | 检查 | 结果 | 结论 |

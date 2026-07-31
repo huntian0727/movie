@@ -99,7 +99,7 @@ export function Toolbar(props: ToolbarProps) {
             )}
           </>
         )}
-        <button className="icon-button" title="重新扫描" aria-label="重新扫描" disabled={props.loading} onClick={props.onRefresh}>
+        <button className="icon-button" title="扫描全盘" aria-label="扫描全盘" disabled={props.loading} onClick={props.onRefresh}>
           <RefreshCw size={18} className={props.loading ? "spin" : undefined} />
         </button>
       </div>

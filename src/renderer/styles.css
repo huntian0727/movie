@@ -220,6 +220,15 @@ button { color: inherit; }
 .folder-issue-heading { position: absolute; top: 19px; left: 20px; width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; color: #f0b44e; background: #382d1c; }
 .folder-issue-dialog .delete-filename { margin-top: 12px; }
 .folder-issue-message { max-height: 130px; overflow: auto; padding: 9px 10px; border: 1px solid #4c3c24; border-radius: 5px; color: #e6bd72 !important; background: #282117; overflow-wrap: anywhere; white-space: pre-wrap; }
+.folder-issue-summary { margin: 12px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.folder-issue-summary span { padding: 8px 9px; border: 1px solid #343733; border-radius: 5px; display: grid; gap: 2px; color: #777b75; font-size: 10px; }
+.folder-issue-summary strong { color: #e5e7e2; font-size: 13px; }
+.folder-issue-list { max-height: min(260px, 35vh); margin: 10px 0; overflow-y: auto; display: grid; gap: 5px; }
+.folder-issue-list article { min-width: 0; padding: 9px 10px; border: 1px solid #343733; border-radius: 5px; display: grid; gap: 5px; background: #181918; }
+.folder-issue-list article > div { display: flex; align-items: center; gap: 7px; color: #7f837c; font-size: 9px; }
+.folder-issue-list article b { color: #e7b456; }.folder-issue-list article em { margin-left: auto; font-style: normal; }
+.folder-issue-list article > strong, .folder-issue-list article > small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.folder-issue-list article > strong { color: #dfe2dc; font-size: 11px; }.folder-issue-list article > small { color: #a0a49d; font-size: 10px; }
 .folder-issue-dialog .dialog-actions button { display: inline-flex; align-items: center; gap: 6px; }
 .spin { animation: rotate 900ms linear infinite; }
 @keyframes rotate { to { transform: rotate(360deg); } }

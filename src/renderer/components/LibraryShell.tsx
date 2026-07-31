@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
-import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreview, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreview, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { Toolbar } from "./Toolbar";
@@ -35,6 +35,9 @@ interface LibraryShellProps {
   onPauseFolderScan?(folder: SourceFolder): void | Promise<unknown>;
   onResumeFolderScan?(folder: SourceFolder): void | Promise<unknown>;
   onRetryFolderScan?(folder: SourceFolder): void | Promise<unknown>;
+  onRetryFolderFailures?(folder: SourceFolder): void | Promise<unknown>;
+  onLoadScanFailureSummary?(folder: SourceFolder): Promise<ScanFailureSummary>;
+  onLoadScanFailures?(folder: SourceFolder): Promise<ScanFailure[]>;
   onRefresh?(): void | Promise<void>;
   onOpen?(video: VideoRecord, queue: VideoRecord[]): void;
   onToggleFavorite?(video: VideoRecord): void | Promise<void>;
@@ -74,6 +77,9 @@ export function LibraryShell({
   onPauseFolderScan,
   onResumeFolderScan,
   onRetryFolderScan,
+  onRetryFolderFailures,
+  onLoadScanFailureSummary,
+  onLoadScanFailures,
   onRefresh,
   onOpen,
   onToggleFavorite,
@@ -106,7 +112,15 @@ export function LibraryShell({
   const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<VideoRecord | null>(null);
   const [removeFolderTarget, setRemoveFolderTarget] = useState<SourceFolder | null>(null);
-  const [folderIssueTarget, setFolderIssueTarget] = useState<{ folder: SourceFolder; message: string; state: "offline" | "error" | "previous" } | null>(null);
+  const [folderIssueTarget, setFolderIssueTarget] = useState<{
+    folder: SourceFolder;
+    message: string;
+    state: "offline" | "error" | "previous";
+    summary: ScanFailureSummary | null;
+    failures: ScanFailure[];
+    loading: boolean;
+    loadError: string | null;
+  } | null>(null);
   const [nextBaseName, setNextBaseName] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
@@ -414,6 +428,33 @@ export function LibraryShell({
     setView("folder");
   };
   const showVideoDirectory = (video: VideoRecord) => selectDirectory(video.directory, "exact");
+  const openFolderIssueDialog = async (
+    folder: SourceFolder,
+    warning: { message: string; state: "offline" | "error" | "previous" }
+  ) => {
+    setFolderIssueTarget({ folder, ...warning, summary: null, failures: [], loading: true, loadError: null });
+    try {
+      const [summary, failures] = await Promise.all([
+        onLoadScanFailureSummary?.(folder) ?? Promise.resolve({
+          sourceFolderId: folder.id,
+          failedFileCount: 0,
+          failedDirectoryCount: 0,
+          totalUnresolved: 0,
+          latestError: warning.message,
+          latestFailedAt: null,
+          totalRetryCount: 0
+        }),
+        onLoadScanFailures?.(folder) ?? Promise.resolve([])
+      ]);
+      setFolderIssueTarget((current) => current?.folder.id === folder.id
+        ? { ...current, summary, failures, loading: false }
+        : current);
+    } catch (cause) {
+      setFolderIssueTarget((current) => current?.folder.id === folder.id
+        ? { ...current, loading: false, loadError: cause instanceof Error ? cause.message : String(cause) }
+        : current);
+    }
+  };
   const openRemoveFolderDialog = async (folder: SourceFolder) => {
     setActionError(null);
     setRemoveFolderTarget(folder);
@@ -658,7 +699,7 @@ export function LibraryShell({
                     className="folder-warning-button"
                     aria-label={`查看 ${folderName(entry.path)} 扫描异常`}
                     title={warning.message}
-                    onClick={() => setFolderIssueTarget({ folder: entry.sourceFolder!, message: warning.message, state: warning.state })}
+                    onClick={() => void openFolderIssueDialog(entry.sourceFolder!, warning)}
                   >
                     <AlertTriangle size={16} />
                   </button>
@@ -667,8 +708,8 @@ export function LibraryShell({
                   <span className="folder-source-actions">
                     {(scanStatus?.state === "queued" || scanStatus?.state === "scanning") && onPauseFolderScan && <button type="button" aria-label={`暂停扫描 ${folderName(entry.path)}`} title="暂停扫描" onClick={() => void onPauseFolderScan(entry.sourceFolder!)}><Pause size={13} /></button>}
                     {scanStatus?.state === "paused" && onResumeFolderScan && <button type="button" aria-label={`继续扫描 ${folderName(entry.path)}`} title="继续扫描" onClick={() => void onResumeFolderScan(entry.sourceFolder!)}><Play size={13} /></button>}
-                    {(!scanStatus || scanStatus.state === "completed" || scanStatus.state === "offline" || scanStatus.state === "error") && onRetryFolderScan && <button type="button" aria-label={`重新扫描 ${folderName(entry.path)}`} title="重新扫描" onClick={() => void onRetryFolderScan(entry.sourceFolder!)}><RotateCw size={13} /></button>}
-                    {onRemoveFolder && (!scanStatus || scanStatus.state === "completed" || scanStatus.state === "offline" || scanStatus.state === "error") && <button type="button" className="folder-remove" aria-label={`移除源目录 ${folderName(entry.path)}`} title="从资料库移除源目录（不会删除磁盘文件）" onClick={() => void openRemoveFolderDialog(entry.sourceFolder!)}><Trash2 size={14} /></button>}
+                    {(!scanStatus || scanStatus.state === "completed" || scanStatus.state === "completed-with-errors" || scanStatus.state === "offline" || scanStatus.state === "error") && onRetryFolderScan && <button type="button" aria-label={`扫描当前文件夹 ${folderName(entry.path)}`} title="扫描当前文件夹" onClick={() => void onRetryFolderScan(entry.sourceFolder!)}><RotateCw size={13} /></button>}
+                    {onRemoveFolder && (!scanStatus || scanStatus.state === "completed" || scanStatus.state === "completed-with-errors" || scanStatus.state === "offline" || scanStatus.state === "error") && <button type="button" className="folder-remove" aria-label={`移除源目录 ${folderName(entry.path)}`} title="从资料库移除源目录（不会删除磁盘文件）" onClick={() => void openRemoveFolderDialog(entry.sourceFolder!)}><Trash2 size={14} /></button>}
                   </span>
                 )}
               </div>
@@ -823,20 +864,41 @@ export function LibraryShell({
             </h3>
             <p className="delete-filename" title={folderIssueTarget.folder.path}>{folderIssueTarget.folder.path}</p>
             <p className="folder-issue-message">{folderIssueTarget.message}</p>
+            {folderIssueTarget.loading && <p>正在读取异常明细……</p>}
+            {folderIssueTarget.loadError && <small className="dialog-error">异常明细读取失败：{folderIssueTarget.loadError}</small>}
+            {folderIssueTarget.summary && (
+              <div className="folder-issue-summary">
+                <span><strong>{folderIssueTarget.summary.failedFileCount}</strong>失败文件</span>
+                <span><strong>{folderIssueTarget.summary.failedDirectoryCount}</strong>失败目录</span>
+                <span><strong>{folderIssueTarget.summary.totalRetryCount}</strong>累计重试</span>
+                <span><strong>{formatScanFailureTime(folderIssueTarget.summary.latestFailedAt)}</strong>最近失败</span>
+              </div>
+            )}
+            {folderIssueTarget.failures.length > 0 && (
+              <div className="folder-issue-list" aria-label="扫描异常明细">
+                {folderIssueTarget.failures.map((failure) => (
+                  <article key={failure.id}>
+                    <div><b>{failure.objectType === "file" ? "文件" : "目录"}</b><span>{failure.failureStage}</span><em>重试 {failure.retryCount}</em></div>
+                    <strong title={failure.objectPath}>{failure.objectPath}</strong>
+                    <small>{failure.errorSummary}</small>
+                  </article>
+                ))}
+              </div>
+            )}
             <p>现有视频记录会继续保留，不会因为本次读取异常而从资料库中自动删除。</p>
             {actionError && <small className="dialog-error">{actionError}</small>}
             <div className="dialog-actions">
               <button onClick={() => setFolderIssueTarget(null)} disabled={actionPending}>关闭</button>
-              {onRetryFolderScan && (
+              {onRetryFolderFailures && (
                 <button
                   className="primary"
-                  aria-label="重新扫描此目录"
-                  disabled={actionPending}
-                  onClick={() => void runAction(async () => { await onRetryFolderScan(folderIssueTarget.folder); }).then((retried) => {
+                  aria-label="重试异常项"
+                  disabled={actionPending || folderIssueTarget.loading || folderIssueTarget.summary?.totalUnresolved === 0}
+                  onClick={() => void runAction(async () => { await onRetryFolderFailures(folderIssueTarget.folder); }).then((retried) => {
                     if (retried) setFolderIssueTarget(null);
                   })}
                 >
-                  <RotateCw size={14} />重新扫描
+                  <RotateCw size={14} />重试异常项
                 </button>
               )}
             </div>
@@ -1048,6 +1110,9 @@ function getFolderWarning(
   if (scanStatus?.state === "error") {
     return { message: scanStatus.message?.trim() || entry.scanError?.trim() || "目录扫描失败，请检查目录访问状态后重试。", state: "error" };
   }
+  if (scanStatus?.state === "completed-with-errors") {
+    return { message: scanStatus.message?.trim() || entry.scanError?.trim() || "扫描完成，但仍有尚未解决的异常项。", state: "error" };
+  }
   if (scanStatus) {
     // A queued, active, paused, or completed scan supersedes a stale error
     // persisted by an older scan. Do not show both progress and a warning.
@@ -1064,9 +1129,17 @@ function formatScanStatus(status: FolderScanStatus): string {
   if (status.state === "paused") return `已暂停 ${status.processedFiles}/${status.totalFiles || "?"}`;
   if (status.state === "offline") return "暂时离线 · 可重试";
   if (status.state === "error") return "扫描失败 · 可重试";
+  if (status.state === "completed-with-errors") return `扫描完成 · ${status.counters.pendingFailures} 项异常`;
   if (status.state === "completed") return `已完成 ${status.processedFiles}`;
+  if (status.mode === "retry-failures") return `正在重试异常 ${status.processedFiles}/${status.totalFiles || "?"}`;
   if (status.phase === "discovering" && status.totalFiles === 0) return "正在读取目录";
   return `已发现 ${status.totalFiles} · 已处理 ${status.processedFiles}`;
+}
+
+function formatScanFailureTime(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
 }
 
 function calculateFolderRemovalImpact(target: SourceFolder, folders: SourceFolder[], videos: VideoRecord[]): {

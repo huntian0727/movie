@@ -24,7 +24,8 @@ export class MetadataQueue {
     private readonly metadataReader: MetadataReader = readMetadata,
     private readonly concurrency = 1,
     private readonly logger?: StructuredLogger,
-    private readonly onVideoUpdated?: (videoId: string) => void
+    private readonly onVideoUpdated?: (videoId: string) => void,
+    private readonly onSourceFolderUpdated?: (sourceFolderId: string) => void
   ) {
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("Metadata queue concurrency must be at least 1");
   }
@@ -105,11 +106,24 @@ export class MetadataQueue {
       const metadata = await this.metadataReader(video.path);
       if (this.stopped) return;
       if (this.repo.markMetadataReady(video.id, video.path, video.sizeBytes, video.modifiedAt, metadata)) {
+        const resolved = this.repo.resolveScanFailuresForObjectStage?.(video.sourceFolderId, video.path, "file", "metadata") ?? 0;
+        if (resolved > 0) this.onSourceFolderUpdated?.(video.sourceFolderId);
         this.onVideoUpdated?.(video.id);
       }
     } catch (error) {
       if (this.stopped) return;
       if (this.repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt)) {
+        this.repo.recordScanFailure?.({
+          sourceFolderId: video.sourceFolderId,
+          scanTaskId: `metadata:${video.id}`,
+          objectType: "file",
+          objectPath: video.path,
+          failureStage: "metadata",
+          errorCode: getErrorCode(error),
+          errorSummary: getErrorSummary(error),
+          incrementRetry: false
+        });
+        this.onSourceFolderUpdated?.(video.sourceFolderId);
         this.onVideoUpdated?.(video.id);
       }
       this.logger?.error({
@@ -126,4 +140,14 @@ export class MetadataQueue {
     for (const resolve of this.idleWaiters) resolve();
     this.idleWaiters.clear();
   }
+}
+
+function getErrorSummary(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message.slice(0, 500);
+  return "Video metadata extraction failed";
+}
+
+function getErrorCode(error: unknown): string | null {
+  if (typeof error === "object" && error !== null && "code" in error && typeof error.code === "string") return error.code;
+  return null;
 }

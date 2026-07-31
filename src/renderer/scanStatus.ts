@@ -10,11 +10,13 @@ export function areVisibleScanStatusesEqual(current: FolderScanStatus[], next: F
 
   return next.every((status) => {
     const previous = currentByFolderId.get(status.folderId);
-    return previous?.state === status.state
+    return previous?.mode === status.mode
+      && previous.state === status.state
       && previous.phase === status.phase
       && previous.totalFiles === status.totalFiles
       && previous.processedFiles === status.processedFiles
       && previous.currentPath === status.currentPath
-      && previous.message === status.message;
+      && previous.message === status.message
+      && JSON.stringify(previous.counters) === JSON.stringify(status.counters);
   });
 }

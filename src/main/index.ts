@@ -148,7 +148,8 @@ app.whenReady().then(async () => {
     undefined,
     1,
     logger,
-    (videoId) => domainEvents.publish({ type: "video:updated", videoIds: [videoId] })
+    (videoId) => domainEvents.publish({ type: "video:updated", videoIds: [videoId] }),
+    () => domainEvents.publish({ type: "source-folder:updated", videoIds: [] })
   );
   const scanManager = new ScanManager(repo, undefined, metadataQueue, logger);
   playerWindows = new PlayerWindowCoordinator(repo, { currentDir, devServerUrl, isPackaged: app.isPackaged });
