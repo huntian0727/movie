@@ -4,6 +4,7 @@ import { LibraryShell } from "./components/LibraryShell";
 import { PlayerPage } from "./components/PlayerPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { choosePlaybackRoute } from "../shared/playbackRouting";
+import { DEFAULT_SHORTCUTS } from "../shared/shortcuts";
 import { areVisibleScanStatusesEqual } from "./scanStatus";
 import { startWindowSync } from "./windowSync";
 
@@ -13,7 +14,8 @@ const defaultSettings: AppSettings = {
   autoPlayOnOpen: true,
   seekStepSeconds: 10,
   coverFrameTimeSeconds: 5,
-  playbackPreference: "auto"
+  playbackPreference: "auto",
+  shortcuts: { ...DEFAULT_SHORTCUTS }
 };
 
 const emptyNavigation: LibraryNavigationSnapshot = {
@@ -71,7 +73,6 @@ export function App() {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [cacheLocation, setCacheLocation] = useState("C:\\Users\\Public\\AppData\\Local Video Manager\\cache");
   const [cacheStatus, setCacheStatus] = useState<MediaCacheStatus>(emptyCacheStatus);
-  const [missingVideos, setMissingVideos] = useState<VideoRecord[]>([]);
   const [playHistory, setPlayHistory] = useState<PlayHistoryEntry[]>([]);
   const [scanStatuses, setScanStatuses] = useState<FolderScanStatus[]>([]);
   const [navigation, setNavigation] = useState<LibraryNavigationSnapshot>(emptyNavigation);
@@ -92,16 +93,14 @@ export function App() {
     try {
       const syncSnapshot = providedSnapshot ?? await api.getWindowSyncSnapshot();
       const nextPlayerSession = isPlayerWindow ? syncSnapshot.playerSession : null;
-      const [nextFolders, settingsSnapshot, nextPlayHistory, nextNavigation, nextMissingVideos] = await Promise.all([
+      const [nextFolders, settingsSnapshot, nextPlayHistory, nextNavigation] = await Promise.all([
         api.listFolders(),
         api.getSettings(),
         api.listPlayHistory(),
-        api.getLibraryNavigation(),
-        api.listMissingVideos()
+        api.getLibraryNavigation()
       ]);
       setVideos(nextPlayerSession?.videos ?? []);
       setPlayerSession(nextPlayerSession);
-      setMissingVideos(nextMissingVideos);
       setFolders(nextFolders);
       setNavigation(nextNavigation);
       setSettings(settingsSnapshot.settings);
@@ -117,6 +116,13 @@ export function App() {
 
   const handleDomainEvent = useCallback(async (event: DomainEvent) => {
     if (!api) return;
+    if (event.type === "settings:changed") {
+      const snapshot = await api.getSettings();
+      setSettings(snapshot.settings);
+      setCacheLocation(snapshot.cacheLocation);
+      setCacheStatus(snapshot.cacheStatus);
+      return;
+    }
     if (event.type === "playback:changed") {
       setPlayHistory(await api.listPlayHistory());
       return;
@@ -130,12 +136,7 @@ export function App() {
       await reload();
       return;
     }
-    const [nextNavigation, nextMissingVideos] = await Promise.all([
-      api.getLibraryNavigation(),
-      api.listMissingVideos()
-    ]);
-    setNavigation(nextNavigation);
-    setMissingVideos(nextMissingVideos);
+    setNavigation(await api.getLibraryNavigation());
   }, [api, isPlayerWindow, reload]);
 
   useEffect(() => {
@@ -290,6 +291,12 @@ export function App() {
     setVideos((current) => current.map((item) => (item.id === video.id ? { ...item, thumbnailStatus: "pending", coverCachePath: null, updatedAt: new Date().toISOString() } : item)));
   };
 
+  const retryMetadata = async (video: VideoRecord) => {
+    if (!api) return;
+    const refreshed = await api.retryMetadata(video.id);
+    setVideos((current) => current.map((item) => (item.id === video.id ? refreshed : item)));
+  };
+
   const playerQueueIds = playerSession?.queueIds ?? playbackQueue;
   const playerVideoId = playerSession?.selectedVideoId ?? selectedVideoId;
   const originalPlayerQueue = playerQueueIds.map((id) => videos.find((video) => video.id === id)).filter((video): video is VideoRecord => Boolean(video));
@@ -310,7 +317,6 @@ export function App() {
         settings={settings}
         cacheLocation={cacheLocation}
         cacheStatus={cacheStatus}
-        missingVideos={missingVideos}
         onBack={() => setSettingsOpen(false)}
         onChange={async (next) => setSettings(api ? await api.setSettings(next) : next)}
         onClearCache={async () => {
@@ -327,10 +333,6 @@ export function App() {
           if (!api) return { exported: false };
           return api.exportDiagnostics(includeFullPaths);
         }}
-        onForgetMissing={async (video) => {
-          if (api) await api.forgetVideo(video.id);
-          setMissingVideos((current) => current.filter((item) => item.id !== video.id));
-        }}
       />
     );
   }
@@ -342,6 +344,7 @@ export function App() {
         mediaUrl={api && playbackRoute === "native" ? `local-video://media/${encodeURIComponent(selectedVideo.id)}` : undefined}
         autoPlayOnOpen={settings.autoPlayOnOpen}
         seekStepSeconds={settings.seekStepSeconds}
+        shortcuts={settings.shortcuts}
         hasPrevious={selectedIndex > 0}
         hasNext={selectedIndex < playerQueuedVideos.length - 1}
         playbackRoute={playbackRoute}
@@ -440,6 +443,7 @@ export function App() {
       folders={folders}
       navigation={api ? navigation : undefined}
       refreshSequence={libraryRefreshSequence}
+      shortcuts={settings.shortcuts}
       onLoadVideoPage={api?.listVideoPage}
       scanStatuses={scanStatuses}
       loading={loading}
@@ -477,10 +481,11 @@ export function App() {
         return result;
       }}
       onRegenerateCover={regenerateCover}
+      onRetryMetadata={retryMetadata}
       onLoadDuplicateGroups={api?.listDuplicateGroups}
       recentVideoIds={recentVideoIds}
       onPreviewDuplicateResolve={async (plan: DuplicateResolvePlan) => (api ? api.previewDuplicateResolve(plan) : {
-        verificationStatus: "verified_identical",
+        verificationStatus: "file_versions_current",
         groupCount: plan.groups.length,
         keepCount: plan.groups.length,
         deleteCount: plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),

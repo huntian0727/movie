@@ -4,6 +4,7 @@ import { z } from "zod";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { IPC_CHANNELS, MAX_PLAYER_QUEUE_ITEMS, SORT_FIELDS } from "../shared/videoTypes.js";
+import { isValidShortcutBinding } from "../shared/shortcuts.js";
 import type { DatabaseConnection } from "./db/database.js";
 import type { VideoRepository } from "./db/videoRepository.js";
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
@@ -17,8 +18,9 @@ import type { DiagnosticEnvironment } from "./logging/types.js";
 import type { StructuredLogger } from "./logging/logger.js";
 import { buildCacheKey, getCoverPath, getCoverTimeSeconds } from "./media/cacheService.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
-import { assertFileVersion, buildContentFingerprint, verifyIdenticalFiles, type FileVersion } from "./media/contentFingerprint.js";
+import { assertFileVersion, type FileVersion } from "./media/contentFingerprint.js";
 import type { ScanManager } from "./media/scanManager.js";
+import type { MetadataQueue } from "./media/metadataQueue.js";
 import { playWithMpv, waitForMpvStart } from "./media/mpvController.js";
 import type { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
 import { wrapTrustedIpcHandler } from "./security.js";
@@ -140,13 +142,41 @@ const duplicateResolvePlanSchema = z
     )
   })
   .strict();
+const shortcutBindingSchema = z.string().min(1).max(64).refine(isValidShortcutBinding, "Invalid shortcut binding");
+const shortcutSettingsSchema = z.object({
+  libraryPreviousPage: shortcutBindingSchema,
+  libraryNextPage: shortcutBindingSchema,
+  playerTogglePlayback: shortcutBindingSchema,
+  playerSeekBackward: shortcutBindingSchema,
+  playerSeekForward: shortcutBindingSchema,
+  playerVolumeUp: shortcutBindingSchema,
+  playerVolumeDown: shortcutBindingSchema,
+  playerRotateLeft: shortcutBindingSchema,
+  playerRotateRight: shortcutBindingSchema,
+  playerDelete: shortcutBindingSchema
+}).strict().refine((shortcuts) => {
+  const libraryBindings = [shortcuts.libraryPreviousPage, shortcuts.libraryNextPage];
+  const playerBindings = [
+    shortcuts.playerTogglePlayback,
+    shortcuts.playerSeekBackward,
+    shortcuts.playerSeekForward,
+    shortcuts.playerVolumeUp,
+    shortcuts.playerVolumeDown,
+    shortcuts.playerRotateLeft,
+    shortcuts.playerRotateRight,
+    shortcuts.playerDelete
+  ];
+  return new Set(libraryBindings).size === libraryBindings.length
+    && new Set(playerBindings).size === playerBindings.length;
+}, "Shortcut bindings must be unique within each window");
 const settingsSchema = z.object({
   defaultRecursiveScan: z.boolean(),
   startupSync: z.boolean(),
   autoPlayOnOpen: z.boolean(),
   seekStepSeconds: z.number().int().min(1).max(120),
   coverFrameTimeSeconds: z.union([z.literal(0), z.literal(3), z.literal(5), z.literal(10), z.literal(15)]),
-  playbackPreference: z.enum(["auto", "native-first", "mpv-first"])
+  playbackPreference: z.enum(["auto", "native-first", "mpv-first"]),
+  shortcuts: shortcutSettingsSchema
 }).strict();
 const diagnosticsOptionsSchema = z.object({ includeFullPaths: z.boolean() }).strict();
 
@@ -160,6 +190,7 @@ interface IpcDependencies {
   playerWindows: PlayerWindowCoordinator;
   domainEvents: DomainEventBus;
   scanManager: ScanManager;
+  metadataQueue: MetadataQueue;
 }
 
 async function previewBatchMove(repo: VideoRepository, videoIds: string[], targetDirectory: string, addTargetToLibrary: boolean) {
@@ -222,52 +253,17 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
   return { successCount, failureCount: failures.length, reclaimedBytes, failures };
 }
 
-async function refreshDuplicateFingerprints(repo: VideoRepository, limit: number): Promise<void> {
-  const pending = repo.listVideosPendingFingerprintInDuplicateSizes(limit);
-  let cursor = 0;
-  const workers = Array.from({ length: Math.min(2, pending.length) }, async () => {
-    while (cursor < pending.length) {
-      const video = pending[cursor++];
-      try {
-        const fingerprint = await withTimeout(buildContentFingerprint(video.path, video.sizeBytes), 30_000, "快速指纹读取超时");
-        repo.markFingerprintReady(video.id, fingerprint, video.path, video.sizeBytes, video.modifiedAt);
-      } catch (cause) {
-        repo.markFingerprintFailed(video.id, toMessage(cause), video.path, video.sizeBytes, video.modifiedAt);
-      }
-    }
-  });
-  await Promise.all(workers);
-}
-
-async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      operation,
-      new Promise<T>((_resolve, reject) => { timeout = setTimeout(() => reject(new Error(message)), timeoutMs); })
-    ]);
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
-}
-
-const duplicateFingerprintJobs = new WeakMap<VideoRepository, Promise<void>>();
-
-function scheduleDuplicateFingerprintRefresh(repo: VideoRepository, limit: number): void {
-  if (duplicateFingerprintJobs.has(repo)) return;
-  const job = refreshDuplicateFingerprints(repo, limit).finally(() => duplicateFingerprintJobs.delete(repo));
-  duplicateFingerprintJobs.set(repo, job);
-}
-
 async function verifyDuplicateResolvePlan(repo: VideoRepository, plan: z.infer<typeof duplicateResolvePlanSchema>) {
   const entries = repo.validateDuplicateResolvePlan(plan);
   const versions = new Map<string, FileVersion>();
 
   for (const entry of entries) {
     const videos = [entry.keepVideo, ...entry.deleteVideos];
-    const expectedVersions = new Map(videos.map((video) => [video.path, { sizeBytes: video.sizeBytes, modifiedAt: video.modifiedAt }]));
-    const verified = await verifyIdenticalFiles(videos.map((video) => video.path), expectedVersions, AbortSignal.timeout(5 * 60 * 1000));
-    for (const [filePath, version] of verified) versions.set(filePath, version);
+    for (const video of videos) {
+      const expectedVersion = { sizeBytes: video.sizeBytes, modifiedAt: video.modifiedAt };
+      await assertFileVersion(video.path, expectedVersion);
+      versions.set(video.path, expectedVersion);
+    }
   }
 
   return { entries, versions, preview: repo.previewDuplicateResolve(plan) };
@@ -283,15 +279,13 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.libraryMissingList, () => repo.listMissingVideos());
   ipcMain.handle(IPC_CHANNELS.videoListByIds, (_event, videoIds) => repo.listVideosByIds(z.array(z.string().min(1)).max(300).parse(videoIds)));
 
-  ipcMain.handle(IPC_CHANNELS.duplicateList, async (_event, query) => {
-    const parsed = duplicateGroupPageQuerySchema.parse(query);
-    scheduleDuplicateFingerprintRefresh(repo, Math.min(1000, parsed.pageSize * 2));
-    return repo.listDuplicateGroupsPage(parsed);
-  });
+  ipcMain.handle(IPC_CHANNELS.duplicateList, (_event, query) =>
+    repo.listDuplicateGroupsPage(duplicateGroupPageQuerySchema.parse(query))
+  );
 
   ipcMain.handle(IPC_CHANNELS.duplicatePreviewResolve, async (_event, payload) => {
     const verified = await verifyDuplicateResolvePlan(repo, duplicateResolvePlanSchema.parse(payload));
-    return { ...verified.preview, verificationStatus: "verified_identical" as const };
+    return { ...verified.preview, verificationStatus: "file_versions_current" as const };
   });
 
   ipcMain.handle(IPC_CHANNELS.duplicateResolve, async (_event, payload) => {
@@ -523,6 +517,19 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return refreshed;
   });
 
+  ipcMain.handle(IPC_CHANNELS.videoRetryMetadata, (_event, payload) => {
+    const parsed = videoIdSchema.parse(payload);
+    const video = repo.getVideo(parsed.videoId);
+    if (video.isMissing) throw new Error("文件当前不可访问，无法重新分析");
+    if (video.metadataStatus === "failed") {
+      repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
+    }
+    dependencies.metadataQueue.enqueue(video.id);
+    const refreshed = repo.getVideo(video.id);
+    dependencies.domainEvents.publish({ type: "video:updated", videoIds: [video.id] });
+    return refreshed;
+  });
+
   ipcMain.handle(IPC_CHANNELS.videoOpenPlayer, async (_event, payload) => {
     const parsed = playerSessionSchema.parse(payload);
     await dependencies.playerWindows.open(parsed, dependencies.domainEvents.getSequence());
@@ -610,7 +617,11 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     cacheStatus: dependencies.cacheManager.getStatus()
   }));
 
-  ipcMain.handle(IPC_CHANNELS.settingsSet, (_event, payload) => dependencies.settings.set(settingsSchema.parse(payload)));
+  ipcMain.handle(IPC_CHANNELS.settingsSet, (_event, payload) => {
+    const settings = dependencies.settings.set(settingsSchema.parse(payload));
+    dependencies.domainEvents.publish({ type: "settings:changed", videoIds: [] });
+    return settings;
+  });
 
   ipcMain.handle(IPC_CHANNELS.cacheClear, async () => {
     const result = await dependencies.cacheManager.clear();

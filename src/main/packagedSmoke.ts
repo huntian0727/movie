@@ -3,11 +3,13 @@ import { access, mkdir, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { execa } from "execa";
 import type { DatabaseConnection } from "./db/database.js";
 import type { VideoRepository } from "./db/videoRepository.js";
 import type { ScanManager } from "./media/scanManager.js";
 import { MEDIA_SCHEME } from "./media/mediaProtocol.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
+import { resolvePackagedExecutablePath } from "./media/packagedExecutable.js";
 import { configureWindowSecurity } from "./security.js";
 
 interface PackagedSmokeContext {
@@ -71,9 +73,18 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
     const ffmpegPath = require("ffmpeg-static") as string | null;
     const ffprobePath = (require("ffprobe-static") as StaticBinaryModule).path;
     if (!ffmpegPath) throw new Error("ffmpeg-static did not return an executable path");
-    await Promise.all([access(ffmpegPath), access(ffprobePath)]);
+    const executableFfmpegPath = resolvePackagedExecutablePath(ffmpegPath);
+    const executableFfprobePath = resolvePackagedExecutablePath(ffprobePath);
+    await Promise.all([
+      access(executableFfmpegPath),
+      access(executableFfprobePath),
+      execa(executableFfmpegPath, ["-version"], { timeout: 10_000 }),
+      execa(executableFfprobePath, ["-version"], { timeout: 10_000 })
+    ]);
     checks.ffmpegLocated = true;
     checks.ffprobeLocated = true;
+    checks.ffmpegExecutable = true;
+    checks.ffprobeExecutable = true;
   } else {
     const videos = context.repo.listVideos({
       view: "all",

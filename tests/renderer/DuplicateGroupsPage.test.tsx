@@ -46,7 +46,7 @@ const duplicateVideo: VideoRecord = {
 const groups: DuplicateGroup[] = [
   {
     groupKey: "fp-1",
-    identityStatus: "fingerprint_match",
+    identityStatus: "size_duration_match",
     recommendedKeepVideoId: video.id,
     reclaimableBytes: duplicateVideo.sizeBytes,
     items: [
@@ -83,6 +83,8 @@ describe("DuplicateGroupsPage", () => {
     expect(screen.getByText("重复组 01")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument();
+    expect(screen.getByText("大小＋时长匹配组")).toBeInTheDocument();
+    expect(screen.getByText(/不读取视频内容、不计算指纹/)).toBeInTheDocument();
   });
 
   it("resolves duplicates after a single confirmation click", async () => {
@@ -114,6 +116,7 @@ describe("DuplicateGroupsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "清理当前页" }));
 
     await waitFor(() => expect(onPreviewResolve).toHaveBeenCalledOnce());
+    expect(screen.getByText(/未读取或比较视频内容/)).toBeInTheDocument();
     expect(screen.getByText("文件将从磁盘永久删除且无法撤销，请确认保留项选择无误。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认删除" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "确认删除" }));

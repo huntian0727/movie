@@ -142,9 +142,15 @@ app.whenReady().then(async () => {
     logger
   });
   await mediaCacheManager.initialize();
-  metadataQueue = new MetadataQueue(repo, undefined, 1, logger);
-  const scanManager = new ScanManager(repo, undefined, metadataQueue, logger);
   const domainEvents = new DomainEventBus();
+  metadataQueue = new MetadataQueue(
+    repo,
+    undefined,
+    1,
+    logger,
+    (videoId) => domainEvents.publish({ type: "video:updated", videoIds: [videoId] })
+  );
+  const scanManager = new ScanManager(repo, undefined, metadataQueue, logger);
   playerWindows = new PlayerWindowCoordinator(repo, { currentDir, devServerUrl, isPackaged: app.isPackaged });
   registerIpcHandlers(repo, {
     database,
@@ -166,6 +172,7 @@ app.whenReady().then(async () => {
     cacheRoot,
     cacheManager: mediaCacheManager,
     scanManager,
+    metadataQueue,
     playerWindows,
     domainEvents
   });

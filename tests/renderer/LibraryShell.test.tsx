@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryShell } from "../../src/renderer/components/LibraryShell";
 import type { DuplicateGroup, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
+import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
 const folder: SourceFolder = {
   id: "f1",
@@ -70,7 +71,7 @@ const deepNestedVideo: VideoRecord = {
 const duplicateGroups: DuplicateGroup[] = [
   {
     groupKey: "fingerprint-1",
-    identityStatus: "fingerprint_match",
+    identityStatus: "size_duration_match",
     recommendedKeepVideoId: video.id,
     reclaimableBytes: nestedVideo.sizeBytes,
     items: [
@@ -109,6 +110,23 @@ describe("LibraryShell", () => {
 
     expect(screen.getByText("分析中")).toBeInTheDocument();
     expect(screen.getByText("分辨率未知")).toBeInTheDocument();
+  });
+
+  it("distinguishes metadata failure and lets the user retry analysis", async () => {
+    const onRetryMetadata = vi.fn();
+    const failedVideo = {
+      ...video,
+      durationMs: null,
+      width: null,
+      height: null,
+      metadataStatus: "failed" as const
+    };
+
+    render(<LibraryShell videos={[failedVideo]} onRetryMetadata={onRetryMetadata} />);
+
+    expect(screen.getByText("元数据失败")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新分析 clip.mp4" }));
+    await waitFor(() => expect(onRetryMetadata).toHaveBeenCalledWith(failedVideo));
   });
 
   it("filters by favorite and can switch to table view", () => {
@@ -269,6 +287,28 @@ describe("LibraryShell", () => {
     expect(screen.getByText("clip-001.mp4")).toBeInTheDocument();
   });
 
+  it("changes pages with customized library shortcuts", () => {
+    const videos = Array.from({ length: 61 }, (_, index) => makeVideo(index + 1));
+    render(
+      <LibraryShell
+        videos={videos}
+        shortcuts={{
+          ...DEFAULT_SHORTCUTS,
+          libraryPreviousPage: "KeyA",
+          libraryNextPage: "KeyD"
+        }}
+      />
+    );
+    fireEvent.change(screen.getByLabelText("每页视频数量"), { target: { value: "30" } });
+
+    fireEvent.keyDown(window, { code: "ArrowRight" });
+    expect(screen.getByText("clip-001.mp4")).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: "KeyD" });
+    expect(screen.getByText("clip-031.mp4")).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: "KeyA" });
+    expect(screen.getByText("clip-001.mp4")).toBeInTheDocument();
+  });
+
   it("resizes masonry cards in five steps and remembers the selected width", () => {
     const view = render(<LibraryShell videos={[video]} />);
     const { container } = view;
@@ -349,6 +389,51 @@ describe("LibraryShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "折叠 Drama" }));
     expect(screen.queryByRole("button", { name: "Season 1" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Drama" })).toBeInTheDocument();
+  });
+
+  it("searches known folder names and paths without requiring their parents to be expanded", () => {
+    render(<LibraryShell videos={[video, nestedVideo, deepNestedVideo]} folders={[folder]} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "搜索文件夹名称或路径" }), {
+      target: { value: "Season 1" }
+    });
+
+    expect(screen.queryByRole("button", { name: "Movies" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Season 1" })).toBeInTheDocument();
+    expect(screen.getByText("D:\\Movies\\Drama\\Season 1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "清除文件夹搜索" }));
+    expect(screen.getByRole("button", { name: "Movies" })).toBeInTheDocument();
+  });
+
+  it("supports keyboard navigation and expansion in the folder tree", () => {
+    render(<LibraryShell videos={[video, nestedVideo, deepNestedVideo]} folders={[folder]} />);
+
+    const movies = screen.getByRole("button", { name: "Movies" });
+    movies.focus();
+    fireEvent.keyDown(movies, { key: "ArrowRight" });
+
+    const drama = screen.getByRole("button", { name: "Drama" });
+    fireEvent.keyDown(movies, { key: "ArrowDown" });
+    expect(drama).toHaveFocus();
+
+    fireEvent.keyDown(drama, { key: "ArrowRight" });
+    expect(screen.getByRole("button", { name: "Season 1" })).toBeInTheDocument();
+    fireEvent.keyDown(drama, { key: "ArrowLeft" });
+    expect(screen.queryByRole("button", { name: "Season 1" })).not.toBeInTheDocument();
+  });
+
+  it("remembers the resized sidebar width and supports keyboard resizing", () => {
+    const { container, unmount } = render(<LibraryShell videos={[video]} folders={[folder]} />);
+    const resizer = screen.getByRole("separator", { name: "调整侧栏宽度" });
+
+    fireEvent.keyDown(resizer, { key: "ArrowRight" });
+    expect(container.querySelector(".app-shell")).toHaveStyle({ "--sidebar-width": "310px" });
+    expect(window.localStorage.getItem("video-manager:sidebar-width")).toBe("310");
+
+    unmount();
+    const restored = render(<LibraryShell videos={[video]} folders={[folder]} />);
+    expect(restored.container.querySelector(".app-shell")).toHaveStyle({ "--sidebar-width": "310px" });
   });
 
   it("only retries a failed cover when its URL changes", () => {
@@ -538,6 +623,40 @@ describe("LibraryShell", () => {
     expect(screen.getByText("已暂停 7/20")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "继续扫描 Movies" }));
     expect(onResumeFolderScan).toHaveBeenCalledWith(folder);
+  });
+
+  it("shows active scan progress instead of a stale warning from an older scan", () => {
+    const folderWithOldError = { ...folder, scanError: "上次读取网盘超时" };
+    render(
+      <LibraryShell
+        videos={[video]}
+        folders={[folderWithOldError]}
+        scanStatuses={[{ folderId: folder.id, state: "scanning", phase: "processing", totalFiles: 20, processedFiles: 7, currentPath: "D:\\Movies\\clip.mp4", message: null, updatedAt: "" }]}
+      />
+    );
+
+    expect(screen.getByLabelText("正在扫描 Movies")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "查看 Movies 扫描异常" })).not.toBeInTheDocument();
+  });
+
+  it("opens actionable folder scan details and retries from the warning", async () => {
+    const onRetryFolderScan = vi.fn();
+    render(
+      <LibraryShell
+        videos={[video]}
+        folders={[{ ...folder, scanError: "读取子目录 D:\\Movies\\Cloud 超时" }]}
+        onRetryFolderScan={onRetryFolderScan}
+      />
+    );
+
+    const warning = screen.getByRole("button", { name: "查看 Movies 扫描异常" });
+    expect(warning).toHaveAttribute("title", "读取子目录 D:\\Movies\\Cloud 超时");
+    fireEvent.click(warning);
+
+    expect(screen.getByRole("dialog", { name: "上次扫描存在异常" })).toBeInTheDocument();
+    expect(screen.getByText("读取子目录 D:\\Movies\\Cloud 超时")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新扫描此目录" }));
+    await waitFor(() => expect(onRetryFolderScan).toHaveBeenCalledWith(expect.objectContaining({ id: folder.id })));
   });
 
   it("loads only the requested ordinary library page from the backend", async () => {

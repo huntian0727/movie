@@ -4,6 +4,7 @@ import { access, cp, mkdir, rename } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { execa } from "execa";
+import { resolvePackagedExecutablePath } from "./packagedExecutable.js";
 
 interface CacheGenerationDependencies {
   ffmpegPath?: string;
@@ -141,11 +142,12 @@ function resolveFfmpegPath(ffmpegPathOverride?: string): string {
       throw new Error("ffmpeg path is not configured");
     }
 
-    return ffmpegPathOverride;
+    return resolvePackagedExecutablePath(ffmpegPathOverride);
   }
 
-  if (typeof ffmpegStatic === "string" && ffmpegStatic.trim() !== "" && existsSync(ffmpegStatic)) {
-    return ffmpegStatic;
+  if (typeof ffmpegStatic === "string" && ffmpegStatic.trim() !== "") {
+    const resolvedStaticPath = resolvePackagedExecutablePath(ffmpegStatic);
+    if (existsSync(resolvedStaticPath)) return resolvedStaticPath;
   }
 
   // Fall back to PATH when the static binary was not downloaded into node_modules.

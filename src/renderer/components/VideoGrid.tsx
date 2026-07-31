@@ -13,6 +13,7 @@ interface VideoGridProps {
   onRename(video: VideoRecord): void;
   onDelete(video: VideoRecord): void;
   onRegenerateCover?(video: VideoRecord): void | Promise<void>;
+  onRetryMetadata?(video: VideoRecord): void | Promise<void>;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onShowDirectory?(video: VideoRecord): void;
   cardWidth?: number;
@@ -21,7 +22,7 @@ interface VideoGridProps {
   onToggleSelection?(video: VideoRecord): void;
 }
 
-export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggleFavorite, onTogglePendingDelete, onRename, onDelete, onRegenerateCover, onRevealInFolder, onShowDirectory, cardWidth, selectionMode = false, selectedIds, onToggleSelection }: VideoGridProps) {
+export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggleFavorite, onTogglePendingDelete, onRename, onDelete, onRegenerateCover, onRetryMetadata, onRevealInFolder, onShowDirectory, cardWidth, selectionMode = false, selectedIds, onToggleSelection }: VideoGridProps) {
   const [failedCoverUrls, setFailedCoverUrls] = useState<Set<string>>(() => new Set());
 
   return (
@@ -66,7 +67,13 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
               )}
               <span className="format-badge">{video.extension.slice(1).toUpperCase()}</span>
               <span className="duration-badge">
-                {video.metadataStatus === "pending" ? "分析中" : video.metadataStatus === "failed" ? "待重试" : formatDuration(video.durationMs)}
+                {video.metadataStatus === "pending"
+                  ? "分析中"
+                  : video.metadataStatus === "failed"
+                    ? "元数据失败"
+                    : video.thumbnailStatus === "failed"
+                      ? "预览失败"
+                      : formatDuration(video.durationMs)}
               </span>
               <span className="cover-play" aria-hidden="true">
                 <Play size={22} fill="currentColor" />
@@ -102,6 +109,15 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
                 {onRegenerateCover && (
                   <button aria-label={`重新生成 ${video.filename} 的预览`} title="重新生成预览" onClick={() => void onRegenerateCover(video)}>
                     <RotateCw size={16} />
+                  </button>
+                )}
+                {onRetryMetadata && video.metadataStatus === "failed" && (
+                  <button
+                    aria-label={`重新分析 ${video.filename}`}
+                    title="重试读取视频时长、分辨率和格式"
+                    onClick={() => void onRetryMetadata(video)}
+                  >
+                    <Film size={16} />
                   </button>
                 )}
                 {onRevealInFolder && (

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { BookmarkX, ChevronDown, ChevronRight, Clock3, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, Pause, Play, PlaySquare, RotateCw, Settings, Trash2 } from "lucide-react";
-import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreview, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
+import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreview, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
-import { DirectoryPicker } from "./DirectoryPicker";
 import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 import { VideoGrid } from "./VideoGrid";
@@ -13,6 +13,10 @@ const PAGE_SIZE_OPTIONS = [30, 50, 100, 200, 300] as const;
 const GRID_CARD_WIDTH_OPTIONS = [180, 220, 260, 320, 400] as const;
 const GRID_CARD_WIDTH_STORAGE_KEY = "video-manager:grid-card-width";
 const PAGE_SIZE_STORAGE_KEY = "video-manager:library-page-size";
+const SIDEBAR_WIDTH_STORAGE_KEY = "video-manager:sidebar-width";
+const DEFAULT_SIDEBAR_WIDTH = 300;
+const MIN_SIDEBAR_WIDTH = 250;
+const MAX_SIDEBAR_WIDTH = 460;
 const EMPTY_FOLDERS: SourceFolder[] = [];
 const EMPTY_DUPLICATE_GROUPS: DuplicateGroup[] = [];
 const EMPTY_RECENT_VIDEO_IDS: string[] = [];
@@ -25,6 +29,7 @@ interface LibraryShellProps {
   loading?: boolean;
   error?: string | null;
   refreshSequence?: number;
+  shortcuts?: ShortcutSettings;
   onAddFolder?(): void | Promise<void>;
   onRemoveFolder?(folder: SourceFolder): void | Promise<void>;
   onPauseFolderScan?(folder: SourceFolder): void | Promise<unknown>;
@@ -37,6 +42,7 @@ interface LibraryShellProps {
   onRename?(video: VideoRecord, baseName: string): void | Promise<void>;
   onDelete?(video: VideoRecord): void | Promise<void>;
   onRegenerateCover?(video: VideoRecord): void | Promise<void>;
+  onRetryMetadata?(video: VideoRecord): void | Promise<void>;
   getCoverUrl?(video: VideoRecord): string | null;
   navigation?: LibraryNavigationSnapshot;
   onLoadVideoPage?(query: LibraryPageQuery): Promise<LibraryPage>;
@@ -62,6 +68,7 @@ export function LibraryShell({
   loading = false,
   error = null,
   refreshSequence = 0,
+  shortcuts = DEFAULT_SHORTCUTS,
   onAddFolder,
   onRemoveFolder,
   onPauseFolderScan,
@@ -74,6 +81,7 @@ export function LibraryShell({
   onRename,
   onDelete,
   onRegenerateCover,
+  onRetryMetadata,
   getCoverUrl,
   navigation,
   onLoadVideoPage,
@@ -98,6 +106,7 @@ export function LibraryShell({
   const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<VideoRecord | null>(null);
   const [removeFolderTarget, setRemoveFolderTarget] = useState<SourceFolder | null>(null);
+  const [folderIssueTarget, setFolderIssueTarget] = useState<{ folder: SourceFolder; message: string; state: "offline" | "error" | "previous" } | null>(null);
   const [nextBaseName, setNextBaseName] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
@@ -105,6 +114,9 @@ export function LibraryShell({
   const [page, setPage] = useState(1);
   const [gridCardWidth, setGridCardWidth] = useState<(typeof GRID_CARD_WIDTH_OPTIONS)[number]>(readStoredGridCardWidth);
   const [expandedFolderPaths, setExpandedFolderPaths] = useState<string[]>([]);
+  const [folderQuery, setFolderQuery] = useState("");
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [duplicatePageNumber, setDuplicatePageNumber] = useState(1);
   const [duplicatePageSize, setDuplicatePageSize] = useState<DuplicatePageSize>(20);
   const [duplicateSortDirection, setDuplicateSortDirection] = useState<SortDirection>("desc");
@@ -126,6 +138,9 @@ export function LibraryShell({
   const [batchMovePreview, setBatchMovePreview] = useState<BatchMovePreview | null>(null);
   const [batchResult, setBatchResult] = useState<BatchDeleteResult | BatchMoveResult | null>(null);
   const contentRef = useRef<HTMLElement>(null);
+  const folderSearchRef = useRef<HTMLInputElement>(null);
+  const folderNavRef = useRef<HTMLElement>(null);
+  const sidebarResizeStartRef = useRef<{ pointerX: number; width: number } | null>(null);
   const directoryPaths = useMemo(() => navigation?.directoryPaths ?? videos.map((video) => video.directory), [navigation?.directoryPaths, videos]);
   const directoryEntries = useMemo(() => buildDirectoryEntries(folders, directoryPaths), [directoryPaths, folders]);
   const scanStatusByFolder = useMemo(() => new Map(scanStatuses.map((status) => [status.folderId, status])), [scanStatuses]);
@@ -137,6 +152,11 @@ export function LibraryShell({
     () => directoryEntries.filter((entry) => isDirectoryEntryVisible(entry, expandedFolderPaths, directoryEntryByPath)),
     [directoryEntries, directoryEntryByPath, expandedFolderPaths]
   );
+  const displayedDirectoryEntries = useMemo(() => {
+    const query = folderQuery.trim().toLocaleLowerCase();
+    if (!query) return visibleDirectoryEntries;
+    return directoryEntries.filter((entry) => entry.path.toLocaleLowerCase().includes(query));
+  }, [directoryEntries, folderQuery, visibleDirectoryEntries]);
 
   const visibleVideos = useMemo(() => {
     if (onLoadVideoPage) return videoPage.videos;
@@ -218,6 +238,48 @@ export function LibraryShell({
   }, [pageSize]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth));
+    } catch {
+      // Renderer storage can be unavailable in hardened or test environments.
+    }
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (!isResizingSidebar) return;
+    const onPointerMove = (event: PointerEvent) => {
+      const start = sidebarResizeStartRef.current;
+      if (!start) return;
+      setSidebarWidth(clampSidebarWidth(start.width + event.clientX - start.pointerX));
+    };
+    const stopResizing = () => {
+      sidebarResizeStartRef.current = null;
+      setIsResizingSidebar(false);
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", stopResizing);
+    window.addEventListener("pointercancel", stopResizing);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", stopResizing);
+      window.removeEventListener("pointercancel", stopResizing);
+    };
+  }, [isResizingSidebar]);
+
+  useEffect(() => {
+    const focusFolderSearch = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.altKey || event.metaKey || event.code !== "KeyF") return;
+      if (renameTarget || deleteTarget || detailsTarget || removeFolderTarget || folderIssueTarget) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], [role='alertdialog']")) return;
+      event.preventDefault();
+      folderSearchRef.current?.focus();
+    };
+    window.addEventListener("keydown", focusFolderSearch);
+    return () => window.removeEventListener("keydown", focusFolderSearch);
+  }, [deleteTarget, detailsTarget, folderIssueTarget, removeFolderTarget, renameTarget]);
+
+  useEffect(() => {
     const existingPaths = new Set(directoryEntries.map((entry) => normalizeDirectoryPath(entry.path)));
     setExpandedFolderPaths((current) => {
       const next = current.filter((path) => existingPaths.has(path));
@@ -294,13 +356,15 @@ export function LibraryShell({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (view === "duplicates" || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      if (renameTarget || deleteTarget || detailsTarget || removeFolderTarget) return;
-      if (event.code !== "ArrowLeft" && event.code !== "ArrowRight") return;
+      if (view === "duplicates" || event.defaultPrevented) return;
+      if (renameTarget || deleteTarget || detailsTarget || removeFolderTarget || folderIssueTarget) return;
+      const previousPage = matchesShortcut(event, shortcuts.libraryPreviousPage);
+      const nextPageShortcut = matchesShortcut(event, shortcuts.libraryNextPage);
+      if (!previousPage && !nextPageShortcut) return;
       const target = event.target;
       if (target instanceof HTMLElement && target.closest("input, textarea, select, button, a, [contenteditable='true'], [role='dialog'], [role='alertdialog']")) return;
 
-      const nextPage = event.code === "ArrowLeft"
+      const nextPage = previousPage
         ? Math.max(1, currentPage - 1)
         : Math.min(totalPages, currentPage + 1);
       if (nextPage === currentPage) return;
@@ -309,7 +373,7 @@ export function LibraryShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [currentPage, deleteTarget, detailsTarget, removeFolderTarget, renameTarget, totalPages, view]);
+  }, [currentPage, deleteTarget, detailsTarget, folderIssueTarget, removeFolderTarget, renameTarget, shortcuts, totalPages, view]);
   const openVideo = (video: VideoRecord, queue = renderedVideos) => onOpen?.(video, queue);
   const toggleFavorite = (video: VideoRecord) => void runAction(() => onToggleFavorite?.(video)).then((changed) => {
     if (changed && onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
@@ -327,6 +391,9 @@ export function LibraryShell({
     setDeleteTarget(video);
   };
   const regenerateCover = (video: VideoRecord) => void runAction(() => onRegenerateCover?.(video)).then((changed) => {
+    if (changed && onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
+  });
+  const retryMetadata = (video: VideoRecord) => void runAction(() => onRetryMetadata?.(video)).then((changed) => {
     if (changed && onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
   });
   const viewVideoDetails = (video: VideoRecord) => {
@@ -436,9 +503,51 @@ export function LibraryShell({
     setActionPending(true);
     try { setBatchResult(await onBatchMove(selectedVideos, batchMovePreview.targetDirectory, true)); setBatchMovePreview(null); exitSelection(); } catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); } finally { setActionPending(false); }
   };
+  const startSidebarResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    sidebarResizeStartRef.current = { pointerX: event.clientX, width: sidebarWidth };
+    setIsResizingSidebar(true);
+    event.preventDefault();
+  };
+  const handleFolderKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    entry: DirectoryEntry,
+    isExpanded: boolean,
+    toggleExpanded: () => void
+  ) => {
+    const folderButtons = [...(folderNavRef.current?.querySelectorAll<HTMLButtonElement>(".folder-entry") ?? [])];
+    const currentIndex = folderButtons.indexOf(event.currentTarget);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      const offset = event.key === "ArrowDown" ? 1 : -1;
+      folderButtons[Math.max(0, Math.min(folderButtons.length - 1, currentIndex + offset))]?.focus();
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "ArrowRight" && entry.hasChildren && !isExpanded) {
+      toggleExpanded();
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      if (entry.hasChildren && isExpanded) {
+        toggleExpanded();
+      } else if (entry.parentPath) {
+        folderButtons.find((button) => normalizeDirectoryPath(button.dataset.folderPath ?? "") === entry.parentPath)?.focus();
+      }
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "Enter") {
+      selectDirectory(entry.path);
+      event.preventDefault();
+    }
+  };
 
   return (
-    <main className="app-shell">
+    <main
+      className={`app-shell${isResizingSidebar ? " is-resizing-sidebar" : ""}`}
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
+    >
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark"><PlaySquare size={22} /></span>
@@ -462,23 +571,41 @@ export function LibraryShell({
           </button>
         </nav>
         <div className="sidebar-heading">
-          <span>文件夹</span>
-          <DirectoryPicker
-            directoryPaths={directoryEntries.map((entry) => entry.path)}
-            value={view === "folder" ? selectedFolderPath ?? undefined : undefined}
-            placeholder="搜索已入库目录"
-            ariaLabel="搜索并选择目录"
-            compact
-            onChange={(path) => selectDirectory(path)}
-          />
+          <span>文件夹 <small>{directoryEntries.length}</small></span>
           <button aria-label="添加文件夹" title="添加文件夹" onClick={() => void onAddFolder?.()}><FolderPlus size={17} /></button>
         </div>
-        <nav className="folder-nav" aria-label="视频文件夹">
-          {visibleDirectoryEntries.map((entry) => {
+        <label className="folder-search">
+          <Search size={15} aria-hidden="true" />
+          <input
+            ref={folderSearchRef}
+            aria-label="搜索文件夹名称或路径"
+            placeholder="搜索文件夹名称或路径"
+            value={folderQuery}
+            onChange={(event) => setFolderQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setFolderQuery("");
+                event.currentTarget.blur();
+              }
+            }}
+          />
+          {folderQuery && (
+            <button type="button" aria-label="清除文件夹搜索" title="清除搜索" onClick={() => {
+              setFolderQuery("");
+              folderSearchRef.current?.focus();
+            }}>
+              <X size={14} />
+            </button>
+          )}
+        </label>
+        <nav ref={folderNavRef} className={`folder-nav${folderQuery.trim() ? " search-results" : ""}`} aria-label="视频文件夹">
+          {displayedDirectoryEntries.map((entry) => {
             const normalizedPath = normalizeDirectoryPath(entry.path);
             const isExpanded = expandedFolderPaths.includes(normalizedPath);
-            const isSelected = view === "folder" && selectedFolderPath === entry.path;
+            const isSelected = view === "folder" && normalizeDirectoryPath(selectedFolderPath ?? "") === normalizedPath;
             const scanStatus = entry.sourceFolder ? scanStatusByFolder.get(entry.sourceFolder.id) : undefined;
+            const warning = getFolderWarning(entry, scanStatus);
+            const isScanning = scanStatus?.state === "queued" || scanStatus?.state === "scanning";
             const toggleExpanded = () => {
               setExpandedFolderPaths((current) =>
                 current.includes(normalizedPath)
@@ -488,7 +615,11 @@ export function LibraryShell({
             };
 
             return (
-              <div key={entry.path} className={`folder-nav-row${isSelected ? " active" : ""}${entry.sourceFolder ? " source-folder" : ""}`}>
+              <div
+                key={entry.path}
+                className={`folder-nav-row${isSelected ? " active" : ""}${entry.sourceFolder ? " source-folder" : ""}${warning ? " has-warning" : ""}${isScanning ? " is-scanning" : ""}`}
+                style={{ "--folder-depth": folderQuery.trim() ? 0 : entry.depth } as CSSProperties}
+              >
                 {entry.hasChildren ? (
                   <button
                     type="button"
@@ -496,24 +627,42 @@ export function LibraryShell({
                     aria-label={`${isExpanded ? "折叠" : "展开"} ${folderName(entry.path)}`}
                     aria-expanded={isExpanded}
                     title={isExpanded ? "折叠子目录" : "展开子目录"}
-                    style={{ marginLeft: `${10 + entry.depth * 14}px` }}
                     onClick={toggleExpanded}
                   >
                     {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   </button>
                 ) : (
-                  <span className="folder-toggle-spacer" style={{ marginLeft: `${10 + entry.depth * 14}px` }} aria-hidden="true" />
+                  <span className="folder-toggle-spacer" aria-hidden="true" />
                 )}
                 <button
                   type="button"
                   className={`folder-entry${isSelected ? " active" : ""}`}
+                  data-folder-path={entry.path}
+                  aria-label={folderName(entry.path)}
                   title={entry.path}
-                  onClick={() => { setView("folder"); setSelectedFolderPath(entry.path); setFolderScope("recursive"); }}
+                  onClick={() => selectDirectory(entry.path)}
+                  onKeyDown={(event) => handleFolderKeyDown(event, entry, isExpanded, toggleExpanded)}
                 >
-                  <Folder size={17} />
-                  <span className="folder-entry-label"><span>{folderName(entry.path)}</span>{scanStatus && <small title={scanStatus.currentPath ?? scanStatus.message ?? undefined}>{formatScanStatus(scanStatus)}</small>}</span>
-                  {entry.hasScanError && <i title={entry.scanError ?? "目录扫描异常"} />}
+                  <Folder size={18} />
+                  <span className="folder-entry-label">
+                    <span className="folder-entry-name">{folderName(entry.path)}</span>
+                    <small title={scanStatus?.currentPath ?? scanStatus?.message ?? entry.path}>
+                      {folderEntryMeta(entry, scanStatus, Boolean(folderQuery.trim()))}
+                    </small>
+                  </span>
+                  {isScanning && <LoaderCircle className="folder-scan-spinner" size={15} aria-label={`正在扫描 ${folderName(entry.path)}`} />}
                 </button>
+                {warning && entry.sourceFolder && (
+                  <button
+                    type="button"
+                    className="folder-warning-button"
+                    aria-label={`查看 ${folderName(entry.path)} 扫描异常`}
+                    title={warning.message}
+                    onClick={() => setFolderIssueTarget({ folder: entry.sourceFolder!, message: warning.message, state: warning.state })}
+                  >
+                    <AlertTriangle size={16} />
+                  </button>
+                )}
                 {entry.sourceFolder && (
                   <span className="folder-source-actions">
                     {(scanStatus?.state === "queued" || scanStatus?.state === "scanning") && onPauseFolderScan && <button type="button" aria-label={`暂停扫描 ${folderName(entry.path)}`} title="暂停扫描" onClick={() => void onPauseFolderScan(entry.sourceFolder!)}><Pause size={13} /></button>}
@@ -526,11 +675,30 @@ export function LibraryShell({
             );
           })}
           {directoryEntries.length === 0 && <p className="folder-empty">还没有添加文件夹</p>}
+          {directoryEntries.length > 0 && displayedDirectoryEntries.length === 0 && <p className="folder-empty">没有匹配的已入库目录</p>}
         </nav>
         <div className="sidebar-footer">
           <button onClick={onOpenSettings}><Settings size={17} /><span>设置</span></button>
           <div className="storage-note"><span>本地资料库</span><small>文件保留在原位置</small></div>
         </div>
+        <div
+          className="sidebar-resizer"
+          role="separator"
+          aria-label="调整侧栏宽度"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_SIDEBAR_WIDTH}
+          aria-valuemax={MAX_SIDEBAR_WIDTH}
+          aria-valuenow={sidebarWidth}
+          tabIndex={0}
+          title="拖动调整宽度，双击恢复默认宽度"
+          onPointerDown={startSidebarResize}
+          onDoubleClick={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)}
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+            setSidebarWidth((current) => clampSidebarWidth(current + (event.key === "ArrowRight" ? 10 : -10)));
+            event.preventDefault();
+          }}
+        />
       </aside>
 
       <section className="content" ref={contentRef}>
@@ -627,7 +795,7 @@ export function LibraryShell({
           </div>
         ) : viewMode === "grid" ? (
           <>
-            <VideoGrid videos={renderedVideos} getCoverUrl={getCoverUrl} onOpen={openVideo} onViewDetails={viewVideoDetails} onToggleFavorite={toggleFavorite} onTogglePendingDelete={onTogglePendingDelete ? togglePendingDelete : undefined} onRename={renameVideo} onDelete={deleteVideo} onRegenerateCover={onRegenerateCover ? regenerateCover : undefined} onRevealInFolder={onRevealInFolder} onShowDirectory={showVideoDirectory} cardWidth={gridCardWidth} selectionMode={selectionMode} selectedIds={selectedVideoIds} onToggleSelection={toggleSelectedVideo} />
+            <VideoGrid videos={renderedVideos} getCoverUrl={getCoverUrl} onOpen={openVideo} onViewDetails={viewVideoDetails} onToggleFavorite={toggleFavorite} onTogglePendingDelete={onTogglePendingDelete ? togglePendingDelete : undefined} onRename={renameVideo} onDelete={deleteVideo} onRegenerateCover={onRegenerateCover ? regenerateCover : undefined} onRetryMetadata={onRetryMetadata ? retryMetadata : undefined} onRevealInFolder={onRevealInFolder} onShowDirectory={showVideoDirectory} cardWidth={gridCardWidth} selectionMode={selectionMode} selectedIds={selectedVideoIds} onToggleSelection={toggleSelectedVideo} />
             <PaginationBar page={currentPage} totalPages={totalPages} pageSize={pageSize} totalCount={onLoadVideoPage ? videoPage.totalCount : visibleVideos.length} onPage={setPage} onPageSize={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
           </>
         ) : (
@@ -639,6 +807,42 @@ export function LibraryShell({
       </section>
 
       {detailsTarget && <VideoDetailsDialog video={detailsTarget} onClose={() => setDetailsTarget(null)} />}
+
+      {folderIssueTarget && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !actionPending) setFolderIssueTarget(null);
+        }}>
+          <section className="dialog folder-issue-dialog" role="dialog" aria-modal="true" aria-labelledby="folder-issue-title">
+            <span className="folder-issue-heading"><AlertTriangle size={18} /></span>
+            <h3 id="folder-issue-title">
+              {folderIssueTarget.state === "offline"
+                ? "目录暂时离线"
+                : folderIssueTarget.state === "error"
+                  ? "目录扫描失败"
+                  : "上次扫描存在异常"}
+            </h3>
+            <p className="delete-filename" title={folderIssueTarget.folder.path}>{folderIssueTarget.folder.path}</p>
+            <p className="folder-issue-message">{folderIssueTarget.message}</p>
+            <p>现有视频记录会继续保留，不会因为本次读取异常而从资料库中自动删除。</p>
+            {actionError && <small className="dialog-error">{actionError}</small>}
+            <div className="dialog-actions">
+              <button onClick={() => setFolderIssueTarget(null)} disabled={actionPending}>关闭</button>
+              {onRetryFolderScan && (
+                <button
+                  className="primary"
+                  aria-label="重新扫描此目录"
+                  disabled={actionPending}
+                  onClick={() => void runAction(async () => { await onRetryFolderScan(folderIssueTarget.folder); }).then((retried) => {
+                    if (retried) setFolderIssueTarget(null);
+                  })}
+                >
+                  <RotateCw size={14} />重新扫描
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       {renameTarget && (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setRenameTarget(null); }}>
@@ -807,8 +1011,52 @@ function readStoredPageSize(): (typeof PAGE_SIZE_OPTIONS)[number] {
   return 100;
 }
 
+function readStoredSidebarWidth(): number {
+  try {
+    const storedValue = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    if (storedValue === null) return DEFAULT_SIDEBAR_WIDTH;
+    const value = Number(storedValue);
+    if (Number.isFinite(value)) return clampSidebarWidth(value);
+  } catch {
+    // Fall through to the default when storage is unavailable.
+  }
+  return DEFAULT_SIDEBAR_WIDTH;
+}
+
+function clampSidebarWidth(value: number): number {
+  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(value)));
+}
+
 function folderName(folderPath: string): string {
   return folderPath.split(/[\\/]/).filter(Boolean).at(-1) ?? folderPath;
+}
+
+function folderEntryMeta(entry: DirectoryEntry, scanStatus: FolderScanStatus | undefined, isSearchResult: boolean): string {
+  if (isSearchResult) return entry.path;
+  if (scanStatus) return formatScanStatus(scanStatus);
+  if (entry.sourceFolder) return "已添加目录";
+  return entry.parentPath ?? entry.path;
+}
+
+function getFolderWarning(
+  entry: DirectoryEntry,
+  scanStatus: FolderScanStatus | undefined
+): { message: string; state: "offline" | "error" | "previous" } | null {
+  if (scanStatus?.state === "offline") {
+    return { message: scanStatus.message?.trim() || "目录目前无法访问，可能是磁盘或网盘暂时离线。", state: "offline" };
+  }
+  if (scanStatus?.state === "error") {
+    return { message: scanStatus.message?.trim() || entry.scanError?.trim() || "目录扫描失败，请检查目录访问状态后重试。", state: "error" };
+  }
+  if (scanStatus) {
+    // A queued, active, paused, or completed scan supersedes a stale error
+    // persisted by an older scan. Do not show both progress and a warning.
+    return null;
+  }
+  if (entry.scanError?.trim()) {
+    return { message: entry.scanError.trim(), state: "previous" };
+  }
+  return null;
 }
 
 function formatScanStatus(status: FolderScanStatus): string {

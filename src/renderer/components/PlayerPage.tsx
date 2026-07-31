@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
-import type { LibraryPage, PlaybackRoute, VideoRecord } from "../../shared/videoTypes";
+import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoRecord } from "../../shared/videoTypes";
+import { DEFAULT_SHORTCUTS, formatShortcutBinding, matchesShortcut } from "../../shared/shortcuts";
 import { formatBytes, formatDuration } from "./formatters";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 
@@ -12,6 +13,7 @@ interface PlayerPageProps {
   mediaUrl?: string;
   autoPlayOnOpen?: boolean;
   seekStepSeconds?: number;
+  shortcuts?: ShortcutSettings;
   hasPrevious?: boolean;
   hasNext?: boolean;
   playbackRoute?: PlaybackRoute;
@@ -33,6 +35,7 @@ export function PlayerPage({
   mediaUrl,
   autoPlayOnOpen = false,
   seekStepSeconds = 10,
+  shortcuts = DEFAULT_SHORTCUTS,
   hasPrevious = true,
   hasNext = true,
   playbackRoute = "native",
@@ -208,7 +211,7 @@ export function PlayerPage({
       }
       if (event.target instanceof HTMLElement && event.target.closest("[role='dialog']")) return;
       if (event.target instanceof HTMLInputElement) return;
-      if (event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && event.code === "KeyD") {
+      if (matchesShortcut(event, shortcuts.playerDelete)) {
         event.preventDefault();
         if (!detailsOpen && !playlistOpen && onDelete && !event.repeat) openDeleteConfirmation();
         return;
@@ -218,27 +221,43 @@ export function PlayerPage({
         setPlaylistOpen(false);
         return;
       }
-      if (event.code === "Space") {
+      if (matchesShortcut(event, shortcuts.playerTogglePlayback)) {
         event.preventDefault();
         void togglePlayback();
         return;
       }
-      if (!isExternalPlayback && event.ctrlKey && (event.code === "ArrowLeft" || event.code === "ArrowRight")) {
+      if (!isExternalPlayback && matchesShortcut(event, shortcuts.playerRotateLeft)) {
         event.preventDefault();
-        setRotationDegrees((current) => (current + (event.code === "ArrowLeft" ? 270 : 90)) % 360);
+        setRotationDegrees((current) => (current + 270) % 360);
         return;
       }
-      if (!isExternalPlayback && (event.code === "ArrowUp" || event.code === "ArrowDown")) {
+      if (!isExternalPlayback && matchesShortcut(event, shortcuts.playerRotateRight)) {
         event.preventDefault();
-        updateVolume(Math.max(0, Math.min(1, volume + (event.code === "ArrowUp" ? VOLUME_KEYBOARD_STEP : -VOLUME_KEYBOARD_STEP))));
+        setRotationDegrees((current) => (current + 90) % 360);
         return;
       }
-      if (!isExternalPlayback && event.code === "ArrowLeft") seekBy(-seekStepSeconds);
-      if (!isExternalPlayback && event.code === "ArrowRight") seekBy(seekStepSeconds);
+      if (!isExternalPlayback && matchesShortcut(event, shortcuts.playerVolumeUp)) {
+        event.preventDefault();
+        updateVolume(Math.max(0, Math.min(1, volume + VOLUME_KEYBOARD_STEP)));
+        return;
+      }
+      if (!isExternalPlayback && matchesShortcut(event, shortcuts.playerVolumeDown)) {
+        event.preventDefault();
+        updateVolume(Math.max(0, Math.min(1, volume - VOLUME_KEYBOARD_STEP)));
+        return;
+      }
+      if (!isExternalPlayback && matchesShortcut(event, shortcuts.playerSeekBackward)) {
+        event.preventDefault();
+        seekBy(-seekStepSeconds);
+      }
+      if (!isExternalPlayback && matchesShortcut(event, shortcuts.playerSeekForward)) {
+        event.preventDefault();
+        seekBy(seekStepSeconds);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, onDelete, playlistOpen, seekStepSeconds, volume]);
+  }, [deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, onDelete, playlistOpen, seekStepSeconds, shortcuts, volume]);
 
   const launchExternalPlayback = async () => {
     if (!onPlayExternal || externalLaunching) return;
@@ -515,7 +534,7 @@ export function PlayerPage({
           <button
             className="player-icon-button"
             aria-label="永久删除视频"
-            title="永久删除视频（Ctrl+D）"
+            title={`永久删除视频（${formatShortcutBinding(shortcuts.playerDelete)}）`}
             onClick={openDeleteConfirmation}
           >
             <Trash2 size={19} />

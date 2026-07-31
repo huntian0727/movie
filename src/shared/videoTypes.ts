@@ -84,11 +84,11 @@ export interface DuplicateCandidate {
   keepReason: string | null;
 }
 
-export type DuplicateIdentityStatus = "candidate" | "fingerprint_match" | "verified_identical" | "changed" | "failed" | "offline";
+export type DuplicateIdentityStatus = "candidate" | "size_duration_match" | "file_versions_current" | "changed" | "failed" | "offline";
 
 export interface DuplicateGroup {
   groupKey: string;
-  identityStatus: Extract<DuplicateIdentityStatus, "fingerprint_match">;
+  identityStatus: Extract<DuplicateIdentityStatus, "size_duration_match">;
   items: DuplicateCandidate[];
   recommendedKeepVideoId: string;
   reclaimableBytes: number;
@@ -131,7 +131,7 @@ export interface DuplicateResolvePlan {
 }
 
 export interface DuplicateResolvePreview {
-  verificationStatus: Extract<DuplicateIdentityStatus, "verified_identical">;
+  verificationStatus: Extract<DuplicateIdentityStatus, "file_versions_current">;
   groupCount: number;
   keepCount: number;
   deleteCount: number;
@@ -220,6 +220,32 @@ export interface AppSettings {
   seekStepSeconds: number;
   coverFrameTimeSeconds: 0 | 3 | 5 | 10 | 15;
   playbackPreference: PlaybackPreference;
+  shortcuts: ShortcutSettings;
+}
+
+export type ShortcutActionId =
+  | "libraryPreviousPage"
+  | "libraryNextPage"
+  | "playerTogglePlayback"
+  | "playerSeekBackward"
+  | "playerSeekForward"
+  | "playerVolumeUp"
+  | "playerVolumeDown"
+  | "playerRotateLeft"
+  | "playerRotateRight"
+  | "playerDelete";
+
+export interface ShortcutSettings {
+  libraryPreviousPage: string;
+  libraryNextPage: string;
+  playerTogglePlayback: string;
+  playerSeekBackward: string;
+  playerSeekForward: string;
+  playerVolumeUp: string;
+  playerVolumeDown: string;
+  playerRotateLeft: string;
+  playerRotateRight: string;
+  playerDelete: string;
 }
 
 export interface SettingsSnapshot {
@@ -293,6 +319,7 @@ export type DomainEvent =
   | { sequence: number; type: "video:removed"; videoIds: string[] }
   | { sequence: number; type: "favorite:changed"; videoIds: string[] }
   | { sequence: number; type: "playback:changed"; videoIds: string[] }
+  | { sequence: number; type: "settings:changed"; videoIds: string[] }
   | { sequence: number; type: "library:rescanned"; videoIds: string[] };
 
 export type DomainEventInput =
@@ -300,6 +327,7 @@ export type DomainEventInput =
   | { type: "video:removed"; videoIds: string[] }
   | { type: "favorite:changed"; videoIds: string[] }
   | { type: "playback:changed"; videoIds: string[] }
+  | { type: "settings:changed"; videoIds: string[] }
   | { type: "library:rescanned"; videoIds: string[] };
 
 export interface PlayerSessionSnapshot {
@@ -344,6 +372,7 @@ export const IPC_CHANNELS = {
   videoBatchMove: "video:batch-move",
   videoForget: "video:forget",
   videoRegenerateCover: "video:regenerate-cover",
+  videoRetryMetadata: "video:retry-metadata",
   videoOpenPlayer: "video:open-player",
   videoPlayExternal: "video:play-external",
   playHistoryList: "play-history:list",
@@ -389,6 +418,7 @@ export interface VideoManagerApi {
   moveVideos(videoIds: string[], targetDirectory: string, addTargetToLibrary: boolean): Promise<BatchMoveResult>;
   forgetVideo(videoId: string): Promise<boolean>;
   regenerateCover(videoId: string): Promise<VideoRecord>;
+  retryMetadata(videoId: string): Promise<VideoRecord>;
   openPlayer(videoId: string, queueIds: string[]): Promise<boolean>;
   playExternalVideo(videoId: string): Promise<boolean>;
   listPlayHistory(): Promise<PlayHistoryEntry[]>;

@@ -1,5 +1,16 @@
 # 验证结果记录
 
+## 2026-07-26 可配置快捷键与设置页精简
+
+| 检查 | 结果 | 结论 |
+| --- | --- | --- |
+| 设置/快捷键定向测试 | settings store、SettingsPage、PlayerPage、LibraryShell、窗口同步和 IPC 契约共 70/70 | 通过 |
+| 完整测试 | Electron Node 模式，32 个测试文件、264 个测试 | 全部通过 |
+| production build | TypeScript 主进程/renderer 与 Vite build | 通过 |
+| unpacked 与 packaged smoke | Electron 33.4.11；`rendererMounted`、SQLite、协议、preload/CSP、ffmpeg/ffprobe 和数据库重开 | 通过 |
+| 真实应用启动 | 桌面快捷方式启动重新打包的程序，主窗口响应，最近启动日志无 error/fatal | 通过 |
+| 键盘布局/输入法 | 尚未覆盖不同物理键盘布局、功能键及输入法组合 | 需要验证 |
+
 ## 2026-07-22 播放器删除与待删除视图
 
 | 检查 | 结果 | 结论 |

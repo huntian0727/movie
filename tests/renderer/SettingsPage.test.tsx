@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "../../src/renderer/components/SettingsPage";
-import type { AppSettings, MediaCacheStatus, VideoRecord } from "../../src/shared/videoTypes";
+import type { AppSettings, MediaCacheStatus } from "../../src/shared/videoTypes";
+import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
-const settings: AppSettings = { defaultRecursiveScan: true, startupSync: true, autoPlayOnOpen: true, seekStepSeconds: 10, coverFrameTimeSeconds: 5, playbackPreference: "auto" };
-const missingVideo = { id: "missing", filename: "lost.mp4", path: "D:\\Movies\\lost.mp4", isMissing: true } as VideoRecord;
+const settings: AppSettings = { defaultRecursiveScan: true, startupSync: true, autoPlayOnOpen: true, seekStepSeconds: 10, coverFrameTimeSeconds: 5, playbackPreference: "auto", shortcuts: { ...DEFAULT_SHORTCUTS } };
 const cacheStatus: MediaCacheStatus = {
   totalBytes: 1536,
   coverBytes: 512,
@@ -17,35 +17,59 @@ const cacheStatus: MediaCacheStatus = {
 };
 
 describe("SettingsPage", () => {
-  it("shows required settings and missing files", () => {
-    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} missingVideos={[missingVideo]} />);
+  it("shows required settings and configurable shortcuts without the missing-file section", () => {
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} />);
     expect(screen.getByText("默认递归扫描")).toBeInTheDocument();
     expect(screen.getByText("启动时自动同步")).toBeInTheDocument();
     expect(screen.getByText("打开视频后自动播放")).toBeInTheDocument();
     expect(screen.getByText("快进与快退秒数")).toBeInTheDocument();
     expect(screen.getByText("播放策略")).toBeInTheDocument();
     expect(screen.getByText("封面截帧位置")).toBeInTheDocument();
-    expect(screen.getByText("lost.mp4")).toBeInTheDocument();
+    expect(screen.getByText("快捷键")).toBeInTheDocument();
+    expect(screen.getByLabelText("播放或暂停快捷键")).toHaveTextContent("空格");
+    expect(screen.queryByText("缺失文件")).not.toBeInTheDocument();
     expect(screen.getByLabelText("缓存使用情况")).toHaveTextContent("3 项");
+  });
+
+  it("captures and saves a new shortcut", () => {
+    const onChange = vi.fn();
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
+    const shortcut = screen.getByLabelText("播放或暂停快捷键");
+    fireEvent.click(shortcut);
+    fireEvent.keyDown(shortcut, { code: "KeyP", ctrlKey: true });
+    expect(onChange).toHaveBeenCalledWith({
+      ...settings,
+      shortcuts: { ...settings.shortcuts, playerTogglePlayback: "Ctrl+KeyP" }
+    });
+  });
+
+  it("rejects duplicate shortcuts within the same window", () => {
+    const onChange = vi.fn();
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
+    const shortcut = screen.getByLabelText("快进快捷键");
+    fireEvent.click(shortcut);
+    fireEvent.keyDown(shortcut, { code: "ArrowLeft" });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByText(/与“快退”使用了相同快捷键/)).toBeInTheDocument();
   });
 
   it("emits the selected cover frame offset", () => {
     const onChange = vi.fn();
-    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} missingVideos={[]} onChange={onChange} />);
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
     fireEvent.change(screen.getByLabelText("封面截帧位置"), { target: { value: "10" } });
     expect(onChange).toHaveBeenCalledWith({ ...settings, coverFrameTimeSeconds: 10 });
   });
 
   it("emits changed settings", () => {
     const onChange = vi.fn();
-    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} missingVideos={[]} onChange={onChange} />);
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
     fireEvent.change(screen.getByLabelText("快进与快退秒数"), { target: { value: "15" } });
     expect(onChange).toHaveBeenCalledWith({ ...settings, seekStepSeconds: 15 });
   });
 
   it("emits autoplay toggle changes", () => {
     const onChange = vi.fn();
-    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} missingVideos={[]} onChange={onChange} />);
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
     fireEvent.click(screen.getByLabelText("打开视频后自动播放"));
     expect(onChange).toHaveBeenCalledWith({ ...settings, autoPlayOnOpen: false });
   });
@@ -57,7 +81,7 @@ describe("SettingsPage", () => {
       failures: [{ cachePath: "C:\\Cache\\locked.jpg", message: "permission denied" }],
       status: { ...cacheStatus, totalBytes: 4, itemCount: 1 }
     }));
-    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} missingVideos={[]} onClearCache={onClearCache} />);
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onClearCache={onClearCache} />);
 
     fireEvent.click(screen.getByText("清理缓存"));
     fireEvent.click(screen.getAllByRole("button", { name: "清理缓存" }).at(-1)!);
@@ -85,7 +109,7 @@ describe("SettingsPage", () => {
       logEntryCount: 3,
       exclusions: ["video files"]
     }));
-    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} missingVideos={[]} onPreviewDiagnostics={onPreviewDiagnostics} />);
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onPreviewDiagnostics={onPreviewDiagnostics} />);
 
     expect(screen.getByRole("button", { name: "导出诊断包" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "预览诊断内容" }));
@@ -116,7 +140,7 @@ describe("SettingsPage", () => {
       paths: includeFullPaths ? { userData: "C:\\App", database: "C:\\App\\library.sqlite", cache: "C:\\App\\cache", logs: "C:\\App\\logs" } : undefined,
       exclusions: []
     }));
-    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} missingVideos={[]} onPreviewDiagnostics={onPreviewDiagnostics} />);
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onPreviewDiagnostics={onPreviewDiagnostics} />);
 
     fireEvent.click(screen.getByRole("button", { name: "预览诊断内容" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "导出诊断包" })).toBeEnabled());

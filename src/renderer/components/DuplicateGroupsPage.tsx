@@ -156,8 +156,8 @@ export function DuplicateGroupsPage({
     return (
       <div className="empty-state duplicate-empty-state">
         <div><Trash2 size={36} /></div>
-        <h3>{totalCandidateGroups > 0 ? "暂时没有通过指纹筛选的重复项" : "暂时没有同大小文件"}</h3>
-        <p>{loading ? "正在整理重复项..." : totalCandidateGroups > 0 ? "同大小候选正在后台分析，或快速指纹不同；这些文件不能批量删除。分析后可点击右上角刷新。" : "扫描完成后，这里会显示文件大小相同的候选项。"}</p>
+        <h3>{totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}</h3>
+        <p>{loading ? "正在整理重复项..." : totalCandidateGroups > 0 ? "这些同大小文件的缓存时长不同或尚未读取成功。重复项页面不会为了判断而主动读取网盘文件。" : "扫描完成后，这里会显示文件大小和缓存时长完全相同的候选项。"}</p>
         {preferredDirectoryPath && (
           <button type="button" className="empty-state-action" onClick={() => onPreferredDirectoryPathChange?.("")}>
             返回全部重复项
@@ -172,10 +172,10 @@ export function DuplicateGroupsPage({
       {actionError && <div className="error-banner" role="alert">{actionError}</div>}
 
       <div className="duplicate-summary">
-        <p className="duplicate-size-warning">文件大小只用于初筛；下方仅展示快速指纹一致的文件，确认删除前主进程还会执行流式完整内容校验并复查文件版本。</p>
+        <p className="duplicate-size-warning">这里只按数据库中已缓存的精确文件大小和时长识别，不读取视频内容、不计算指纹；大小和时长相同不能证明内容相同，永久删除前请播放确认。确认时只复查文件是否存在以及大小、修改时间是否变化。</p>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
-          <span>指纹匹配组</span>
+          <span>大小＋时长匹配组</span>
         </div>
         <div className="duplicate-summary-card">
           <strong>{totalCandidateGroups}</strong>
@@ -187,7 +187,7 @@ export function DuplicateGroupsPage({
         </div>
         <div className="duplicate-summary-card">
           <strong>{formatBytes(totalReclaimableBytes)}</strong>
-          <span>已完整验证可释放</span>
+          <span>预计可释放</span>
         </div>
         <div className="duplicate-summary-actions">
           <div className="duplicate-sort duplicate-directory-filter">
@@ -249,7 +249,7 @@ export function DuplicateGroupsPage({
               <header className="duplicate-group-header">
                 <div>
                   <h3>{`重复组 ${String((page - 1) * pageSize + index + 1).padStart(2, "0")}`}</h3>
-                  <p>{`${group.items.length} 个快速指纹匹配文件 · 拟删除 ${deleteCount} 个 · 完整校验后可释放 ${formatBytes(reclaimableBytes)}`}</p>
+                  <p>{`${group.items.length} 个同大小同时长文件 · 拟删除 ${deleteCount} 个 · 预计可释放 ${formatBytes(reclaimableBytes)}`}</p>
                 </div>
               </header>
 
@@ -314,7 +314,7 @@ export function DuplicateGroupsPage({
       </div>
 
       <div className="pagination-bar duplicate-pagination" aria-label="重复项分页">
-        <span>共 {totalGroups} 个指纹匹配组</span>
+        <span>共 {totalGroups} 个大小＋时长匹配组</span>
         <button type="button" disabled={page <= 1 || loading} onClick={() => onPage?.(page - 1)}>上一页</button>
         <strong>{page} / {totalPages}</strong>
         <button type="button" disabled={page >= totalPages || loading} onClick={() => onPage?.(page + 1)}>下一页</button>
@@ -336,7 +336,7 @@ export function DuplicateGroupsPage({
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setConfirmOpen(false); }}>
           <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-confirm-title">
             <h3 id="duplicate-confirm-title">确认批量删除重复文件</h3>
-            <p>完整内容与文件版本校验已通过。本次只处理当前第 {page} 页：将保留 {preview.keepCount} 个文件，删除 {preview.deleteCount} 个文件，预计释放 {formatBytes(preview.reclaimableBytes)}。</p>
+            <p>文件存在性、大小和修改时间复查已通过；未读取或比较视频内容。本次只处理当前第 {page} 页：将保留 {preview.keepCount} 个文件，删除 {preview.deleteCount} 个文件，预计释放 {formatBytes(preview.reclaimableBytes)}。</p>
             {preferredDirectoryPath && <p>每个重复组会优先保留“{preferredDirectoryPath}”范围内的 1 个文件；同组其他目录的文件仍会参与清理。</p>}
             <p>文件将从磁盘永久删除且无法撤销，请确认保留项选择无误。</p>
             <div className="dialog-actions">

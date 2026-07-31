@@ -443,7 +443,7 @@ describe("VideoRepository", () => {
     });
   });
 
-  it("keeps same-size files as candidates until matching fingerprints are ready", () => {
+  it("groups videos only when exact size and cached duration match", () => {
     const { repo, folderId } = createRepo();
     const favorite = createVideo(repo, folderId);
     repo.setFavorite(favorite.id, true);
@@ -453,18 +453,20 @@ describe("VideoRepository", () => {
       basename: "clip-copy"
     });
 
-    const candidatePage = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" });
-    expect(candidatePage).toMatchObject({ totalGroups: 0, totalCandidateGroups: 1, totalCandidateFiles: 2, totalReclaimableBytes: 0 });
-
-    repo.markFingerprintReady(favorite.id, "same-fingerprint", favorite.path, favorite.sizeBytes, favorite.modifiedAt);
-    repo.markFingerprintReady(duplicate.id, "same-fingerprint", duplicate.path, duplicate.sizeBytes, duplicate.modifiedAt);
     const page = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" });
     const groups = page.groups;
 
     expect(groups).toHaveLength(1);
-    expect(page).toMatchObject({ totalGroups: 1, totalCandidateGroups: 1, totalCandidateFiles: 2, totalReclaimableBytes: 0, totalPages: 1 });
+    expect(page).toMatchObject({
+      totalGroups: 1,
+      totalCandidateGroups: 1,
+      totalCandidateFiles: 2,
+      totalReclaimableBytes: favorite.sizeBytes,
+      totalPages: 1
+    });
     expect(groups[0]).toMatchObject({
-      groupKey: `fingerprint:${favorite.sizeBytes}:same-fingerprint`,
+      groupKey: `size-duration:${favorite.sizeBytes}:${favorite.durationMs}`,
+      identityStatus: "size_duration_match",
       recommendedKeepVideoId: favorite.id
     });
     expect(groups[0].items.map((item) => item.video.id)).toEqual([duplicate.id, favorite.id]);
@@ -474,19 +476,37 @@ describe("VideoRepository", () => {
     });
   });
 
-  it("never groups different same-size fingerprints as deletable duplicates", () => {
+  it("does not group same-size videos when cached durations differ", () => {
     const { repo, folderId } = createRepo();
     const first = createVideo(repo, folderId);
-    const second = createVideo(repo, folderId, { path: "D:\\Movies\\other.mp4", filename: "other.mp4", basename: "other" });
-    repo.markFingerprintReady(first.id, "fingerprint-a", first.path, first.sizeBytes, first.modifiedAt);
-    repo.markFingerprintReady(second.id, "fingerprint-b", second.path, second.sizeBytes, second.modifiedAt);
+    const second = createVideo(repo, folderId, {
+      path: "D:\\Movies\\other.mp4",
+      filename: "other.mp4",
+      basename: "other",
+      durationMs: 6000
+    });
 
     const page = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" });
     expect(page.groups).toEqual([]);
     expect(page).toMatchObject({ totalGroups: 0, totalCandidateGroups: 1, totalCandidateFiles: 2, totalReclaimableBytes: 0 });
     expect(() => repo.previewDuplicateResolve({
-      groups: [{ groupKey: `size:${first.sizeBytes}`, keepVideoId: first.id, deleteVideoIds: [second.id] }]
+      groups: [{ groupKey: `size-duration:${first.sizeBytes}:${first.durationMs}`, keepVideoId: first.id, deleteVideoIds: [second.id] }]
     })).toThrow(/Duplicate group not found/);
+  });
+
+  it("excludes videos whose cached duration is unavailable", () => {
+    const { repo, folderId } = createRepo();
+    createVideo(repo, folderId, { durationMs: null });
+    createVideo(repo, folderId, {
+      path: "D:\\Movies\\other.mp4",
+      filename: "other.mp4",
+      basename: "other",
+      durationMs: null
+    });
+
+    const page = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" });
+    expect(page.groups).toEqual([]);
+    expect(page).toMatchObject({ totalGroups: 0, totalCandidateGroups: 1, totalCandidateFiles: 2 });
   });
 
   it("paginates duplicate size groups with global statistics and stable size sorting", () => {
@@ -499,7 +519,6 @@ describe("VideoRepository", () => {
           basename: `group-${groupIndex}-copy-${copyIndex}`,
           sizeBytes: groupIndex * 1000
         });
-        repo.markFingerprintReady(stored.id, `group-${groupIndex}`, stored.path, stored.sizeBytes, stored.modifiedAt);
       }
     }
 
@@ -508,8 +527,8 @@ describe("VideoRepository", () => {
 
     expect(firstPage).toMatchObject({ page: 1, totalPages: 2, totalGroups: 11, totalCandidateFiles: 22 });
     expect(firstPage.groups).toHaveLength(10);
-    expect(firstPage.groups[0].groupKey).toBe("fingerprint:11000:group-11");
-    expect(secondPage.groups.map((group) => group.groupKey)).toEqual(["fingerprint:1000:group-1"]);
+    expect(firstPage.groups[0].groupKey).toBe("size-duration:11000:5000");
+    expect(secondPage.groups.map((group) => group.groupKey)).toEqual(["size-duration:1000:5000"]);
   });
 
   it("filters duplicate groups by a preferred directory while retaining complete groups and preferring its file", () => {
@@ -543,10 +562,6 @@ describe("VideoRepository", () => {
       basename: "other",
       sizeBytes: 7000
     });
-    repo.markFingerprintReady(selected.id, "selected-pair", selected.path, selected.sizeBytes, selected.modifiedAt);
-    repo.markFingerprintReady(outside.id, "selected-pair", outside.path, outside.sizeBytes, outside.modifiedAt);
-    repo.markFingerprintReady(insideOther.id, "other-pair", insideOther.path, insideOther.sizeBytes, insideOther.modifiedAt);
-    repo.markFingerprintReady(outsideOther.id, "other-pair", outsideOther.path, outsideOther.sizeBytes, outsideOther.modifiedAt);
     createVideo(repo, folderId, {
       path: "D:\\Movies\\Solo\\only.mp4",
       directory: "D:\\Movies\\Solo",
@@ -584,9 +599,7 @@ describe("VideoRepository", () => {
       basename: "clip-copy"
     });
 
-    repo.markFingerprintReady(keep.id, "preview-pair", keep.path, keep.sizeBytes, keep.modifiedAt);
-    repo.markFingerprintReady(duplicate.id, "preview-pair", duplicate.path, duplicate.sizeBytes, duplicate.modifiedAt);
-    const groupKey = `fingerprint:${keep.sizeBytes}:preview-pair`;
+    const groupKey = `size-duration:${keep.sizeBytes}:${keep.durationMs}`;
 
     expect(
       repo.previewDuplicateResolve({

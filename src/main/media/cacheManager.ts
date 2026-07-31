@@ -304,7 +304,7 @@ export class MediaCacheManager {
     const task = this.enqueueGeneration(async () => {
       if (this.stopping || requestedEpoch !== this.epoch) throw new CacheGenerationSupersededError();
       await mkdir(path.dirname(outputPath), { recursive: true });
-      const temporaryPath = `${outputPath}${TEMP_MARKER}${requestedEpoch}-${randomUUID()}.tmp`;
+      const temporaryPath = buildTemporaryImagePath(outputPath, requestedEpoch);
       try {
         await generate(temporaryPath);
         const temporaryStat = await stat(temporaryPath);
@@ -445,6 +445,12 @@ export class MediaCacheManager {
   private deleteFile(filePath: string): Promise<void> {
     return this.dependencies.deleteFile?.(filePath) ?? unlink(filePath);
   }
+}
+
+function buildTemporaryImagePath(outputPath: string, epoch: number): string {
+  const extension = path.extname(outputPath);
+  const basePath = extension ? outputPath.slice(0, -extension.length) : outputPath;
+  return `${basePath}${TEMP_MARKER}${epoch}-${randomUUID()}${extension}`;
 }
 
 async function publishAtomically(temporaryPath: string, outputPath: string): Promise<void> {

@@ -46,6 +46,24 @@ describe("MetadataQueue", () => {
     expect(repo.markMetadataFailed).toHaveBeenCalledWith(video.id, video.path, video.sizeBytes, video.modifiedAt);
   });
 
+  it("notifies the renderer after metadata retry settles", async () => {
+    const video = createVideo("v1", "Z:\\Cloud\\retry.mp4");
+    const repo = createRepo(new Map([[video.id, video]]));
+    const onVideoUpdated = vi.fn();
+    const queue = new MetadataQueue(
+      repo.value,
+      async () => ({ durationMs: 5000, width: 1280, height: 720, format: "mp4" }),
+      1,
+      undefined,
+      onVideoUpdated
+    );
+
+    queue.enqueue(video.id);
+    await queue.whenIdle();
+
+    expect(onVideoUpdated).toHaveBeenCalledWith(video.id);
+  });
+
   it("restores pending database records on startup", async () => {
     const video = createVideo("v1", "Z:\\Cloud\\resume.mp4");
     const repo = createRepo(new Map([[video.id, video]]));

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PlayerPage } from "../../src/renderer/components/PlayerPage";
 import type { VideoRecord } from "../../src/shared/videoTypes";
+import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
 const video: VideoRecord = {
   id: "v1",
@@ -192,6 +193,23 @@ describe("PlayerPage", () => {
     fireEvent.keyDown(window, { code: "Enter" });
 
     await waitFor(() => expect(onDelete).toHaveBeenCalledOnce());
+  });
+
+  it("uses a customized deletion shortcut and stops using the old binding", () => {
+    const onDelete = vi.fn();
+    render(
+      <PlayerPage
+        video={video}
+        mediaUrl="local-video://media/v1"
+        onDelete={onDelete}
+        shortcuts={{ ...DEFAULT_SHORTCUTS, playerDelete: "Ctrl+KeyX" }}
+      />
+    );
+
+    fireEvent.keyDown(window, { code: "KeyD", ctrlKey: true });
+    expect(screen.queryByRole("alertdialog", { name: "永久删除这个视频？" })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { code: "KeyX", ctrlKey: true });
+    expect(screen.getByRole("alertdialog", { name: "永久删除这个视频？" })).toBeInTheDocument();
   });
 
   it("rotates native playback 90 degrees with Ctrl and left or right arrows", () => {

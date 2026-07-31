@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, Database, FileDown, FolderSearch, RotateCcw, Trash2 } from "lucide-react";
+import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { ArrowLeft, Database, FileDown, FolderSearch, Keyboard, RotateCcw } from "lucide-react";
 import type {
   AppSettings,
   DiagnosticsExportResult,
@@ -7,18 +7,22 @@ import type {
   MediaCacheCleanupResult,
   MediaCacheStatus,
   PlaybackPreference,
-  VideoRecord
+  ShortcutActionId
 } from "../../shared/videoTypes";
+import {
+  DEFAULT_SHORTCUTS,
+  SHORTCUT_DEFINITIONS,
+  formatShortcutBinding,
+  shortcutFromKeyboardEvent
+} from "../../shared/shortcuts";
 
 interface SettingsPageProps {
   settings: AppSettings;
   cacheLocation: string;
   cacheStatus: MediaCacheStatus;
-  missingVideos: VideoRecord[];
   onBack?(): void;
   onChange?(settings: AppSettings): void | Promise<void>;
   onClearCache?(): MediaCacheCleanupResult | null | Promise<MediaCacheCleanupResult | null>;
-  onForgetMissing?(video: VideoRecord): void | Promise<void>;
   onPreviewDiagnostics?(includeFullPaths: boolean): Promise<DiagnosticsPreview>;
   onExportDiagnostics?(includeFullPaths: boolean): Promise<DiagnosticsExportResult>;
 }
@@ -27,11 +31,9 @@ export function SettingsPage({
   settings,
   cacheLocation,
   cacheStatus,
-  missingVideos,
   onBack,
   onChange,
   onClearCache,
-  onForgetMissing,
   onPreviewDiagnostics,
   onExportDiagnostics
 }: SettingsPageProps) {
@@ -41,7 +43,39 @@ export function SettingsPage({
   const [diagnosticsPreview, setDiagnosticsPreview] = useState<DiagnosticsPreview | null>(null);
   const [diagnosticsMessage, setDiagnosticsMessage] = useState<string | null>(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
+  const [capturingShortcut, setCapturingShortcut] = useState<ShortcutActionId | null>(null);
+  const [shortcutMessage, setShortcutMessage] = useState<string | null>(null);
   const update = (patch: Partial<AppSettings>) => void onChange?.({ ...settings, ...patch });
+  const saveShortcut = (actionId: ShortcutActionId, binding: string): boolean => {
+    const definition = SHORTCUT_DEFINITIONS.find((item) => item.id === actionId);
+    const conflict = SHORTCUT_DEFINITIONS.find((item) =>
+      item.id !== actionId
+      && item.scope === definition?.scope
+      && settings.shortcuts[item.id] === binding
+    );
+    if (conflict) {
+      setShortcutMessage(`不能保存：与“${conflict.label}”使用了相同快捷键。`);
+      return false;
+    }
+    update({ shortcuts: { ...settings.shortcuts, [actionId]: binding } });
+    setShortcutMessage(null);
+    return true;
+  };
+  const captureShortcut = (actionId: ShortcutActionId, event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.code === "Escape") {
+      setCapturingShortcut(null);
+      setShortcutMessage(null);
+      return;
+    }
+    const binding = shortcutFromKeyboardEvent(event);
+    if (!binding) {
+      setShortcutMessage("请在修饰键之后继续按一个主键；Esc 可取消。");
+      return;
+    }
+    if (saveShortcut(actionId, binding)) setCapturingShortcut(null);
+  };
   const clearCache = async () => {
     const result = await onClearCache?.();
     setConfirmClear(false);
@@ -80,7 +114,7 @@ export function SettingsPage({
 
   return (
     <section className="settings-page">
-      <header className="settings-topbar"><button aria-label="返回视频库" onClick={onBack}><ArrowLeft size={20} /></button><div><h1>设置</h1><p>资料库、播放和本地缓存</p></div></header>
+      <header className="settings-topbar"><button aria-label="返回视频库" onClick={onBack}><ArrowLeft size={20} /></button><div><h1>设置</h1><p>资料库、播放、快捷键和本地缓存</p></div></header>
       <div className="settings-content">
         <section className="settings-section"><div className="section-title"><FolderSearch size={20} /><div><h2>资料库</h2><p>控制新文件夹和启动扫描行为</p></div></div>
           <label className="setting-row"><div><strong>默认递归扫描</strong><span>添加文件夹时扫描所有子文件夹</span></div><input aria-label="默认递归扫描" type="checkbox" checked={settings.defaultRecursiveScan} onChange={(event) => update({ defaultRecursiveScan: event.target.checked })} /></label>
@@ -93,6 +127,61 @@ export function SettingsPage({
           <label className="setting-row"><div><strong>播放策略</strong><span>不兼容格式会自动交给外部播放器</span></div><select aria-label="播放策略" value={settings.playbackPreference} onChange={(event) => update({ playbackPreference: event.target.value as PlaybackPreference })}><option value="auto">自动选择</option><option value="native-first">内置播放器优先</option><option value="mpv-first">mpv 优先</option></select></label>
         </section>
 
+        <section className="settings-section">
+          <div className="section-title settings-section-title-actions">
+            <Keyboard size={20} />
+            <div><h2>快捷键</h2><p>点击快捷键后直接按下新的组合；同一页面内不能重复</p></div>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                update({ shortcuts: { ...DEFAULT_SHORTCUTS } });
+                setCapturingShortcut(null);
+                setShortcutMessage(null);
+              }}
+            >
+              恢复默认
+            </button>
+          </div>
+          <div className="shortcut-list">
+            {SHORTCUT_DEFINITIONS.map((definition) => (
+              <div className="setting-row shortcut-row" key={definition.id}>
+                <div>
+                  <strong>{definition.label}</strong>
+                  <span>{definition.description} · {definition.scope === "library" ? "视频库" : "播放器"}</span>
+                </div>
+                <div className="shortcut-controls">
+                  <button
+                    type="button"
+                    className={`shortcut-capture${capturingShortcut === definition.id ? " is-capturing" : ""}`}
+                    aria-label={`${definition.label}快捷键`}
+                    onClick={() => {
+                      setCapturingShortcut(definition.id);
+                      setShortcutMessage("请按下新的快捷键；Esc 取消。");
+                    }}
+                    onKeyDown={(event) => {
+                      if (capturingShortcut === definition.id) captureShortcut(definition.id, event);
+                    }}
+                  >
+                    {capturingShortcut === definition.id ? "请按键…" : formatShortcutBinding(settings.shortcuts[definition.id])}
+                  </button>
+                  <button
+                    type="button"
+                    className="shortcut-reset"
+                    aria-label={`恢复${definition.label}默认快捷键`}
+                    title="恢复此项默认值"
+                    disabled={settings.shortcuts[definition.id] === DEFAULT_SHORTCUTS[definition.id]}
+                    onClick={() => saveShortcut(definition.id, DEFAULT_SHORTCUTS[definition.id])}
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {shortcutMessage && <p className={shortcutMessage.startsWith("不能保存") ? "settings-warning" : "settings-hint"}>{shortcutMessage}</p>}
+        </section>
+
         <section className="settings-section"><div className="section-title"><Database size={20} /><div><h2>缓存</h2><p>封面和进度预览图片</p></div></div>
           <label className="setting-row"><div><strong>封面截帧位置</strong><span>从视频开始后的指定秒数取一帧；短视频自动取中间位置</span></div><select aria-label="封面截帧位置" value={settings.coverFrameTimeSeconds} onChange={(event) => update({ coverFrameTimeSeconds: Number(event.target.value) as AppSettings["coverFrameTimeSeconds"] })}><option value={0}>开头（0 秒）</option><option value={3}>3 秒</option><option value={5}>5 秒（推荐）</option><option value={10}>10 秒</option><option value={15}>15 秒</option></select></label>
           <div className="setting-row"><div className="cache-path"><strong>缓存位置</strong><span title={cacheLocation}>{cacheLocation}</span></div><button className="secondary-button" onClick={() => setConfirmClear(true)}>清理缓存</button></div>
@@ -103,10 +192,6 @@ export function SettingsPage({
             {cacheStatus.lastCleanup && cacheStatus.lastCleanup.failureCount > 0 && <span className="settings-warning">最近清理有 {cacheStatus.lastCleanup.failureCount} 项失败，请稍后重试。</span>}
           </div>
           {cacheMessage && <p className="settings-success">{cacheMessage}</p>}
-        </section>
-
-        <section className="settings-section"><div className="section-title"><Trash2 size={20} /><div><h2>缺失文件</h2><p>{missingVideos.length ? `${missingVideos.length} 条记录找不到原始文件` : "所有文件均可访问"}</p></div></div>
-          {missingVideos.length > 0 && <div className="missing-list">{missingVideos.map((video) => <div className="missing-row" key={video.id}><div><strong>{video.filename}</strong><span title={video.path}>{video.path}</span></div><button aria-label={`移除 ${video.filename}`} title="仅从资料库移除" onClick={() => void onForgetMissing?.(video)}><Trash2 size={16} /></button></div>)}</div>}
         </section>
 
         <section className="settings-section"><div className="section-title"><FileDown size={20} /><div><h2>诊断与日志</h2><p>预览并导出脱敏运行信息，便于定位扫描、数据库和媒体问题</p></div></div>

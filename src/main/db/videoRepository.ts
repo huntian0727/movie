@@ -84,22 +84,23 @@ interface PlayHistoryRow {
   position_ms: number;
 }
 
-interface DuplicateFingerprintRow {
+interface DuplicateIdentityRow {
   size_bytes: number;
-  content_fingerprint: string;
+  duration_ms: number;
 }
 
 interface DuplicateDirectoryRow {
   directory: string;
   source_folder_path: string;
   size_bytes: number;
-  content_fingerprint: string;
+  duration_ms: number;
   file_count: number;
 }
 
 interface DuplicateStatsRow {
   total_groups: number;
   total_candidate_files: number;
+  total_reclaimable_bytes?: number;
 }
 
 interface CountRow {
@@ -717,7 +718,12 @@ export class VideoRepository {
       )
       .get(scopedSizeParams) as DuplicateStatsRow;
 
-    const scopedIdentityWhere = ["is_missing = 0", "fingerprint_status = 'ready'", "content_fingerprint IS NOT NULL"];
+    const scopedIdentityWhere = [
+      "is_missing = 0",
+      "metadata_status = 'ready'",
+      "duration_ms IS NOT NULL",
+      "duration_ms > 0"
+    ];
     if (query.preferredDirectoryPath) {
       if (query.preferredDirectoryScope === "exact") {
         scopedIdentityWhere.push("directory = @preferredDirectoryPath COLLATE NOCASE");
@@ -725,33 +731,40 @@ export class VideoRepository {
         scopedIdentityWhere.push("(directory = @preferredDirectoryPath COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix ESCAPE '!' COLLATE NOCASE)");
       }
     }
-    const scopedIdentitiesQuery = `SELECT DISTINCT size_bytes, content_fingerprint FROM videos WHERE ${scopedIdentityWhere.join(" AND ")}`;
-    const fingerprintGroupsQuery = `
-      SELECT size_bytes, content_fingerprint, COUNT(*) AS file_count
+    const scopedIdentitiesQuery = `SELECT DISTINCT size_bytes, duration_ms FROM videos WHERE ${scopedIdentityWhere.join(" AND ")}`;
+    const duplicateGroupsQuery = `
+      SELECT size_bytes, duration_ms, COUNT(*) AS file_count
       FROM videos
       WHERE is_missing = 0
-        AND fingerprint_status = 'ready'
-        AND content_fingerprint IS NOT NULL
-        AND (size_bytes, content_fingerprint) IN (${scopedIdentitiesQuery})
-      GROUP BY size_bytes, content_fingerprint
+        AND metadata_status = 'ready'
+        AND duration_ms IS NOT NULL
+        AND duration_ms > 0
+        AND (size_bytes, duration_ms) IN (${scopedIdentitiesQuery})
+      GROUP BY size_bytes, duration_ms
       HAVING COUNT(*) >= 2
     `;
     const verifiedStats = this.db
-      .prepare(`SELECT COUNT(*) AS total_groups, COALESCE(SUM(file_count), 0) AS total_candidate_files FROM (${fingerprintGroupsQuery})`)
+      .prepare(
+        `SELECT
+           COUNT(*) AS total_groups,
+           COALESCE(SUM(file_count), 0) AS total_candidate_files,
+           COALESCE(SUM((file_count - 1) * size_bytes), 0) AS total_reclaimable_bytes
+         FROM (${duplicateGroupsQuery})`
+      )
       .get(scopedSizeParams) as DuplicateStatsRow;
     const totalPages = Math.max(1, Math.ceil(verifiedStats.total_groups / query.pageSize));
     const page = Math.min(Math.max(1, query.page), totalPages);
     const direction = query.sortDirection === "asc" ? "ASC" : "DESC";
-    const fingerprintRows = this.db
+    const identityRows = this.db
       .prepare(
-        `SELECT size_bytes, content_fingerprint
-         FROM (${fingerprintGroupsQuery})
-         ORDER BY size_bytes ${direction}, content_fingerprint ASC
+        `SELECT size_bytes, duration_ms
+         FROM (${duplicateGroupsQuery})
+         ORDER BY size_bytes ${direction}, duration_ms ASC
          LIMIT @limit OFFSET @offset`
       )
-      .all({ ...scopedSizeParams, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as DuplicateFingerprintRow[];
-    const groups = fingerprintRows
-      .map((group) => this.buildDuplicateGroup(buildFingerprintGroupKey(group.size_bytes, group.content_fingerprint), query.preferredDirectoryPath, query.preferredDirectoryScope))
+      .all({ ...scopedSizeParams, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as DuplicateIdentityRow[];
+    const groups = identityRows
+      .map((group) => this.buildDuplicateGroup(buildSizeDurationGroupKey(group.size_bytes, group.duration_ms), query.preferredDirectoryPath, query.preferredDirectoryScope))
       .filter((group): group is DuplicateGroup => group !== null);
 
     return {
@@ -762,25 +775,31 @@ export class VideoRepository {
       totalGroups: verifiedStats.total_groups,
       totalCandidateGroups: candidateStats.total_groups,
       totalCandidateFiles: candidateStats.total_candidate_files,
-      totalReclaimableBytes: 0,
+      totalReclaimableBytes: verifiedStats.total_reclaimable_bytes ?? 0,
       directoryOptions: this.listDuplicateDirectoryOptions()
     };
   }
 
   private listDuplicateDirectoryOptions(): DuplicateDirectoryOption[] {
     const rows = this.db.prepare(`
-      WITH duplicate_fingerprints AS (
-        SELECT size_bytes, content_fingerprint, COUNT(*) AS file_count
+      WITH duplicate_identities AS (
+        SELECT size_bytes, duration_ms, COUNT(*) AS file_count
         FROM videos
-        WHERE is_missing = 0 AND fingerprint_status = 'ready' AND content_fingerprint IS NOT NULL
-        GROUP BY size_bytes, content_fingerprint
+        WHERE is_missing = 0
+          AND metadata_status = 'ready'
+          AND duration_ms IS NOT NULL
+          AND duration_ms > 0
+        GROUP BY size_bytes, duration_ms
         HAVING COUNT(*) >= 2
       )
-      SELECT videos.directory, source_folders.path AS source_folder_path, videos.size_bytes, videos.content_fingerprint, duplicate_fingerprints.file_count
+      SELECT videos.directory, source_folders.path AS source_folder_path, videos.size_bytes, videos.duration_ms, duplicate_identities.file_count
       FROM videos
-      JOIN duplicate_fingerprints ON duplicate_fingerprints.size_bytes = videos.size_bytes AND duplicate_fingerprints.content_fingerprint = videos.content_fingerprint
+      JOIN duplicate_identities ON duplicate_identities.size_bytes = videos.size_bytes AND duplicate_identities.duration_ms = videos.duration_ms
       JOIN source_folders ON source_folders.id = videos.source_folder_id
       WHERE videos.is_missing = 0
+        AND videos.metadata_status = 'ready'
+        AND videos.duration_ms IS NOT NULL
+        AND videos.duration_ms > 0
     `).all() as DuplicateDirectoryRow[];
     const byPath = new Map<string, { path: string; groups: Map<string, { sizeBytes: number; fileCount: number }> }>();
 
@@ -788,7 +807,7 @@ export class VideoRepository {
       for (const directoryPath of listDirectoryAncestors(row.directory, row.source_folder_path)) {
         const key = normalizeManagedPath(directoryPath);
         const entry = byPath.get(key) ?? { path: directoryPath, groups: new Map<string, { sizeBytes: number; fileCount: number }>() };
-        entry.groups.set(buildFingerprintGroupKey(row.size_bytes, row.content_fingerprint), { sizeBytes: row.size_bytes, fileCount: row.file_count });
+        entry.groups.set(buildSizeDurationGroupKey(row.size_bytes, row.duration_ms), { sizeBytes: row.size_bytes, fileCount: row.file_count });
         byPath.set(key, entry);
       }
     }
@@ -970,7 +989,7 @@ export class VideoRepository {
   }
 
   private buildDuplicateGroup(groupKey: string, preferredDirectoryPath?: string, preferredDirectoryScope: "recursive" | "exact" = "recursive"): DuplicateGroup | null {
-    const identity = parseFingerprintGroupKey(groupKey);
+    const identity = parseSizeDurationGroupKey(groupKey);
     if (!identity) {
       return null;
     }
@@ -981,12 +1000,12 @@ export class VideoRepository {
           FROM videos
           WHERE is_missing = 0
             AND size_bytes = ?
-            AND fingerprint_status = 'ready'
-            AND content_fingerprint = ?
+            AND metadata_status = 'ready'
+            AND duration_ms = ?
           ORDER BY filename ASC
         `
       )
-      .all(identity.sizeBytes, identity.contentFingerprint) as VideoRow[];
+      .all(identity.sizeBytes, identity.durationMs) as VideoRow[];
 
     if (rows.length < 2) {
       return null;
@@ -1004,7 +1023,7 @@ export class VideoRepository {
 
     return {
       groupKey,
-      identityStatus: "fingerprint_match",
+      identityStatus: "size_duration_match",
       recommendedKeepVideoId: recommendedKeep.id,
       reclaimableBytes: videos.reduce((total, video) => total + video.sizeBytes, 0) - recommendedKeep.sizeBytes,
       items: videos.map((video) => ({
@@ -1146,16 +1165,17 @@ function isVideoInDirectoryScope(directory: string, directoryPath: string, scope
   return scope === "exact" ? candidate === selected : candidate === selected || candidate.startsWith(`${selected}\\`);
 }
 
-function buildFingerprintGroupKey(sizeBytes: number, contentFingerprint: string): string {
-  return `fingerprint:${sizeBytes}:${contentFingerprint}`;
+function buildSizeDurationGroupKey(sizeBytes: number, durationMs: number): string {
+  return `size-duration:${sizeBytes}:${durationMs}`;
 }
 
-function parseFingerprintGroupKey(groupKey: string): { sizeBytes: number; contentFingerprint: string } | null {
-  const match = /^fingerprint:(\d+):([^:]+)$/.exec(groupKey);
+function parseSizeDurationGroupKey(groupKey: string): { sizeBytes: number; durationMs: number } | null {
+  const match = /^size-duration:(\d+):(\d+)$/.exec(groupKey);
   if (!match) return null;
   const sizeBytes = Number(match[1]);
-  return Number.isSafeInteger(sizeBytes) && sizeBytes >= 0
-    ? { sizeBytes, contentFingerprint: match[2] }
+  const durationMs = Number(match[2]);
+  return Number.isSafeInteger(sizeBytes) && sizeBytes >= 0 && Number.isSafeInteger(durationMs) && durationMs > 0
+    ? { sizeBytes, durationMs }
     : null;
 }
 

@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { execa } from "execa";
+import { resolvePackagedExecutablePath } from "./packagedExecutable.js";
 
 export interface MediaMetadata {
   durationMs: number | null;
@@ -84,7 +85,7 @@ function resolveFfprobePath(ffprobePathOverride?: string): string {
     throw new Error("ffprobe path is not configured");
   }
 
-  return ffprobePath;
+  return resolvePackagedExecutablePath(ffprobePath);
 }
 
 async function executeProbe(ffprobePath: string, filePath: string): Promise<ProbeResult> {

@@ -23,7 +23,8 @@ export class MetadataQueue {
     private readonly repo: VideoRepository,
     private readonly metadataReader: MetadataReader = readMetadata,
     private readonly concurrency = 1,
-    private readonly logger?: StructuredLogger
+    private readonly logger?: StructuredLogger,
+    private readonly onVideoUpdated?: (videoId: string) => void
   ) {
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("Metadata queue concurrency must be at least 1");
   }
@@ -103,10 +104,14 @@ export class MetadataQueue {
     try {
       const metadata = await this.metadataReader(video.path);
       if (this.stopped) return;
-      this.repo.markMetadataReady(video.id, video.path, video.sizeBytes, video.modifiedAt, metadata);
+      if (this.repo.markMetadataReady(video.id, video.path, video.sizeBytes, video.modifiedAt, metadata)) {
+        this.onVideoUpdated?.(video.id);
+      }
     } catch (error) {
       if (this.stopped) return;
-      this.repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt);
+      if (this.repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt)) {
+        this.onVideoUpdated?.(video.id);
+      }
       this.logger?.error({
         module: "media.metadata",
         event: "ffprobe_failed",

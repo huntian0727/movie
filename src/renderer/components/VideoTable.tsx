@@ -26,7 +26,7 @@ export function VideoTable({ videos, onOpen, onViewDetails, onToggleFavorite, on
               {selectionMode && <td><input type="checkbox" aria-label={`选择 ${video.filename}`} checked={selectedIds?.has(video.id) ?? false} onChange={() => onToggleSelection?.(video)} /></td>}
               <td><div className="table-title"><span className="table-file-icon"><Play size={14} fill="currentColor" /></span><div><strong>{video.filename}</strong><small>{video.extension.slice(1).toUpperCase()}</small></div></div></td>
               <td>{formatBytes(video.sizeBytes)}</td>
-              <td>{video.metadataStatus === "pending" ? "分析中" : video.metadataStatus === "failed" ? "待重试" : formatDuration(video.durationMs)}</td>
+              <td>{video.metadataStatus === "pending" ? "分析中" : video.metadataStatus === "failed" ? "元数据失败" : formatDuration(video.durationMs)}</td>
               <td>{video.width && video.height ? `${video.width}×${video.height}` : "-"}</td>
               <td>{formatDate(video.modifiedAt)}</td>
               <td><div className="row-actions">

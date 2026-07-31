@@ -109,6 +109,7 @@ describe("MediaCacheManager", () => {
     const generation = manager.getOrCreateImage(outputPath, async (temporaryPath) => {
       expect(path.dirname(temporaryPath)).toBe(path.dirname(outputPath));
       expect(path.basename(temporaryPath)).toContain(".video-manager-cache-");
+      expect(path.extname(temporaryPath)).toBe(".jpg");
       await writeFile(temporaryPath, "preview");
       started.resolve(temporaryPath);
       await release.promise;
