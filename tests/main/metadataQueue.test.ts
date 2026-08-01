@@ -1,7 +1,11 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import type { VideoRepository } from "../../src/main/db/videoRepository";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { createDatabase } from "../../src/main/db/database";
+import { VideoRepository } from "../../src/main/db/videoRepository";
 import { MetadataQueue } from "../../src/main/media/metadataQueue";
 import type { VideoRecord } from "../../src/shared/videoTypes";
 
@@ -110,6 +114,70 @@ describe("MetadataQueue", () => {
     queue.resume();
     await queue.whenIdle();
     expect(reader).toHaveBeenCalledOnce();
+  });
+
+  it("persists metadata failures, publishes folder refreshes, and clears the warning after a successful retry", async () => {
+    const tempDirectory = mkdtempSync(path.join(os.tmpdir(), "video-manager-metadata-queue-"));
+    const db = createDatabase(path.join(tempDirectory, "library.sqlite"));
+    try {
+      const repo = new VideoRepository(db);
+      const source = repo.addSourceFolder("Z:\\Cloud", true);
+      const persistedVideo = repo.upsertVideo({
+        sourceFolderId: source.id,
+        path: "Z:\\Cloud\\broken.mp4",
+        directory: "Z:\\Cloud",
+        filename: "broken.mp4",
+        basename: "broken",
+        extension: ".mp4",
+        sizeBytes: 1024,
+        durationMs: null,
+        width: null,
+        height: null,
+        format: null,
+        modifiedAt: "2026-07-16T00:00:00.000Z",
+        metadataStatus: "pending"
+      });
+      const folderUpdates = vi.fn();
+      const failedQueue = new MetadataQueue(
+        repo,
+        async () => { throw new Error("ffprobe timed out"); },
+        1,
+        undefined,
+        undefined,
+        folderUpdates
+      );
+
+      failedQueue.enqueue(persistedVideo.id);
+      await failedQueue.whenIdle();
+
+      expect(repo.getScanFailureSummary(source.id)).toMatchObject({ totalUnresolved: 1, latestError: "ffprobe timed out" });
+      expect(repo.listSourceFolders().find((item) => item.id === source.id)?.scanError).toBe("ffprobe timed out");
+      expect(folderUpdates).toHaveBeenLastCalledWith(source.id);
+
+      expect(repo.markMetadataPending(
+        persistedVideo.id,
+        persistedVideo.path,
+        persistedVideo.sizeBytes,
+        persistedVideo.modifiedAt
+      )).toBe(true);
+      const successfulQueue = new MetadataQueue(
+        repo,
+        async () => ({ durationMs: 5000, width: 1280, height: 720, format: "mp4" }),
+        1,
+        undefined,
+        undefined,
+        folderUpdates
+      );
+      successfulQueue.enqueue(persistedVideo.id);
+      await successfulQueue.whenIdle();
+
+      expect(repo.getScanFailureSummary(source.id).totalUnresolved).toBe(0);
+      expect(repo.listSourceFolders().find((item) => item.id === source.id)?.scanError).toBeNull();
+      expect(folderUpdates).toHaveBeenCalledTimes(2);
+    } finally {
+      db.close();
+      rmSync(tempDirectory, { recursive: true, force: true });
+    }
   });
 });
 

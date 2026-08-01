@@ -14,10 +14,14 @@ import type { MetadataQueue } from "./metadataQueue.js";
 
 type Scan = (repo: VideoRepository, folder: SourceFolder, dependencies: ScannerDependencies) => Promise<ScanResult>;
 type BatchProgress = { totalFolders: number; currentFolderIndex: number; completedFolders: number; failedFolders: number };
+interface ActiveFolderTask {
+  mode: ScanMode;
+  promise: Promise<void>;
+}
 
 export class ScanManager {
   private readonly statuses = new Map<string, FolderScanStatus>();
-  private readonly tasks = new Map<string, Promise<void>>();
+  private readonly tasks = new Map<string, ActiveFolderTask>();
   private readonly paused = new Set<string>();
   private readonly cancelled = new Set<string>();
   private readonly resumeWaiters = new Map<string, Set<() => void>>();
@@ -28,7 +32,8 @@ export class ScanManager {
     private readonly repo: VideoRepository,
     private readonly scan: Scan = scanSourceFolder,
     private readonly metadataQueue?: MetadataQueue,
-    private readonly logger?: StructuredLogger
+    private readonly logger?: StructuredLogger,
+    private readonly retryScan: Scan = retryScanFailures
   ) {}
 
   listStatuses(): FolderScanStatus[] {
@@ -40,11 +45,11 @@ export class ScanManager {
   }
 
   start(folder: SourceFolder): Promise<void> {
-    return this.enqueue(folder, "current-folder", this.scan);
+    return this.requestTask(folder, "current-folder", this.scan);
   }
 
   retryFailures(folder: SourceFolder): Promise<void> {
-    return this.enqueue(folder, "retry-failures", retryScanFailures);
+    return this.requestRetryTask(folder);
   }
 
   scanAll(folders: SourceFolder[]): Promise<void> {
@@ -55,7 +60,7 @@ export class ScanManager {
       for (let index = 0; index < enabled.length; index += 1) {
         const folder = enabled[index];
         batch.currentFolderIndex = index + 1;
-        await this.enqueue(folder, "scan-all", this.scan, batch);
+        await this.requestTask(folder, "scan-all", this.scan, batch);
         batch.completedFolders += 1;
         const status = this.statuses.get(folder.id);
         if (status && status.state !== "completed") batch.failedFolders += 1;
@@ -63,7 +68,7 @@ export class ScanManager {
       }
     })();
     this.allScanTask = task;
-    void task.finally(() => { this.allScanTask = null; });
+    void task.finally(() => { if (this.allScanTask === task) this.allScanTask = null; });
     return task;
   }
 
@@ -99,9 +104,35 @@ export class ScanManager {
     this.statuses.delete(folderId);
   }
 
-  private enqueue(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress): Promise<void> {
+  private requestRetryTask(folder: SourceFolder): Promise<void> {
     const existing = this.tasks.get(folder.id);
-    if (existing) return existing;
+    if (existing?.mode === "retry-failures") return existing.promise;
+    if (existing) {
+      return existing.promise.then(() => {
+        this.clearActiveTask(folder.id, existing.promise);
+        return this.hasUnresolvedFailures(folder.id)
+          ? this.requestTask(folder, "retry-failures", this.retryScan)
+          : undefined;
+      });
+    }
+    return this.hasUnresolvedFailures(folder.id)
+      ? this.requestTask(folder, "retry-failures", this.retryScan)
+      : Promise.resolve();
+  }
+
+  private requestTask(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress): Promise<void> {
+    const existing = this.tasks.get(folder.id);
+    if (existing) {
+      if (canExistingTaskSatisfy(existing.mode, mode)) return existing.promise;
+      return existing.promise.then(() => {
+        this.clearActiveTask(folder.id, existing.promise);
+        return this.requestTask(folder, mode, scan, batch);
+      });
+    }
+    return this.enqueueTask(folder, mode, scan, batch);
+  }
+
+  private enqueueTask(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress): Promise<void> {
     this.setStatus(folder.id, {
       mode,
       state: "queued",
@@ -114,9 +145,17 @@ export class ScanManager {
     });
     const task = this.queue.then(() => this.run(folder, mode, scan, batch), () => this.run(folder, mode, scan, batch));
     this.queue = task.catch(() => undefined);
-    this.tasks.set(folder.id, task);
-    void task.finally(() => this.tasks.delete(folder.id));
+    this.tasks.set(folder.id, { mode, promise: task });
+    void task.finally(() => this.clearActiveTask(folder.id, task));
     return task;
+  }
+
+  private clearActiveTask(folderId: string, task: Promise<void>): void {
+    if (this.tasks.get(folderId)?.promise === task) this.tasks.delete(folderId);
+  }
+
+  private hasUnresolvedFailures(folderId: string): boolean {
+    return this.repo.getScanFailureSummary?.(folderId).totalUnresolved > 0;
   }
 
   private async run(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress): Promise<void> {
@@ -238,4 +277,12 @@ export class ScanManager {
 
 function mergeBatchCounters(counters: ScanCounters, batch?: BatchProgress): ScanCounters {
   return batch ? { ...counters, ...batch } : counters;
+}
+
+function isNormalScanMode(mode: ScanMode): boolean {
+  return mode === "current-folder" || mode === "scan-all";
+}
+
+function canExistingTaskSatisfy(existingMode: ScanMode, requestedMode: ScanMode): boolean {
+  return existingMode === requestedMode || (isNormalScanMode(existingMode) && isNormalScanMode(requestedMode));
 }

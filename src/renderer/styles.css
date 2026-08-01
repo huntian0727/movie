@@ -229,6 +229,7 @@ button { color: inherit; }
 .folder-issue-list article b { color: #e7b456; }.folder-issue-list article em { margin-left: auto; font-style: normal; }
 .folder-issue-list article > strong, .folder-issue-list article > small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .folder-issue-list article > strong { color: #dfe2dc; font-size: 11px; }.folder-issue-list article > small { color: #a0a49d; font-size: 10px; }
+.folder-issue-legacy-note { color: #e6bd72; }
 .folder-issue-dialog .dialog-actions button { display: inline-flex; align-items: center; gap: 6px; }
 .spin { animation: rotate 900ms linear infinite; }
 @keyframes rotate { to { transform: rotate(360deg); } }

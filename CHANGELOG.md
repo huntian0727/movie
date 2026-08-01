@@ -4,6 +4,13 @@
 
 ## 2026-08-01
 
+### Scan defect fixes
+
+- 修复目录扫描已完成后，后台 FFprobe 失败产生的持久化异常被内存中的 `completed` 状态遮蔽的问题；活动状态仅在 queued/scanning/paused 时暂时隐藏旧警告。
+- `ScanManager` 去重改为模式感知：普通扫描可相互复用，异常重试与普通扫描不再错误互相满足，并继续保持全局串行。
+- 删除含义模糊的旧普通扫描重试别名，保留 `scanFolder`、`retryScanFailures`、`scanAllFolders` 三个明确入口。
+- 新增数据库 v6：为只有 `source_folders.scan_error`、没有活动异常明细的旧目录补建可重试的根目录异常；迁移幂等且不覆盖已有异常。
+
 ### Incremental scan snapshots and failure retry
 
 - 新增数据库 v5：持久化每目录快照、文件/目录扫描异常明细和扫描任务历史；沿用旧库升级前备份、事务回滚和完整性检查。

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { IPC_CHANNELS } from "../../src/shared/videoTypes";
 
 describe("IPC_CHANNELS", () => {
@@ -18,7 +20,6 @@ describe("IPC_CHANNELS", () => {
       folderScanStatusList: "folder-scan-status:list",
       folderScanPause: "folder-scan:pause",
       folderScanResume: "folder-scan:resume",
-      folderScanRetry: "folder-scan:retry",
       folderScanFailuresRetry: "folder-scan-failures:retry",
       folderScanFailureSummary: "folder-scan-failures:summary",
       folderScanFailureList: "folder-scan-failures:list",
@@ -52,5 +53,16 @@ describe("IPC_CHANNELS", () => {
       settingsGet: "settings:get",
       settingsSet: "settings:set"
     });
+  });
+
+  it("does not expose or register the ambiguous legacy folder retry API", () => {
+    expect("folderScanRetry" in IPC_CHANNELS).toBe(false);
+    const projectRoot = path.resolve(import.meta.dirname, "../..");
+    for (const relativePath of ["src/shared/videoTypes.ts", "src/main/preload.cts", "src/main/ipc.ts"]) {
+      const source = readFileSync(path.join(projectRoot, relativePath), "utf8");
+      expect(source).not.toContain("retryFolderScan");
+      expect(source).not.toContain("folder-scan:retry");
+      expect(source).not.toContain("folderScanRetry");
+    }
   });
 });

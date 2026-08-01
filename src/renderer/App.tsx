@@ -455,7 +455,7 @@ export function App() {
       onPreviewRemoveFolder={(folder) => api ? api.previewRemoveFolder(folder.id) : Promise.resolve({ removedVideoCount: 0, retainedVideoCount: 0 })}
       onPauseFolderScan={(folder) => api?.pauseFolderScan(folder.id)}
       onResumeFolderScan={(folder) => api?.resumeFolderScan(folder.id)}
-      onRetryFolderScan={(folder) => api?.scanFolder(folder.id)}
+      onScanFolder={(folder) => api?.scanFolder(folder.id)}
       onRetryFolderFailures={(folder) => api?.retryScanFailures(folder.id)}
       onLoadScanFailureSummary={(folder) => api
         ? api.getScanFailureSummary(folder.id)

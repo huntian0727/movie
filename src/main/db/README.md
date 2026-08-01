@@ -4,7 +4,7 @@
 
 路径使用 `COLLATE NOCASE UNIQUE` 适配 Windows。upsert 必须保持既有 id、收藏和待删除标记；后台元数据更新必须同时匹配 id、path、size 和 modifiedAt，防止慢任务覆盖已重命名或已变化文件。
 
-需求定位：新增普通资料库排序/筛选/分页看 `SORT_COLUMNS`/`listVideoPage`；目录侧栏看 `getLibraryNavigation`；重复项看大小+时长查询；扫描快照/异常看 `get/upsertDirectorySnapshot`、`record/list/resolveScanFailure` 和 v5 migration；断点续播/历史看 play history；改字段先新增 migration，再同步 row 类型、映射、shared 类型和测试。
+需求定位：新增普通资料库排序/筛选/分页看 `SORT_COLUMNS`/`listVideoPage`；目录侧栏看 `getLibraryNavigation`；重复项看大小+时长查询；扫描快照/异常看 `get/upsertDirectorySnapshot`、`record/list/resolveScanFailure`、v5 建表迁移和 v6 旧异常回填迁移；断点续播/历史看 play history；改字段先新增 migration，再同步 row 类型、映射、shared 类型和测试。
 
 ## Schema 版本历史
 
@@ -18,11 +18,11 @@
 | 4 | `is_pending_delete` 待删除标记和索引 |
 | 5 | 每目录增量快照、跨重启扫描异常明细、扫描任务历史与索引 |
 
-旧版本曾没有版本号。首次接管时只接受能明确对应 v1–v4 的表/列组合，再自动升级到 v5；部分指纹列、缺少核心表、未知业务表或高于当前版本的数据库都会停止启动，不会被盲目修改。
+旧版本曾没有版本号。首次接管时只接受能明确对应 v1–v4 的表/列组合，再自动升级到 v6；部分指纹列、缺少核心表、未知业务表或高于当前版本的数据库都会停止启动，不会被盲目修改。v6 只为“旧 `scan_error` 非空且没有活动 `scan_failures`”的目录补一条根目录异常，不清空原摘要、不覆盖已有异常，重复执行不会重复插入。
 
 ## 迁移与备份行为
 
-- 新库在单个事务内依次执行 v1–v5，不需要升级备份。
+- 新库在单个事务内依次执行 v1–v6，不需要升级备份。
 - 旧库升级前使用 SQLite `VACUUM INTO` 创建包含 WAL 当前一致视图的独立备份，再运行迁移事务。
 - 备份目录为 `<library.sqlite>.backups`，文件名为 `library.sqlite.v<旧版本>.<UTC 时间>.sqlite`。
 - 每一步都执行前置断言、DDL、后置断言并更新 `user_version`；任一步失败会回滚整个升级序列。
@@ -47,4 +47,4 @@
 
 ## 测试覆盖
 
-`databaseMigrations.test.ts` 覆盖空库、无版本旧库、v1–v5、每步故障回滚、备份可独立打开、备份失败、未知/损坏 schema、默认值/索引/FK 和幂等启动。`videoRepository.test.ts` 覆盖快照规范化、异常重试/解决和目录级缺失对账；`libraryScanner.incremental.test.ts` 覆盖快照算法。标准命令为 `npm run test:migrations` 和 `npm test`；native ABI 必须与运行测试的 Node 一致。
+`databaseMigrations.test.ts` 覆盖空库、无版本旧库、v1–v6、旧异常回填/去重/幂等/重试清除、每步故障回滚、备份可独立打开、备份失败、未知/损坏 schema、默认值/索引/FK 和幂等启动。`videoRepository.test.ts` 覆盖快照规范化、异常重试/解决和目录级缺失对账；`libraryScanner.incremental.test.ts` 覆盖快照算法。标准命令为 `npm run test:migrations` 和 `npm test`；native ABI 必须与运行测试的 Node 一致。

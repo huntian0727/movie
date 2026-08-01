@@ -2,9 +2,13 @@
 .worktrees/
 .dbg/
 node_modules/
+dist/
 dist-main/
 dist-renderer/
 release/
+build/
+out/
+.electron/
 
 # Local environment files. Keep a placeholder-only example committable.
 .env
@@ -35,10 +39,17 @@ pnpm-debug.log*
 # Test coverage
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
 
 # Temporary and editor backup files
 tmp/
 temp/
+.tmp/
+.temp/
+.cache/
+cache/
+media-cache/
 *.tmp
 *.temp
 *.bak
@@ -57,3 +68,10 @@ Desktop.ini
 *.user
 *.userosscache
 *.sln.docstates
+
+# Local diagnostics and support bundles
+diagnostics/
+diagnostic-bundles/
+support-bundles/
+diagnostic-*.zip
+support-bundle*.zip

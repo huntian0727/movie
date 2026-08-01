@@ -430,7 +430,6 @@ export const IPC_CHANNELS = {
   folderScanStatusList: "folder-scan-status:list",
   folderScanPause: "folder-scan:pause",
   folderScanResume: "folder-scan:resume",
-  folderScanRetry: "folder-scan:retry",
   duplicateList: "duplicate:list",
   duplicatePreviewResolve: "duplicate:preview-resolve",
   duplicateResolve: "duplicate:resolve",
@@ -483,7 +482,6 @@ export interface VideoManagerApi {
   listFolderScanStatuses(): Promise<FolderScanStatus[]>;
   pauseFolderScan(folderId: string): Promise<boolean>;
   resumeFolderScan(folderId: string): Promise<boolean>;
-  retryFolderScan(folderId: string): Promise<boolean>;
   revealVideoInFolder(videoId: string): Promise<boolean>;
   setFavorite(videoId: string, favorite: boolean): Promise<boolean>;
   setPendingDelete(videoId: string, pendingDelete: boolean): Promise<boolean>;

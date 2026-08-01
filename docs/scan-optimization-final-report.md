@@ -11,7 +11,7 @@
 ## 2. 修改前真实调用关系
 
 - 文件夹刷新：renderer 调 `scanFolder(folder.id)` → `folder:scan` → `ScanManager.start` → 全目录 scanner。
-- 感叹号弹窗：renderer 调 `retryFolderScan(folder.id)` → `folder-scan:retry`，仍重新执行同一全目录扫描，没有异常明细范围。
+- 感叹号弹窗：修改前调用的是含义模糊的普通扫描重试别名，仍重新执行同一全目录扫描，没有异常明细范围。
 - 扫描全盘：renderer 获取全部文件夹并循环调用 `scanFolder`，没有独立的全盘上层 IPC。
 
 ## 3. 代码级问题原因
@@ -36,7 +36,7 @@
 - `scan_failures`：对象、阶段、错误、首次/最近时间、retry count、状态和 resolved 时间；active 对象唯一索引。
 - `scan_tasks`：模式、状态、开始/完成时间、计数 JSON 和错误摘要。
 
-现有 v1–v4 数据不回填、不删除。升级继续先用 `VACUUM INTO` 创建含已提交 WAL 状态的一致备份，再在事务中执行迁移/断言；失败整体回滚。没有历史快照时下一次普通扫描自然建立。Electron Node ABI 130 下 v1–v5 migration、回滚、备份、WAL、幂等和仓储持久化测试通过。
+v5 不回填或删除 v1–v4 的历史目录快照数据，没有快照时下一次普通扫描自然建立；后续 v6 只为缺少活动明细的旧 `scan_error` 补建兼容异常。升级继续先用 `VACUUM INTO` 创建含已提交 WAL 状态的一致备份，再在事务中执行迁移/断言，失败整体回滚。Electron Node ABI 130 下 v1–v6 migration、回滚、备份、WAL、幂等和仓储持久化测试通过。
 
 ## 6. 修改文件清单
 
@@ -67,7 +67,7 @@
 - `getScanFailureSummary(sourceFolderId)` / `folder-scan-failures:summary`
 - `listScanFailures(sourceFolderId)` / `folder-scan-failures:list`
 
-现有 `scanFolder(sourceFolderId)` / `folder:scan` 保持当前文件夹普通扫描。旧 `folder-scan:retry` 仅保留普通重扫兼容语义，不再供异常弹窗使用。
+现有 `scanFolder(sourceFolderId)` / `folder:scan` 保持当前文件夹普通扫描；含义模糊的旧别名已在后续缺陷修复中删除，避免与异常项重试混淆。
 
 ## 8. 安全与缺失对账处理
 
@@ -86,7 +86,7 @@
 | 执行包 `scripts/preflight.ps1` | 通过 | 修改前确认正确 worktree 和状态 |
 | `npm run lint` | 通过 | TypeScript 两套配置均通过 |
 | `npm run build` | 通过 | 1591 modules，production renderer/main 构建成功 |
-| Electron Node 模式完整 Vitest | 35 files / 302 tests 通过 | 使用 ABI 130 真实加载 better-sqlite3，含 migration/repository/UI/性能 |
+| Electron Node 模式完整 Vitest | 35 files / 322 tests 通过 | 使用 ABI 130 真实加载 better-sqlite3，含 migration/repository/UI/性能 |
 | `node scripts/run-electron-smoke.mjs` | 通过 | Electron 33.4.11、ABI 130、main-process smoke |
 | 执行包 `scripts/verify.ps1` | 混合结果 | lint/typecheck/build 通过；标准 `npm test` 与包装的 electron smoke 被 Node/npm 版本门禁阻塞；脚本仍打印 completed/返回 0，不能据此宣称全部通过 |
 | 标准 `npm test` | 未通过环境门禁 | 系统 Node 24.14.0/npm 11.9.0；项目要求 Node 22.23.1/npm 10.9.8，且 native ABI 不同 |
@@ -108,7 +108,7 @@
 
 ## 12. 验收清单对照
 
-- 已自动验证：三种 IPC 契约；快照首次/未变化/深层变化/条目顺序/增删重命名；路径大小写/斜杠/UNC；文件和目录范围重试；部分成功；无异常安全返回；重启持久化；根/子目录缺失安全；取消保留异常；任务去重/同源互斥；感叹号与刷新共存；异常按钮与全盘文案；v1–v5 迁移；10,000 视频基准。
+- 已自动验证：三种 IPC 契约；快照首次/未变化/深层变化/条目顺序/增删重命名；路径大小写/斜杠/UNC；文件和目录范围重试；部分成功；无异常安全返回；重启持久化；根/子目录缺失安全；取消保留异常；模式感知任务去重/同源互斥；后台 metadata 告警刷新；异常按钮与全盘文案；v1–v6 迁移；10,000 视频基准。
 - 代码审计通过：三个 renderer 入口分别调用 `scanFolder`、`retryScanFailures`、`scanAllFolders`；日志调用只传 ID/模式/计数。
 - 需要人工验证：真实 SMB/映射盘慢读、断线恢复和权限；现有真实旧库副本升级/恢复；Electron 中三入口视觉/交互、黄三角随异步 metadata 自动消失；长时间暂停/关闭应用；十万级目录内存；干净 Windows VM。
 

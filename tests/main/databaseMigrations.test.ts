@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -9,6 +9,9 @@ import {
   type DatabaseConnection
 } from "../../src/main/db/database.js";
 import { LATEST_SCHEMA_VERSION, migrations } from "../../src/main/db/migrations/index.js";
+import { legacyScanErrorsMigration } from "../../src/main/db/migrations/006-legacy-scan-errors.js";
+import { VideoRepository } from "../../src/main/db/videoRepository.js";
+import { retryScanFailures } from "../../src/main/media/libraryScanner.js";
 
 let tempDirectories: string[] = [];
 
@@ -69,6 +72,14 @@ function insertVersionOneData(db: DatabaseConnection): void {
   );
 }
 
+function insertSourceFolder(db: DatabaseConnection, id: string, scanError: string | null, folderPath = `D:\\Videos\\${id}`): void {
+  db.prepare(`
+    INSERT INTO source_folders (
+      id, path, recursive, enabled, last_scanned_at, created_at, updated_at, scan_error
+    ) VALUES (?, ?, 1, 1, NULL, ?, ?, ?)
+  `).run(id, folderPath, "2026-01-01", "2026-01-01", scanError);
+}
+
 describe("versioned database migrations", () => {
   it("creates an empty database at the latest schema version", () => {
     const dbPath = createTempDatabasePath();
@@ -127,7 +138,7 @@ describe("versioned database migrations", () => {
     }
   });
 
-  for (const version of [1, 2, 3, 4]) {
+  for (const version of [1, 2, 3, 4, 5]) {
     it(`upgrades schema version ${version} to the latest version`, () => {
       const dbPath = createTempDatabasePath();
       createVersionFixture(dbPath, version).close();
@@ -141,7 +152,7 @@ describe("versioned database migrations", () => {
     });
   }
 
-  for (const failedVersion of [1, 2, 3, 4, 5]) {
+  for (const failedVersion of [1, 2, 3, 4, 5, 6]) {
     it(`rolls back completely when migration ${failedVersion} fails`, () => {
       const dbPath = createTempDatabasePath();
       const startingVersion = failedVersion - 1;
@@ -170,6 +181,8 @@ describe("versioned database migrations", () => {
           expect(listColumns(db, "videos")).not.toContain("is_pending_delete");
         } else if (failedVersion === 5) {
           expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'directory_snapshots'").pluck().get()).toBeUndefined();
+        } else if (failedVersion === 6) {
+          expect(db.prepare("SELECT COUNT(*) FROM scan_failures").pluck().get()).toBe(0);
         }
       } finally {
         db.close();
@@ -192,6 +205,102 @@ describe("versioned database migrations", () => {
       );
     } finally {
       reopened.close();
+    }
+  });
+
+  it("backfills a legacy folder scan error as one retryable directory failure", () => {
+    const dbPath = createTempDatabasePath();
+    const fixture = createVersionFixture(dbPath, 5);
+    insertSourceFolder(fixture, "legacy-folder", "旧版本扫描超时");
+    fixture.close();
+
+    const db = createDatabase(dbPath);
+    try {
+      expect(db.prepare(`
+        SELECT source_folder_id, scan_task_id, object_type, object_path, normalized_path,
+               failure_stage, error_code, error_summary, retry_count, status, resolved_at
+        FROM scan_failures
+      `).get()).toEqual({
+        source_folder_id: "legacy-folder",
+        scan_task_id: "migration:v6",
+        object_type: "directory",
+        object_path: "D:\\Videos\\legacy-folder",
+        normalized_path: "d:\\videos\\legacy-folder",
+        failure_stage: "legacy-scan-error",
+        error_code: "LEGACY_SCAN_ERROR",
+        error_summary: "旧版本扫描超时",
+        retry_count: 0,
+        status: "unresolved",
+        resolved_at: null
+      });
+      expect(db.prepare("SELECT scan_error FROM source_folders WHERE id = ?").pluck().get("legacy-folder"))
+        .toBe("旧版本扫描超时");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("does not duplicate an existing active failure while migrating legacy scan errors", () => {
+    const dbPath = createTempDatabasePath();
+    const fixture = createVersionFixture(dbPath, 5);
+    insertSourceFolder(fixture, "existing-folder", "旧版本错误");
+    fixture.prepare(`
+      INSERT INTO scan_failures (
+        id, source_folder_id, scan_task_id, object_type, object_path, normalized_path,
+        failure_stage, error_code, error_summary, first_failed_at, last_failed_at,
+        retry_count, status, resolved_at
+      ) VALUES (?, ?, ?, 'file', ?, ?, ?, ?, ?, ?, ?, 0, 'unresolved', NULL)
+    `).run(
+      "existing-failure", "existing-folder", "task-1", "D:\\Videos\\existing-folder\\sample.mp4",
+      "d:\\videos\\existing-folder\\sample.mp4", "metadata", "EIO", "读取失败", "2026-01-01", "2026-01-01"
+    );
+    fixture.close();
+
+    const db = createDatabase(dbPath);
+    try {
+      expect(db.prepare("SELECT COUNT(*) FROM scan_failures WHERE source_folder_id = ?").pluck().get("existing-folder"))
+        .toBe(1);
+      expect(db.prepare("SELECT id FROM scan_failures WHERE source_folder_id = ?").pluck().get("existing-folder"))
+        .toBe("existing-failure");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("ignores empty legacy errors and remains idempotent when the migration body is repeated", () => {
+    const dbPath = createTempDatabasePath();
+    const db = createVersionFixture(dbPath, 5);
+    insertSourceFolder(db, "empty-folder", "   ");
+    insertSourceFolder(db, "null-folder", null);
+    insertSourceFolder(db, "legacy-folder", "需要重试");
+
+    legacyScanErrorsMigration.up(db);
+    legacyScanErrorsMigration.up(db);
+
+    expect(db.prepare("SELECT COUNT(*) FROM scan_failures").pluck().get()).toBe(1);
+    expect(db.prepare("SELECT source_folder_id FROM scan_failures").pluck().get()).toBe("legacy-folder");
+    db.close();
+  });
+
+  it("resolves a migrated legacy directory failure and clears scan_error after retry", async () => {
+    const dbPath = createTempDatabasePath();
+    const mediaDirectory = path.join(path.dirname(dbPath), "legacy-media");
+    mkdirSync(mediaDirectory);
+    const fixture = createVersionFixture(dbPath, 5);
+    insertSourceFolder(fixture, "legacy-folder", "旧版本扫描异常", mediaDirectory);
+    fixture.close();
+
+    const db = createDatabase(dbPath);
+    try {
+      const repo = new VideoRepository(db);
+      const source = repo.listSourceFolders().find((item) => item.id === "legacy-folder")!;
+      const result = await retryScanFailures(repo, source);
+
+      expect(result.state).toBe("completed");
+      expect(repo.getScanFailureSummary(source.id).totalUnresolved).toBe(0);
+      expect(repo.listSourceFolders().find((item) => item.id === source.id)?.scanError).toBeNull();
+    } finally {
+      db.close();
     }
   });
 

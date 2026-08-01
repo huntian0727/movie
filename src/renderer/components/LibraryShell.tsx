@@ -34,7 +34,7 @@ interface LibraryShellProps {
   onRemoveFolder?(folder: SourceFolder): void | Promise<void>;
   onPauseFolderScan?(folder: SourceFolder): void | Promise<unknown>;
   onResumeFolderScan?(folder: SourceFolder): void | Promise<unknown>;
-  onRetryFolderScan?(folder: SourceFolder): void | Promise<unknown>;
+  onScanFolder?(folder: SourceFolder): void | Promise<unknown>;
   onRetryFolderFailures?(folder: SourceFolder): void | Promise<unknown>;
   onLoadScanFailureSummary?(folder: SourceFolder): Promise<ScanFailureSummary>;
   onLoadScanFailures?(folder: SourceFolder): Promise<ScanFailure[]>;
@@ -76,7 +76,7 @@ export function LibraryShell({
   onRemoveFolder,
   onPauseFolderScan,
   onResumeFolderScan,
-  onRetryFolderScan,
+  onScanFolder,
   onRetryFolderFailures,
   onLoadScanFailureSummary,
   onLoadScanFailures,
@@ -708,7 +708,7 @@ export function LibraryShell({
                   <span className="folder-source-actions">
                     {(scanStatus?.state === "queued" || scanStatus?.state === "scanning") && onPauseFolderScan && <button type="button" aria-label={`暂停扫描 ${folderName(entry.path)}`} title="暂停扫描" onClick={() => void onPauseFolderScan(entry.sourceFolder!)}><Pause size={13} /></button>}
                     {scanStatus?.state === "paused" && onResumeFolderScan && <button type="button" aria-label={`继续扫描 ${folderName(entry.path)}`} title="继续扫描" onClick={() => void onResumeFolderScan(entry.sourceFolder!)}><Play size={13} /></button>}
-                    {(!scanStatus || scanStatus.state === "completed" || scanStatus.state === "completed-with-errors" || scanStatus.state === "offline" || scanStatus.state === "error") && onRetryFolderScan && <button type="button" aria-label={`扫描当前文件夹 ${folderName(entry.path)}`} title="扫描当前文件夹" onClick={() => void onRetryFolderScan(entry.sourceFolder!)}><RotateCw size={13} /></button>}
+                    {(!scanStatus || scanStatus.state === "completed" || scanStatus.state === "completed-with-errors" || scanStatus.state === "offline" || scanStatus.state === "error") && onScanFolder && <button type="button" aria-label={`扫描当前文件夹 ${folderName(entry.path)}`} title="扫描当前文件夹" onClick={() => void onScanFolder(entry.sourceFolder!)}><RotateCw size={13} /></button>}
                     {onRemoveFolder && (!scanStatus || scanStatus.state === "completed" || scanStatus.state === "completed-with-errors" || scanStatus.state === "offline" || scanStatus.state === "error") && <button type="button" className="folder-remove" aria-label={`移除源目录 ${folderName(entry.path)}`} title="从资料库移除源目录（不会删除磁盘文件）" onClick={() => void openRemoveFolderDialog(entry.sourceFolder!)}><Trash2 size={14} /></button>}
                   </span>
                 )}
@@ -874,6 +874,11 @@ export function LibraryShell({
                 <span><strong>{formatScanFailureTime(folderIssueTarget.summary.latestFailedAt)}</strong>最近失败</span>
               </div>
             )}
+            {folderIssueTarget.summary?.totalUnresolved === 0 && folderIssueTarget.folder.scanError?.trim() && (
+              <p className="folder-issue-legacy-note">
+                这是旧版本遗留的扫描异常，缺少具体异常明细，请扫描当前文件夹以重新建立状态。
+              </p>
+            )}
             {folderIssueTarget.failures.length > 0 && (
               <div className="folder-issue-list" aria-label="扫描异常明细">
                 {folderIssueTarget.failures.map((failure) => (
@@ -889,7 +894,19 @@ export function LibraryShell({
             {actionError && <small className="dialog-error">{actionError}</small>}
             <div className="dialog-actions">
               <button onClick={() => setFolderIssueTarget(null)} disabled={actionPending}>关闭</button>
-              {onRetryFolderFailures && (
+              {folderIssueTarget.summary?.totalUnresolved === 0 && onScanFolder && (
+                <button
+                  className="primary"
+                  aria-label="扫描当前文件夹"
+                  disabled={actionPending || folderIssueTarget.loading}
+                  onClick={() => void runAction(async () => { await onScanFolder(folderIssueTarget.folder); }).then((scanned) => {
+                    if (scanned) setFolderIssueTarget(null);
+                  })}
+                >
+                  <RotateCw size={14} />扫描当前文件夹
+                </button>
+              )}
+              {onRetryFolderFailures && folderIssueTarget.summary?.totalUnresolved !== 0 && (
                 <button
                   className="primary"
                   aria-label="重试异常项"
@@ -1113,9 +1130,8 @@ function getFolderWarning(
   if (scanStatus?.state === "completed-with-errors") {
     return { message: scanStatus.message?.trim() || entry.scanError?.trim() || "扫描完成，但仍有尚未解决的异常项。", state: "error" };
   }
-  if (scanStatus) {
-    // A queued, active, paused, or completed scan supersedes a stale error
-    // persisted by an older scan. Do not show both progress and a warning.
+  if (scanStatus && (scanStatus.state === "queued" || scanStatus.state === "scanning" || scanStatus.state === "paused")) {
+    // Only an active task temporarily supersedes a persisted warning.
     return null;
   }
   if (entry.scanError?.trim()) {

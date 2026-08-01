@@ -22,7 +22,7 @@ main boundaries -> StructuredLogger(JSONL/redaction/rotation) -> settings diagno
 
 ## 数据与关键决策
 
-- SQLite 使用 `PRAGMA user_version` 的有序迁移。v1–v4 保存核心资料库、播放历史、历史指纹兼容字段和待删除标记；v5 新增 `directory_snapshots`、`scan_failures`、`scan_tasks`。旧库升级前先 `VACUUM INTO` 备份，再在事务中迁移并执行 FK/quick check。
+- SQLite 使用 `PRAGMA user_version` 的有序迁移。v1–v4 保存核心资料库、播放历史、历史指纹兼容字段和待删除标记；v5 新增 `directory_snapshots`、`scan_failures`、`scan_tasks`；v6 为仅有旧 `scan_error` 摘要的目录补建可重试异常明细。旧库升级前先 `VACUUM INTO` 备份，再在事务中迁移并执行 FK/quick check。
 - Windows 路径以 `COLLATE NOCASE` 唯一，应用生成 UUID；重扫同路径保持记录身份与收藏。
 - 缺失采用软状态而非立即删除，避免临时离线盘导致用户元数据丢失。
 - 收藏只存布尔标记，不移动文件；删除是明确确认后的永久磁盘删除。
@@ -52,5 +52,5 @@ main boundaries -> StructuredLogger(JSONL/redaction/rotation) -> settings diagno
 | 导入时关键帧 | 导入时生成封面和少量关键帧 | 封面/时间轴图由协议请求按需生成 | 有意形成的性能折中；首次 hover 可能延迟，是否改回预生成需要基准 |
 | 统一播放器体验 | native 与 mpv 尽量呈现统一控制体验 | native 在应用窗口内受控；mpv/系统默认播放器为外部程序 | 部分实现；外部播放器无法共享应用内控制和状态，真实体验需要验证 |
 | 数据库分页 | 搜索、排序和分页可下推 SQLite | 普通资料库与重复项均已数据库分页；目录树改用 DISTINCT directory 轻量快照，播放器按队列 id 取数 | 已实现；超深 OFFSET 和模糊搜索基准仍需验证 |
-| Schema migration | 数据库层承担 schema 创建与迁移 | 已实现 `user_version`、升级前一致性备份、事务回滚与 v1–v5 自动测试 | 已实现；真实旧用户库副本升级/恢复演练仍需人工验证 |
+| Schema migration | 数据库层承担 schema 创建与迁移 | 已实现 `user_version`、升级前一致性备份、事务回滚与 v1–v6 自动测试 | 已实现；真实旧用户库副本升级/恢复演练仍需人工验证 |
 | 真实桌面验证 | 用真实 Windows、媒体格式和大目录验收 | 自动测试较多，部分桌面自查有记录；完整证据链缺失 | 需要验证；以 `docs/verification-results.md` 和手测表为准 |

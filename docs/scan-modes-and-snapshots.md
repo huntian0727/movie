@@ -10,7 +10,7 @@
 | 感叹号 → 重试异常项 | `retryScanFailures` / `folder-scan-failures:retry` | `retryFailures` | 当前 source folder 的 unresolved/retrying 对象 |
 | 右上角扫描全盘 | `scanAllFolders` / `folder:scan-all` | `scanAll` | 所有 enabled source folders，严格顺序执行 |
 
-旧 `folder-scan:retry` 保留给“重新执行普通扫描”的兼容调用，不承担异常弹窗语义。三种修改任务共享 `ScanManager` 队列；同一 source folder 的重复点击复用现有任务，不会产生并发写入。
+含义模糊的旧普通扫描重试别名已删除。三种任务共享 `ScanManager` 全局串行队列；普通扫描之间可以复用，同模式异常重试可以复用，但普通扫描与异常重试必须先后执行，不能互相冒充完成。
 
 ## 模式 A：每目录增量扫描
 
@@ -36,7 +36,7 @@ scanner 对目录树逐级执行：
 - 部分成功只解决成功对象；再次失败更新同一 active 记录并增加 retry count。
 - 协作式取消后，尚未处理或仅标为 retrying 的记录仍属于未解决异常；未完成目录不会写成功快照或提前解决目录异常。
 
-`source_folders.scan_error` 是侧栏的快速摘要，不是异常事实源。每次 record/resolve 都从 `scan_failures` 同步该摘要；后台 metadata 状态变化通过 `source-folder:updated` 领域事件刷新侧栏。完整明细只在用户打开弹窗时查询。
+`source_folders.scan_error` 是侧栏的快速摘要，不是异常事实源。每次 record/resolve 都从 `scan_failures` 同步该摘要；后台 metadata 状态变化通过 `source-folder:updated` 领域事件刷新侧栏。完整明细只在用户打开弹窗时查询。v6 迁移会为只有旧摘要、没有活动明细的目录补建一条根目录级兼容异常；极端异常数据仍可在弹窗中选择“扫描当前文件夹”恢复状态。
 
 ## 模式 C：扫描全盘
 
@@ -68,4 +68,4 @@ scanner 对目录树逐级执行：
 
 ## 自动化与手测
 
-`tests/main/libraryScanner.incremental.test.ts` 覆盖首次/二次快照、父未变子变化、顺序无关、增删改、子树删除、不完整快照、文件/目录异常重试、部分成功、取消与 10,000 文件基准。`databaseMigrations.test.ts` 和 `videoRepository.test.ts` 验证 v5 无损迁移及跨连接持久化。真实映射盘断线恢复、SMB 权限、数十万条目录和长时间暂停仍按 `docs/manual-test-checklist.md` 人工验证。
+`tests/main/libraryScanner.incremental.test.ts` 覆盖首次/二次快照、父未变子变化、顺序无关、增删改、子树删除、不完整快照、文件/目录异常重试、部分成功、取消与 10,000 文件基准。`databaseMigrations.test.ts` 和 `videoRepository.test.ts` 验证 v1–v6 无损迁移、旧异常兼容及跨连接持久化；`scanManager.test.ts` 覆盖模式复用矩阵。真实映射盘断线恢复、SMB 权限、数十万条目录和长时间暂停仍按 `docs/manual-test-checklist.md` 人工验证。

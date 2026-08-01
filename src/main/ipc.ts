@@ -38,7 +38,6 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.folderRemove,
   IPC_CHANNELS.folderScanPause,
   IPC_CHANNELS.folderScanResume,
-  IPC_CHANNELS.folderScanRetry,
   IPC_CHANNELS.videoFavorite,
   IPC_CHANNELS.videoPendingDelete,
   IPC_CHANNELS.videoPendingDeleteClear,
@@ -402,15 +401,6 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.folderScanStatusList, () => dependencies.scanManager.listStatuses());
   ipcMain.handle(IPC_CHANNELS.folderScanPause, (_event, folderId: unknown) => dependencies.scanManager.pause(z.string().min(1).parse(folderId)));
   ipcMain.handle(IPC_CHANNELS.folderScanResume, (_event, folderId: unknown) => dependencies.scanManager.resume(z.string().min(1).parse(folderId)));
-  ipcMain.handle(IPC_CHANNELS.folderScanRetry, async (_event, folderId: unknown) => {
-    const parsedFolderId = z.string().min(1).parse(folderId);
-    const folder = repo.listSourceFolders().find((candidate) => candidate.id === parsedFolderId);
-    if (!folder) throw new Error(`Source folder not found: ${parsedFolderId}`);
-    await dependencies.scanManager.start(folder);
-    dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
-    return true;
-  });
-
   ipcMain.handle(IPC_CHANNELS.videoFavorite, (_event, payload) => {
     const parsed = videoIdSchema.extend({ favorite: z.boolean() }).parse(payload);
     repo.getVideo(parsed.videoId);

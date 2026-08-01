@@ -1,0 +1,35 @@
+# AI 开发与交付规则
+
+本文件是本项目后续 AI 程序员的固定工作约定。当前本地代码始终是开发基准；开始任务时先阅读本文件并检查当前工作区。
+
+## 工作区与分支安全
+
+1. 不得丢弃、覆盖或回滚任何本地未提交修改。
+2. 禁止 `git reset --hard`、`git clean -fd`、`git restore .`、`git checkout -- .` 和任何形式的强制推送。
+3. 每项新任务优先创建独立功能分支，使用 `ai/<task-name>`，例如 `ai/scan-fix`、`ai/preview-fix`。
+4. `main` 和 `master` 默认是受保护分支；除非用户明确要求，否则不得直接向它们提交或推送开发代码。
+5. 不访问其他仓库，不重新 clone；需要同步时只使用当前仓库已配置的 `origin`。
+
+## 开发与验证
+
+1. 开始开发前运行并检查 `git branch --show-current`、`git status --short` 和 `git remote -v`。
+2. 完成修改后检查 `git diff`、`git diff --check` 和 `git status --short`。
+3. 根据 `package.json` 中实际存在的脚本运行质量检查，包括 lint、typecheck、test、build、Electron smoke 和 E2E；不存在的脚本应明确记为“不适用”。
+4. 不得声称未实际运行的测试已经通过。测试失败时，优先修复本次修改引起的问题；环境阻塞必须如实报告。
+5. 不得提交敏感文件、凭据、运行数据库、日志、媒体缓存、依赖目录、覆盖率、临时文件或构建产物。
+
+## 自动交付
+
+开发完成并确认修改范围后，必须运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/finish-and-push.ps1 -Message "<规范提交信息>"
+```
+
+提交信息使用以下前缀之一：`feat:`、`fix:`、`refactor:`、`test:`、`docs:`、`chore:`。
+
+脚本会检查敏感文件、执行可用质量门禁、提交、同步远程同名分支并安全推送。不得绕过失败检查；仅当本轮已经在同一工作区完整执行并记录了等价检查时，才可使用 `-SkipChecks`。受保护分支只有在用户明确授权时才能使用 `-AllowProtectedBranch`。
+
+以后每次开发固定执行：阅读 `AGENTS.md` → 检查工作区 → 必要时创建功能分支 → 完成开发 → 运行测试 → 运行 `finish-and-push.ps1` → 推送 GitHub → 只报告关键结果。
+
+最终回复只包含：当前分支、Commit、Push 结果、修改摘要、测试结果和阻塞项。不要重新复述整份需求或输出冗长开发过程。

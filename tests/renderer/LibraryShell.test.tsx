@@ -646,6 +646,64 @@ describe("LibraryShell", () => {
     expect(screen.queryByRole("button", { name: "查看 Movies 扫描异常" })).not.toBeInTheDocument();
   });
 
+  it.each(["queued", "paused"] as const)("hides a stale persisted warning while a scan is %s", (state) => {
+    render(
+      <LibraryShell
+        videos={[video]}
+        folders={[{ ...folder, scanError: "上次读取网盘超时" }]}
+        scanStatuses={[{
+          folderId: folder.id,
+          mode: "current-folder",
+          state,
+          phase: state === "paused" ? "processing" : null,
+          totalFiles: 20,
+          processedFiles: 7,
+          currentPath: null,
+          message: null,
+          counters: scanCounters,
+          updatedAt: ""
+        }]}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "查看 Movies 扫描异常" })).not.toBeInTheDocument();
+  });
+
+  it("does not show a warning after a completed scan when no persisted error remains", () => {
+    render(
+      <LibraryShell
+        videos={[video]}
+        folders={[folder]}
+        scanStatuses={[{ folderId: folder.id, mode: "current-folder", state: "completed", phase: null, totalFiles: 20, processedFiles: 20, currentPath: null, message: null, counters: scanCounters, updatedAt: "" }]}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "查看 Movies 扫描异常" })).not.toBeInTheDocument();
+  });
+
+  it("keeps showing a later persisted metadata warning after the folder scan status is completed", () => {
+    render(
+      <LibraryShell
+        videos={[video]}
+        folders={[{ ...folder, scanError: "FFprobe 读取失败" }]}
+        scanStatuses={[{ folderId: folder.id, mode: "current-folder", state: "completed", phase: null, totalFiles: 20, processedFiles: 20, currentPath: null, message: null, counters: scanCounters, updatedAt: "" }]}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "查看 Movies 扫描异常" })).toHaveAttribute("title", "FFprobe 读取失败");
+  });
+
+  it("reacts to refreshed folder data by showing and then clearing a metadata warning", () => {
+    const completedStatus = { folderId: folder.id, mode: "current-folder" as const, state: "completed" as const, phase: null, totalFiles: 20, processedFiles: 20, currentPath: null, message: null, counters: scanCounters, updatedAt: "" };
+    const view = render(<LibraryShell videos={[video]} folders={[folder]} scanStatuses={[completedStatus]} />);
+
+    expect(screen.queryByRole("button", { name: "查看 Movies 扫描异常" })).not.toBeInTheDocument();
+    view.rerender(<LibraryShell videos={[video]} folders={[{ ...folder, scanError: "FFprobe 读取失败" }]} scanStatuses={[completedStatus]} />);
+    expect(screen.getByRole("button", { name: "查看 Movies 扫描异常" })).toBeInTheDocument();
+    view.rerender(<LibraryShell videos={[video]} folders={[folder]} scanStatuses={[completedStatus]} />);
+    expect(screen.queryByRole("button", { name: "查看 Movies 扫描异常" })).not.toBeInTheDocument();
+  });
+
   it("opens actionable folder scan details and retries from the warning", async () => {
     const onRetryFolderFailures = vi.fn();
     render(
@@ -675,6 +733,34 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "重试异常项" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "重试异常项" }));
     await waitFor(() => expect(onRetryFolderFailures).toHaveBeenCalledWith(expect.objectContaining({ id: folder.id })));
+  });
+
+  it("offers a normal folder scan when a legacy warning has no failure details", async () => {
+    const onScanFolder = vi.fn().mockResolvedValue(undefined);
+    render(
+      <LibraryShell
+        videos={[video]}
+        folders={[{ ...folder, scanError: "旧版本扫描异常" }]}
+        onScanFolder={onScanFolder}
+        onRetryFolderFailures={vi.fn()}
+        onLoadScanFailureSummary={async () => ({
+          sourceFolderId: folder.id,
+          failedFileCount: 0,
+          failedDirectoryCount: 0,
+          totalUnresolved: 0,
+          latestError: null,
+          latestFailedAt: null,
+          totalRetryCount: 0
+        })}
+        onLoadScanFailures={async () => []}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 Movies 扫描异常" }));
+    expect(await screen.findByText("这是旧版本遗留的扫描异常，缺少具体异常明细，请扫描当前文件夹以重新建立状态。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试异常项" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "扫描当前文件夹" }));
+    await waitFor(() => expect(onScanFolder).toHaveBeenCalledWith(expect.objectContaining({ id: folder.id })));
   });
 
   it("loads only the requested ordinary library page from the backend", async () => {
