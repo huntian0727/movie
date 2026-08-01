@@ -90,6 +90,40 @@ describe("directory snapshot incremental scanning", () => {
     expect(result.counters).toMatchObject({ changedDirectories: 1, addedVideos: 1, missingVideos: 1 });
     expect(repo.videos.get(normalizeManagedPath(`${ROOT}\\old-name.mp4`))?.isMissing).toBe(true);
     expect(repo.videos.get(normalizeManagedPath(`${ROOT}\\new-name.mp4`))?.isMissing).toBe(false);
+    expect(repo.listFailures()).toEqual([]);
+  });
+
+  it("resolves every historical failure for a file confirmed deleted by a complete parent scan", async () => {
+    const fs = new FakeFileSystem();
+    const filePath = `${ROOT}\\A.mp4`;
+    fs.addDirectory(ROOT, [file("A.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    repo.value.recordScanFailure({
+      sourceFolderId: FOLDER.id,
+      scanTaskId: "old-file",
+      objectType: "file",
+      objectPath: filePath,
+      failureStage: "file-processing",
+      errorSummary: "old file error"
+    });
+    repo.value.recordScanFailure({
+      sourceFolderId: FOLDER.id,
+      scanTaskId: "old-metadata",
+      objectType: "file",
+      objectPath: filePath,
+      failureStage: "metadata",
+      errorSummary: "old metadata error"
+    });
+
+    fs.addDirectory(ROOT, []);
+    const result = await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+
+    expect(result).toMatchObject({ state: "completed", failureCount: 0, message: null });
+    expect(repo.videos.get(normalizeManagedPath(filePath))?.isMissing).toBe(true);
+    expect(repo.listFailures()).toEqual([]);
+    expect(repo.snapshots.get(snapshotKey(FOLDER.id, ROOT))?.hasUnresolvedFailure).toBe(false);
+    expect(repo.value.updateSourceFolderScanState).toHaveBeenLastCalledWith(FOLDER.id, expect.any(String), null);
   });
 
   it("marks a removed child subtree missing only after its parent was read completely", async () => {
@@ -98,6 +132,14 @@ describe("directory snapshot incremental scanning", () => {
     fs.addDirectory(`${ROOT}\\Removed`, [file("archived.mp4")]);
     const repo = new MemoryScanRepository();
     await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    repo.value.recordScanFailure({
+      sourceFolderId: FOLDER.id,
+      scanTaskId: "removed-subtree",
+      objectType: "file",
+      objectPath: `${ROOT}\\Removed\\archived.mp4`,
+      failureStage: "metadata",
+      errorSummary: "old subtree error"
+    });
 
     fs.addDirectory(ROOT, []);
     const result = await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
@@ -105,6 +147,87 @@ describe("directory snapshot incremental scanning", () => {
     expect(result.counters?.missingVideos).toBe(1);
     expect(repo.videos.get(normalizeManagedPath(`${ROOT}\\Removed\\archived.mp4`))?.isMissing).toBe(true);
     expect(repo.snapshots.has(snapshotKey(FOLDER.id, `${ROOT}\\Removed`))).toBe(false);
+    expect(repo.listFailures()).toEqual([]);
+  });
+
+  it("treats a child directory that disappears after parent enumeration as a normal deletion", async () => {
+    const fs = new FakeFileSystem();
+    const childPath = `${ROOT}\\Vanished`;
+    fs.addDirectory(ROOT, [dir("Vanished")]);
+    fs.addDirectory(childPath, [file("archived.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+
+    fs.removeDirectory(childPath);
+    fs.setDirectoryReadSequence(ROOT, [[dir("Vanished")], []]);
+    const result = await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+
+    expect(result).toMatchObject({ state: "completed", failureCount: 0, message: null });
+    expect(repo.videos.get(normalizeManagedPath(`${childPath}\\archived.mp4`))?.isMissing).toBe(true);
+    expect(repo.snapshots.has(snapshotKey(FOLDER.id, childPath))).toBe(false);
+    expect(repo.listFailures()).toEqual([]);
+  });
+
+  it("resolves deleted directory failures and reuses one readable-parent check for siblings", async () => {
+    const fs = new FakeFileSystem();
+    const firstPath = `${ROOT}\\First`;
+    const secondPath = `${ROOT}\\Second`;
+    fs.addDirectory(ROOT, [dir("First"), dir("Second")]);
+    fs.addDirectory(firstPath, [file("first.mp4")]);
+    fs.addDirectory(secondPath, [file("second.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    fs.removeDirectory(firstPath);
+    fs.removeDirectory(secondPath);
+    fs.addDirectory(ROOT, []);
+    for (const directoryPath of [firstPath, secondPath]) {
+      repo.value.recordScanFailure({
+        sourceFolderId: FOLDER.id,
+        scanTaskId: "old-directory",
+        objectType: "directory",
+        objectPath: directoryPath,
+        failureStage: "directory-enumeration",
+        errorCode: "ENOENT",
+        errorSummary: "directory not found"
+      });
+    }
+    fs.resetCounters();
+
+    const result = await retryScanFailures(repo.value, FOLDER, fs.dependencies());
+
+    expect(result).toMatchObject({ state: "completed", failureCount: 0, message: null });
+    expect(repo.listFailures()).toEqual([]);
+    expect(repo.videos.get(normalizeManagedPath(`${firstPath}\\first.mp4`))?.isMissing).toBe(true);
+    expect(repo.videos.get(normalizeManagedPath(`${secondPath}\\second.mp4`))?.isMissing).toBe(true);
+    expect(fs.readDirectories.filter((directoryPath) => directoryPath === normalizeManagedPath(ROOT))).toHaveLength(1);
+  });
+
+  it("keeps a deleted directory failure when its parent cannot be read", async () => {
+    const fs = new FakeFileSystem();
+    const childPath = `${ROOT}\\Unconfirmed`;
+    fs.addDirectory(ROOT, [dir("Unconfirmed")]);
+    fs.addDirectory(childPath, [file("keep.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    fs.removeDirectory(childPath);
+    repo.value.recordScanFailure({
+      sourceFolderId: FOLDER.id,
+      scanTaskId: "old-directory",
+      objectType: "directory",
+      objectPath: childPath,
+      failureStage: "directory-enumeration",
+      errorCode: "ENOENT",
+      errorSummary: "directory not found"
+    });
+    fs.failDirectories.add(normalizeManagedPath(ROOT));
+
+    const result = await retryScanFailures(repo.value, FOLDER, fs.dependencies());
+
+    expect(result.state).toBe("completed-with-errors");
+    expect(repo.videos.get(normalizeManagedPath(`${childPath}\\keep.mp4`))?.isMissing).toBe(false);
+    expect(repo.listFailures()).toEqual([
+      expect.objectContaining({ objectPath: childPath, objectType: "directory", retryCount: 1 })
+    ]);
   });
 
   it("treats a renamed child directory as one removed subtree plus one new subtree", async () => {
@@ -202,6 +325,96 @@ describe("directory snapshot incremental scanning", () => {
     expect(repo.listFailures()).toEqual([
       expect.objectContaining({ objectPath: `${ROOT}\\second.mp4`, retryCount: 1, status: "unresolved" })
     ]);
+  });
+
+  it("resolves a retried file failure when the file is absent from a readable parent", async () => {
+    const fs = new FakeFileSystem();
+    const filePath = `${ROOT}\\A.mp4`;
+    fs.addDirectory(ROOT, [file("A.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    repo.value.recordScanFailure({
+      sourceFolderId: FOLDER.id,
+      scanTaskId: "failed-file",
+      objectType: "file",
+      objectPath: filePath,
+      failureStage: "file-processing",
+      errorSummary: "file failed"
+    });
+    repo.value.recordScanFailure({
+      sourceFolderId: FOLDER.id,
+      scanTaskId: "failed-metadata",
+      objectType: "file",
+      objectPath: filePath,
+      failureStage: "metadata",
+      errorSummary: "metadata failed"
+    });
+    fs.addDirectory(ROOT, []);
+    fs.missingFiles.add(normalizeManagedPath(filePath));
+    fs.resetCounters();
+
+    const result = await retryScanFailures(repo.value, FOLDER, fs.dependencies());
+
+    expect(result).toMatchObject({ state: "completed", failureCount: 0, message: null });
+    expect(result.counters).toMatchObject({ retriedFailures: 1, resolvedFailures: 2, missingVideos: 1 });
+    expect(repo.videos.get(normalizeManagedPath(filePath))?.isMissing).toBe(true);
+    expect(repo.listFailures()).toEqual([]);
+    expect(fs.fileStatCalls).toBe(1);
+  });
+
+  it("keeps a file failure when its parent cannot confirm that the file was deleted", async () => {
+    const fs = new FakeFileSystem();
+    const filePath = `${ROOT}\\A.mp4`;
+    fs.addDirectory(ROOT, [file("A.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    repo.value.recordScanFailure({
+      sourceFolderId: FOLDER.id,
+      scanTaskId: "failed-file",
+      objectType: "file",
+      objectPath: filePath,
+      failureStage: "file-processing",
+      errorSummary: "file failed"
+    });
+    fs.missingFiles.add(normalizeManagedPath(filePath));
+    fs.failDirectories.add(normalizeManagedPath(ROOT));
+
+    const result = await retryScanFailures(repo.value, FOLDER, fs.dependencies());
+
+    expect(result.state).toBe("completed-with-errors");
+    expect(repo.videos.get(normalizeManagedPath(filePath))?.isMissing).toBe(false);
+    expect(repo.listFailures()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ objectType: "file", objectPath: filePath, status: "unresolved", retryCount: 1 }),
+      expect.objectContaining({ objectType: "directory", objectPath: ROOT, status: "unresolved" })
+    ]));
+  });
+
+  it("clears a deleted file failure while retaining another file's real access failure", async () => {
+    const fs = new FakeFileSystem();
+    const deletedPath = `${ROOT}\\A.mp4`;
+    const unreadablePath = `${ROOT}\\B.mp4`;
+    fs.addDirectory(ROOT, [file("A.mp4"), file("B.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    repo.value.recordScanFailure({
+      sourceFolderId: FOLDER.id,
+      scanTaskId: "old-a",
+      objectType: "file",
+      objectPath: deletedPath,
+      failureStage: "metadata",
+      errorSummary: "old A error"
+    });
+    fs.addDirectory(ROOT, [file("B.mp4")]);
+    fs.failFiles.add(normalizeManagedPath(unreadablePath));
+
+    const result = await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+
+    expect(result.state).toBe("completed-with-errors");
+    expect(repo.videos.get(normalizeManagedPath(deletedPath))?.isMissing).toBe(true);
+    expect(repo.listFailures()).toEqual([
+      expect.objectContaining({ objectPath: unreadablePath, failureStage: "file-processing" })
+    ]);
+    expect(repo.snapshots.get(snapshotKey(FOLDER.id, ROOT))?.hasUnresolvedFailure).toBe(true);
   });
 
   it("keeps unprocessed failures after cooperative cancellation", async () => {
@@ -306,8 +519,10 @@ describe("directory snapshot incremental scanning", () => {
 
 class FakeFileSystem {
   private readonly entries = new Map<string, Dirent[]>();
+  private readonly directoryReadSequences = new Map<string, Dirent[][]>();
   readonly failDirectories = new Set<string>();
   readonly failFiles = new Set<string>();
+  readonly missingFiles = new Set<string>();
   readDirectories: string[] = [];
   fileStatCalls = 0;
   directoryStatCalls = 0;
@@ -315,6 +530,14 @@ class FakeFileSystem {
 
   addDirectory(directoryPath: string, entries: Dirent[]): void {
     this.entries.set(normalizeManagedPath(directoryPath), entries);
+  }
+
+  removeDirectory(directoryPath: string): void {
+    this.entries.delete(normalizeManagedPath(directoryPath));
+  }
+
+  setDirectoryReadSequence(directoryPath: string, sequence: Dirent[][]): void {
+    this.directoryReadSequences.set(normalizeManagedPath(directoryPath), sequence.map((entries) => [...entries]));
   }
 
   resetCounters(): void {
@@ -330,7 +553,10 @@ class FakeFileSystem {
           const key = normalizeManagedPath(directoryPath);
           this.readDirectories.push(key);
           if (this.failDirectories.has(key)) throw Object.assign(new Error("network unavailable"), { code: "ETIMEDOUT" });
-          const entries = this.entries.get(key);
+          const sequence = this.directoryReadSequences.get(key);
+          const entries = sequence && sequence.length > 0
+            ? sequence.length > 1 ? sequence.shift()! : sequence[0]
+            : this.entries.get(key);
           if (!entries) throw Object.assign(new Error("directory not found"), { code: "ENOENT" });
           return this.reverseEntries ? [...entries].reverse() : [...entries];
         })
@@ -340,6 +566,7 @@ class FakeFileSystem {
         const isDirectory = this.entries.has(key);
         if (isDirectory) this.directoryStatCalls += 1;
         else this.fileStatCalls += 1;
+        if (!isDirectory && this.missingFiles.has(key)) throw Object.assign(new Error("file not found"), { code: "ENOENT" });
         if (!isDirectory && this.failFiles.has(key)) throw Object.assign(new Error("file unavailable"), { code: "ETIMEDOUT" });
         return {
           size: isDirectory ? 0 : 1_024,
@@ -403,6 +630,11 @@ class MemoryScanRepository {
         if (video.isMissing !== isMissing) {
           this.videos.set(key, { ...video, isMissing });
           changed += 1;
+        }
+        if (isMissing) {
+          this.resolveMatching((failure) =>
+            failure.sourceFolderId === sourceFolderId && failure.normalizedPath === normalizeManagedPath(video.path)
+          );
         }
       }
       return changed;

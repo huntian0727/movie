@@ -87,6 +87,59 @@ describe("scanSourceFolder network-drive safeguards", () => {
     expect(result.message).toContain("stopped responding");
     expect(repo.reconcileSourceFolderMissing).not.toHaveBeenCalled();
   });
+
+  it("accepts a mapped-drive empty child when its iterator fails but the OS probe confirms it is empty", async () => {
+    const emptyDir = path.join(tempDir, "empty-cloud-folder");
+    mkdirSync(emptyDir);
+    const repo = createRepositoryStub();
+    const source = createSourceFolder(tempDir);
+    const emptyDirectoryProbeImpl = vi.fn(async (directory: string) => directory === emptyDir);
+
+    const result = await scanSourceFolder(repo.value, source, {
+      discovery: {
+        directoryEntriesImpl: async (directory) => {
+          if (directory !== emptyDir) return readdir(directory, { withFileTypes: true });
+          return {
+            async *[Symbol.asyncIterator]() {
+              const error = new Error("mapped provider cannot enumerate empty directory") as NodeJS.ErrnoException;
+              error.code = "EINVAL";
+              throw error;
+            }
+          };
+        },
+        emptyDirectoryProbeImpl
+      }
+    });
+
+    expect(result).toMatchObject({ state: "completed", totalFiles: 0, processedFiles: 0, failureCount: 0 });
+    expect(repo.updateSourceFolderScanState).toHaveBeenLastCalledWith(source.id, expect.any(String), null);
+    expect(emptyDirectoryProbeImpl).toHaveBeenCalledWith(emptyDir);
+  });
+
+  it("keeps the failure when the mapped-drive fallback cannot confirm an empty directory", async () => {
+    const blockedDir = path.join(tempDir, "blocked-cloud-folder");
+    mkdirSync(blockedDir);
+    const repo = createRepositoryStub();
+
+    const result = await scanSourceFolder(repo.value, createSourceFolder(tempDir), {
+      discovery: {
+        directoryEntriesImpl: async (directory) => {
+          if (directory !== blockedDir) return readdir(directory, { withFileTypes: true });
+          const error = new Error("mapped provider failure") as NodeJS.ErrnoException;
+          error.code = "EINVAL";
+          throw error;
+        },
+        emptyDirectoryProbeImpl: async () => false
+      }
+    });
+
+    expect(result).toMatchObject({ state: "completed-with-errors", failureCount: 1 });
+    expect(repo.updateSourceFolderScanState).toHaveBeenLastCalledWith(
+      "folder-1",
+      expect.any(String),
+      expect.stringContaining("mapped provider failure")
+    );
+  });
 });
 
 function createSourceFolder(folderPath: string): SourceFolder {

@@ -179,6 +179,59 @@ describe("MetadataQueue", () => {
       rmSync(tempDirectory, { recursive: true, force: true });
     }
   });
+
+  it("treats an ENOENT metadata race as a confirmed deletion when the parent is readable", async () => {
+    const tempDirectory = mkdtempSync(path.join(os.tmpdir(), "video-manager-metadata-deleted-"));
+    try {
+      const video = createVideo("v1", path.join(tempDirectory, "removed.mp4"));
+      const videos = new Map([[video.id, video]]);
+      const repo = createRepo(videos);
+      const onVideoUpdated = vi.fn();
+      const onSourceFolderUpdated = vi.fn();
+      const queue = new MetadataQueue(
+        repo.value,
+        async () => { throw Object.assign(new Error("ffprobe ENOENT"), { code: "ENOENT" }); },
+        1,
+        undefined,
+        onVideoUpdated,
+        onSourceFolderUpdated
+      );
+
+      queue.enqueue(video.id);
+      await queue.whenIdle();
+
+      expect(repo.markMissing).toHaveBeenCalledWith(video.id, true);
+      expect(videos.get(video.id)?.isMissing).toBe(true);
+      expect(repo.resolveScanFailuresForObject).toHaveBeenCalledWith(video.sourceFolderId, video.path);
+      expect(repo.markMetadataFailed).not.toHaveBeenCalled();
+      expect(repo.recordScanFailure).not.toHaveBeenCalled();
+      expect(onVideoUpdated).toHaveBeenCalledWith(video.id);
+      expect(onSourceFolderUpdated).toHaveBeenCalledWith(video.sourceFolderId);
+    } finally {
+      rmSync(tempDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not recreate a metadata warning when the video became missing while FFprobe was running", async () => {
+    const video = createVideo("v1", "Z:\\Cloud\\removed-during-probe.mp4");
+    const videos = new Map([[video.id, video]]);
+    const repo = createRepo(videos);
+    let rejectProbe!: (error: unknown) => void;
+    const probe = new Promise<never>((_resolve, reject) => { rejectProbe = reject; });
+    const reader = vi.fn(() => probe);
+    const queue = new MetadataQueue(repo.value, reader);
+
+    queue.enqueue(video.id);
+    await vi.waitFor(() => expect(reader).toHaveBeenCalledOnce());
+    videos.set(video.id, { ...video, isMissing: true });
+    rejectProbe(Object.assign(new Error("ffprobe ENOENT"), { code: "ENOENT" }));
+    await queue.whenIdle();
+
+    expect(repo.resolveScanFailuresForObject).toHaveBeenCalledWith(video.sourceFolderId, video.path);
+    expect(repo.markMissing).not.toHaveBeenCalled();
+    expect(repo.markMetadataFailed).not.toHaveBeenCalled();
+    expect(repo.recordScanFailure).not.toHaveBeenCalled();
+  });
 });
 
 function createRepo(videos: Map<string, VideoRecord>) {
@@ -187,6 +240,11 @@ function createRepo(videos: Map<string, VideoRecord>) {
   const listVideosPendingMetadata = vi.fn(() => [] as VideoRecord[]);
   const recordScanFailure = vi.fn();
   const resolveScanFailuresForObjectStage = vi.fn();
+  const resolveScanFailuresForObject = vi.fn();
+  const markMissing = vi.fn((videoId: string, missing: boolean) => {
+    const video = videos.get(videoId);
+    if (video) videos.set(videoId, { ...video, isMissing: missing });
+  });
   const value = {
     getVideo: (videoId: string) => {
       const video = videos.get(videoId);
@@ -196,10 +254,12 @@ function createRepo(videos: Map<string, VideoRecord>) {
     markMetadataReady,
     markMetadataFailed,
     recordScanFailure,
+    resolveScanFailuresForObject,
     resolveScanFailuresForObjectStage,
+    markMissing,
     listVideosPendingMetadata
   } as unknown as VideoRepository;
-  return { value, markMetadataReady, markMetadataFailed, recordScanFailure, resolveScanFailuresForObjectStage, listVideosPendingMetadata };
+  return { value, markMetadataReady, markMetadataFailed, recordScanFailure, resolveScanFailuresForObject, resolveScanFailuresForObjectStage, markMissing, listVideosPendingMetadata };
 }
 
 function createVideo(id: string, filePath: string): VideoRecord {
@@ -207,7 +267,7 @@ function createVideo(id: string, filePath: string): VideoRecord {
     id,
     sourceFolderId: "folder-1",
     path: filePath,
-    directory: "Z:\\Cloud",
+    directory: path.dirname(filePath),
     filename: filePath.split("\\").at(-1)!,
     basename: id,
     extension: ".mp4",

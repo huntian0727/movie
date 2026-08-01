@@ -804,4 +804,43 @@ describe("VideoRepository", () => {
     expect(repo.getVideo(nested.id).isMissing).toBe(true);
     expect(repo.getVideo(sibling.id).isMissing).toBe(false);
   });
+
+  it("atomically marks a confirmed missing file and resolves all failures for its exact path", () => {
+    const { repo, folderId } = createRepo();
+    const video = createVideo(repo, folderId);
+    repo.upsertDirectorySnapshot({
+      sourceFolderId: folderId,
+      directoryPath: "D:\\Movies",
+      parentDirectoryPath: null,
+      directoryMtime: "2026-08-01T00:00:00.000Z",
+      directVideoCount: 1,
+      directChildCount: 0,
+      directEntryDigest: "before-delete",
+      isComplete: true,
+      hasUnresolvedFailure: false,
+      successful: true
+    });
+    for (const failureStage of ["file-processing", "metadata", "custom-stage"]) {
+      repo.recordScanFailure({
+        sourceFolderId: folderId,
+        scanTaskId: `task-${failureStage}`,
+        objectType: "file",
+        objectPath: video.path,
+        failureStage,
+        errorSummary: `${failureStage} failed`
+      });
+    }
+
+    expect(repo.reconcileDirectoryMissing(folderId, video.directory, [])).toBe(1);
+
+    expect(repo.getVideo(video.id).isMissing).toBe(true);
+    expect(repo.listScanFailures(folderId)).toEqual([]);
+    expect(repo.listScanFailures(folderId, true)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ failureStage: "file-processing", status: "resolved", resolvedAt: expect.any(String) }),
+      expect.objectContaining({ failureStage: "metadata", status: "resolved", resolvedAt: expect.any(String) }),
+      expect.objectContaining({ failureStage: "custom-stage", status: "resolved", resolvedAt: expect.any(String) })
+    ]));
+    expect(repo.listSourceFolders().find((folder) => folder.id === folderId)?.scanError).toBeNull();
+    expect(repo.getDirectorySnapshot(folderId, video.directory)?.hasUnresolvedFailure).toBe(false);
+  });
 });
