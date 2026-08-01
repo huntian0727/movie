@@ -70,6 +70,7 @@ interface ScanContext {
   fileFailureCount: number;
   incrementRetry: boolean;
   lastFailure: { objectType: "file" | "directory"; objectPath: string; message: string } | null;
+  missingDirectoryParentReads: Map<string, Promise<Dirent[]>>;
 }
 
 type FailedFilePresence =
@@ -221,6 +222,15 @@ async function scanDirectoryTree(
     throwIfCancelled(context.dependencies);
     context.counters.checkedDirectories += 1;
   } catch (error) {
+    if (getErrorCode(error) === "ENOENT" && !isRoot && parentDirectoryPath) {
+      const confirmedMissing = await confirmMissingDirectory(context, directoryPath, parentDirectoryPath);
+      if (confirmedMissing) {
+        context.counters.missingVideos += safeMarkSubtreeMissing(context.repo, context.sourceFolder.id, directoryPath);
+        context.counters.resolvedFailures += safeResolveFailureSubtree(context.repo, context.sourceFolder.id, directoryPath);
+        safeDeleteSnapshotSubtree(context.repo, context.sourceFolder.id, directoryPath);
+        return true;
+      }
+    }
     context.directoryFailureCount += 1;
     context.counters.directoryFailures += 1;
     safeRecordFailure(context, "directory", directoryPath, "directory-enumeration", error);
@@ -401,7 +411,7 @@ function reconcileDeletedChildDirectories(context: ScanContext, parentPath: stri
   for (const previousChild of safeListDirectChildSnapshots(context.repo, context.sourceFolder.id, parentPath)) {
     if (currentKeys.has(previousChild.normalizedPath)) continue;
     context.counters.missingVideos += safeMarkSubtreeMissing(context.repo, context.sourceFolder.id, previousChild.directoryPath);
-    safeResolveFailureSubtree(context.repo, context.sourceFolder.id, previousChild.directoryPath);
+    context.counters.resolvedFailures += safeResolveFailureSubtree(context.repo, context.sourceFolder.id, previousChild.directoryPath);
     safeDeleteSnapshotSubtree(context.repo, context.sourceFolder.id, previousChild.directoryPath);
   }
 }
@@ -479,6 +489,28 @@ async function inspectFailedFilePresence(context: ScanContext, filePath: string)
   }
 }
 
+async function confirmMissingDirectory(
+  context: ScanContext,
+  directoryPath: string,
+  parentDirectoryPath: string
+): Promise<boolean> {
+  const parentKey = normalizeManagedPath(parentDirectoryPath);
+  let parentRead = context.missingDirectoryParentReads.get(parentKey);
+  if (!parentRead) {
+    parentRead = readDirectEntries(parentDirectoryPath, context.dependencies.discovery);
+    context.missingDirectoryParentReads.set(parentKey, parentRead);
+  }
+  try {
+    const entries = await parentRead;
+    const normalizedTarget = normalizeManagedPath(directoryPath);
+    return !entries.some((entry) =>
+      entry.isDirectory() && normalizeManagedPath(path.join(parentDirectoryPath, entry.name)) === normalizedTarget
+    );
+  } catch {
+    return false;
+  }
+}
+
 function createContext(repo: VideoRepository, sourceFolder: SourceFolder, dependencies: ScannerDependencies, incrementRetry: boolean): ScanContext {
   return {
     repo,
@@ -493,7 +525,8 @@ function createContext(repo: VideoRepository, sourceFolder: SourceFolder, depend
     directoryFailureCount: 0,
     fileFailureCount: 0,
     incrementRetry,
-    lastFailure: null
+    lastFailure: null,
+    missingDirectoryParentReads: new Map()
   };
 }
 
@@ -579,8 +612,8 @@ function safeResolveObjectStageFailures(
   return repo.resolveScanFailuresForObjectStage?.(sourceFolderId, objectPath, objectType, failureStage) ?? 0;
 }
 
-function safeResolveFailureSubtree(repo: VideoRepository, sourceFolderId: string, directoryPath: string): void {
-  repo.resolveScanFailuresInSubtree?.(sourceFolderId, directoryPath);
+function safeResolveFailureSubtree(repo: VideoRepository, sourceFolderId: string, directoryPath: string): number {
+  return repo.resolveScanFailuresInSubtree?.(sourceFolderId, directoryPath) ?? 0;
 }
 
 function directoryTimeoutMessage(timeoutMs: number): string {
