@@ -897,25 +897,27 @@ export function LibraryShell({
               {folderIssueTarget.summary?.totalUnresolved === 0 && onScanFolder && (
                 <button
                   className="primary"
-                  aria-label="扫描当前文件夹"
+                  aria-label={actionPending ? "正在扫描当前文件夹" : "扫描当前文件夹"}
                   disabled={actionPending || folderIssueTarget.loading}
                   onClick={() => void runAction(async () => { await onScanFolder(folderIssueTarget.folder); }).then((scanned) => {
                     if (scanned) setFolderIssueTarget(null);
                   })}
                 >
-                  <RotateCw size={14} />扫描当前文件夹
+                  <RotateCw size={14} className={actionPending ? "spin" : undefined} />
+                  {actionPending ? "正在扫描…" : "扫描当前文件夹"}
                 </button>
               )}
               {onRetryFolderFailures && folderIssueTarget.summary?.totalUnresolved !== 0 && (
                 <button
                   className="primary"
-                  aria-label="重试异常项"
+                  aria-label={actionPending ? "正在重试异常项" : "重试异常项"}
                   disabled={actionPending || folderIssueTarget.loading || folderIssueTarget.summary?.totalUnresolved === 0}
                   onClick={() => void runAction(async () => { await onRetryFolderFailures(folderIssueTarget.folder); }).then((retried) => {
                     if (retried) setFolderIssueTarget(null);
                   })}
                 >
-                  <RotateCw size={14} />重试异常项
+                  <RotateCw size={14} className={actionPending ? "spin" : undefined} />
+                  {actionPending ? "正在重试…" : "重试异常项"}
                 </button>
               )}
             </div>
