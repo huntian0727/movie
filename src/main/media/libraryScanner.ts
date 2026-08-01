@@ -72,6 +72,12 @@ interface ScanContext {
   lastFailure: { objectType: "file" | "directory"; objectPath: string; message: string } | null;
 }
 
+type FailedFilePresence =
+  | { state: "exists"; fileStat?: Stats }
+  | { state: "confirmed-missing" }
+  | { state: "file-unreadable"; error: unknown }
+  | { state: "parent-unreadable"; parentPath: string; error: unknown };
+
 export function createEmptyScanCounters(): ScanCounters {
   return {
     totalFolders: 0,
@@ -126,15 +132,46 @@ export async function retryScanFailures(
   );
 
   for (const failure of failures) safeMarkRetrying(repo, failure.id);
+  const confirmedMissingPaths = new Set<string>();
   for (const directoryPath of directoryRoots) {
     await dependencies.waitIfPaused?.();
     reportProgress(context, "retrying-failures", directoryPath);
     await scanDirectoryTree(context, directoryPath, path.dirname(directoryPath), normalizeManagedPath(directoryPath) === normalizeManagedPath(sourceFolder.path));
   }
   for (const failure of fileFailures) {
+    if (confirmedMissingPaths.has(failure.normalizedPath)) continue;
     await dependencies.waitIfPaused?.();
     throwIfCancelled(dependencies);
     reportProgress(context, "retrying-failures", failure.objectPath);
+    const presence = await inspectFailedFilePresence(context, failure.objectPath);
+    if (presence.state === "confirmed-missing") {
+      confirmedMissingPaths.add(failure.normalizedPath);
+      context.counters.retriedFailures += 1;
+      const video = repo.getVideoByPath(failure.objectPath);
+      if (video && !video.isMissing) {
+        repo.markMissing(video.id, true);
+        context.counters.missingVideos += 1;
+      }
+      context.counters.resolvedFailures += safeResolveAllObjectFailures(repo, sourceFolder.id, failure.objectPath);
+      continue;
+    }
+    if (presence.state === "parent-unreadable") {
+      context.counters.retriedFailures += 1;
+      context.directoryFailureCount += 1;
+      context.counters.directoryFailures += 1;
+      safeRecordFailure(context, "directory", presence.parentPath, "directory-enumeration", presence.error);
+      context.fileFailureCount += 1;
+      context.counters.fileFailures += 1;
+      safeRecordFailure(context, "file", failure.objectPath, failure.failureStage, presence.error);
+      continue;
+    }
+    if (presence.state === "file-unreadable") {
+      context.counters.retriedFailures += 1;
+      context.fileFailureCount += 1;
+      context.counters.fileFailures += 1;
+      safeRecordFailure(context, "file", failure.objectPath, failure.failureStage, presence.error);
+      continue;
+    }
     if (failure.failureStage === "metadata" && dependencies.onMetadataPending) {
       const video = repo.getVideoByPath(failure.objectPath);
       context.counters.retriedFailures += 1;
@@ -146,7 +183,7 @@ export async function retryScanFailures(
         continue;
       }
     }
-    const succeeded = await processVideoFile(context, failure.objectPath);
+    const succeeded = await processVideoFile(context, failure.objectPath, presence.fileStat);
     if (succeeded) {
       context.counters.resolvedFailures += safeResolveFailure(repo, failure.id);
     }
@@ -245,11 +282,11 @@ async function scanDirectoryTree(
   return true;
 }
 
-async function processVideoFile(context: ScanContext, filePath: string): Promise<boolean> {
+async function processVideoFile(context: ScanContext, filePath: string, knownFileStat?: Stats): Promise<boolean> {
   context.counters.processedVideos += 1;
   if (context.incrementRetry) context.counters.retriedFailures += 1;
   try {
-    const fileStat = await withTimeout(
+    const fileStat = knownFileStat ?? await withTimeout(
       (context.dependencies.statImpl ?? stat)(filePath),
       FILE_STAT_TIMEOUT_MS,
       `File access timed out after ${FILE_STAT_TIMEOUT_MS / 1000}s`
@@ -419,6 +456,29 @@ async function readDirectEntries(directory: string, dependencies: FileDiscoveryD
   return result;
 }
 
+async function inspectFailedFilePresence(context: ScanContext, filePath: string): Promise<FailedFilePresence> {
+  try {
+    const fileStat = await withTimeout(
+      (context.dependencies.statImpl ?? stat)(filePath),
+      FILE_STAT_TIMEOUT_MS,
+      `File access timed out after ${FILE_STAT_TIMEOUT_MS / 1000}s`
+    );
+    return { state: "exists", fileStat };
+  } catch (error) {
+    if (getErrorCode(error) !== "ENOENT") return { state: "file-unreadable", error };
+  }
+
+  const parentPath = path.dirname(filePath);
+  try {
+    const entries = await readDirectEntries(parentPath, context.dependencies.discovery);
+    const normalizedTarget = normalizeManagedPath(filePath);
+    const stillListed = entries.some((entry) => normalizeManagedPath(path.join(parentPath, entry.name)) === normalizedTarget);
+    return stillListed ? { state: "exists" } : { state: "confirmed-missing" };
+  } catch (error) {
+    return { state: "parent-unreadable", parentPath, error };
+  }
+}
+
 function createContext(repo: VideoRepository, sourceFolder: SourceFolder, dependencies: ScannerDependencies, incrementRetry: boolean): ScanContext {
   return {
     repo,
@@ -503,6 +563,10 @@ function safeResolveFailure(repo: VideoRepository, failureId: string): number {
 
 function safeResolveObjectFailures(repo: VideoRepository, sourceFolderId: string, objectPath: string, objectType: "file" | "directory"): number {
   return repo.resolveScanFailuresForObject?.(sourceFolderId, objectPath, objectType) ?? 0;
+}
+
+function safeResolveAllObjectFailures(repo: VideoRepository, sourceFolderId: string, objectPath: string): number {
+  return repo.resolveScanFailuresForObject?.(sourceFolderId, objectPath) ?? 0;
 }
 
 function safeResolveObjectStageFailures(

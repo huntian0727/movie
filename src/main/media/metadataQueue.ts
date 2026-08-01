@@ -1,6 +1,8 @@
 import type { VideoRepository } from "../db/videoRepository.js";
 import type { StructuredLogger } from "../logging/logger.js";
 import { readMetadata, type MediaMetadata } from "./metadataService.js";
+import { readdir } from "node:fs/promises";
+import path from "node:path";
 
 type MetadataReader = (filePath: string) => Promise<MediaMetadata>;
 
@@ -112,6 +114,12 @@ export class MetadataQueue {
       }
     } catch (error) {
       if (this.stopped) return;
+      let failureError = error;
+      if (isMissingFileError(error)) {
+        const missingResult = await this.resolveMissingMetadataTarget(video);
+        if (missingResult.confirmed) return;
+        if (missingResult.error) failureError = missingResult.error;
+      }
       if (this.repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt)) {
         this.repo.recordScanFailure?.({
           sourceFolderId: video.sourceFolderId,
@@ -119,8 +127,8 @@ export class MetadataQueue {
           objectType: "file",
           objectPath: video.path,
           failureStage: "metadata",
-          errorCode: getErrorCode(error),
-          errorSummary: getErrorSummary(error),
+          errorCode: getErrorCode(failureError),
+          errorSummary: getErrorSummary(failureError),
           incrementRetry: false
         });
         this.onSourceFolderUpdated?.(video.sourceFolderId);
@@ -131,9 +139,53 @@ export class MetadataQueue {
         event: "ffprobe_failed",
         message: "Video metadata extraction failed",
         context: { videoId: video.id, extension: video.extension },
-        error
+        error: failureError
       });
     }
+  }
+
+  private async resolveMissingMetadataTarget(video: Awaited<ReturnType<VideoRepository["getVideo"]>>): Promise<{ confirmed: boolean; error?: unknown }> {
+    let latest;
+    try {
+      latest = this.repo.getVideo(video.id);
+    } catch {
+      return { confirmed: true };
+    }
+    if (!isSameVideoVersion(latest, video)) return { confirmed: true };
+    if (latest.isMissing) {
+      this.repo.resolveScanFailuresForObject?.(video.sourceFolderId, video.path);
+      this.onSourceFolderUpdated?.(video.sourceFolderId);
+      return { confirmed: true };
+    }
+
+    const parentPath = path.dirname(video.path);
+    try {
+      const entries = await withTimeout(
+        readdir(parentPath, { withFileTypes: true }),
+        30_000,
+        `Directory stopped responding for 30s`
+      );
+      const normalizedTarget = path.normalize(video.path).toLocaleLowerCase();
+      const stillListed = entries.some((entry) =>
+        path.normalize(path.join(parentPath, entry.name)).toLocaleLowerCase() === normalizedTarget
+      );
+      if (stillListed) return { confirmed: false };
+    } catch (parentError) {
+      return { confirmed: false, error: parentError };
+    }
+
+    let current;
+    try {
+      current = this.repo.getVideo(video.id);
+    } catch {
+      return { confirmed: true };
+    }
+    if (!isSameVideoVersion(current, video)) return { confirmed: true };
+    if (!current.isMissing) this.repo.markMissing(video.id, true);
+    this.repo.resolveScanFailuresForObject?.(video.sourceFolderId, video.path);
+    this.onSourceFolderUpdated?.(video.sourceFolderId);
+    this.onVideoUpdated?.(video.id);
+    return { confirmed: true };
   }
 
   private resolveIdleWaiters(): void {
@@ -150,4 +202,34 @@ function getErrorSummary(error: unknown): string {
 function getErrorCode(error: unknown): string | null {
   if (typeof error === "object" && error !== null && "code" in error && typeof error.code === "string") return error.code;
   return null;
+}
+
+function isMissingFileError(error: unknown): boolean {
+  const visited = new Set<unknown>();
+  let current: unknown = error;
+  while (current && typeof current === "object" && !visited.has(current)) {
+    visited.add(current);
+    if (getErrorCode(current) === "ENOENT") return true;
+    if (current instanceof Error && /\bENOENT\b|no such file/i.test(current.message)) return true;
+    current = "cause" in current ? current.cause : null;
+  }
+  return false;
+}
+
+function isSameVideoVersion(current: Awaited<ReturnType<VideoRepository["getVideo"]>>, expected: Awaited<ReturnType<VideoRepository["getVideo"]>>): boolean {
+  return current.path === expected.path
+    && current.sizeBytes === expected.sizeBytes
+    && current.modifiedAt === expected.modifiedAt;
+}
+
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((_resolve, reject) => { timeout = setTimeout(() => reject(new Error(message)), timeoutMs); })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }

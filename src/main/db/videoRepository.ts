@@ -403,20 +403,25 @@ export class VideoRepository {
   }
 
   reconcileDirectoryMissing(sourceFolderId: string, directoryPath: string, currentPaths: string[]): number {
-    const current = new Set(currentPaths.map(normalizeManagedPath));
-    let changed = 0;
-    const rows = this.db.prepare(`
-      SELECT * FROM videos
-      WHERE source_folder_id = ? AND directory = ? COLLATE NOCASE
-    `).all(sourceFolderId, path.win32.normalize(directoryPath)) as VideoRow[];
-    for (const video of rows.map(mapVideo)) {
-      const shouldBeMissing = !current.has(normalizeManagedPath(video.path));
-      if (video.isMissing !== shouldBeMissing) {
-        this.markMissing(video.id, shouldBeMissing);
-        changed += 1;
+    return this.db.transaction(() => {
+      const current = new Set(currentPaths.map(normalizeManagedPath));
+      let changed = 0;
+      const rows = this.db.prepare(`
+        SELECT * FROM videos
+        WHERE source_folder_id = ? AND directory = ? COLLATE NOCASE
+      `).all(sourceFolderId, path.win32.normalize(directoryPath)) as VideoRow[];
+      for (const video of rows.map(mapVideo)) {
+        const shouldBeMissing = !current.has(normalizeManagedPath(video.path));
+        if (video.isMissing !== shouldBeMissing) {
+          this.markMissing(video.id, shouldBeMissing);
+          changed += 1;
+        }
+        if (shouldBeMissing) {
+          this.resolveScanFailuresForObject(sourceFolderId, video.path);
+        }
       }
-    }
-    return changed;
+      return changed;
+    })();
   }
 
   markDirectorySubtreeMissing(sourceFolderId: string, directoryPath: string): number {
