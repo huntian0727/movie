@@ -1,5 +1,6 @@
 import { opendir, readdir } from "node:fs/promises";
 import type { Dirent } from "node:fs";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { isVideoExtension } from "../../shared/videoTypes.js";
 
@@ -15,6 +16,7 @@ export interface FileDiscoveryDependencies {
   directoryEntryTimeoutMs?: number;
   beforeDirectory?(directory: string): void | Promise<void>;
   onDirectoryError?(directory: string, error: unknown): void;
+  emptyDirectoryProbeImpl?(directory: string): Promise<boolean>;
 }
 
 export async function discoverVideoFiles(
@@ -100,10 +102,81 @@ async function* walk(
   }
 }
 
-async function openDirectoryEntries(directory: string, dependencies: FileDiscoveryDependencies): Promise<DirectoryEntries> {
-  if (dependencies.directoryEntriesImpl) return dependencies.directoryEntriesImpl(directory);
-  if (dependencies.readdirImpl) return dependencies.readdirImpl(directory);
-  return opendir(directory, { bufferSize: 128 });
+export async function openDirectoryEntries(directory: string, dependencies: FileDiscoveryDependencies = {}): Promise<DirectoryEntries> {
+  try {
+    const entries = dependencies.directoryEntriesImpl
+      ? await dependencies.directoryEntriesImpl(directory)
+      : dependencies.readdirImpl
+        ? await dependencies.readdirImpl(directory)
+        : await opendir(directory, { bufferSize: 128 });
+    return recoverMappedDriveEmptyDirectory(directory, entries, dependencies);
+  } catch (error) {
+    if (await canTreatProviderErrorAsEmpty(directory, error, dependencies)) return [];
+    throw error;
+  }
+}
+
+async function* recoverMappedDriveEmptyDirectory(
+  directory: string,
+  entries: DirectoryEntries,
+  dependencies: FileDiscoveryDependencies
+): AsyncGenerator<Dirent> {
+  const iterator = getIterator(entries);
+  let yielded = false;
+  let finished = false;
+  try {
+    while (true) {
+      let next: IteratorResult<Dirent>;
+      try {
+        next = await iterator.next();
+      } catch (error) {
+        if (!yielded && await canTreatProviderErrorAsEmpty(directory, error, dependencies)) {
+          finished = true;
+          return;
+        }
+        throw error;
+      }
+      if (next.done) {
+        finished = true;
+        return;
+      }
+      yielded = true;
+      yield next.value;
+    }
+  } finally {
+    if (!finished && iterator.return) {
+      void Promise.resolve(iterator.return()).catch(() => undefined);
+    }
+  }
+}
+
+async function canTreatProviderErrorAsEmpty(
+  directory: string,
+  error: unknown,
+  dependencies: FileDiscoveryDependencies
+): Promise<boolean> {
+  const code = (error as NodeJS.ErrnoException)?.code;
+  if (code !== "ENOENT" && code !== "EINVAL") return false;
+  if (dependencies.emptyDirectoryProbeImpl) return dependencies.emptyDirectoryProbeImpl(directory);
+  if (process.platform !== "win32") return false;
+  return probeEmptyDirectoryWithPowerShell(directory);
+}
+
+function probeEmptyDirectoryWithPowerShell(directory: string): Promise<boolean> {
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)",
+    "$entry = Get-ChildItem -LiteralPath $env:VIDEO_MANAGER_DIRECTORY_PROBE_PATH -Force | Select-Object -First 1",
+    "if ($null -eq $entry) { [Console]::Out.Write('EMPTY') } else { [Console]::Out.Write('NOT_EMPTY') }"
+  ].join("; ");
+  return new Promise((resolve) => {
+    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+      env: { ...process.env, VIDEO_MANAGER_DIRECTORY_PROBE_PATH: directory },
+      timeout: 15_000,
+      windowsHide: true,
+      maxBuffer: 16 * 1024
+    }, (error, stdout) => resolve(!error && stdout.trim() === "EMPTY"));
+  });
 }
 
 function getIterator(entries: DirectoryEntries): AsyncIterator<Dirent> | Iterator<Dirent> {

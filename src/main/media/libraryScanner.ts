@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { Dirent, Stats } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import type { VideoRepository } from "../db/videoRepository.js";
 import type {
@@ -13,7 +13,7 @@ import type {
 } from "../../shared/videoTypes.js";
 import { isVideoExtension } from "../../shared/videoTypes.js";
 import { isManagedPathWithin, normalizeManagedPath } from "../files/pathNormalization.js";
-import type { FileDiscoveryDependencies, DirectoryEntries } from "./fileDiscovery.js";
+import { openDirectoryEntries, type FileDiscoveryDependencies, type DirectoryEntries } from "./fileDiscovery.js";
 import { readMetadata, type MediaMetadata } from "./metadataService.js";
 
 export interface ScanProgress {
@@ -445,13 +445,11 @@ function isAcceptedVideoEntry(entry: Dirent): boolean {
 async function readDirectEntries(directory: string, dependencies: FileDiscoveryDependencies = {}): Promise<Dirent[]> {
   const timeoutMs = dependencies.directoryEntryTimeoutMs ?? DIRECTORY_ENTRY_TIMEOUT_MS;
   let source: DirectoryEntries;
-  if (dependencies.directoryEntriesImpl) {
-    source = await withTimeout(dependencies.directoryEntriesImpl(directory), timeoutMs, directoryTimeoutMessage(timeoutMs));
-  } else if (dependencies.readdirImpl) {
-    source = await withTimeout(dependencies.readdirImpl(directory), timeoutMs, directoryTimeoutMessage(timeoutMs));
-  } else {
-    source = await withTimeout(readdir(directory, { withFileTypes: true }), timeoutMs, directoryTimeoutMessage(timeoutMs));
-  }
+  // Some mapped/cloud drives incorrectly return ENOENT/EINVAL from readdir()
+  // for an existing empty directory. The shared discovery implementation uses
+  // opendir() by default, which those providers support, and streams large
+  // directories without buffering every entry at once.
+  source = await withTimeout(openDirectoryEntries(directory, dependencies), timeoutMs, directoryTimeoutMessage(timeoutMs));
   const result: Dirent[] = [];
   if (Symbol.asyncIterator in source) {
     const iterator = source[Symbol.asyncIterator]();

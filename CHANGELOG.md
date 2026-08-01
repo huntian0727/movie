@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-02 - Mapped-drive empty directory scan compatibility
+
+- Fixed incremental scans using `readdir()` while initial discovery used `opendir()`. Some mapped/cloud-drive providers report `ENOENT` or `EINVAL` while enumerating an existing empty directory even though Windows can read it normally.
+- Incremental scans and failure retries now share the streaming `opendir()` implementation. When the mapped provider still returns `ENOENT`/`EINVAL` before yielding an entry, a bounded Windows-native probe treats it as empty only after confirming the directory exists and contains no entries; inaccessible or non-empty directories remain failures.
+- Added regression coverage for both the confirmed-empty recovery path and the safety path that retains an unconfirmed failure. The real mapped-drive path `F:\\探花系列\\换妻探花_sha1\\v` and the complete 169-failure `F:\\sha1` retry set were also verified locally.
+
 提交日期来自 Git 历史；版本尚未正式发布。
 
 ## 2026-08-01
