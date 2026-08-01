@@ -6,6 +6,7 @@
 
 ### Scan defect fixes
 
+- 扫描异常弹窗在网盘重试期间立即显示“正在重试…”及旋转状态，避免耗时读取期间按钮看起来没有响应。
 - 修复目录扫描已完成后，后台 FFprobe 失败产生的持久化异常被内存中的 `completed` 状态遮蔽的问题；活动状态仅在 queued/scanning/paused 时暂时隐藏旧警告。
 - `ScanManager` 去重改为模式感知：普通扫描可相互复用，异常重试与普通扫描不再错误互相满足，并继续保持全局串行。
 - 删除含义模糊的旧普通扫描重试别名，保留 `scanFolder`、`retryScanFailures`、`scanAllFolders` 三个明确入口。

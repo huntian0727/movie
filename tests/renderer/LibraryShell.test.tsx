@@ -705,7 +705,9 @@ describe("LibraryShell", () => {
   });
 
   it("opens actionable folder scan details and retries from the warning", async () => {
-    const onRetryFolderFailures = vi.fn();
+    let finishRetry!: () => void;
+    const retryPending = new Promise<void>((resolve) => { finishRetry = resolve; });
+    const onRetryFolderFailures = vi.fn(() => retryPending);
     render(
       <LibraryShell
         videos={[video]}
@@ -733,6 +735,10 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "重试异常项" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "重试异常项" }));
     await waitFor(() => expect(onRetryFolderFailures).toHaveBeenCalledWith(expect.objectContaining({ id: folder.id })));
+    expect(screen.getByRole("button", { name: "正在重试异常项" })).toBeDisabled();
+    expect(screen.getByText("正在重试…")).toBeInTheDocument();
+    finishRetry();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "上次扫描存在异常" })).not.toBeInTheDocument());
   });
 
   it("offers a normal folder scan when a legacy warning has no failure details", async () => {
