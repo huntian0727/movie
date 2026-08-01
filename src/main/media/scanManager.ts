@@ -52,6 +52,14 @@ export class ScanManager {
     return this.requestRetryTask(folder);
   }
 
+  retryFailuresInBackground(
+    folder: SourceFolder,
+    onCompleted: () => void,
+    onFailed: (error: unknown) => void
+  ): void {
+    void this.retryFailures(folder).then(onCompleted, onFailed);
+  }
+
   scanAll(folders: SourceFolder[]): Promise<void> {
     if (this.allScanTask) return this.allScanTask;
     const enabled = folders.filter((folder) => folder.enabled);

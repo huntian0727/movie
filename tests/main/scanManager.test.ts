@@ -170,6 +170,26 @@ describe("ScanManager", () => {
     expect(retryScan).toHaveBeenCalledOnce();
   });
 
+  it("can enqueue a retry without keeping the caller waiting for the scan", async () => {
+    const gate = deferred();
+    const retryScan = vi.fn(async () => {
+      await gate.promise;
+      return completedResult();
+    });
+    const repo = { getScanFailureSummary: () => ({ totalUnresolved: 1 }) } as unknown as VideoRepository;
+    const manager = new ScanManager(repo, vi.fn(), undefined, undefined, retryScan);
+    const onCompleted = vi.fn();
+    const onFailed = vi.fn();
+
+    expect(manager.retryFailuresInBackground(folder, onCompleted, onFailed)).toBeUndefined();
+    await vi.waitFor(() => expect(retryScan).toHaveBeenCalledOnce());
+    expect(onCompleted).not.toHaveBeenCalled();
+
+    gate.resolve();
+    await vi.waitFor(() => expect(onCompleted).toHaveBeenCalledOnce());
+    expect(onFailed).not.toHaveBeenCalled();
+  });
+
   it("queues a normal scan after an active retry instead of treating it as equivalent", async () => {
     const retryGate = deferred();
     const order: string[] = [];
