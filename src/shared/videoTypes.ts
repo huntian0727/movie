@@ -6,7 +6,7 @@ export const DUPLICATE_PAGE_SIZES = [10, 20, 50, 100, 200, 300, 500] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 export type DuplicatePageSize = (typeof DUPLICATE_PAGE_SIZES)[number];
 export type SortDirection = "asc" | "desc";
-export type LibraryView = "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "duplicates";
+export type LibraryView = "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "duplicates";
 export type ViewMode = "grid" | "table";
 export type MetadataStatus = "pending" | "ready" | "failed";
 export type CacheStatus = "pending" | "ready" | "failed";
@@ -82,6 +82,36 @@ export interface ScanFailureSummary {
   latestError: string | null;
   latestFailedAt: string | null;
   totalRetryCount: number;
+}
+
+export type ScanFailureReviewKind = "all" | "video" | "unindexed-file" | "directory";
+export type ScanFailureReviewPageSize = 30 | 50 | 100;
+
+export interface ScanFailureReviewItem {
+  failure: ScanFailure;
+  kind: Exclude<ScanFailureReviewKind, "all">;
+  video: VideoRecord | null;
+}
+
+export interface ScanFailureReviewQuery {
+  sourceFolderId?: string;
+  kind: ScanFailureReviewKind;
+  page: number;
+  pageSize: ScanFailureReviewPageSize;
+}
+
+export interface ScanFailureReviewPage {
+  items: ScanFailureReviewItem[];
+  page: number;
+  pageSize: ScanFailureReviewPageSize;
+  totalPages: number;
+  totalCount: number;
+  counts: {
+    all: number;
+    video: number;
+    unindexedFile: number;
+    directory: number;
+  };
 }
 
 export interface ScanCounters {
@@ -278,6 +308,7 @@ export interface LibraryNavigationSnapshot {
   pendingDeleteVideos: number;
   pendingDeleteBytes: number;
   pendingMetadataVideos: number;
+  scanFailureCount: number;
   directoryPaths: string[];
 }
 
@@ -425,6 +456,10 @@ export const IPC_CHANNELS = {
   folderScanFailuresRetry: "folder-scan-failures:retry",
   folderScanFailureSummary: "folder-scan-failures:summary",
   folderScanFailureList: "folder-scan-failures:list",
+  scanFailureReviewPage: "scan-failure-review:page",
+  scanFailureReviewRetry: "scan-failure-review:retry",
+  scanFailureReviewDelete: "scan-failure-review:delete",
+  scanFailureReviewOpen: "scan-failure-review:open",
   folderRemove: "folder:remove",
   folderRemovePreview: "folder:remove-preview",
   folderScanStatusList: "folder-scan-status:list",
@@ -477,6 +512,10 @@ export interface VideoManagerApi {
   retryScanFailures(folderId: string): Promise<boolean>;
   getScanFailureSummary(folderId: string): Promise<ScanFailureSummary>;
   listScanFailures(folderId: string): Promise<ScanFailure[]>;
+  listScanFailureReviewPage(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
+  retryScanFailure(failureId: string): Promise<boolean>;
+  deleteScanFailureFile(failureId: string): Promise<boolean>;
+  openScanFailureLocation(failureId: string): Promise<boolean>;
   removeFolder(folderId: string): Promise<SourceFolderRemovalResult>;
   previewRemoveFolder(folderId: string): Promise<SourceFolderRemovalPreview>;
   listFolderScanStatuses(): Promise<FolderScanStatus[]>;

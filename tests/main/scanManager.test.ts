@@ -170,6 +170,24 @@ describe("ScanManager", () => {
     expect(retryScan).toHaveBeenCalledOnce();
   });
 
+  it("deduplicates the same single failure and serializes it behind an active folder scan", async () => {
+    const gate = deferred();
+    const normalScan = vi.fn(async () => { await gate.promise; return completedResult(); });
+    const retrySingle = vi.fn(async () => completedResult());
+    const manager = new ScanManager({} as VideoRepository, normalScan, undefined, undefined, vi.fn(), retrySingle);
+
+    const normal = manager.start(folder);
+    await vi.waitFor(() => expect(normalScan).toHaveBeenCalledOnce());
+    const first = manager.retryFailure(folder, "failure-1");
+    const second = manager.retryFailure(folder, "failure-1");
+    expect(retrySingle).not.toHaveBeenCalled();
+    gate.resolve();
+    await Promise.all([normal, first, second]);
+
+    expect(retrySingle).toHaveBeenCalledOnce();
+    expect(retrySingle).toHaveBeenCalledWith(expect.anything(), folder, "failure-1", expect.anything());
+  });
+
   it("can enqueue a retry without keeping the caller waiting for the scan", async () => {
     const gate = deferred();
     const retryScan = vi.fn(async () => {

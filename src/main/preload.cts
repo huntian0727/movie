@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, VideoManagerApi } from "../shared/videoTypes.js";
+import type { DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
 
 // Sandboxed preloads cannot load local modules, so keep a type-checked copy of the public channel names here.
 const channels: typeof SharedIpcChannels = {
@@ -18,6 +18,10 @@ const channels: typeof SharedIpcChannels = {
   folderScanFailuresRetry: "folder-scan-failures:retry",
   folderScanFailureSummary: "folder-scan-failures:summary",
   folderScanFailureList: "folder-scan-failures:list",
+  scanFailureReviewPage: "scan-failure-review:page",
+  scanFailureReviewRetry: "scan-failure-review:retry",
+  scanFailureReviewDelete: "scan-failure-review:delete",
+  scanFailureReviewOpen: "scan-failure-review:open",
   folderRemove: "folder:remove",
   folderRemovePreview: "folder:remove-preview",
   folderScanStatusList: "folder-scan-status:list",
@@ -67,6 +71,10 @@ const mainApi: VideoManagerApi = {
   retryScanFailures: (folderId: string) => ipcRenderer.invoke(channels.folderScanFailuresRetry, folderId),
   getScanFailureSummary: (folderId: string) => ipcRenderer.invoke(channels.folderScanFailureSummary, folderId),
   listScanFailures: (folderId: string) => ipcRenderer.invoke(channels.folderScanFailureList, folderId),
+  listScanFailureReviewPage: (query: ScanFailureReviewQuery) => ipcRenderer.invoke(channels.scanFailureReviewPage, query),
+  retryScanFailure: (failureId: string) => ipcRenderer.invoke(channels.scanFailureReviewRetry, { failureId }),
+  deleteScanFailureFile: (failureId: string) => ipcRenderer.invoke(channels.scanFailureReviewDelete, { failureId }),
+  openScanFailureLocation: (failureId: string) => ipcRenderer.invoke(channels.scanFailureReviewOpen, { failureId }),
   removeFolder: (folderId: string) => ipcRenderer.invoke(channels.folderRemove, folderId),
   previewRemoveFolder: (folderId: string) => ipcRenderer.invoke(channels.folderRemovePreview, folderId),
   listFolderScanStatuses: () => ipcRenderer.invoke(channels.folderScanStatusList),

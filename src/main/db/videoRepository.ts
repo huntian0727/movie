@@ -17,6 +17,8 @@ import type {
   PlayHistoryEntry,
   ScanCounters,
   ScanFailure,
+  ScanFailureReviewPage,
+  ScanFailureReviewQuery,
   ScanFailureObjectType,
   ScanFailureSummary,
   ScanMode,
@@ -177,6 +179,7 @@ interface LibraryNavigationRow {
   pending_delete_videos: number;
   pending_delete_bytes: number;
   pending_metadata_videos: number;
+  scan_failure_count: number;
 }
 
 interface ExistingVideoRow {
@@ -488,6 +491,71 @@ export class VideoRepository {
       ORDER BY last_failed_at DESC, id ASC
     `).all(sourceFolderId) as ScanFailureRow[];
     return rows.map(mapScanFailure);
+  }
+
+  listScanFailureReviewPage(query: ScanFailureReviewQuery): ScanFailureReviewPage {
+    const params: Record<string, string | number> = {};
+    const where = ["failures.status != 'resolved'"];
+    if (query.sourceFolderId) {
+      where.push("failures.source_folder_id = @sourceFolderId");
+      params.sourceFolderId = query.sourceFolderId;
+    }
+
+    const joinedFrom = `
+      FROM scan_failures failures
+      JOIN source_folders sources ON sources.id = failures.source_folder_id
+      LEFT JOIN videos ON videos.path = failures.object_path
+      WHERE sources.enabled = 1 AND ${where.join(" AND ")}`;
+    const kindExpression = `CASE
+      WHEN failures.object_type = 'directory' THEN 'directory'
+      WHEN videos.id IS NOT NULL THEN 'video'
+      ELSE 'unindexed-file'
+    END`;
+    const countRows = this.db.prepare(`
+      SELECT ${kindExpression} AS kind, COUNT(*) AS count
+      ${joinedFrom}
+      GROUP BY kind
+    `).all(params) as Array<{ kind: "video" | "unindexed-file" | "directory"; count: number }>;
+    const countMap = new Map(countRows.map((row) => [row.kind, row.count]));
+    const counts = {
+      video: countMap.get("video") ?? 0,
+      unindexedFile: countMap.get("unindexed-file") ?? 0,
+      directory: countMap.get("directory") ?? 0,
+      all: countRows.reduce((total, row) => total + row.count, 0)
+    };
+
+    const kindWhere = query.kind === "all" ? "" : ` AND ${kindExpression} = @kind`;
+    if (query.kind !== "all") params.kind = query.kind;
+    const totalCount = query.kind === "all"
+      ? counts.all
+      : query.kind === "unindexed-file"
+        ? counts.unindexedFile
+        : counts[query.kind];
+    const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
+    const page = Math.min(Math.max(1, query.page), totalPages);
+    const rows = this.db.prepare(`
+      SELECT failures.*
+      ${joinedFrom}${kindWhere}
+      ORDER BY failures.last_failed_at DESC, failures.id ASC
+      LIMIT @limit OFFSET @offset
+    `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as ScanFailureRow[];
+
+    return {
+      items: rows.map((row) => {
+        const failure = mapScanFailure(row);
+        const video = failure.objectType === "file" ? this.getVideoByPath(failure.objectPath) : null;
+        return {
+          failure,
+          video,
+          kind: failure.objectType === "directory" ? "directory" : video ? "video" : "unindexed-file"
+        };
+      }),
+      page,
+      pageSize: query.pageSize,
+      totalPages,
+      totalCount,
+      counts
+    };
   }
 
   markScanFailureRetrying(failureId: string): void {
@@ -818,7 +886,8 @@ export class VideoRepository {
            COALESCE(SUM(CASE WHEN is_favorite = 1 THEN 1 ELSE 0 END), 0) AS favorite_videos,
            COALESCE(SUM(CASE WHEN is_pending_delete = 1 THEN 1 ELSE 0 END), 0) AS pending_delete_videos,
            COALESCE(SUM(CASE WHEN is_pending_delete = 1 THEN size_bytes ELSE 0 END), 0) AS pending_delete_bytes,
-           COALESCE(SUM(CASE WHEN metadata_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_metadata_videos
+           COALESCE(SUM(CASE WHEN metadata_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_metadata_videos,
+           (SELECT COUNT(*) FROM scan_failures failures JOIN source_folders sources ON sources.id = failures.source_folder_id WHERE failures.status != 'resolved' AND sources.enabled = 1) AS scan_failure_count
          FROM videos
          WHERE is_missing = 0`
       )
@@ -833,6 +902,7 @@ export class VideoRepository {
       pendingDeleteVideos: counts.pending_delete_videos,
       pendingDeleteBytes: counts.pending_delete_bytes,
       pendingMetadataVideos: counts.pending_metadata_videos,
+      scanFailureCount: counts.scan_failure_count,
       directoryPaths
     };
   }

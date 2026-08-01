@@ -8,6 +8,8 @@ import { isValidShortcutBinding } from "../shared/shortcuts.js";
 import type { DatabaseConnection } from "./db/database.js";
 import type { VideoRepository } from "./db/videoRepository.js";
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
+import { deleteScanFailureFile } from "./files/scanFailureActions.js";
+import { isManagedPathWithin } from "./files/pathNormalization.js";
 import {
   buildDiagnosticPackage,
   buildDiagnosticsPreview,
@@ -35,6 +37,8 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.folderScan,
   IPC_CHANNELS.folderScanAll,
   IPC_CHANNELS.folderScanFailuresRetry,
+  IPC_CHANNELS.scanFailureReviewRetry,
+  IPC_CHANNELS.scanFailureReviewDelete,
   IPC_CHANNELS.folderRemove,
   IPC_CHANNELS.folderScanPause,
   IPC_CHANNELS.folderScanResume,
@@ -180,6 +184,14 @@ const settingsSchema = z.object({
   shortcuts: shortcutSettingsSchema
 }).strict();
 const diagnosticsOptionsSchema = z.object({ includeFullPaths: z.boolean() }).strict();
+const scanFailureIdSchema = z.object({ failureId: z.string().min(1) }).strict();
+const scanFailureReviewQuerySchema = z.object({
+  sourceFolderId: z.string().min(1).optional(),
+  kind: z.enum(["all", "video", "unindexed-file", "directory"]),
+  page: z.number().int().min(1),
+  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
+}).strict();
+
 
 interface IpcDependencies {
   database: DatabaseConnection;
@@ -396,6 +408,44 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.folderScanFailureList, (_event, folderId: unknown) =>
     repo.listScanFailures(z.string().min(1).parse(folderId))
   );
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewPage, (_event, query) =>
+    repo.listScanFailureReviewPage(scanFailureReviewQuerySchema.parse(query))
+  );
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewRetry, (_event, payload) => {
+    const { failureId } = scanFailureIdSchema.parse(payload);
+    const failure = repo.getScanFailure(failureId);
+    if (!failure) throw new Error("Scan failure not found");
+    const folder = repo.listSourceFolders().find((candidate) => candidate.id === failure.sourceFolderId);
+    if (!folder) throw new Error("Source folder not found for scan failure");
+    return dependencies.scanManager.retryFailure(folder, failureId).then(() => {
+      dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
+      return true;
+    });
+  });
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewDelete, async (_event, payload) => {
+    const { failureId } = scanFailureIdSchema.parse(payload);
+    const result = await deleteScanFailureFile(repo, failureId);
+    if (result.videoId) dependencies.cacheManager.scheduleMaintenance(true);
+    dependencies.domainEvents.publish({
+      type: result.videoId ? "video:removed" : "library:rescanned",
+      videoIds: result.videoId ? [result.videoId] : []
+    });
+    return true;
+  });
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewOpen, async (_event, payload) => {
+    const { failureId } = scanFailureIdSchema.parse(payload);
+    const failure = repo.getScanFailure(failureId);
+    if (!failure || failure.status === "resolved") throw new Error("Scan failure is no longer available");
+    const folder = repo.listSourceFolders().find((candidate) => candidate.id === failure.sourceFolderId);
+    if (!folder) throw new Error("Source folder not found for scan failure");
+    if (!isManagedPathWithin(failure.objectPath, folder.path)) throw new Error("Scan failure is outside its source folder");
+    if (failure.objectType === "file") shell.showItemInFolder(failure.objectPath);
+    else {
+      const errorMessage = await shell.openPath(failure.objectPath);
+      if (errorMessage) throw new Error(errorMessage);
+    }
+    return true;
+  });
 
   ipcMain.handle(IPC_CHANNELS.folderRemove, (_event, folderId: unknown) => {
     const parsedFolderId = z.string().min(1).parse(folderId);

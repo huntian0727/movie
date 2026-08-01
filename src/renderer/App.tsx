@@ -24,6 +24,7 @@ const emptyNavigation: LibraryNavigationSnapshot = {
   pendingDeleteVideos: 0,
   pendingDeleteBytes: 0,
   pendingMetadataVideos: 0,
+  scanFailureCount: 0,
   directoryPaths: []
 };
 
@@ -461,6 +462,10 @@ export function App() {
         ? api.getScanFailureSummary(folder.id)
         : Promise.resolve({ sourceFolderId: folder.id, failedFileCount: 0, failedDirectoryCount: 0, totalUnresolved: 0, latestError: null, latestFailedAt: null, totalRetryCount: 0 })}
       onLoadScanFailures={(folder) => api ? api.listScanFailures(folder.id) : Promise.resolve([])}
+      onLoadScanFailureReviewPage={(query) => api ? api.listScanFailureReviewPage(query) : Promise.resolve({ items: [], page: 1, pageSize: query.pageSize, totalPages: 1, totalCount: 0, counts: { all: 0, video: 0, unindexedFile: 0, directory: 0 } })}
+      onRetryScanFailure={(failureId) => api ? api.retryScanFailure(failureId) : Promise.resolve(false)}
+      onDeleteScanFailureFile={(failureId) => api ? api.deleteScanFailureFile(failureId) : Promise.resolve(false)}
+      onOpenScanFailureLocation={(failureId) => api ? api.openScanFailureLocation(failureId) : Promise.resolve(false)}
       onRefresh={refresh}
       onToggleFavorite={toggleFavorite}
       onTogglePendingDelete={togglePendingDelete}
