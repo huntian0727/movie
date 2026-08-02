@@ -517,10 +517,14 @@ describe("LibraryShell", () => {
         videos={[video, nestedVideo]}
         duplicateGroups={duplicateGroups}
         onPreviewDuplicateResolve={vi.fn().mockResolvedValue({
-          groupCount: 1,
-          keepCount: 1,
-          deleteCount: 1,
-          reclaimableBytes: nestedVideo.sizeBytes
+          status: "ready",
+          preview: {
+            verificationStatus: "file_versions_current",
+            groupCount: 1,
+            keepCount: 1,
+            deleteCount: 1,
+            reclaimableBytes: nestedVideo.sizeBytes
+          }
         })}
         onResolveDuplicateGroups={vi.fn().mockResolvedValue({
           groupCount: 1,

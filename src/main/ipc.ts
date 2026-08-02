@@ -20,7 +20,7 @@ import type { DiagnosticEnvironment } from "./logging/types.js";
 import type { StructuredLogger } from "./logging/logger.js";
 import { buildCacheKey, getCoverPath, getCoverTimeSeconds } from "./media/cacheService.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
-import { assertFileVersion, type FileVersion } from "./media/contentFingerprint.js";
+import { previewDuplicateResolveSafely, resolveDuplicatePlanSafely } from "./media/duplicateResolveSafety.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
 import { playWithMpv, waitForMpvStart } from "./media/mpvController.js";
@@ -266,22 +266,6 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
   return { successCount, failureCount: failures.length, reclaimedBytes, failures };
 }
 
-async function verifyDuplicateResolvePlan(repo: VideoRepository, plan: z.infer<typeof duplicateResolvePlanSchema>) {
-  const entries = repo.validateDuplicateResolvePlan(plan);
-  const versions = new Map<string, FileVersion>();
-
-  for (const entry of entries) {
-    const videos = [entry.keepVideo, ...entry.deleteVideos];
-    for (const video of videos) {
-      const expectedVersion = { sizeBytes: video.sizeBytes, modifiedAt: video.modifiedAt };
-      await assertFileVersion(video.path, expectedVersion);
-      versions.set(video.path, expectedVersion);
-    }
-  }
-
-  return { entries, versions, preview: repo.previewDuplicateResolve(plan) };
-}
-
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
   ipcLogger = dependencies.logger;
   ipcMain.handle(IPC_CHANNELS.libraryList, (_event, query) => {
@@ -297,56 +281,26 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   );
 
   ipcMain.handle(IPC_CHANNELS.duplicatePreviewResolve, async (_event, payload) => {
-    const verified = await verifyDuplicateResolvePlan(repo, duplicateResolvePlanSchema.parse(payload));
-    return { ...verified.preview, verificationStatus: "file_versions_current" as const };
+    const result = await previewDuplicateResolveSafely(
+      repo,
+      dependencies.metadataQueue,
+      duplicateResolvePlanSchema.parse(payload)
+    );
+    if (result.status === "stale") {
+      dependencies.domainEvents.publish({
+        type: "video:updated",
+        videoIds: result.changedItems.filter((item) => item.changeType !== "unreadable").map((item) => item.videoId)
+      });
+    }
+    return result;
   });
 
   ipcMain.handle(IPC_CHANNELS.duplicateResolve, async (_event, payload) => {
     const plan = duplicateResolvePlanSchema.parse(payload);
-    const verified = await verifyDuplicateResolvePlan(repo, plan);
-    const failures: Array<{ groupKey: string; videoId: string; path: string; message: string }> = [];
-    let reclaimedBytes = 0;
-    let successCount = 0;
-
-    for (const group of verified.entries) {
-      for (const video of group.deleteVideos) {
-        const videoId = video.id;
-        try {
-          await assertFileVersion(group.keepVideo.path, verified.versions.get(group.keepVideo.path)!);
-          await assertFileVersion(video.path, verified.versions.get(video.path)!);
-          await permanentlyDeleteFile(video.path);
-          reclaimedBytes += video.sizeBytes;
-          successCount += 1;
-          repo.removeVideo(videoId);
-        } catch (cause) {
-          const currentVideo = (() => {
-            try {
-              return repo.getVideo(videoId);
-            } catch {
-              return null;
-            }
-          })();
-
-          failures.push({
-            groupKey: group.groupKey,
-            videoId,
-            path: currentVideo?.path ?? "",
-            message: cause instanceof Error ? cause.message : String(cause)
-          });
-        }
-      }
-    }
+    const execution = await resolveDuplicatePlanSafely(repo, plan);
     dependencies.cacheManager.scheduleMaintenance(true);
-    publishRemovedVideos(repo, plan.groups.flatMap((group) => group.deleteVideoIds), dependencies.domainEvents);
-
-    return {
-      groupCount: verified.preview.groupCount,
-      keepCount: verified.preview.keepCount,
-      successCount,
-      failureCount: failures.length,
-      reclaimedBytes,
-      failures
-    };
+    publishRemovedVideos(repo, execution.removedVideoIds, dependencies.domainEvents);
+    return execution.result;
   });
 
   ipcMain.handle(IPC_CHANNELS.folderList, () => repo.listSourceFolders());
@@ -485,10 +439,15 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     });
   });
 
-  ipcMain.handle(IPC_CHANNELS.videoRevealInFolder, (_event, payload) => {
+  ipcMain.handle(IPC_CHANNELS.videoRevealInFolder, async (_event, payload) => {
     const parsed = videoIdSchema.parse(payload);
     const video = repo.getVideo(parsed.videoId);
-    shell.showItemInFolder(video.path);
+    if (video.isMissing) {
+      const error = await shell.openPath(video.directory);
+      if (error) throw new Error("无法打开文件所在目录");
+    } else {
+      shell.showItemInFolder(video.path);
+    }
     return true;
   });
 

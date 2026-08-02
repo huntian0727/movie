@@ -56,6 +56,17 @@ const groups: DuplicateGroup[] = [
   }
 ];
 
+const readyPreview = {
+  status: "ready" as const,
+  preview: {
+    verificationStatus: "file_versions_current" as const,
+    groupCount: 1,
+    keepCount: 1,
+    deleteCount: 1,
+    reclaimableBytes: duplicateVideo.sizeBytes
+  }
+};
+
 describe("DuplicateGroupsPage", () => {
   it("renders duplicate groups and summary counts", () => {
     render(
@@ -63,12 +74,7 @@ describe("DuplicateGroupsPage", () => {
         groups={groups}
         onOpen={vi.fn()}
         onViewDetails={vi.fn()}
-        onPreviewResolve={vi.fn().mockResolvedValue({
-          groupCount: 1,
-          keepCount: 1,
-          deleteCount: 1,
-          reclaimableBytes: duplicateVideo.sizeBytes
-        })}
+        onPreviewResolve={vi.fn().mockResolvedValue(readyPreview)}
         onResolve={vi.fn().mockResolvedValue({
           groupCount: 1,
           keepCount: 1,
@@ -88,12 +94,7 @@ describe("DuplicateGroupsPage", () => {
   });
 
   it("resolves duplicates after a single confirmation click", async () => {
-    const onPreviewResolve = vi.fn().mockResolvedValue({
-      groupCount: 1,
-      keepCount: 1,
-      deleteCount: 1,
-      reclaimableBytes: duplicateVideo.sizeBytes
-    });
+    const onPreviewResolve = vi.fn().mockResolvedValue(readyPreview);
     const onResolve = vi.fn().mockResolvedValue({
       groupCount: 1,
       keepCount: 1,
@@ -123,6 +124,71 @@ describe("DuplicateGroupsPage", () => {
 
     await waitFor(() => expect(onResolve).toHaveBeenCalledOnce());
     expect(screen.getByText(/成功删除 1 个文件/)).toBeInTheDocument();
+  });
+
+  it("shows structured stale details, refreshes groups, and requires a new confirmation", async () => {
+    const onRefresh = vi.fn();
+    const onRevealInFolder = vi.fn();
+    const onResolve = vi.fn();
+    const onPreviewResolve = vi.fn().mockResolvedValue({
+      status: "stale",
+      changedItems: [{
+        videoId: duplicateVideo.id,
+        filename: duplicateVideo.filename,
+        path: duplicateVideo.path,
+        changeType: "mtime-changed",
+        previousSizeBytes: duplicateVideo.sizeBytes,
+        currentSizeBytes: duplicateVideo.sizeBytes,
+        previousModifiedAt: duplicateVideo.modifiedAt,
+        currentModifiedAt: "2026-07-10T00:00:00.000Z",
+        message: "文件修改时间已变化"
+      }]
+    });
+
+    render(
+      <DuplicateGroupsPage
+        groups={groups}
+        preferredDirectoryPath="D:\\Movies"
+        onOpen={vi.fn()}
+        onViewDetails={vi.fn()}
+        onRevealInFolder={onRevealInFolder}
+        onRefresh={onRefresh}
+        onPreviewResolve={onPreviewResolve}
+        onResolve={onResolve}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页" }));
+
+    expect(await screen.findByRole("dialog", { name: "检测到文件状态变化" })).toBeInTheDocument();
+    expect(screen.getByText(/本次未执行删除/)).toBeInTheDocument();
+    expect(screen.getByText(/异常文件可能位于同一重复组的其他目录中/)).toBeInTheDocument();
+    expect(screen.getAllByText(duplicateVideo.path)).toHaveLength(2);
+    expect(screen.getByText(/修改时间变化/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认删除" })).not.toBeInTheDocument();
+    expect(onResolve).not.toHaveBeenCalled();
+    expect(onRefresh).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开所在文件夹" }));
+    expect(onRevealInFolder).toHaveBeenCalledWith(duplicateVideo);
+    fireEvent.click(screen.getByRole("button", { name: "刷新重复项" }));
+    expect(onRefresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not expose raw Electron IPC errors to the user", async () => {
+    render(
+      <DuplicateGroupsPage
+        groups={groups}
+        onOpen={vi.fn()}
+        onViewDetails={vi.fn()}
+        onPreviewResolve={vi.fn().mockRejectedValue(new Error("Error invoking remote method 'duplicate:preview-resolve': Error: 文件已变化，已停止删除"))}
+        onResolve={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("重复项检查失败，请刷新重复项后重试。");
+    expect(screen.queryByText(/Error invoking remote method/)).not.toBeInTheDocument();
   });
 
   it("sorts duplicate files by size in both directions", () => {
@@ -199,7 +265,7 @@ describe("DuplicateGroupsPage", () => {
   it("selects a directory as the preferred duplicate keep location", async () => {
     const onPreferredDirectoryPathChange = vi.fn();
     const onPreferredDirectoryScopeChange = vi.fn();
-    const onPreviewResolve = vi.fn().mockResolvedValue({ groupCount: 1, keepCount: 1, deleteCount: 1, reclaimableBytes: duplicateVideo.sizeBytes });
+    const onPreviewResolve = vi.fn().mockResolvedValue(readyPreview);
     render(
       <DuplicateGroupsPage
         groups={groups}

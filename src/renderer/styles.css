@@ -299,6 +299,13 @@ button { color: inherit; }
 .duplicate-failure-list { max-height: 220px; overflow: auto; padding: 10px 12px; border-radius: 6px; background: #141514; }
 .duplicate-failure-list p { margin: 0 0 8px; }
 .duplicate-failure-list p:last-child { margin-bottom: 0; }
+.duplicate-stale-dialog { width: min(860px, 100%); max-height: min(760px, calc(100vh - 40px)); overflow: auto; }
+.duplicate-stale-list { display: grid; gap: 10px; max-height: 430px; overflow: auto; }
+.duplicate-stale-list article { display: grid; gap: 5px; padding: 12px; border: 1px solid #3a3c39; border-radius: 7px; background: #151615; }
+.duplicate-stale-list strong { color: #f0f1ed; }
+.duplicate-stale-list code { color: #a4a7a1; overflow-wrap: anywhere; }
+.duplicate-stale-list span { color: #c5a15c; font-size: 12px; }
+.duplicate-stale-list button { width: max-content; margin-top: 4px; display: inline-flex; align-items: center; gap: 6px; }
 .duplicate-empty-state { min-height: calc(100vh - 190px); }
 
 .settings-page { height: 100vh; display: grid; grid-template-rows: 76px minmax(0, 1fr); overflow: hidden; background: #111212; }
