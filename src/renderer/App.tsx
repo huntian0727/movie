@@ -500,11 +500,14 @@ export function App() {
       onLoadDuplicateGroups={api?.listDuplicateGroups}
       recentVideoIds={recentVideoIds}
       onPreviewDuplicateResolve={async (plan: DuplicateResolvePlan) => (api ? api.previewDuplicateResolve(plan) : {
-        verificationStatus: "file_versions_current",
-        groupCount: plan.groups.length,
-        keepCount: plan.groups.length,
-        deleteCount: plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),
-        reclaimableBytes: 0
+        status: "ready" as const,
+        preview: {
+          verificationStatus: "file_versions_current" as const,
+          groupCount: plan.groups.length,
+          keepCount: plan.groups.length,
+          deleteCount: plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),
+          reclaimableBytes: 0
+        }
       })}
       onResolveDuplicateGroups={async (plan: DuplicateResolvePlan) => {
         if (!api) {

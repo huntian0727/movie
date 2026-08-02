@@ -995,6 +995,63 @@ export class VideoRepository {
     this.db.prepare("UPDATE videos SET is_missing = ?, updated_at = ? WHERE id = ?").run(missing ? 1 : 0, new Date().toISOString(), videoId);
   }
 
+  markMissingIfVersion(videoId: string, expectedPath: string, expectedSizeBytes: number, expectedModifiedAt: string): boolean {
+    const result = this.db.prepare(`
+      UPDATE videos
+      SET is_missing = 1, updated_at = @updatedAt
+      WHERE id = @videoId
+        AND path = @expectedPath
+        AND size_bytes = @expectedSizeBytes
+        AND modified_at = @expectedModifiedAt
+    `).run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, updatedAt: new Date().toISOString() });
+    return result.changes > 0;
+  }
+
+  refreshVideoFileVersion(
+    videoId: string,
+    expectedPath: string,
+    expectedSizeBytes: number,
+    expectedModifiedAt: string,
+    currentSizeBytes: number,
+    currentModifiedAt: string
+  ): boolean {
+    return this.db.transaction(() => {
+      const result = this.db.prepare(`
+        UPDATE videos
+        SET size_bytes = @currentSizeBytes,
+            modified_at = @currentModifiedAt,
+            duration_ms = NULL,
+            width = NULL,
+            height = NULL,
+            format = NULL,
+            is_missing = 0,
+            metadata_status = 'pending',
+            thumbnail_status = 'pending',
+            timeline_preview_status = 'pending',
+            cover_cache_path = NULL,
+            content_fingerprint = NULL,
+            fingerprint_status = 'pending',
+            fingerprint_updated_at = NULL,
+            fingerprint_error = NULL,
+            updated_at = @updatedAt
+        WHERE id = @videoId
+          AND path = @expectedPath
+          AND size_bytes = @expectedSizeBytes
+          AND modified_at = @expectedModifiedAt
+      `).run({
+        videoId,
+        expectedPath,
+        expectedSizeBytes,
+        expectedModifiedAt,
+        currentSizeBytes,
+        currentModifiedAt,
+        updatedAt: new Date().toISOString()
+      });
+      if (result.changes > 0) this.deleteTimelinePreviews(videoId);
+      return result.changes > 0;
+    })();
+  }
+
   markFingerprintPending(videoId: string): void {
     this.db
       .prepare(

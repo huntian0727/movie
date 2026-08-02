@@ -4,8 +4,10 @@ import type {
   DuplicateGroup,
   DuplicateDirectoryOption,
   DuplicatePageSize,
+  DuplicateResolveChangedItem,
   DuplicateResolvePlan,
   DuplicateResolvePreview,
+  DuplicateResolvePreviewResult,
   DuplicateResolveResult,
   SortDirection,
   VideoRecord
@@ -36,7 +38,8 @@ interface DuplicateGroupsPageProps {
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onDelete?(video: VideoRecord): void | Promise<void>;
-  onPreviewResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreview>;
+  onRefresh?(): void;
+  onPreviewResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
 }
 
@@ -63,11 +66,14 @@ export function DuplicateGroupsPage({
   onViewDetails,
   onRevealInFolder,
   onDelete,
+  onRefresh,
   onPreviewResolve,
   onResolve
 }: DuplicateGroupsPageProps) {
   const [selectedKeepByGroup, setSelectedKeepByGroup] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<DuplicateResolvePreview | null>(null);
+  const [staleItems, setStaleItems] = useState<DuplicateResolveChangedItem[] | null>(null);
+  const [staleVideosById, setStaleVideosById] = useState<Record<string, VideoRecord>>({});
   const [resolveResult, setResolveResult] = useState<DuplicateResolveResult | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
@@ -112,11 +118,19 @@ export function DuplicateGroupsPage({
     setResolveResult(null);
 
     try {
-      const nextPreview = await onPreviewResolve(plan);
-      setPreview(nextPreview);
-      setConfirmOpen(true);
+      const nextResult = await onPreviewResolve(plan);
+      if (nextResult.status === "ready") {
+        setPreview(nextResult.preview);
+        setConfirmOpen(true);
+      } else {
+        setPreview(null);
+        setConfirmOpen(false);
+        setStaleVideosById(Object.fromEntries(groups.flatMap((group) => group.items.map((item) => [item.video.id, item.video]))));
+        setStaleItems(nextResult.changedItems);
+        onRefresh?.();
+      }
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : String(cause));
+      setActionError(toDuplicateActionMessage(cause));
     } finally {
       setActionPending(false);
     }
@@ -132,7 +146,7 @@ export function DuplicateGroupsPage({
       setConfirmOpen(false);
       setPreview(null);
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : String(cause));
+      setActionError(toDuplicateActionMessage(cause));
     } finally {
       setActionPending(false);
     }
@@ -146,7 +160,7 @@ export function DuplicateGroupsPage({
       await onDelete(deleteTarget);
       setDeleteTarget(null);
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : String(cause));
+      setActionError(toDuplicateActionMessage(cause));
     } finally {
       setActionPending(false);
     }
@@ -349,6 +363,35 @@ export function DuplicateGroupsPage({
         </div>
       )}
 
+      {staleItems && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setStaleItems(null); }}>
+          <section className="dialog duplicate-stale-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-stale-title">
+            <h3 id="duplicate-stale-title">检测到文件状态变化</h3>
+            <p>检测到部分文件状态已经变化，本次未执行删除。资料库已刷新，请重新检查重复项后再确认。</p>
+            <p>异常文件可能位于同一重复组的其他目录中。</p>
+            <div className="duplicate-stale-list">
+              {staleItems.map((item) => (
+                <article key={item.videoId}>
+                  <strong>{item.filename}</strong>
+                  <code>{item.path}</code>
+                  <span>{changeTypeLabel(item.changeType)}：{item.message}</span>
+                  <span>大小：{formatBytes(item.previousSizeBytes)} → {item.currentSizeBytes === undefined ? "无法读取" : formatBytes(item.currentSizeBytes)}</span>
+                  <span>修改时间：{formatDate(item.previousModifiedAt)} → {item.currentModifiedAt ? formatDate(item.currentModifiedAt) : "无法读取"}</span>
+                  <button type="button" onClick={() => {
+                    const video = staleVideosById[item.videoId];
+                    if (video) void onRevealInFolder?.(video);
+                  }}><FolderOpen size={16} />打开所在文件夹</button>
+                </article>
+              ))}
+            </div>
+            <div className="dialog-actions">
+              <button type="button" onClick={() => setStaleItems(null)}>知道了</button>
+              <button type="button" className="primary" onClick={() => { onRefresh?.(); setStaleItems(null); }}>刷新重复项</button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {deleteTarget && (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setDeleteTarget(null); }}>
           <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-delete-one-title">
@@ -389,4 +432,20 @@ export function DuplicateGroupsPage({
 
 function largestVideoSize(group: DuplicateGroup): number {
   return group.items.reduce((largest, item) => Math.max(largest, item.video.sizeBytes), 0);
+}
+
+function changeTypeLabel(changeType: DuplicateResolveChangedItem["changeType"]): string {
+  if (changeType === "missing") return "文件不存在";
+  if (changeType === "size-changed") return "文件大小变化";
+  if (changeType === "mtime-changed") return "修改时间变化";
+  if (changeType === "size-and-mtime-changed") return "大小和修改时间变化";
+  return "文件无法访问";
+}
+
+function toDuplicateActionMessage(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  if (/Error invoking remote method|duplicate:preview-resolve|duplicate:resolve/i.test(message)) {
+    return "重复项检查失败，请刷新重复项后重试。";
+  }
+  return message;
 }

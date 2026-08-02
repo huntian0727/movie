@@ -236,6 +236,30 @@ export interface DuplicateResolvePreview {
   reclaimableBytes: number;
 }
 
+export type DuplicateResolveChangeType =
+  | "missing"
+  | "size-changed"
+  | "mtime-changed"
+  | "size-and-mtime-changed"
+  | "unreadable";
+
+export interface DuplicateResolveChangedItem {
+  videoId: string;
+  filename: string;
+  path: string;
+  changeType: DuplicateResolveChangeType;
+  previousSizeBytes: number;
+  currentSizeBytes?: number;
+  previousModifiedAt: string;
+  currentModifiedAt?: string;
+  errorCode?: string;
+  message: string;
+}
+
+export type DuplicateResolvePreviewResult =
+  | { status: "ready"; preview: DuplicateResolvePreview }
+  | { status: "stale"; changedItems: DuplicateResolveChangedItem[] };
+
 export interface DuplicateResolveFailure {
   groupKey: string;
   videoId: string;
@@ -503,7 +527,7 @@ export interface VideoManagerApi {
   listMissingVideos(): Promise<VideoRecord[]>;
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
-  previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreview>;
+  previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   resolveDuplicateGroups(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   listFolders(): Promise<SourceFolder[]>;
   addFolder(): Promise<SourceFolder | null>;
