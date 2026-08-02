@@ -27,6 +27,19 @@ const page: ScanFailureReviewPage = {
 };
 
 describe("ScanFailuresPage", () => {
+  it("does not reload merely because the parent passes a new callback instance", async () => {
+    const firstLoadPage = vi.fn().mockResolvedValue(page);
+    const { rerender } = render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={firstLoadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);
+    await screen.findByText("clip.mp4");
+
+    const replacementLoadPage = vi.fn().mockResolvedValue(page);
+    rerender(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={replacementLoadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);
+
+    await Promise.resolve();
+    expect(firstLoadPage).toHaveBeenCalledTimes(1);
+    expect(replacementLoadPage).not.toHaveBeenCalled();
+  });
+
   it("loads scoped failures, exposes filters and never offers directory deletion", async () => {
     const loadPage = vi.fn().mockResolvedValue(page);
     render(<ScanFailuresPage folders={[folder]} initialSourceFolderId={folder.id} refreshSequence={0} loadPage={loadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);

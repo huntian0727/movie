@@ -79,6 +79,7 @@ export function App() {
   const [navigation, setNavigation] = useState<LibraryNavigationSnapshot>(emptyNavigation);
   const [playerSession, setPlayerSession] = useState<PlayerSessionSnapshot | null>(null);
   const [libraryRefreshSequence, setLibraryRefreshSequence] = useState(0);
+  const [scanFailureRefreshSequence, setScanFailureRefreshSequence] = useState(0);
   const previousScanStates = useRef(new Map<string, FolderScanStatus["state"]>());
   const isPlayerWindow = new URLSearchParams(window.location.search).get("player") === "1";
   const recentVideoIds = useMemo(() => playHistory.map((entry) => entry.videoId), [playHistory]);
@@ -138,6 +139,7 @@ export function App() {
     }
     setLibraryRefreshSequence(event.sequence);
     if (event.type === "library:rescanned") {
+      setScanFailureRefreshSequence(event.sequence);
       await reload();
       return;
     }
@@ -446,6 +448,7 @@ export function App() {
       folders={folders}
       navigation={api ? navigation : undefined}
       refreshSequence={libraryRefreshSequence}
+      scanFailureRefreshSequence={scanFailureRefreshSequence}
       shortcuts={settings.shortcuts}
       onLoadVideoPage={api?.listVideoPage}
       scanStatuses={scanStatuses}
@@ -462,7 +465,7 @@ export function App() {
         ? api.getScanFailureSummary(folder.id)
         : Promise.resolve({ sourceFolderId: folder.id, failedFileCount: 0, failedDirectoryCount: 0, totalUnresolved: 0, latestError: null, latestFailedAt: null, totalRetryCount: 0 })}
       onLoadScanFailures={(folder) => api ? api.listScanFailures(folder.id) : Promise.resolve([])}
-      onLoadScanFailureReviewPage={(query) => api ? api.listScanFailureReviewPage(query) : Promise.resolve({ items: [], page: 1, pageSize: query.pageSize, totalPages: 1, totalCount: 0, counts: { all: 0, video: 0, unindexedFile: 0, directory: 0 } })}
+      onLoadScanFailureReviewPage={api?.listScanFailureReviewPage}
       onRetryScanFailure={(failureId) => api ? api.retryScanFailure(failureId) : Promise.resolve(false)}
       onDeleteScanFailureFile={(failureId) => api ? api.deleteScanFailureFile(failureId) : Promise.resolve(false)}
       onOpenScanFailureLocation={(failureId) => api ? api.openScanFailureLocation(failureId) : Promise.resolve(false)}

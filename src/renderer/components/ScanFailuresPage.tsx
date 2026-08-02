@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ExternalLink, FileQuestion, FolderOpen, Info, LoaderCircle, Play, RotateCw, Trash2 } from "lucide-react";
 import type { ScanFailureReviewKind, ScanFailureReviewPage, ScanFailureReviewPageSize, ScanFailureReviewQuery, SourceFolder, VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDuration } from "./formatters";
@@ -36,6 +36,12 @@ export function ScanFailuresPage({
   const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
   const [deleteFailureId, setDeleteFailureId] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const loadPageRef = useRef(loadPage);
+  const previousQueryKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    loadPageRef.current = loadPage;
+  }, [loadPage]);
 
   useEffect(() => {
     setSourceFolderId(initialSourceFolderId ?? "");
@@ -44,9 +50,12 @@ export function ScanFailuresPage({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    const queryKey = `${sourceFolderId}\u0000${kind}\u0000${pageNumber}\u0000${pageSize}`;
+    const queryChanged = previousQueryKeyRef.current !== queryKey;
+    previousQueryKeyRef.current = queryKey;
+    if (queryChanged) setLoading(true);
     setError(null);
-    loadPage({ sourceFolderId: sourceFolderId || undefined, kind, page: pageNumber, pageSize })
+    loadPageRef.current({ sourceFolderId: sourceFolderId || undefined, kind, page: pageNumber, pageSize })
       .then((next) => {
         if (cancelled) return;
         setResult(next);
@@ -55,7 +64,7 @@ export function ScanFailuresPage({
       .catch((cause) => { if (!cancelled) setError(toMessage(cause)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [kind, loadPage, pageNumber, pageSize, refreshSequence, refreshVersion, sourceFolderId]);
+  }, [kind, pageNumber, pageSize, refreshSequence, refreshVersion, sourceFolderId]);
 
   const selectedFolder = useMemo(() => folders.find((folder) => folder.id === sourceFolderId), [folders, sourceFolderId]);
 

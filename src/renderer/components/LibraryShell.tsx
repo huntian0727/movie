@@ -30,6 +30,7 @@ interface LibraryShellProps {
   loading?: boolean;
   error?: string | null;
   refreshSequence?: number;
+  scanFailureRefreshSequence?: number;
   shortcuts?: ShortcutSettings;
   onAddFolder?(): void | Promise<void>;
   onRemoveFolder?(folder: SourceFolder): void | Promise<void>;
@@ -76,6 +77,7 @@ export function LibraryShell({
   loading = false,
   error = null,
   refreshSequence = 0,
+  scanFailureRefreshSequence = 0,
   shortcuts = DEFAULT_SHORTCUTS,
   onAddFolder,
   onRemoveFolder,
@@ -801,7 +803,7 @@ export function LibraryShell({
             ? <ScanFailuresPage
                 folders={folders}
                 initialSourceFolderId={scanFailureSourceFolderId}
-                refreshSequence={refreshSequence}
+                refreshSequence={scanFailureRefreshSequence}
                 loadPage={onLoadScanFailureReviewPage}
                 onRetry={onRetryScanFailure}
                 onDeleteFile={onDeleteScanFailureFile}
