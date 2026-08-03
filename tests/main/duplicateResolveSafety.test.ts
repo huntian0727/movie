@@ -8,7 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DatabaseConnection } from "../../src/main/db/database";
 import { createDatabase } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
-import { previewDuplicateResolveSafely, resolveDuplicatePlanSafely } from "../../src/main/media/duplicateResolveSafety";
+import {
+  DUPLICATE_PREFLIGHT_CONCURRENCY,
+  previewDuplicateResolveSafely,
+  resolveDuplicatePlanSafely
+} from "../../src/main/media/duplicateResolveSafety";
 import type { DuplicateResolvePlan, VideoRecord } from "../../src/shared/videoTypes";
 
 let tempDir: string;
@@ -29,6 +33,39 @@ describe("duplicate cleanup stale-file safety", () => {
     const fixture = await createDuplicateFixture();
     const result = await previewDuplicateResolveSafely(fixture.repo, fixture.queue, fixture.plan);
     expect(result).toMatchObject({ status: "ready", preview: { groupCount: 1, deleteCount: 1 } });
+  });
+
+  it("checks a large current page with bounded parallel file-version reads", async () => {
+    const fixture = await createDuplicateFixture();
+    const videos = Array.from({ length: 24 }, (_, index) => ({
+      ...fixture.keepVideo,
+      id: `parallel-${index}`
+    }));
+    const validateDuplicateResolvePlan = vi.fn(() => [{
+      groupKey: "parallel-group",
+      keepVideo: videos[0],
+      deleteVideos: videos.slice(1)
+    }]);
+    const parallelRepo = { validateDuplicateResolvePlan } as unknown as VideoRepository;
+    let activeReads = 0;
+    let maximumActiveReads = 0;
+
+    const result = await previewDuplicateResolveSafely(parallelRepo, fixture.queue, fixture.plan, {
+      statFile: async (filePath) => {
+        activeReads += 1;
+        maximumActiveReads = Math.max(maximumActiveReads, activeReads);
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        try {
+          return await stat(filePath);
+        } finally {
+          activeReads -= 1;
+        }
+      }
+    });
+
+    expect(result).toMatchObject({ status: "ready", preview: { deleteCount: 23 } });
+    expect(maximumActiveReads).toBe(DUPLICATE_PREFLIGHT_CONCURRENCY);
+    expect(validateDuplicateResolvePlan).toHaveBeenCalledOnce();
   });
 
   it("returns stale for a changed delete file without deleting anything", async () => {

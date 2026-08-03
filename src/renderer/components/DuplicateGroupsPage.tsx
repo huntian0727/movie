@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FolderOpen, Info, Play, Trash2 } from "lucide-react";
+import { FolderOpen, Info, LoaderCircle, Play, Trash2 } from "lucide-react";
 import type {
   DuplicateGroup,
   DuplicateDirectoryOption,
@@ -77,10 +77,16 @@ export function DuplicateGroupsPage({
   const [resolveResult, setResolveResult] = useState<DuplicateResolveResult | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
+  const [previewPending, setPreviewPending] = useState(false);
+  const [previewElapsedSeconds, setPreviewElapsedSeconds] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
   const [internalSizeSortDirection, setInternalSizeSortDirection] = useState<SortDirection>("desc");
   const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
   const sizeSortDirection = controlledSizeSortDirection ?? internalSizeSortDirection;
+  const previewFileCount = useMemo(
+    () => new Set(planVideoIds(groups, selectedKeepByGroup)).size,
+    [groups, selectedKeepByGroup]
+  );
 
   const sortedGroups = useMemo(
     () => [...groups].sort((left, right) => {
@@ -93,6 +99,16 @@ export function DuplicateGroupsPage({
   useEffect(() => {
     setSelectedKeepByGroup(Object.fromEntries(groups.map((group) => [group.groupKey, group.recommendedKeepVideoId])));
   }, [groups]);
+
+  useEffect(() => {
+    if (!previewPending) return;
+    setPreviewElapsedSeconds(0);
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setPreviewElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [previewPending]);
 
   const plan = useMemo<DuplicateResolvePlan>(
     () => ({
@@ -114,6 +130,7 @@ export function DuplicateGroupsPage({
 
   const handlePreview = async () => {
     setActionPending(true);
+    setPreviewPending(true);
     setActionError(null);
     setResolveResult(null);
 
@@ -132,6 +149,7 @@ export function DuplicateGroupsPage({
     } catch (cause) {
       setActionError(toDuplicateActionMessage(cause));
     } finally {
+      setPreviewPending(false);
       setActionPending(false);
     }
   };
@@ -240,7 +258,7 @@ export function DuplicateGroupsPage({
           </label>
           <button type="button" onClick={resetSelectionToRecommended}>按推荐选择保留项</button>
           <button className="danger" type="button" onClick={() => void handlePreview()} disabled={actionPending || groups.length === 0}>
-            清理当前页
+            {previewPending ? "正在安全复查..." : "清理当前页"}
           </button>
         </div>
       </div>
@@ -363,6 +381,19 @@ export function DuplicateGroupsPage({
         </div>
       )}
 
+      {previewPending && (
+        <div className="dialog-backdrop" role="presentation">
+          <section className="dialog duplicate-preflight-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-preflight-title" aria-describedby="duplicate-preflight-description">
+            <LoaderCircle className="spin" size={30} aria-hidden="true" />
+            <h3 id="duplicate-preflight-title">正在安全复查当前页</h3>
+            <p id="duplicate-preflight-description">
+              正在并行检查 {previewFileCount} 个文件的存在性、大小和修改时间。网盘响应较慢时需要等待，但不会读取视频内容，也不会在检查完成前删除文件。
+            </p>
+            <strong aria-live="polite">已等待 {previewElapsedSeconds} 秒</strong>
+          </section>
+        </div>
+      )}
+
       {staleItems && (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setStaleItems(null); }}>
           <section className="dialog duplicate-stale-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-stale-title">
@@ -428,6 +459,13 @@ export function DuplicateGroupsPage({
       )}
     </section>
   );
+}
+
+function planVideoIds(groups: DuplicateGroup[], selectedKeepByGroup: Record<string, string>): string[] {
+  return groups.flatMap((group) => {
+    const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
+    return [keepVideoId, ...group.items.map((item) => item.video.id).filter((videoId) => videoId !== keepVideoId)];
+  });
 }
 
 function largestVideoSize(group: DuplicateGroup): number {

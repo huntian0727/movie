@@ -306,6 +306,10 @@ button { color: inherit; }
 .duplicate-stale-list code { color: #a4a7a1; overflow-wrap: anywhere; }
 .duplicate-stale-list span { color: #c5a15c; font-size: 12px; }
 .duplicate-stale-list button { width: max-content; margin-top: 4px; display: inline-flex; align-items: center; gap: 6px; }
+.duplicate-preflight-dialog { width: min(520px, 100%); display: grid; justify-items: center; gap: 12px; text-align: center; }
+.duplicate-preflight-dialog > svg { color: #e36850; }
+.duplicate-preflight-dialog p { margin: 0; max-width: 440px; }
+.duplicate-preflight-dialog strong { color: #c6c9c3; font-size: 12px; font-variant-numeric: tabular-nums; }
 .duplicate-empty-state { min-height: calc(100vh - 190px); }
 
 .settings-page { height: 100vh; display: grid; grid-template-rows: 76px minmax(0, 1fr); overflow: hidden; background: #111212; }

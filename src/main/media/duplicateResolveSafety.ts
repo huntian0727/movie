@@ -24,6 +24,10 @@ interface InspectedVideo {
   changedItem: DuplicateResolveChangedItem | null;
 }
 
+type ValidatedDuplicateResolveEntry = ReturnType<VideoRepository["validateDuplicateResolvePlan"]>[number];
+
+export const DUPLICATE_PREFLIGHT_CONCURRENCY = 12;
+
 export async function previewDuplicateResolveSafely(
   repo: VideoRepository,
   metadataQueue: Pick<MetadataQueue, "enqueue">,
@@ -32,13 +36,17 @@ export async function previewDuplicateResolveSafely(
 ): Promise<DuplicateResolvePreviewResult> {
   const entries = repo.validateDuplicateResolvePlan(plan);
   const videos = uniqueVideos(entries.flatMap((entry) => [entry.keepVideo, ...entry.deleteVideos]));
-  const inspected = await mapWithConcurrency(videos, 4, (video) => inspectVideo(video, dependencies));
+  const inspected = await mapWithConcurrency(
+    videos,
+    DUPLICATE_PREFLIGHT_CONCURRENCY,
+    (video) => inspectVideo(video, dependencies)
+  );
   const changedItems = inspected.flatMap((item) => item.changedItem ? [item.changedItem] : []);
 
   if (changedItems.length === 0) {
     return {
       status: "ready",
-      preview: { ...repo.previewDuplicateResolve(plan), verificationStatus: "file_versions_current" }
+      preview: { ...summarizeResolveEntries(entries), verificationStatus: "file_versions_current" }
     };
   }
 
@@ -71,7 +79,7 @@ export async function resolveDuplicatePlanSafely(
   deleteFile: (filePath: string) => Promise<void> = permanentlyDeleteFile
 ): Promise<{ result: DuplicateResolveResult; removedVideoIds: string[] }> {
   const entries = repo.validateDuplicateResolvePlan(plan);
-  const preview = repo.previewDuplicateResolve(plan);
+  const preview = summarizeResolveEntries(entries);
   const failures: DuplicateResolveResult["failures"] = [];
   const removedVideoIds: string[] = [];
   let reclaimedBytes = 0;
@@ -112,6 +120,26 @@ export async function resolveDuplicatePlanSafely(
       reclaimedBytes,
       failures
     }
+  };
+}
+
+function summarizeResolveEntries(entries: ValidatedDuplicateResolveEntry[]): {
+  groupCount: number;
+  keepCount: number;
+  deleteCount: number;
+  reclaimableBytes: number;
+} {
+  let deleteCount = 0;
+  let reclaimableBytes = 0;
+  for (const entry of entries) {
+    deleteCount += entry.deleteVideos.length;
+    reclaimableBytes += entry.deleteVideos.reduce((total, video) => total + video.sizeBytes, 0);
+  }
+  return {
+    groupCount: entries.length,
+    keepCount: entries.length,
+    deleteCount,
+    reclaimableBytes
   };
 }
 
