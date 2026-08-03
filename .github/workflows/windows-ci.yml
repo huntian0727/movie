@@ -63,3 +63,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/dependency-review-action@v4
+        # Dependency review is unavailable until the repository dependency graph is enabled.
+        # Keep the advisory signal without failing otherwise healthy Windows builds.
+        continue-on-error: true
