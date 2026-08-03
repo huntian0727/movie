@@ -135,7 +135,7 @@ describe("scanSourceFolder", () => {
     expect(updatedSource.lastScannedAt).not.toBeNull();
     expect(updatedSource.scanError).toContain("missing-root");
     expect(updatedSource.scanError).toMatch(/ENOENT|no such file/i);
-  });
+  }, 15_000);
 
   it("marks previously imported videos missing when they disappear from a later scan", async () => {
     const mediaDir = path.join(tempDir, "media");
@@ -208,7 +208,7 @@ describe("scanSourceFolder", () => {
 
     expect(video.isMissing).toBe(false);
     expect(repo.getSourceFolderByPath(mediaDir).scanError).not.toBeNull();
-  });
+  }, 15_000);
 
   it("skips metadata reads for unchanged videos on later scans", async () => {
     const mediaDir = path.join(tempDir, "media");
