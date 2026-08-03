@@ -203,7 +203,7 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
       dbPath
     );
   }
-  requireTables(db, ["source_folders", "videos", "timeline_previews", "play_history", "directory_snapshots", "scan_failures", "scan_tasks"]);
+  requireTables(db, ["source_folders", "videos", "timeline_previews", "play_history", "directory_snapshots", "scan_failures", "scan_tasks", "duplicate_cleanup_jobs", "duplicate_cleanup_items", "duplicate_cleanup_reservations"]);
   requireColumns(db, "source_folders", [
     "id", "path", "recursive", "enabled", "last_scanned_at", "created_at", "updated_at", "scan_error"
   ]);
@@ -226,6 +226,9 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
     "retry_count", "status", "resolved_at"
   ]);
   requireColumns(db, "scan_tasks", ["id", "source_folder_id", "mode", "status", "started_at", "completed_at", "counters_json"]);
+  requireColumns(db, "duplicate_cleanup_jobs", ["id", "request_id", "status", "total_items", "processed_items", "planned_reclaimable_bytes", "created_at", "updated_at"]);
+  requireColumns(db, "duplicate_cleanup_items", ["id", "job_id", "group_key", "keep_video_id", "delete_video_id", "status", "outcome_code"]);
+  requireColumns(db, "duplicate_cleanup_reservations", ["id", "job_id", "video_id", "role", "released_at"]);
   validateIntegrity(db);
 }
 

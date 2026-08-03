@@ -1222,6 +1222,13 @@ export class VideoRepository {
         AND metadata_status = 'ready'
         AND duration_ms IS NOT NULL
         AND duration_ms > 0
+        AND NOT EXISTS (
+          SELECT 1 FROM duplicate_cleanup_reservations active_reservation
+          JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
+          WHERE active_reservation.released_at IS NULL
+            AND reserved_video.size_bytes = videos.size_bytes
+            AND reserved_video.duration_ms = videos.duration_ms
+        )
         AND (size_bytes, duration_ms) IN (${scopedIdentitiesQuery})
       GROUP BY size_bytes, duration_ms
       HAVING COUNT(*) >= 2
@@ -1272,6 +1279,13 @@ export class VideoRepository {
           AND metadata_status = 'ready'
           AND duration_ms IS NOT NULL
           AND duration_ms > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM duplicate_cleanup_reservations active_reservation
+            JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
+            WHERE active_reservation.released_at IS NULL
+              AND reserved_video.size_bytes = videos.size_bytes
+              AND reserved_video.duration_ms = videos.duration_ms
+          )
         GROUP BY size_bytes, duration_ms
         HAVING COUNT(*) >= 2
       )
@@ -1485,6 +1499,13 @@ export class VideoRepository {
             AND size_bytes = ?
             AND metadata_status = 'ready'
             AND duration_ms = ?
+            AND NOT EXISTS (
+              SELECT 1 FROM duplicate_cleanup_reservations active_reservation
+              JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
+              WHERE active_reservation.released_at IS NULL
+                AND reserved_video.size_bytes = videos.size_bytes
+                AND reserved_video.duration_ms = videos.duration_ms
+            )
           ORDER BY filename ASC
         `
       )

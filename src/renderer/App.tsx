@@ -498,6 +498,7 @@ export function App() {
       onRegenerateCover={regenerateCover}
       onRetryMetadata={retryMetadata}
       onLoadDuplicateGroups={api?.listDuplicateGroups}
+      duplicateCleanupApi={api ?? undefined}
       recentVideoIds={recentVideoIds}
       onPreviewDuplicateResolve={async (plan: DuplicateResolvePlan) => (api ? api.previewDuplicateResolve(plan) : {
         status: "ready" as const,

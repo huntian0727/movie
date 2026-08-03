@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
-import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
@@ -60,6 +60,7 @@ interface LibraryShellProps {
   recentVideoIds?: string[];
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -107,6 +108,7 @@ export function LibraryShell({
   recentVideoIds = EMPTY_RECENT_VIDEO_IDS,
   onPreviewDuplicateResolve,
   onResolveDuplicateGroups,
+  duplicateCleanupApi,
   onRevealInFolder,
   onPreviewRemoveFolder,
   onOpenSettings
@@ -856,6 +858,15 @@ export function LibraryShell({
               setDuplicateRefreshVersion((current) => current + 1);
               return result;
             }}
+            onSubmitCleanup={duplicateCleanupApi ? (requestId, plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId, plan, sourceView: "duplicates" }) : undefined}
+            onLoadCleanupJobs={duplicateCleanupApi?.listDuplicateCleanupJobs}
+            onLoadCleanupItems={duplicateCleanupApi?.listDuplicateCleanupItems}
+            onCancelCleanup={duplicateCleanupApi?.cancelDuplicateCleanup}
+            onResumeCleanup={duplicateCleanupApi?.resumeDuplicateCleanup}
+            onRetryCleanup={duplicateCleanupApi?.retryDuplicateCleanup}
+            onClearCleanup={duplicateCleanupApi?.clearDuplicateCleanup}
+            onOpenCleanupItem={duplicateCleanupApi?.openDuplicateCleanupItem}
+            cleanupRefreshSequence={refreshSequence}
           />
         ) : (loading || videoPageLoading) && renderedVideos.length === 0 ? (
           <div className="loading-state"><span /><p>正在读取视频资料...</p></div>
