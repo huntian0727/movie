@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DuplicateGroupsPage } from "../../src/renderer/components/DuplicateGroupsPage";
 import type { DuplicateGroup, VideoRecord } from "../../src/shared/videoTypes";
@@ -124,6 +124,33 @@ describe("DuplicateGroupsPage", () => {
 
     await waitFor(() => expect(onResolve).toHaveBeenCalledOnce());
     expect(screen.getByText(/成功删除 1 个文件/)).toBeInTheDocument();
+  });
+
+  it("shows the safety preflight immediately while slow storage is still being checked", async () => {
+    let finishPreview: ((value: typeof readyPreview) => void) | undefined;
+    const onPreviewResolve = vi.fn(() => new Promise<typeof readyPreview>((resolve) => {
+      finishPreview = resolve;
+    }));
+
+    render(
+      <DuplicateGroupsPage
+        groups={groups}
+        onOpen={vi.fn()}
+        onViewDetails={vi.fn()}
+        onPreviewResolve={onPreviewResolve}
+        onResolve={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页" }));
+
+    expect(await screen.findByRole("dialog", { name: "正在安全复查当前页" })).toBeInTheDocument();
+    expect(screen.getByText(/正在并行检查 2 个文件/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "正在安全复查..." })).toBeDisabled();
+
+    await act(async () => finishPreview?.(readyPreview));
+    expect(await screen.findByRole("button", { name: "确认删除" })).toBeEnabled();
+    expect(screen.queryByRole("dialog", { name: "正在安全复查当前页" })).not.toBeInTheDocument();
   });
 
   it("shows structured stale details, refreshes groups, and requires a new confirmation", async () => {
