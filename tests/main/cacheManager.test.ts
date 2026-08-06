@@ -23,7 +23,7 @@ const generousLimits = {
 
 afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
-});
+}, 30_000);
 
 describe("MediaCacheManager", () => {
   it("evicts the least-recently-used entries when category or total quotas are exceeded", async () => {

@@ -311,6 +311,8 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.duplicateResolve, async (_event, payload) => {
     const plan = duplicateResolvePlanSchema.parse(payload);
+    const videoIds = plan.groups.flatMap((group) => [group.keepVideoId, ...group.deleteVideoIds]);
+    dependencies.duplicateCleanup.assertVideosAvailable(videoIds);
     const execution = await resolveDuplicatePlanSafely(repo, plan);
     dependencies.cacheManager.scheduleMaintenance(true);
     publishRemovedVideos(repo, execution.removedVideoIds, dependencies.domainEvents);

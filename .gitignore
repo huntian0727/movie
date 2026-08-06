@@ -75,3 +75,6 @@ diagnostic-bundles/
 support-bundles/
 diagnostic-*.zip
 support-bundle*.zip
+
+# Vite/vitest config cache
+vitest.config.ts.timestamp-*.mjs

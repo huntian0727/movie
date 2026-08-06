@@ -16,20 +16,27 @@ type Inspection =
   | { status: "stale"; stats: Stats; message: string }
   | { status: "unreadable"; message: string };
 
+interface DuplicateCleanupServiceOptions {
+  deleteFile?: (filePath: string) => Promise<void>;
+}
+
 export class DuplicateCleanupService {
   private readonly pendingJobs: string[] = [];
   private pumping = false;
   private stopped = false;
   private currentJobId: string | null = null;
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly deleteFile: (filePath: string) => Promise<void>;
 
   constructor(
     private readonly jobs: DuplicateCleanupRepository,
     private readonly videos: VideoRepository,
     private readonly metadataQueue: MetadataQueue,
     private readonly cacheManager: MediaCacheManager,
-    private readonly domainEvents: DomainEventBus
+    private readonly domainEvents: DomainEventBus,
+    options: DuplicateCleanupServiceOptions = {}
   ) {
+    this.deleteFile = options.deleteFile ?? permanentlyDeleteFile;
     this.jobs.interruptActiveJobs();
   }
 
@@ -113,6 +120,7 @@ export class DuplicateCleanupService {
       const keep = groupItems[0];
       const keepInspection = await this.inspect(keep.keep_path, keep.expected_keep_size_bytes, keep.expected_keep_modified_at);
       if (this.stopped) return;
+      if (this.jobs.isCancelling(jobId)) break;
       if (keepInspection.status !== "current") {
         await this.refreshChangedVideo(keep.keep_video_id, keep.keep_path, keep.expected_keep_size_bytes, keep.expected_keep_modified_at, keepInspection);
         for (const item of groupItems) this.jobs.updateItem(item.id, "skipped", `keep-${keepInspection.status}`, `保留文件状态异常：${keepInspection.message}`);
@@ -158,7 +166,7 @@ export class DuplicateCleanupService {
 
     this.jobs.updateItem(item.id, "deleting");
     try {
-      await permanentlyDeleteFile(item.delete_path);
+      await this.deleteFile(item.delete_path);
       if (this.stopped) return;
       this.videos.removeVideo(item.delete_video_id);
       this.jobs.updateItem(item.id, "deleted", "deleted", null);
