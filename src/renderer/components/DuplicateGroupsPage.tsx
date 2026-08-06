@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { FolderOpen, Info, ListTodo, LoaderCircle, Play, Trash2 } from "lucide-react";
 import type {
   DuplicateGroup,
@@ -19,6 +19,7 @@ import type {
 import { formatBytes, formatDate, formatDuration } from "./formatters";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { DuplicateCleanupTasksPanel } from "./DuplicateCleanupTasksPanel";
+import { DuplicateCleanupButton } from "./DuplicateCleanupButton";
 
 interface DuplicateGroupsPageProps {
   groups: DuplicateGroup[];
@@ -100,17 +101,16 @@ export function DuplicateGroupsPage({
   const [resolveResult, setResolveResult] = useState<DuplicateResolveResult | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
-  const [previewPending, setPreviewPending] = useState(false);
-  const [previewElapsedSeconds, setPreviewElapsedSeconds] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
   const [internalSizeSortDirection, setInternalSizeSortDirection] = useState<SortDirection>("desc");
   const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
   const [taskCenterOpen, setTaskCenterOpen] = useState(false);
   const [activeTaskCount, setActiveTaskCount] = useState(0);
-  const [acceptedMessage, setAcceptedMessage] = useState<string | null>(null);
-  const [buttonState, setButtonState] = useState<"idle" | "pressing" | "confirming" | "submitting" | "accepted">("idle");
+  const [directPreviewPending, setDirectPreviewPending] = useState(false);
+  const [directPreviewElapsed, setDirectPreviewElapsed] = useState(0);
   const submitGuardRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sizeSortDirection = controlledSizeSortDirection ?? internalSizeSortDirection;
   const previewFileCount = useMemo(() => new Set(planVideoIds(groups, selectedKeepByGroup)).size, [groups, selectedKeepByGroup]);
 
@@ -131,14 +131,6 @@ export function DuplicateGroupsPage({
     void onLoadCleanupJobs(1, 20).then((result) => setActiveTaskCount(result.activeCount)).catch(() => undefined);
   }, [onLoadCleanupJobs, cleanupRefreshSequence]);
 
-  useEffect(() => {
-    if (!previewPending) return;
-    const startedAt = Date.now();
-    setPreviewElapsedSeconds(0);
-    const timer = window.setInterval(() => setPreviewElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
-    return () => window.clearInterval(timer);
-  }, [previewPending]);
-
   const plan = useMemo<DuplicateResolvePlan>(
     () => ({
       groups: groups.map((group) => {
@@ -157,75 +149,48 @@ export function DuplicateGroupsPage({
     setSelectedKeepByGroup(Object.fromEntries(groups.map((group) => [group.groupKey, group.recommendedKeepVideoId])));
   };
 
-  const handlePreview = async () => {
-    if (actionPending || submitGuardRef.current) return;
-    requestIdRef.current ??= globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-    setActionError(null);
-    setResolveResult(null);
-    if (!onSubmitCleanup && onPreviewResolve) {
-      setActionPending(true);
-      setPreviewPending(true);
-      try {
-        const result = await onPreviewResolve(plan);
-        if (result.status === "stale") {
-          setStaleVideosById(Object.fromEntries(groups.flatMap((group) => group.items.map((item) => [item.video.id, item.video]))));
-          setStaleItems(result.changedItems);
-          onRefresh?.();
-          return;
-        }
-        setPreview(result.preview);
-        setButtonState("confirming");
-        setConfirmOpen(true);
-      } catch (cause) {
-        setActionError(toDuplicateActionMessage(cause));
-      } finally {
-        setPreviewPending(false);
-        setActionPending(false);
-      }
-      return;
-    }
-    setButtonState("confirming");
-    setPreview({
-      verificationStatus: "file_versions_current",
-      groupCount: plan.groups.length,
-      keepCount: plan.groups.length,
-      deleteCount: plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),
-      reclaimableBytes: groups.reduce((total, group) => total + group.items
-        .filter((item) => item.video.id !== (selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId))
-        .reduce((sum, item) => sum + item.video.sizeBytes, 0), 0)
-    });
-    setConfirmOpen(true);
-  };
-
-  const handleResolve = async () => {
-    if (submitGuardRef.current) return;
+  const handleResolveFirstParty = async () => {
+    if (submitGuardRef.current || !onResolve) return;
     submitGuardRef.current = true;
     setActionPending(true);
-    setButtonState("submitting");
     setActionError(null);
 
     try {
-      if (onSubmitCleanup) {
-        const accepted = await onSubmitCleanup(requestIdRef.current ?? (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`), plan);
-        setAcceptedMessage(`后台任务已创建：${accepted.totalItems} 个文件将安全复查后依次清理。`);
-        setActiveTaskCount((count) => count + 1);
-        setButtonState("accepted");
-        requestIdRef.current = null;
-        window.setTimeout(() => setButtonState("idle"), 1200);
-        onRefresh?.();
-      } else if (onResolve) {
-        const result = await onResolve(plan);
-        setResolveResult(result);
-      } else {
-        throw new Error("重复项后台清理能力未连接");
-      }
-      setConfirmOpen(false);
-      setPreview(null);
+      const result = await onResolve(plan);
+      setResolveResult(result);
     } catch (cause) {
       setActionError(toDuplicateActionMessage(cause));
-      setButtonState("idle");
     } finally {
       submitGuardRef.current = false;
+      setActionPending(false);
+      setConfirmOpen(false);
+    }
+  };
+
+  const handlePreviewDirect = async () => {
+    if (!onPreviewResolve) return;
+    setActionPending(true);
+    setDirectPreviewPending(true);
+    setActionError(null);
+    setResolveResult(null);
+    const startedAt = Date.now();
+    setDirectPreviewElapsed(0);
+    timerRef.current = setInterval(() => setDirectPreviewElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    try {
+      const result = await onPreviewResolve(plan);
+      if (result.status === "stale") {
+        setStaleVideosById(Object.fromEntries(groups.flatMap((group) => group.items.map((item) => [item.video.id, item.video]))));
+        setStaleItems(result.changedItems);
+        onRefresh?.();
+        return;
+      }
+      setPreview(result.preview);
+      setConfirmOpen(true);
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+    } finally {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      setDirectPreviewPending(false);
       setActionPending(false);
     }
   };
@@ -264,7 +229,6 @@ export function DuplicateGroupsPage({
   return (
     <section className="duplicate-page" aria-label="重复项页面">
       {actionError && <div className="error-banner" role="alert">{actionError}</div>}
-      {acceptedMessage && <div className="success-banner" role="status">{acceptedMessage}</div>}
 
       <div className="duplicate-summary">
         <p className="duplicate-size-warning">这里只按数据库中已缓存的精确文件大小和时长识别，不读取视频内容、不计算指纹；大小和时长相同不能证明内容相同，永久删除前请播放确认。确认时只复查文件是否存在以及大小、修改时间是否变化。</p>
@@ -321,9 +285,48 @@ export function DuplicateGroupsPage({
           </label>
           <button type="button" onClick={resetSelectionToRecommended}>按推荐选择保留项</button>
           {onLoadCleanupJobs && <button type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
-          <button className="danger" type="button" data-state={buttonState} onPointerDown={() => setButtonState("pressing")} onPointerLeave={() => buttonState === "pressing" && setButtonState("idle")} onClick={() => void handlePreview()} disabled={actionPending || groups.length === 0}>
-            {previewPending ? "正在安全复查..." : buttonState === "submitting" ? "正在加入后台清理…" : buttonState === "accepted" ? "已加入后台" : "清理当前页"}
-          </button>
+          {onSubmitCleanup ? (
+            <DuplicateCleanupButton
+              plan={plan}
+              planFileCount={previewFileCount}
+              actionPending={actionPending}
+              hasGroups={groups.length > 0}
+              onClearError={() => setActionError(null)}
+              onSetError={(msg) => setActionError(msg)}
+              onRefresh={onRefresh}
+              onSubmitCleanup={onSubmitCleanup}
+              onResolveStart={() => setActionPending(true)}
+              onResolveEnd={() => setActionPending(false)}
+            />
+          ) : onPreviewResolve ? (
+            <>
+              <button className="danger" type="button" onClick={() => void handlePreviewDirect()} disabled={actionPending || groups.length === 0}>清理当前页</button>
+              {directPreviewPending && (
+                <div className="dialog-backdrop" role="presentation">
+                  <section className="dialog duplicate-preflight-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-preflight-title">
+                    <LoaderCircle className="spin" size={30} aria-hidden="true" />
+                    <h3 id="duplicate-preflight-title">正在安全复查当前页</h3>
+                    <p>正在并行检查 {previewFileCount} 个文件的存在性、大小和修改时间。网盘响应较慢时需要等待，但不会读取视频内容。</p>
+                    <strong aria-live="polite">已等待 {directPreviewElapsed} 秒</strong>
+                  </section>
+                </div>
+              )}
+              {confirmOpen && preview && (
+                <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setConfirmOpen(false); }}>
+                  <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-confirm-title">
+                    <h3 id="duplicate-confirm-title">确认批量删除重复文件</h3>
+                    <p>本次只处理当前第 {page} 页：将保留 {preview.keepCount} 个文件，计划删除 {preview.deleteCount} 个文件，预计释放 {formatBytes(preview.reclaimableBytes)}。未读取或比较视频内容。</p>
+                    {preferredDirectoryPath && <p>每个重复组会优先保留"{preferredDirectoryPath}"范围内的 1 个文件；同组其他目录的文件仍会参与清理。</p>}
+                    <p>文件将从磁盘永久删除且无法撤销，请确认保留项选择无误。</p>
+                    <div className="dialog-actions">
+                      <button type="button" onClick={() => setConfirmOpen(false)} disabled={actionPending}>取消</button>
+                      <button className="danger" type="button" aria-label="确认删除" onClick={() => void handleResolveFirstParty()} disabled={actionPending}>永久删除</button>
+                    </div>
+                  </section>
+                </div>
+              )}
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -428,36 +431,8 @@ export function DuplicateGroupsPage({
         </label>
       </div>
 
-      {confirmOpen && preview && (
-        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setConfirmOpen(false); }}>
-          <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-confirm-title">
-            <h3 id="duplicate-confirm-title">确认批量删除重复文件</h3>
-            <p>本次只处理当前第 {page} 页：将保留 {preview.keepCount} 个文件，计划删除 {preview.deleteCount} 个文件，预计释放 {formatBytes(preview.reclaimableBytes)}。未读取或比较视频内容。确认后任务立即进入后台，再逐项复查文件存在性、大小和修改时间；任何异常项都不会被误删。</p>
-            {preferredDirectoryPath && <p>每个重复组会优先保留“{preferredDirectoryPath}”范围内的 1 个文件；同组其他目录的文件仍会参与清理。</p>}
-            <p>文件将从磁盘永久删除且无法撤销，请确认保留项选择无误。</p>
-            <div className="dialog-actions">
-              <button type="button" onClick={() => setConfirmOpen(false)} disabled={actionPending}>取消</button>
-              <button className="danger" type="button" aria-label="确认删除" onClick={() => void handleResolve()} disabled={actionPending}>
-                加入后台清理
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
       {onLoadCleanupJobs && onLoadCleanupItems && onCancelCleanup && onResumeCleanup && onRetryCleanup && onClearCleanup && (
         <DuplicateCleanupTasksPanel open={taskCenterOpen} onClose={() => setTaskCenterOpen(false)} loadJobs={onLoadCleanupJobs} loadItems={onLoadCleanupItems} onCancel={onCancelCleanup} onResume={onResumeCleanup} onRetry={onRetryCleanup} onClear={onClearCleanup} onOpenItem={onOpenCleanupItem} refreshSequence={cleanupRefreshSequence} />
-      )}
-
-      {previewPending && (
-        <div className="dialog-backdrop" role="presentation">
-          <section className="dialog duplicate-preflight-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-preflight-title">
-            <LoaderCircle className="spin" size={30} aria-hidden="true" />
-            <h3 id="duplicate-preflight-title">正在安全复查当前页</h3>
-            <p>正在并行检查 {previewFileCount} 个文件的存在性、大小和修改时间。网盘响应较慢时需要等待，但不会读取视频内容。</p>
-            <strong aria-live="polite">已等待 {previewElapsedSeconds} 秒</strong>
-          </section>
-        </div>
       )}
 
       {staleItems && (

@@ -146,7 +146,7 @@ describe("DuplicateGroupsPage", () => {
 
     expect(await screen.findByRole("dialog", { name: "正在安全复查当前页" })).toBeInTheDocument();
     expect(screen.getByText(/正在并行检查 2 个文件/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "正在安全复查..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "清理当前页" })).toBeDisabled();
 
     await act(async () => finishPreview?.(readyPreview));
     expect(await screen.findByRole("button", { name: "确认删除" })).toBeEnabled();
