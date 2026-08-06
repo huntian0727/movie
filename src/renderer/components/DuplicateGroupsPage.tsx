@@ -331,85 +331,23 @@ export function DuplicateGroupsPage({
       </div>
 
       <div className="duplicate-groups">
-        {sortedGroups.map((group, index) => {
-          const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
-          const sortedItems = [...group.items].sort((left, right) => {
-            const sizeDifference = left.video.sizeBytes - right.video.sizeBytes;
-            return (sizeSortDirection === "asc" ? sizeDifference : -sizeDifference) || left.video.filename.localeCompare(right.video.filename);
-          });
-          const groupVideos = sortedItems.map((item) => item.video);
-          const deleteCount = group.items.length - 1;
-          const reclaimableBytes = group.items
-            .filter((item) => item.video.id !== keepVideoId)
-            .reduce((total, item) => total + item.video.sizeBytes, 0);
-
-          return (
-            <section className="duplicate-group-card" key={group.groupKey}>
-              <header className="duplicate-group-header">
-                <div>
-                  <h3>{`重复组 ${String((page - 1) * pageSize + index + 1).padStart(2, "0")}`}</h3>
-                  <p>{`${group.items.length} 个同大小同时长文件 · 拟删除 ${deleteCount} 个 · 预计可释放 ${formatBytes(reclaimableBytes)}`}</p>
-                </div>
-              </header>
-
-              <div className="duplicate-group-items">
-                {sortedItems.map((item) => {
-                  const isKeeping = item.video.id === keepVideoId;
-
-                  return (
-                    <article className={`duplicate-item${isKeeping ? " is-keeping" : ""}`} key={item.video.id}>
-                      <div className="duplicate-item-main">
-                        <div className="duplicate-item-heading">
-                          <strong>{item.video.filename}</strong>
-                          <span className={isKeeping ? "duplicate-badge keep" : "duplicate-badge delete"}>
-                            {isKeeping ? "保留" : "待删除"}
-                          </span>
-                          {item.isRecommendedToKeep && <span className="duplicate-badge recommend">推荐保留</span>}
-                        </div>
-                        <p className="duplicate-path" title={item.video.path}>{item.video.path}</p>
-                        <p className="duplicate-meta">
-                          <span>{item.video.width && item.video.height ? `${item.video.width}×${item.video.height}` : "分辨率未知"}</span>
-                          <i />
-                          <span>{formatBytes(item.video.sizeBytes)}</span>
-                          <i />
-                          <span>{formatDuration(item.video.durationMs)}</span>
-                          <i />
-                          <span>{formatDate(item.video.modifiedAt)}</span>
-                          {item.video.isFavorite && (
-                            <>
-                              <i />
-                              <span>已收藏</span>
-                            </>
-                          )}
-                        </p>
-                        {item.keepReason && <small className="duplicate-keep-reason">{item.keepReason}</small>}
-                      </div>
-                      <div className="duplicate-item-actions">
-                        <button type="button" className={isKeeping ? "primary" : undefined} onClick={() => setSelectedKeepByGroup((current) => ({ ...current, [group.groupKey]: item.video.id }))}>
-                          设为保留
-                        </button>
-                        <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}>
-                          <Play size={16} />
-                        </button>
-                        <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}>
-                          <Info size={16} />
-                        </button>
-                        <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}>
-                          <FolderOpen size={16} />
-                        </button>
-                        {onDelete && (
-                          <button className="danger" type="button" aria-label={`手动删除 ${item.video.filename}`} onClick={() => { setActionError(null); setDeleteTarget(item.video); }}>
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
+        {sortedGroups.map((group, index) => (
+          <DuplicateGroupCard
+            key={group.groupKey}
+            group={group}
+            index={index}
+            page={page}
+            pageSize={pageSize}
+            sizeSortDirection={sizeSortDirection}
+            selectedKeepByGroup={selectedKeepByGroup}
+            onSetKeep={(groupId, videoId) => setSelectedKeepByGroup((current) => ({ ...current, [groupId]: videoId }))}
+            onOpen={onOpen}
+            onViewDetails={onViewDetails}
+            onRevealInFolder={onRevealInFolder}
+            onDelete={onDelete}
+            onSingleDelete={(video) => { setActionError(null); setDeleteTarget(video); }}
+          />
+        ))}
       </div>
 
       <div className="pagination-bar duplicate-pagination" aria-label="重复项分页">
@@ -501,6 +439,101 @@ export function DuplicateGroupsPage({
     </section>
   );
 }
+
+const DuplicateGroupCard = memo(function DuplicateGroupCard({
+  group,
+  index,
+  page,
+  pageSize,
+  sizeSortDirection,
+  selectedKeepByGroup,
+  onSetKeep,
+  onOpen,
+  onViewDetails,
+  onRevealInFolder,
+  onDelete,
+  onSingleDelete
+}: {
+  group: DuplicateGroup;
+  index: number;
+  page: number;
+  pageSize: number;
+  sizeSortDirection: SortDirection;
+  selectedKeepByGroup: Record<string, string>;
+  onSetKeep(groupId: string, videoId: string): void;
+  onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
+  onViewDetails(video: VideoRecord): void;
+  onRevealInFolder?(video: VideoRecord): void | Promise<void>;
+  onDelete?(video: VideoRecord): void | Promise<void>;
+  onSingleDelete(video: VideoRecord): void;
+}) {
+  const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
+
+  const sortedItems = useMemo(() =>
+    [...group.items].sort((left, right) => {
+      const sizeDifference = left.video.sizeBytes - right.video.sizeBytes;
+      return (sizeSortDirection === "asc" ? sizeDifference : -sizeDifference) || left.video.filename.localeCompare(right.video.filename);
+    }),
+    [group.items, sizeSortDirection]
+  );
+
+  const groupVideos = useMemo(() => sortedItems.map((item) => item.video), [sortedItems]);
+  const deleteCount = group.items.length - 1;
+  const reclaimableBytes = useMemo(() =>
+    group.items.filter((item) => item.video.id !== keepVideoId).reduce((total, item) => total + item.video.sizeBytes, 0),
+    [group.items, keepVideoId]
+  );
+
+  return (
+    <section className="duplicate-group-card" key={group.groupKey}>
+      <header className="duplicate-group-header">
+        <div>
+          <h3>{`重复组 ${String((page - 1) * pageSize + index + 1).padStart(2, "0")}`}</h3>
+          <p>{`${group.items.length} 个同大小同时长文件 · 拟删除 ${deleteCount} 个 · 预计可释放 ${formatBytes(reclaimableBytes)}`}</p>
+        </div>
+      </header>
+      <div className="duplicate-group-items">
+        {sortedItems.map((item) => {
+          const isKeeping = item.video.id === keepVideoId;
+          return (
+            <article className={`duplicate-item${isKeeping ? " is-keeping" : ""}`} key={item.video.id}>
+              <div className="duplicate-item-main">
+                <div className="duplicate-item-heading">
+                  <strong>{item.video.filename}</strong>
+                  <span className={isKeeping ? "duplicate-badge keep" : "duplicate-badge delete"}>
+                    {isKeeping ? "保留" : "待删除"}
+                  </span>
+                  {item.isRecommendedToKeep && <span className="duplicate-badge recommend">推荐保留</span>}
+                </div>
+                <p className="duplicate-path" title={item.video.path}>{item.video.path}</p>
+                <p className="duplicate-meta">
+                  <span>{item.video.width && item.video.height ? `${item.video.width}×${item.video.height}` : "分辨率未知"}</span>
+                  <i />
+                  <span>{formatBytes(item.video.sizeBytes)}</span>
+                  <i />
+                  <span>{formatDuration(item.video.durationMs)}</span>
+                  <i />
+                  <span>{formatDate(item.video.modifiedAt)}</span>
+                  {item.video.isFavorite && (<><i /><span>已收藏</span></>)}
+                </p>
+                {item.keepReason && <small className="duplicate-keep-reason">{item.keepReason}</small>}
+              </div>
+              <div className="duplicate-item-actions">
+                <button type="button" className={isKeeping ? "primary" : undefined} onClick={() => onSetKeep(group.groupKey, item.video.id)}>设为保留</button>
+                <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
+                <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
+                <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
+                {onDelete && (
+                  <button className="danger" type="button" aria-label={`手动删除 ${item.video.filename}`} onClick={() => onSingleDelete(item.video)}><Trash2 size={16} /></button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+});
 
 function planVideoIds(groups: DuplicateGroup[], selectedKeepByGroup: Record<string, string>): string[] {
   return groups.flatMap((group) => {
