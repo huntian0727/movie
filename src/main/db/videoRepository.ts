@@ -380,11 +380,17 @@ export class VideoRepository {
   }
 
   markDirectorySnapshotIncomplete(sourceFolderId: string, directoryPath: string): void {
+    const now = new Date().toISOString();
+    const normalizedPath = normalizeManagedPath(directoryPath);
     this.db.prepare(`
-      UPDATE directory_snapshots
-      SET is_complete = 0, has_unresolved_failure = 1, updated_at = ?
-      WHERE source_folder_id = ? AND normalized_path = ?
-    `).run(new Date().toISOString(), sourceFolderId, normalizeManagedPath(directoryPath));
+      INSERT INTO directory_snapshots (
+        source_folder_id, directory_path, normalized_path,
+        directory_mtime, direct_video_count, direct_child_count, direct_entry_digest,
+        is_complete, has_unresolved_failure, updated_at
+      ) VALUES (?, ?, ?, ?, 0, 0, ?, 0, 1, ?)
+      ON CONFLICT(source_folder_id, normalized_path) DO UPDATE SET
+        is_complete = 0, has_unresolved_failure = 1, updated_at = excluded.updated_at
+    `).run(sourceFolderId, directoryPath, normalizedPath, now, '', now);
   }
 
   listDirectChildSnapshots(sourceFolderId: string, parentDirectoryPath: string): DirectorySnapshot[] {
