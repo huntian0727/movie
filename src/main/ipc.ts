@@ -309,6 +309,24 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return result;
   });
 
+  ipcMain.handle(IPC_CHANNELS.duplicateCheckMissing, async (_event, payload) => {
+    const plan = duplicateResolvePlanSchema.parse(payload);
+    const videoIds = plan.groups.flatMap((group) => [group.keepVideoId, ...group.deleteVideoIds]);
+    const result = await previewDuplicateResolveSafely(repo, dependencies.metadataQueue, plan);
+    if (result.status === "stale") {
+      dependencies.domainEvents.publish({
+        type: "video:updated",
+        videoIds: result.changedItems.filter((item) => item.changeType !== "unreadable").map((item) => item.videoId)
+      });
+    }
+    const changedItems = result.status === "stale" ? result.changedItems : [];
+    return {
+      checkedFileCount: videoIds.length,
+      removedCount: changedItems.filter((item) => item.changeType === "missing").length,
+      changedCount: changedItems.filter((item) => item.changeType !== "missing" && item.changeType !== "unreadable").length
+    };
+  });
+
   ipcMain.handle(IPC_CHANNELS.duplicateResolve, async (_event, payload) => {
     const plan = duplicateResolvePlanSchema.parse(payload);
     const videoIds = plan.groups.flatMap((group) => [group.keepVideoId, ...group.deleteVideoIds]);

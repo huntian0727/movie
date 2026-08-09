@@ -60,7 +60,7 @@ interface LibraryShellProps {
   recentVideoIds?: string[];
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
-  duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">;
+  duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -850,6 +850,7 @@ export function LibraryShell({
               }
               return onPreviewDuplicateResolve(plan);
             }}
+            onCheckMissing={duplicateCleanupApi?.checkDuplicateMissing}
             onResolve={async (plan) => {
               if (!onResolveDuplicateGroups) {
                 throw new Error("重复项清理能力未连接");

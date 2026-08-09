@@ -9,6 +9,7 @@ import type {
   DuplicateResolvePreview,
   DuplicateResolvePreviewResult,
   DuplicateResolveResult,
+  DuplicateMissingCheckResult,
   DuplicateCleanupAccepted,
   DuplicateCleanupItemPage,
   DuplicateCleanupJob,
@@ -46,6 +47,7 @@ interface DuplicateGroupsPageProps {
   onDelete?(video: VideoRecord): void | Promise<void>;
   onRefresh?(): void;
   onPreviewResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
+  onCheckMissing?(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   onSubmitCleanup?(requestId: string, plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onLoadCleanupJobs?(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;
@@ -83,6 +85,7 @@ export function DuplicateGroupsPage({
   onDelete,
   onRefresh,
   onPreviewResolve,
+  onCheckMissing,
   onResolve,
   onSubmitCleanup,
   onLoadCleanupJobs,
@@ -108,6 +111,8 @@ export function DuplicateGroupsPage({
   const [activeTaskCount, setActiveTaskCount] = useState(0);
   const [directPreviewPending, setDirectPreviewPending] = useState(false);
   const [directPreviewElapsed, setDirectPreviewElapsed] = useState(0);
+  const [missingCheckPending, setMissingCheckPending] = useState(false);
+  const [missingCheckMessage, setMissingCheckMessage] = useState<string | null>(null);
   const submitGuardRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -195,6 +200,24 @@ export function DuplicateGroupsPage({
     }
   };
 
+  const handleCheckMissing = async () => {
+    if (!onCheckMissing || missingCheckPending) return;
+    setMissingCheckPending(true);
+    setMissingCheckMessage(null);
+    try {
+      const result = await onCheckMissing(plan);
+      const parts: string[] = [];
+      if (result.removedCount > 0) parts.push(`已从列表移除 ${result.removedCount} 个已删除文件`);
+      if (result.changedCount > 0) parts.push(`${result.changedCount} 个文件大小或修改时间已变化`);
+      setMissingCheckMessage(parts.length > 0 ? parts.join("，") : `未发现缺失文件（共复查 ${result.checkedFileCount} 个）`);
+      onRefresh?.();
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+    } finally {
+      setMissingCheckPending(false);
+    }
+  };
+
   const handleDeleteOne = async () => {
     if (!deleteTarget || !onDelete) return;
     setActionPending(true);
@@ -229,6 +252,7 @@ export function DuplicateGroupsPage({
   return (
     <section className="duplicate-page" aria-label="重复项页面">
       {actionError && <div className="error-banner" role="alert">{actionError}</div>}
+      {missingCheckMessage && <div className="success-banner" role="status">{missingCheckMessage}</div>}
 
       <div className="duplicate-summary">
         <p className="duplicate-size-warning">这里只按数据库中已缓存的精确文件大小和时长识别，不读取视频内容、不计算指纹；大小和时长相同不能证明内容相同，永久删除前请播放确认。确认时只复查文件是否存在以及大小、修改时间是否变化。</p>
@@ -284,6 +308,9 @@ export function DuplicateGroupsPage({
             </select>
           </label>
           <button type="button" onClick={resetSelectionToRecommended}>按推荐选择保留项</button>
+          {onCheckMissing && <button type="button" className={missingCheckPending ? "is-pending" : undefined} disabled={missingCheckPending || actionPending || groups.length === 0} onClick={() => void handleCheckMissing()}>
+            {missingCheckPending ? `正在复查 ${previewFileCount} 个文件...` : "检查缺失文件"}
+          </button>}
           {onLoadCleanupJobs && <button type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
           {onSubmitCleanup ? (
             <DuplicateCleanupButton

@@ -260,6 +260,12 @@ export type DuplicateResolvePreviewResult =
   | { status: "ready"; preview: DuplicateResolvePreview }
   | { status: "stale"; changedItems: DuplicateResolveChangedItem[] };
 
+export interface DuplicateMissingCheckResult {
+  checkedFileCount: number;
+  removedCount: number;
+  changedCount: number;
+}
+
 export interface DuplicateResolveFailure {
   groupKey: string;
   videoId: string;
@@ -579,6 +585,7 @@ export const IPC_CHANNELS = {
   folderScanResume: "folder-scan:resume",
   duplicateList: "duplicate:list",
   duplicatePreviewResolve: "duplicate:preview-resolve",
+  duplicateCheckMissing: "duplicate:check-missing",
   duplicateResolve: "duplicate:resolve",
   duplicateCleanupSubmit: "duplicate-cleanup:submit",
   duplicateCleanupJobs: "duplicate-cleanup:jobs",
@@ -625,6 +632,7 @@ export interface VideoManagerApi {
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
+  checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   resolveDuplicateGroups(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
   listDuplicateCleanupJobs(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;

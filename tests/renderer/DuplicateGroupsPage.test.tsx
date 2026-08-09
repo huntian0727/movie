@@ -337,4 +337,62 @@ describe("DuplicateGroupsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "返回全部重复项" }));
     expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("");
   });
+
+  it("checks missing files and reports removed duplicates", async () => {
+    const onRefresh = vi.fn();
+    const onCheckMissing = vi.fn().mockResolvedValue({ checkedFileCount: 2, removedCount: 1, changedCount: 0 });
+    render(
+      <DuplicateGroupsPage
+        groups={groups}
+        onOpen={vi.fn()}
+        onViewDetails={vi.fn()}
+        onRefresh={onRefresh}
+        onCheckMissing={onCheckMissing}
+        onPreviewResolve={vi.fn()}
+        onResolve={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "检查缺失文件" }));
+    expect(screen.getByRole("button", { name: /正在复查 2 个文件/ })).toBeInTheDocument();
+
+    await waitFor(() => expect(onCheckMissing).toHaveBeenCalledOnce());
+    expect(screen.getByText(/已从列表移除 1 个已删除文件/)).toBeInTheDocument();
+    expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("reports when no missing files are found", async () => {
+    const onCheckMissing = vi.fn().mockResolvedValue({ checkedFileCount: 2, removedCount: 0, changedCount: 0 });
+    render(
+      <DuplicateGroupsPage
+        groups={groups}
+        onOpen={vi.fn()}
+        onViewDetails={vi.fn()}
+        onCheckMissing={onCheckMissing}
+        onPreviewResolve={vi.fn()}
+        onResolve={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "检查缺失文件" }));
+    await waitFor(() => expect(screen.getByText(/未发现缺失文件（共复查 2 个）/)).toBeInTheDocument());
+  });
+
+  it("surfaces check-missing errors without losing the button", async () => {
+    const onCheckMissing = vi.fn().mockRejectedValue(new Error("无法读取文件状态"));
+    render(
+      <DuplicateGroupsPage
+        groups={groups}
+        onOpen={vi.fn()}
+        onViewDetails={vi.fn()}
+        onCheckMissing={onCheckMissing}
+        onPreviewResolve={vi.fn()}
+        onResolve={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "检查缺失文件" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法读取文件状态");
+    expect(screen.getByRole("button", { name: "检查缺失文件" })).toBeInTheDocument();
+  });
 });
