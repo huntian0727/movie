@@ -160,7 +160,9 @@ const trustedEntryUrl = entryArgument
   : "";
 
 if (isTrustedRendererLocation(window.location.href, trustedEntryUrl)) {
-  contextBridge.exposeInMainWorld("videoManager", windowRole === "main" ? mainApi : playerApi);
+  const api = windowRole === "main" ? mainApi : playerApi;
+  const windowMode = windowRole === "player" ? "player" : "main";
+  contextBridge.exposeInMainWorld("videoManager", { ...api, windowMode });
 }
 
 function isTrustedRendererLocation(candidateUrl: string, entryUrl: string): boolean {

@@ -16,4 +16,4 @@ export const migrations = [
   duplicateCleanupJobsMigration
 ] as const;
 
-export const LATEST_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0;
+export const LATEST_SCHEMA_VERSION = 7;

@@ -128,7 +128,7 @@ async function verifyPackagedRendererSecurity(currentDir: string): Promise<Recor
   });
   configureWindowSecurity(window, { role: "smoke", entryUrl });
   try {
-    await window.loadFile(entryPath, { query: { player: "1" } });
+    await window.loadFile(entryPath);
     const checks = await window.webContents.executeJavaScript(`
       (async () => {
         const rendererMounted = await new Promise((resolve) => {

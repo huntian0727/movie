@@ -81,7 +81,8 @@ export function App() {
   const [libraryRefreshSequence, setLibraryRefreshSequence] = useState(0);
   const [scanFailureRefreshSequence, setScanFailureRefreshSequence] = useState(0);
   const previousScanStates = useRef(new Map<string, FolderScanStatus["state"]>());
-  const isPlayerWindow = new URLSearchParams(window.location.search).get("player") === "1";
+  const isPlayerWindow = (typeof window !== "undefined" && (window as unknown as { videoManager?: { windowMode?: string } }).videoManager?.windowMode === "player")
+    || new URLSearchParams(window.location.search).get("player") === "1";
   const recentVideoIds = useMemo(() => playHistory.map((entry) => entry.videoId), [playHistory]);
   const getCoverUrl = useCallback((video: VideoRecord) => video.metadataStatus === "ready"
     ? `local-video://cover/${encodeURIComponent(video.id)}?v=${encodeURIComponent(`${video.updatedAt}-${settings.coverFrameTimeSeconds}`)}`

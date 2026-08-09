@@ -22,6 +22,11 @@ import { runPackagedSmoke } from "./packagedSmoke.js";
 import { configureSecurityLogger, configureWindowSecurity, installContentSecurityPolicy } from "./security.js";
 import { createSettingsStore } from "./settings/settingsStore.js";
 
+// Renderer/webviews run without hardware acceleration so the app starts on
+// machines without a usable GPU (remote desktops, VMs, older GPUs). Without
+// this, Chromium's GPU process crashes at startup and the app exits silently.
+app.disableHardwareAcceleration();
+
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? "http://127.0.0.1:5173";
 const packagedRendererPath = path.join(currentDir, "../../dist-renderer/index.html");
