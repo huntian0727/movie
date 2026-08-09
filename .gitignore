@@ -81,3 +81,7 @@ vitest.config.ts.timestamp-*.mjs
 
 # Manual packaging staging directory
 _staging/
+
+# Manual packaging and test helpers
+_asar-repack/
+_test-launch.cjs
