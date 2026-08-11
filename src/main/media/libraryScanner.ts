@@ -13,6 +13,11 @@ import type {
 } from "../../shared/videoTypes.js";
 import { isVideoExtension } from "../../shared/videoTypes.js";
 import { isManagedPathWithin, normalizeManagedPath } from "../files/pathNormalization.js";
+import {
+  tryCreateMountedCloudDriveDirectorySource,
+  type CloudDriveScanFileInfo,
+  type MountedCloudDriveDirectorySource
+} from "../clouddrive/mountedScanner.js";
 import { openDirectoryEntries, type FileDiscoveryDependencies, type DirectoryEntries } from "./fileDiscovery.js";
 import { readMetadata, type MediaMetadata } from "./metadataService.js";
 
@@ -43,6 +48,10 @@ export interface ScannerDependencies {
   isCancelled?(): boolean;
   taskId?: string;
   mode?: ScanMode;
+  cloudDirectorySource?(
+    sourceFolder: SourceFolder,
+    isCancelled?: () => boolean
+  ): Promise<MountedCloudDriveDirectorySource | null>;
 }
 
 const FILE_STAT_TIMEOUT_MS = 15_000;
@@ -70,11 +79,25 @@ interface ScanContext {
   fileFailureCount: number;
   incrementRetry: boolean;
   lastFailure: { objectType: "file" | "directory"; objectPath: string; message: string } | null;
-  missingDirectoryParentReads: Map<string, Promise<Dirent[]>>;
+  missingDirectoryParentReads: Map<string, Promise<DirectoryEntry[]>>;
+  cloudDirectorySource: MountedCloudDriveDirectorySource | null;
+}
+
+interface DirectoryEntry {
+  name: string;
+  isFile(): boolean;
+  isDirectory(): boolean;
+  scanIdentity?: string;
+  fileInfo?: CloudDriveScanFileInfo;
+}
+
+interface ScannedDirectory {
+  entries: DirectoryEntry[];
+  directoryMtime: string;
 }
 
 type FailedFilePresence =
-  | { state: "exists"; fileStat?: Stats }
+  | { state: "exists"; fileStat?: Stats | CloudDriveScanFileInfo }
   | { state: "confirmed-missing" }
   | { state: "file-unreadable"; error: unknown }
   | { state: "parent-unreadable"; parentPath: string; error: unknown };
@@ -107,7 +130,14 @@ export async function scanSourceFolder(
   sourceFolder: SourceFolder,
   dependencies: ScannerDependencies = {}
 ): Promise<ScanResult> {
-  const context = createContext(repo, sourceFolder, { ...dependencies, mode: dependencies.mode ?? "current-folder" }, false);
+  const normalizedDependencies = { ...dependencies, mode: dependencies.mode ?? "current-folder" };
+  const context = createContext(
+    repo,
+    sourceFolder,
+    normalizedDependencies,
+    false,
+    await resolveCloudDirectorySource(sourceFolder, normalizedDependencies)
+  );
   reportProgress(context, "discovering", sourceFolder.path);
   const rootReadable = await scanDirectoryTree(context, sourceFolder.path, null, true);
   return finalizeScan(context, rootReadable);
@@ -119,7 +149,14 @@ export async function retryScanFailures(
   sourceFolder: SourceFolder,
   dependencies: ScannerDependencies = {}
 ): Promise<ScanResult> {
-  const context = createContext(repo, sourceFolder, { ...dependencies, mode: "retry-failures" }, true);
+  const normalizedDependencies = { ...dependencies, mode: "retry-failures" as const };
+  const context = createContext(
+    repo,
+    sourceFolder,
+    normalizedDependencies,
+    true,
+    await resolveCloudDirectorySource(sourceFolder, normalizedDependencies)
+  );
   const failures = safeListFailures(repo, sourceFolder.id);
   context.counters.pendingFailures = failures.length;
   if (failures.length === 0) return finalizeScan(context, true);
@@ -206,7 +243,14 @@ export async function retryScanFailure(
     throw new Error("Scan failure is outside its source folder");
   }
 
-  const context = createContext(repo, sourceFolder, { ...dependencies, mode: "retry-failures" }, true);
+  const normalizedDependencies = { ...dependencies, mode: "retry-failures" as const };
+  const context = createContext(
+    repo,
+    sourceFolder,
+    normalizedDependencies,
+    true,
+    await resolveCloudDirectorySource(sourceFolder, normalizedDependencies)
+  );
   context.counters.pendingFailures = 1;
   safeMarkRetrying(repo, failure.id);
   await dependencies.waitIfPaused?.();
@@ -280,18 +324,13 @@ async function scanDirectoryTree(
   throwIfCancelled(context.dependencies);
   reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "discovering", directoryPath);
 
-  let entries: Dirent[];
-  let directoryStat: Stats;
+  let scannedDirectory: ScannedDirectory;
   try {
-    entries = await readDirectEntries(directoryPath, context.dependencies.discovery);
-    directoryStat = await withTimeout(
-      (context.dependencies.statImpl ?? stat)(directoryPath),
-      FILE_STAT_TIMEOUT_MS,
-      `Directory metadata timed out after ${FILE_STAT_TIMEOUT_MS / 1000}s`
-    );
+    scannedDirectory = await readScannedDirectory(context, directoryPath);
     throwIfCancelled(context.dependencies);
     context.counters.checkedDirectories += 1;
   } catch (error) {
+    throwIfCancelled(context.dependencies);
     if (getErrorCode(error) === "ENOENT" && !isRoot && parentDirectoryPath) {
       const confirmedMissing = await confirmMissingDirectory(context, directoryPath, parentDirectoryPath);
       if (confirmedMissing) {
@@ -308,6 +347,8 @@ async function scanDirectoryTree(
     return !isRoot;
   }
 
+  const { entries, directoryMtime } = scannedDirectory;
+
   const directVideos = entries.filter((entry) => isAcceptedVideoEntry(entry));
   const directChildren = context.sourceFolder.recursive
     ? entries.filter((entry) => entry.isDirectory())
@@ -318,7 +359,6 @@ async function scanDirectoryTree(
   context.discoveredFilePaths.push(...directVideoPaths);
 
   const digest = createDirectEntryDigest(directVideos, directChildren);
-  const directoryMtime = directoryStat.mtime.toISOString();
   const previous = safeGetSnapshot(context.repo, context.sourceFolder.id, directoryPath);
   reportProgress(context, "comparing-snapshots", directoryPath);
   const canSkip = snapshotCanSkip(previous, directoryMtime, directVideos.length, directChildren.length, digest);
@@ -333,11 +373,12 @@ async function scanDirectoryTree(
   } else {
     context.counters.changedDirectories += 1;
     let directFailures = 0;
-    for (const filePath of directVideoPaths) {
+    for (const entry of directVideos) {
+      const filePath = path.join(directoryPath, entry.name);
       await context.dependencies.waitIfPaused?.();
       throwIfCancelled(context.dependencies);
       reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
-      if (!await processVideoFile(context, filePath)) directFailures += 1;
+      if (!await processVideoFile(context, filePath, entry.fileInfo)) directFailures += 1;
       context.processedFiles += 1;
       reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
     }
@@ -362,24 +403,29 @@ async function scanDirectoryTree(
   return true;
 }
 
-async function processVideoFile(context: ScanContext, filePath: string, knownFileStat?: Stats): Promise<boolean> {
+async function processVideoFile(
+  context: ScanContext,
+  filePath: string,
+  knownFileInfo?: Stats | CloudDriveScanFileInfo
+): Promise<boolean> {
   context.counters.processedVideos += 1;
   if (context.incrementRetry) context.counters.retriedFailures += 1;
   try {
-    const fileStat = knownFileStat ?? await withTimeout(
+    const fileStat = knownFileInfo ?? await withTimeout(
       (context.dependencies.statImpl ?? stat)(filePath),
       FILE_STAT_TIMEOUT_MS,
       `File access timed out after ${FILE_STAT_TIMEOUT_MS / 1000}s`
     );
     const existing = context.repo.getVideoByPath(filePath);
-    const modifiedAt = fileStat.mtime.toISOString();
-    if (existing && existing.sizeBytes === fileStat.size && existing.modifiedAt === modifiedAt) {
+    const sizeBytes = "sizeBytes" in fileStat ? fileStat.sizeBytes : fileStat.size;
+    const modifiedAt = "modifiedAt" in fileStat ? fileStat.modifiedAt : fileStat.mtime.toISOString();
+    if (existing && existing.sizeBytes === sizeBytes && existing.modifiedAt === modifiedAt) {
       context.counters.skippedVideos += 1;
       if (existing.isMissing) context.repo.markMissing(existing.id, false);
       queuePendingMetadata(context, existing);
     } else {
       const parsed = path.parse(filePath);
-      const stored = await upsertScannedVideo(context, existing, filePath, parsed, fileStat.size, modifiedAt);
+      const stored = await upsertScannedVideo(context, existing, filePath, parsed, sizeBytes, modifiedAt);
       if (existing) context.counters.updatedVideos += 1;
       else context.counters.addedVideos += 1;
       if (context.dependencies.onMetadataPending) context.dependencies.onMetadataPending(stored.id);
@@ -498,15 +544,15 @@ function snapshotCanSkip(
     previous.directChildCount === childCount && previous.directEntryDigest === digest);
 }
 
-function createDirectEntryDigest(videos: Dirent[], children: Dirent[]): string {
+function createDirectEntryDigest(videos: DirectoryEntry[], children: DirectoryEntry[]): string {
   const entries = [
-    ...videos.map((entry) => `f:${entry.name.toLocaleLowerCase()}`),
-    ...children.map((entry) => `d:${entry.name.toLocaleLowerCase()}`)
+    ...videos.map((entry) => `f:${entry.name.toLocaleLowerCase()}:${entry.scanIdentity ?? ""}`),
+    ...children.map((entry) => `d:${entry.name.toLocaleLowerCase()}:${entry.scanIdentity ?? ""}`)
   ].sort();
   return crypto.createHash("sha256").update(entries.join("\n")).digest("hex");
 }
 
-function isAcceptedVideoEntry(entry: Dirent): boolean {
+function isAcceptedVideoEntry(entry: DirectoryEntry): boolean {
   if (!entry.isFile()) return false;
   const lowerName = entry.name.toLocaleLowerCase();
   return !SKIPPED_SUFFIXES.some((suffix) => lowerName.endsWith(suffix)) && isVideoExtension(entry.name);
@@ -534,7 +580,44 @@ async function readDirectEntries(directory: string, dependencies: FileDiscoveryD
   return result;
 }
 
+async function readScannedDirectory(context: ScanContext, directoryPath: string): Promise<ScannedDirectory> {
+  if (context.cloudDirectorySource) {
+    const listing = await context.cloudDirectorySource.readDirectory(directoryPath, context.dependencies.isCancelled);
+    return {
+      directoryMtime: listing.directoryMtime,
+      entries: listing.entries.map((entry) => ({
+        name: entry.name,
+        isFile: () => entry.kind === "file",
+        isDirectory: () => entry.kind === "directory",
+        scanIdentity: entry.scanIdentity,
+        fileInfo: entry.fileInfo
+      }))
+    };
+  }
+  const entries = await readDirectEntries(directoryPath, context.dependencies.discovery);
+  const directoryStat = await withTimeout(
+    (context.dependencies.statImpl ?? stat)(directoryPath),
+    FILE_STAT_TIMEOUT_MS,
+    `Directory metadata timed out after ${FILE_STAT_TIMEOUT_MS / 1000}s`
+  );
+  return { entries, directoryMtime: directoryStat.mtime.toISOString() };
+}
+
 async function inspectFailedFilePresence(context: ScanContext, filePath: string): Promise<FailedFilePresence> {
+  if (context.cloudDirectorySource) {
+    const parentPath = path.dirname(filePath);
+    try {
+      const listing = await readScannedDirectory(context, parentPath);
+      const normalizedTarget = normalizeManagedPath(filePath);
+      const entry = listing.entries.find((candidate) =>
+        normalizeManagedPath(path.join(parentPath, candidate.name)) === normalizedTarget
+      );
+      return entry?.isFile() ? { state: "exists", fileStat: entry.fileInfo } : { state: "confirmed-missing" };
+    } catch (error) {
+      throwIfCancelled(context.dependencies);
+      return { state: "parent-unreadable", parentPath, error };
+    }
+  }
   try {
     const fileStat = await withTimeout(
       (context.dependencies.statImpl ?? stat)(filePath),
@@ -553,6 +636,7 @@ async function inspectFailedFilePresence(context: ScanContext, filePath: string)
     const stillListed = entries.some((entry) => normalizeManagedPath(path.join(parentPath, entry.name)) === normalizedTarget);
     return stillListed ? { state: "exists" } : { state: "confirmed-missing" };
   } catch (error) {
+    throwIfCancelled(context.dependencies);
     return { state: "parent-unreadable", parentPath, error };
   }
 }
@@ -565,7 +649,7 @@ async function confirmMissingDirectory(
   const parentKey = normalizeManagedPath(parentDirectoryPath);
   let parentRead = context.missingDirectoryParentReads.get(parentKey);
   if (!parentRead) {
-    parentRead = readDirectEntries(parentDirectoryPath, context.dependencies.discovery);
+    parentRead = readScannedDirectory(context, parentDirectoryPath).then((result) => result.entries);
     context.missingDirectoryParentReads.set(parentKey, parentRead);
   }
   try {
@@ -579,7 +663,13 @@ async function confirmMissingDirectory(
   }
 }
 
-function createContext(repo: VideoRepository, sourceFolder: SourceFolder, dependencies: ScannerDependencies, incrementRetry: boolean): ScanContext {
+function createContext(
+  repo: VideoRepository,
+  sourceFolder: SourceFolder,
+  dependencies: ScannerDependencies,
+  incrementRetry: boolean,
+  cloudDirectorySource: MountedCloudDriveDirectorySource | null
+): ScanContext {
   return {
     repo,
     sourceFolder,
@@ -594,8 +684,20 @@ function createContext(repo: VideoRepository, sourceFolder: SourceFolder, depend
     fileFailureCount: 0,
     incrementRetry,
     lastFailure: null,
-    missingDirectoryParentReads: new Map()
+    missingDirectoryParentReads: new Map(),
+    cloudDirectorySource
   };
+}
+
+async function resolveCloudDirectorySource(
+  sourceFolder: SourceFolder,
+  dependencies: ScannerDependencies
+): Promise<MountedCloudDriveDirectorySource | null> {
+  const source = dependencies.cloudDirectorySource
+    ? await dependencies.cloudDirectorySource(sourceFolder, dependencies.isCancelled)
+    : await tryCreateMountedCloudDriveDirectorySource(sourceFolder, process.env, dependencies.isCancelled);
+  throwIfCancelled(dependencies);
+  return source;
 }
 
 function reportProgress(context: ScanContext, phase: ScanProgress["phase"], currentPath: string): void {

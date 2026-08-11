@@ -46,3 +46,16 @@ powershell -ExecutionPolicy Bypass -File scripts/finish-and-push.ps1 -Message "<
 这条规则用于避免“源码已更新，但桌面快捷方式仍启动旧包”的重复交付事故，不能因测试、Commit、Push 或 PR 已成功而跳过。
 
 最终回复只包含：当前分支、Commit、Push 结果、修改摘要、测试结果和阻塞项。不要重新复述整份需求或输出冗长开发过程。
+
+## CloudDrive2 Phase 1 约束
+
+CloudDrive2 开发还必须遵守相邻交接包 `movie-clouddrive-ai-developer-handoff/` 中的任务书和 API 指南。当前只实施 Phase 1；验证完成后停止，不得自动进入 MediaSourceProvider、原生播放、增量同步或原生文件操作等后续阶段。
+
+- 将 `phase1-optimization/cloud-drive-optimization.patch` 视为候选实现，先与当前 `main` 审查和语义合并，不得直接覆盖较新的仓库逻辑。
+- CloudDrive 挂载目录通过 `GetMountPoints` 映射 mount 与 `sourceDir`，通过流式 `GetSubFiles` 扫描，并使用 API 返回的 `size` / `writeTime`，避免逐视频 `fs.stat()`。
+- 本地硬盘、NAS、SMB 和现有 SQLite Windows 路径行为必须保持不变。
+- CloudDrive RPC 部分失败、超时或取消时，不得用不完整结果执行 missing reconciliation。
+- Token、JWT、敏感 Header 不得进入 Renderer、日志或源码，不得硬编码凭据。
+- 实际服务器对应的 `clouddrive.proto` 和实测行为优先于交接文档；差异必须记录。
+- 增补并执行挂载路径、大小写/尾斜杠/根路径、Unicode/空格、gRPC 分帧、大空目录、超时/取消/错误以及失败扫描安全性的测试。
+- Phase 1 完成报告必须包含：完成内容、修改文件、架构变化、实际测试结果、风险和下一步；未运行的真实 CloudDrive2 E2E 必须标记为 `NOT RUN`。
