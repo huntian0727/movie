@@ -48,3 +48,10 @@
 ## 测试覆盖
 
 `databaseMigrations.test.ts` 覆盖空库、无版本旧库、v1–v6、旧异常回填/去重/幂等/重试清除、每步故障回滚、备份可独立打开、备份失败、未知/损坏 schema、默认值/索引/FK 和幂等启动。`videoRepository.test.ts` 覆盖快照规范化、异常重试/解决和目录级缺失对账；`libraryScanner.incremental.test.ts` 覆盖快照算法。标准命令为 `npm run test:migrations` 和 `npm test`；native ABI 必须与运行测试的 Node 一致。
+# 重复项后台清理（schema v7）
+
+`duplicateCleanupRepository.ts` 负责持久化重复项清理任务、逐文件版本快照和活动占用。提交必须在一个 SQLite 事务中同时写入 `duplicate_cleanup_jobs`、`duplicate_cleanup_items` 和 keep/delete 两类 `duplicate_cleanup_reservations`；`request_id` 用于 IPC 重试幂等，活动 `video_id` 唯一索引用于阻止同一文件进入两个任务。
+
+重复项查询会排除“身份组中任意视频已被占用”的完整组。修改重复项 SQL 时不能只排除单个视频，否则会把残缺组错误展示为仍可清理。文件真实删除发生在主进程后台执行器中，顺序始终是磁盘删除成功后再删除 `videos` 记录。
+
+新增任务字段或状态仍须走正式 migration，验证旧数据库升级、`foreign_key_check`、中断恢复和 requestId 幂等；不要直接修改用户运行库。

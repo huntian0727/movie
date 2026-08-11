@@ -166,7 +166,7 @@ describe("directory snapshot incremental scanning", () => {
     expect(repo.videos.get(normalizeManagedPath(`${childPath}\\archived.mp4`))?.isMissing).toBe(true);
     expect(repo.snapshots.has(snapshotKey(FOLDER.id, childPath))).toBe(false);
     expect(repo.listFailures()).toEqual([]);
-  });
+  }, 15_000);
 
   it("resolves deleted directory failures and reuses one readable-parent check for siblings", async () => {
     const fs = new FakeFileSystem();

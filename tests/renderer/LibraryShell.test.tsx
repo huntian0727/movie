@@ -169,7 +169,7 @@ describe("LibraryShell", () => {
     render(
       <LibraryShell
         videos={[]}
-        navigation={{ totalVideos: 10, favoriteVideos: 0, pendingDeleteVideos: 2, pendingDeleteBytes: 3072, pendingMetadataVideos: 0, directoryPaths: [] }}
+        navigation={{ totalVideos: 10, favoriteVideos: 0, pendingDeleteVideos: 2, pendingDeleteBytes: 3072, pendingMetadataVideos: 0, scanFailureCount: 0, directoryPaths: [] }}
         onDeleteAllPending={onDeleteAllPending}
       />
     );
@@ -517,10 +517,14 @@ describe("LibraryShell", () => {
         videos={[video, nestedVideo]}
         duplicateGroups={duplicateGroups}
         onPreviewDuplicateResolve={vi.fn().mockResolvedValue({
-          groupCount: 1,
-          keepCount: 1,
-          deleteCount: 1,
-          reclaimableBytes: nestedVideo.sizeBytes
+          status: "ready",
+          preview: {
+            verificationStatus: "file_versions_current",
+            groupCount: 1,
+            keepCount: 1,
+            deleteCount: 1,
+            reclaimableBytes: nestedVideo.sizeBytes
+          }
         })}
         onResolveDuplicateGroups={vi.fn().mockResolvedValue({
           groupCount: 1,
@@ -741,6 +745,27 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "上次扫描存在异常" })).not.toBeInTheDocument());
   });
 
+  it("opens the scan failure review from a folder warning with that source selected", async () => {
+    const loadReview = vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0, counts: { all: 0, video: 0, unindexedFile: 0, directory: 0 } });
+    render(
+      <LibraryShell
+        videos={[video]}
+        folders={[{ ...folder, scanError: "读取失败" }]}
+        onLoadScanFailureSummary={async () => ({ sourceFolderId: folder.id, failedFileCount: 1, failedDirectoryCount: 0, totalUnresolved: 1, latestError: "读取失败", latestFailedAt: "2026-08-01", totalRetryCount: 0 })}
+        onLoadScanFailures={async () => []}
+        onLoadScanFailureReviewPage={loadReview}
+        onRetryScanFailure={vi.fn()}
+        onDeleteScanFailureFile={vi.fn()}
+        onOpenScanFailureLocation={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "查看 Movies 扫描异常" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看异常项" }));
+    expect(await screen.findByRole("heading", { name: "扫描异常" })).toBeInTheDocument();
+    await waitFor(() => expect(loadReview).toHaveBeenCalledWith(expect.objectContaining({ sourceFolderId: folder.id })));
+    expect(screen.getByRole("button", { name: "返回全部视频" })).toBeInTheDocument();
+  });
+
   it("offers a normal folder scan when a legacy warning has no failure details", async () => {
     const onScanFolder = vi.fn().mockResolvedValue(undefined);
     render(
@@ -782,7 +807,7 @@ describe("LibraryShell", () => {
       <LibraryShell
         videos={[]}
         folders={[folder]}
-        navigation={{ totalVideos: 101, favoriteVideos: 1, pendingDeleteVideos: 0, pendingDeleteBytes: 0, pendingMetadataVideos: 0, directoryPaths: ["D:\\Movies", "D:\\Movies\\Drama"] }}
+        navigation={{ totalVideos: 101, favoriteVideos: 1, pendingDeleteVideos: 0, pendingDeleteBytes: 0, pendingMetadataVideos: 0, scanFailureCount: 0, directoryPaths: ["D:\\Movies", "D:\\Movies\\Drama"] }}
         onLoadVideoPage={onLoadVideoPage}
       />
     );

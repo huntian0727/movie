@@ -4,6 +4,7 @@ import type { VideoRepository } from "../db/videoRepository.js";
 import type { StructuredLogger } from "../logging/logger.js";
 import {
   createEmptyScanCounters,
+  retryScanFailure,
   retryScanFailures,
   ScanCancelledError,
   scanSourceFolder,
@@ -13,6 +14,7 @@ import {
 import type { MetadataQueue } from "./metadataQueue.js";
 
 type Scan = (repo: VideoRepository, folder: SourceFolder, dependencies: ScannerDependencies) => Promise<ScanResult>;
+type SingleFailureScan = (repo: VideoRepository, folder: SourceFolder, failureId: string, dependencies: ScannerDependencies) => Promise<ScanResult>;
 type BatchProgress = { totalFolders: number; currentFolderIndex: number; completedFolders: number; failedFolders: number };
 interface ActiveFolderTask {
   mode: ScanMode;
@@ -22,6 +24,7 @@ interface ActiveFolderTask {
 export class ScanManager {
   private readonly statuses = new Map<string, FolderScanStatus>();
   private readonly tasks = new Map<string, ActiveFolderTask>();
+  private readonly singleFailureTasks = new Map<string, Promise<void>>();
   private readonly paused = new Set<string>();
   private readonly cancelled = new Set<string>();
   private readonly resumeWaiters = new Map<string, Set<() => void>>();
@@ -33,7 +36,8 @@ export class ScanManager {
     private readonly scan: Scan = scanSourceFolder,
     private readonly metadataQueue?: MetadataQueue,
     private readonly logger?: StructuredLogger,
-    private readonly retryScan: Scan = retryScanFailures
+    private readonly retryScan: Scan = retryScanFailures,
+    private readonly retrySingleScan: SingleFailureScan = retryScanFailure
   ) {}
 
   listStatuses(): FolderScanStatus[] {
@@ -50,6 +54,18 @@ export class ScanManager {
 
   retryFailures(folder: SourceFolder): Promise<void> {
     return this.requestRetryTask(folder);
+  }
+
+  retryFailure(folder: SourceFolder, failureId: string): Promise<void> {
+    const existing = this.singleFailureTasks.get(failureId);
+    if (existing) return existing;
+    const task = this.requestExclusiveRetryTask(
+      folder,
+      (repo, sourceFolder, dependencies) => this.retrySingleScan(repo, sourceFolder, failureId, dependencies)
+    );
+    this.singleFailureTasks.set(failureId, task);
+    void task.finally(() => { if (this.singleFailureTasks.get(failureId) === task) this.singleFailureTasks.delete(failureId); });
+    return task;
   }
 
   retryFailuresInBackground(
@@ -126,6 +142,17 @@ export class ScanManager {
     return this.hasUnresolvedFailures(folder.id)
       ? this.requestTask(folder, "retry-failures", this.retryScan)
       : Promise.resolve();
+  }
+
+  private requestExclusiveRetryTask(folder: SourceFolder, scan: Scan): Promise<void> {
+    const existing = this.tasks.get(folder.id);
+    if (existing) {
+      return existing.promise.then(() => {
+        this.clearActiveTask(folder.id, existing.promise);
+        return this.requestExclusiveRetryTask(folder, scan);
+      });
+    }
+    return this.enqueueTask(folder, "retry-failures", scan);
   }
 
   private requestTask(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress): Promise<void> {

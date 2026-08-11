@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
-import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreview, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
+import { ScanFailuresPage } from "./ScanFailuresPage";
 import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 import { VideoGrid } from "./VideoGrid";
@@ -29,6 +30,7 @@ interface LibraryShellProps {
   loading?: boolean;
   error?: string | null;
   refreshSequence?: number;
+  scanFailureRefreshSequence?: number;
   shortcuts?: ShortcutSettings;
   onAddFolder?(): void | Promise<void>;
   onRemoveFolder?(folder: SourceFolder): void | Promise<void>;
@@ -38,6 +40,10 @@ interface LibraryShellProps {
   onRetryFolderFailures?(folder: SourceFolder): void | Promise<unknown>;
   onLoadScanFailureSummary?(folder: SourceFolder): Promise<ScanFailureSummary>;
   onLoadScanFailures?(folder: SourceFolder): Promise<ScanFailure[]>;
+  onLoadScanFailureReviewPage?(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
+  onRetryScanFailure?(failureId: string): Promise<unknown>;
+  onDeleteScanFailureFile?(failureId: string): Promise<unknown>;
+  onOpenScanFailureLocation?(failureId: string): Promise<unknown>;
   onRefresh?(): void | Promise<void>;
   onOpen?(video: VideoRecord, queue: VideoRecord[]): void;
   onToggleFavorite?(video: VideoRecord): void | Promise<void>;
@@ -52,8 +58,9 @@ interface LibraryShellProps {
   duplicateGroups?: DuplicateGroup[];
   onLoadDuplicateGroups?(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   recentVideoIds?: string[];
-  onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreview>;
+  onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -71,6 +78,7 @@ export function LibraryShell({
   loading = false,
   error = null,
   refreshSequence = 0,
+  scanFailureRefreshSequence = 0,
   shortcuts = DEFAULT_SHORTCUTS,
   onAddFolder,
   onRemoveFolder,
@@ -80,6 +88,10 @@ export function LibraryShell({
   onRetryFolderFailures,
   onLoadScanFailureSummary,
   onLoadScanFailures,
+  onLoadScanFailureReviewPage,
+  onRetryScanFailure,
+  onDeleteScanFailureFile,
+  onOpenScanFailureLocation,
   onRefresh,
   onOpen,
   onToggleFavorite,
@@ -96,6 +108,7 @@ export function LibraryShell({
   recentVideoIds = EMPTY_RECENT_VIDEO_IDS,
   onPreviewDuplicateResolve,
   onResolveDuplicateGroups,
+  duplicateCleanupApi,
   onRevealInFolder,
   onPreviewRemoveFolder,
   onOpenSettings
@@ -103,6 +116,7 @@ export function LibraryShell({
 }: LibraryShellProps) {
   const [view, setView] = useState<LibraryView>("all");
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
+  const [scanFailureSourceFolderId, setScanFailureSourceFolderId] = useState<string | undefined>();
   const [folderScope, setFolderScope] = useState<"recursive" | "exact">("recursive");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [search, setSearch] = useState("");
@@ -204,7 +218,7 @@ export function LibraryShell({
   }, [folderScope, pageSize, search, selectedFolderPath, sortDirection, sortField, view]);
 
   useEffect(() => {
-    if (!onLoadVideoPage || view === "duplicates") return;
+    if (!onLoadVideoPage || view === "duplicates" || view === "scanFailures") return;
     let disposed = false;
     setVideoPageLoading(true);
     setVideoPageError(null);
@@ -344,10 +358,10 @@ export function LibraryShell({
     });
 
     return () => { disposed = true; };
-  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectoryPath, duplicatePreferredDirectoryScope, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, refreshSequence, view]);
+  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectoryPath, duplicatePreferredDirectoryScope, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
 
-  const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
-  const toolbarCount = view === "duplicates" ? duplicatePage.totalGroups : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
+  const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
+  const toolbarCount = view === "duplicates" ? duplicatePage.totalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
   const totalPages = onLoadVideoPage ? videoPage.totalPages : Math.max(1, Math.ceil(visibleVideos.length / pageSize));
   const currentPage = onLoadVideoPage ? videoPage.page : Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * pageSize;
@@ -370,7 +384,7 @@ export function LibraryShell({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (view === "duplicates" || event.defaultPrevented) return;
+      if (view === "duplicates" || view === "scanFailures" || event.defaultPrevented) return;
       if (renameTarget || deleteTarget || detailsTarget || removeFolderTarget || folderIssueTarget) return;
       const previousPage = matchesShortcut(event, shortcuts.libraryPreviousPage);
       const nextPageShortcut = matchesShortcut(event, shortcuts.libraryNextPage);
@@ -607,6 +621,9 @@ export function LibraryShell({
           <button aria-label="查看最近播放" className={view === "recent" ? "active" : undefined} onClick={() => { setView("recent"); setSelectedFolderPath(null); }}>
             <Clock3 size={18} /><span>最近播放</span><em>{recentVideoIds.length}</em>
           </button>
+          <button aria-label="查看扫描异常" className={view === "scanFailures" ? "active" : undefined} onClick={() => { setView("scanFailures"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); }}>
+            <AlertTriangle size={18} /><span>扫描异常</span><em>{navigation?.scanFailureCount ?? 0}</em>
+          </button>
           <button aria-label="查看重复项" className={view === "duplicates" ? "active" : undefined} onClick={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}>
             <CopyMinus size={18} /><span>重复项</span><em>{duplicatePage.totalGroups}</em>
           </button>
@@ -746,7 +763,7 @@ export function LibraryShell({
         <Toolbar
           title={title}
           count={toolbarCount}
-          countLabel={view === "duplicates" ? "组重复" : "部视频"}
+          countLabel={view === "duplicates" ? "组重复" : view === "scanFailures" ? "项异常" : "部视频"}
           search={search}
           sortField={sortField}
           sortDirection={sortDirection}
@@ -754,8 +771,8 @@ export function LibraryShell({
           gridCardSizeIndex={gridCardSizeIndex}
           gridCardSizeMaxIndex={GRID_CARD_WIDTH_OPTIONS.length - 1}
           loading={loading}
-          showBrowseControls={view !== "duplicates"}
-          onBack={view === "folder" ? () => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); } : undefined}
+          showBrowseControls={view !== "duplicates" && view !== "scanFailures"}
+          onBack={view === "folder" ? () => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); } : view === "scanFailures" ? () => { setView("all"); setScanFailureSourceFolderId(undefined); } : undefined}
           onSearch={setSearch}
           onSortField={setSortField}
           onToggleDirection={() => setSortDirection((current) => (current === "asc" ? "desc" : "asc"))}
@@ -767,7 +784,7 @@ export function LibraryShell({
           onRefresh={() => void onRefresh?.()}
         />
 
-        {view !== "duplicates" && (
+        {view !== "duplicates" && view !== "scanFailures" && (
           <div className="batch-toolbar">
             {!selectionMode ? <>
               <button type="button" onClick={() => setSelectionMode(true)}><ListChecks size={16} /> 多选</button>
@@ -783,7 +800,23 @@ export function LibraryShell({
         )}
 
         {(error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
-        {view === "duplicates" ? (
+        {view === "scanFailures" ? (
+          onLoadScanFailureReviewPage && onRetryScanFailure && onDeleteScanFailureFile && onOpenScanFailureLocation
+            ? <ScanFailuresPage
+                folders={folders}
+                initialSourceFolderId={scanFailureSourceFolderId}
+                refreshSequence={scanFailureRefreshSequence}
+                loadPage={onLoadScanFailureReviewPage}
+                onRetry={onRetryScanFailure}
+                onDeleteFile={onDeleteScanFailureFile}
+                onOpenLocation={onOpenScanFailureLocation}
+                onOpenVideo={(video) => openVideo(video, [video])}
+                onShowDetails={viewVideoDetails}
+                onTogglePendingDelete={onTogglePendingDelete}
+                getCoverUrl={getCoverUrl}
+              />
+            : <div className="empty-state"><AlertTriangle size={36} /><h3>扫描异常能力未连接</h3></div>
+        ) : view === "duplicates" ? (
           <DuplicateGroupsPage
             groups={duplicatePage.groups}
             loading={loading || duplicateLoading}
@@ -810,12 +843,14 @@ export function LibraryShell({
               await onDelete(video);
               setDuplicateRefreshVersion((current) => current + 1);
             } : undefined}
+            onRefresh={() => setDuplicateRefreshVersion((current) => current + 1)}
             onPreviewResolve={async (plan) => {
               if (!onPreviewDuplicateResolve) {
                 throw new Error("重复项预检查能力未连接");
               }
               return onPreviewDuplicateResolve(plan);
             }}
+            onCheckMissing={duplicateCleanupApi?.checkDuplicateMissing}
             onResolve={async (plan) => {
               if (!onResolveDuplicateGroups) {
                 throw new Error("重复项清理能力未连接");
@@ -824,6 +859,15 @@ export function LibraryShell({
               setDuplicateRefreshVersion((current) => current + 1);
               return result;
             }}
+            onSubmitCleanup={duplicateCleanupApi ? (requestId, plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId, plan, sourceView: "duplicates" }) : undefined}
+            onLoadCleanupJobs={duplicateCleanupApi?.listDuplicateCleanupJobs}
+            onLoadCleanupItems={duplicateCleanupApi?.listDuplicateCleanupItems}
+            onCancelCleanup={duplicateCleanupApi?.cancelDuplicateCleanup}
+            onResumeCleanup={duplicateCleanupApi?.resumeDuplicateCleanup}
+            onRetryCleanup={duplicateCleanupApi?.retryDuplicateCleanup}
+            onClearCleanup={duplicateCleanupApi?.clearDuplicateCleanup}
+            onOpenCleanupItem={duplicateCleanupApi?.openDuplicateCleanupItem}
+            cleanupRefreshSequence={refreshSequence}
           />
         ) : (loading || videoPageLoading) && renderedVideos.length === 0 ? (
           <div className="loading-state"><span /><p>正在读取视频资料...</p></div>
@@ -894,6 +938,15 @@ export function LibraryShell({
             {actionError && <small className="dialog-error">{actionError}</small>}
             <div className="dialog-actions">
               <button onClick={() => setFolderIssueTarget(null)} disabled={actionPending}>关闭</button>
+              {folderIssueTarget.summary?.totalUnresolved !== 0 && (
+                <button onClick={() => {
+                  const folderId = folderIssueTarget.folder.id;
+                  setFolderIssueTarget(null);
+                  setSelectedFolderPath(null);
+                  setScanFailureSourceFolderId(folderId);
+                  setView("scanFailures");
+                }} disabled={actionPending || folderIssueTarget.loading}>查看异常项</button>
+              )}
               {folderIssueTarget.summary?.totalUnresolved === 0 && onScanFolder && (
                 <button
                   className="primary"

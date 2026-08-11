@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, VideoManagerApi } from "../shared/videoTypes.js";
+import type { DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
 
 // Sandboxed preloads cannot load local modules, so keep a type-checked copy of the public channel names here.
 const channels: typeof SharedIpcChannels = {
@@ -10,7 +10,17 @@ const channels: typeof SharedIpcChannels = {
   videoListByIds: "video:list-by-ids",
   duplicateList: "duplicate:list",
   duplicatePreviewResolve: "duplicate:preview-resolve",
+  duplicateCheckMissing: "duplicate:check-missing",
   duplicateResolve: "duplicate:resolve",
+  duplicateCleanupSubmit: "duplicate-cleanup:submit",
+  duplicateCleanupJobs: "duplicate-cleanup:jobs",
+  duplicateCleanupJob: "duplicate-cleanup:job",
+  duplicateCleanupItems: "duplicate-cleanup:items",
+  duplicateCleanupCancel: "duplicate-cleanup:cancel",
+  duplicateCleanupResume: "duplicate-cleanup:resume",
+  duplicateCleanupRetry: "duplicate-cleanup:retry",
+  duplicateCleanupClear: "duplicate-cleanup:clear",
+  duplicateCleanupOpenItem: "duplicate-cleanup:open-item",
   folderList: "folder:list",
   folderAdd: "folder:add",
   folderScan: "folder:scan",
@@ -18,6 +28,10 @@ const channels: typeof SharedIpcChannels = {
   folderScanFailuresRetry: "folder-scan-failures:retry",
   folderScanFailureSummary: "folder-scan-failures:summary",
   folderScanFailureList: "folder-scan-failures:list",
+  scanFailureReviewPage: "scan-failure-review:page",
+  scanFailureReviewRetry: "scan-failure-review:retry",
+  scanFailureReviewDelete: "scan-failure-review:delete",
+  scanFailureReviewOpen: "scan-failure-review:open",
   folderRemove: "folder:remove",
   folderRemovePreview: "folder:remove-preview",
   folderScanStatusList: "folder-scan-status:list",
@@ -59,7 +73,17 @@ const mainApi: VideoManagerApi = {
   listVideosByIds: (videoIds: string[]) => ipcRenderer.invoke(channels.videoListByIds, videoIds),
   listDuplicateGroups: (query: DuplicateGroupPageQuery) => ipcRenderer.invoke(channels.duplicateList, query),
   previewDuplicateResolve: (plan) => ipcRenderer.invoke(channels.duplicatePreviewResolve, plan),
+  checkDuplicateMissing: (plan) => ipcRenderer.invoke(channels.duplicateCheckMissing, plan),
   resolveDuplicateGroups: (plan) => ipcRenderer.invoke(channels.duplicateResolve, plan),
+  submitDuplicateCleanup: (request) => ipcRenderer.invoke(channels.duplicateCleanupSubmit, request),
+  listDuplicateCleanupJobs: (page, pageSize) => ipcRenderer.invoke(channels.duplicateCleanupJobs, { page, pageSize }),
+  getDuplicateCleanupJob: (jobId) => ipcRenderer.invoke(channels.duplicateCleanupJob, jobId),
+  listDuplicateCleanupItems: (jobId, page, pageSize) => ipcRenderer.invoke(channels.duplicateCleanupItems, { jobId, page, pageSize }),
+  cancelDuplicateCleanup: (jobId) => ipcRenderer.invoke(channels.duplicateCleanupCancel, jobId),
+  resumeDuplicateCleanup: (jobId) => ipcRenderer.invoke(channels.duplicateCleanupResume, jobId),
+  retryDuplicateCleanup: (jobId) => ipcRenderer.invoke(channels.duplicateCleanupRetry, jobId),
+  clearDuplicateCleanup: (jobId) => ipcRenderer.invoke(channels.duplicateCleanupClear, jobId),
+  openDuplicateCleanupItem: (itemId) => ipcRenderer.invoke(channels.duplicateCleanupOpenItem, itemId),
   listFolders: () => ipcRenderer.invoke(channels.folderList),
   addFolder: () => ipcRenderer.invoke(channels.folderAdd),
   scanFolder: (folderId: string) => ipcRenderer.invoke(channels.folderScan, folderId),
@@ -67,6 +91,10 @@ const mainApi: VideoManagerApi = {
   retryScanFailures: (folderId: string) => ipcRenderer.invoke(channels.folderScanFailuresRetry, folderId),
   getScanFailureSummary: (folderId: string) => ipcRenderer.invoke(channels.folderScanFailureSummary, folderId),
   listScanFailures: (folderId: string) => ipcRenderer.invoke(channels.folderScanFailureList, folderId),
+  listScanFailureReviewPage: (query: ScanFailureReviewQuery) => ipcRenderer.invoke(channels.scanFailureReviewPage, query),
+  retryScanFailure: (failureId: string) => ipcRenderer.invoke(channels.scanFailureReviewRetry, { failureId }),
+  deleteScanFailureFile: (failureId: string) => ipcRenderer.invoke(channels.scanFailureReviewDelete, { failureId }),
+  openScanFailureLocation: (failureId: string) => ipcRenderer.invoke(channels.scanFailureReviewOpen, { failureId }),
   removeFolder: (folderId: string) => ipcRenderer.invoke(channels.folderRemove, folderId),
   previewRemoveFolder: (folderId: string) => ipcRenderer.invoke(channels.folderRemovePreview, folderId),
   listFolderScanStatuses: () => ipcRenderer.invoke(channels.folderScanStatusList),
@@ -132,7 +160,9 @@ const trustedEntryUrl = entryArgument
   : "";
 
 if (isTrustedRendererLocation(window.location.href, trustedEntryUrl)) {
-  contextBridge.exposeInMainWorld("videoManager", windowRole === "main" ? mainApi : playerApi);
+  const api = windowRole === "main" ? mainApi : playerApi;
+  const windowMode = windowRole === "player" ? "player" : "main";
+  contextBridge.exposeInMainWorld("videoManager", { ...api, windowMode });
 }
 
 function isTrustedRendererLocation(candidateUrl: string, entryUrl: string): boolean {

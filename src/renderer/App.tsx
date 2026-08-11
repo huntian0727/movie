@@ -24,6 +24,7 @@ const emptyNavigation: LibraryNavigationSnapshot = {
   pendingDeleteVideos: 0,
   pendingDeleteBytes: 0,
   pendingMetadataVideos: 0,
+  scanFailureCount: 0,
   directoryPaths: []
 };
 
@@ -78,8 +79,10 @@ export function App() {
   const [navigation, setNavigation] = useState<LibraryNavigationSnapshot>(emptyNavigation);
   const [playerSession, setPlayerSession] = useState<PlayerSessionSnapshot | null>(null);
   const [libraryRefreshSequence, setLibraryRefreshSequence] = useState(0);
+  const [scanFailureRefreshSequence, setScanFailureRefreshSequence] = useState(0);
   const previousScanStates = useRef(new Map<string, FolderScanStatus["state"]>());
-  const isPlayerWindow = new URLSearchParams(window.location.search).get("player") === "1";
+  const isPlayerWindow = (typeof window !== "undefined" && (window as unknown as { videoManager?: { windowMode?: string } }).videoManager?.windowMode === "player")
+    || new URLSearchParams(window.location.search).get("player") === "1";
   const recentVideoIds = useMemo(() => playHistory.map((entry) => entry.videoId), [playHistory]);
   const getCoverUrl = useCallback((video: VideoRecord) => video.metadataStatus === "ready"
     ? `local-video://cover/${encodeURIComponent(video.id)}?v=${encodeURIComponent(`${video.updatedAt}-${settings.coverFrameTimeSeconds}`)}`
@@ -137,6 +140,7 @@ export function App() {
     }
     setLibraryRefreshSequence(event.sequence);
     if (event.type === "library:rescanned") {
+      setScanFailureRefreshSequence(event.sequence);
       await reload();
       return;
     }
@@ -445,6 +449,7 @@ export function App() {
       folders={folders}
       navigation={api ? navigation : undefined}
       refreshSequence={libraryRefreshSequence}
+      scanFailureRefreshSequence={scanFailureRefreshSequence}
       shortcuts={settings.shortcuts}
       onLoadVideoPage={api?.listVideoPage}
       scanStatuses={scanStatuses}
@@ -461,6 +466,10 @@ export function App() {
         ? api.getScanFailureSummary(folder.id)
         : Promise.resolve({ sourceFolderId: folder.id, failedFileCount: 0, failedDirectoryCount: 0, totalUnresolved: 0, latestError: null, latestFailedAt: null, totalRetryCount: 0 })}
       onLoadScanFailures={(folder) => api ? api.listScanFailures(folder.id) : Promise.resolve([])}
+      onLoadScanFailureReviewPage={api?.listScanFailureReviewPage}
+      onRetryScanFailure={(failureId) => api ? api.retryScanFailure(failureId) : Promise.resolve(false)}
+      onDeleteScanFailureFile={(failureId) => api ? api.deleteScanFailureFile(failureId) : Promise.resolve(false)}
+      onOpenScanFailureLocation={(failureId) => api ? api.openScanFailureLocation(failureId) : Promise.resolve(false)}
       onRefresh={refresh}
       onToggleFavorite={toggleFavorite}
       onTogglePendingDelete={togglePendingDelete}
@@ -490,13 +499,17 @@ export function App() {
       onRegenerateCover={regenerateCover}
       onRetryMetadata={retryMetadata}
       onLoadDuplicateGroups={api?.listDuplicateGroups}
+      duplicateCleanupApi={api ?? undefined}
       recentVideoIds={recentVideoIds}
       onPreviewDuplicateResolve={async (plan: DuplicateResolvePlan) => (api ? api.previewDuplicateResolve(plan) : {
-        verificationStatus: "file_versions_current",
-        groupCount: plan.groups.length,
-        keepCount: plan.groups.length,
-        deleteCount: plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),
-        reclaimableBytes: 0
+        status: "ready" as const,
+        preview: {
+          verificationStatus: "file_versions_current" as const,
+          groupCount: plan.groups.length,
+          keepCount: plan.groups.length,
+          deleteCount: plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),
+          reclaimableBytes: 0
+        }
       })}
       onResolveDuplicateGroups={async (plan: DuplicateResolvePlan) => {
         if (!api) {

@@ -4,6 +4,7 @@ import { contentFingerprintMigration } from "./003-content-fingerprints.js";
 import { pendingDeleteMigration } from "./004-pending-delete.js";
 import { scanSnapshotsAndFailuresMigration } from "./005-scan-snapshots-and-failures.js";
 import { legacyScanErrorsMigration } from "./006-legacy-scan-errors.js";
+import { duplicateCleanupJobsMigration } from "./007-duplicate-cleanup-jobs.js";
 
 export const migrations = [
   coreLibraryMigration,
@@ -11,7 +12,8 @@ export const migrations = [
   contentFingerprintMigration,
   pendingDeleteMigration,
   scanSnapshotsAndFailuresMigration,
-  legacyScanErrorsMigration
+  legacyScanErrorsMigration,
+  duplicateCleanupJobsMigration
 ] as const;
 
-export const LATEST_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0;
+export const LATEST_SCHEMA_VERSION = 7;

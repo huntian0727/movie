@@ -5,12 +5,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { DatabaseConnection } from "./db/database.js";
 import { createDatabase, DatabaseMigrationError } from "./db/database.js";
 import { VideoRepository } from "./db/videoRepository.js";
+import { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { ScanManager } from "./media/scanManager.js";
 import { buildCacheKey, getMediaCacheRoot, migrateLegacyMediaCache } from "./media/cacheService.js";
 import { MediaCacheManager } from "./media/cacheManager.js";
 import { MEDIA_SCHEME, registerMediaProtocol } from "./media/mediaProtocol.js";
 import { MetadataQueue } from "./media/metadataQueue.js";
+import { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import {
   createDiagnosticEnvironment,
   StructuredLogger
@@ -19,6 +21,11 @@ import { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
 import { runPackagedSmoke } from "./packagedSmoke.js";
 import { configureSecurityLogger, configureWindowSecurity, installContentSecurityPolicy } from "./security.js";
 import { createSettingsStore } from "./settings/settingsStore.js";
+
+// Renderer/webviews run without hardware acceleration so the app starts on
+// machines without a usable GPU (remote desktops, VMs, older GPUs). Without
+// this, Chromium's GPU process crashes at startup and the app exits silently.
+app.disableHardwareAcceleration();
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? "http://127.0.0.1:5173";
@@ -36,6 +43,7 @@ let database: DatabaseConnection | undefined;
 let metadataQueue: MetadataQueue | undefined;
 let mediaCacheManager: MediaCacheManager | undefined;
 let playerWindows: PlayerWindowCoordinator | undefined;
+let duplicateCleanup: DuplicateCleanupService | undefined;
 
 protocol.registerSchemesAsPrivileged([
   { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
@@ -152,6 +160,8 @@ app.whenReady().then(async () => {
     () => domainEvents.publish({ type: "source-folder:updated", videoIds: [] })
   );
   const scanManager = new ScanManager(repo, undefined, metadataQueue, logger);
+  const duplicateCleanupJobs = new DuplicateCleanupRepository(database, repo);
+  duplicateCleanup = new DuplicateCleanupService(duplicateCleanupJobs, repo, metadataQueue, mediaCacheManager, domainEvents);
   playerWindows = new PlayerWindowCoordinator(repo, { currentDir, devServerUrl, isPackaged: app.isPackaged });
   registerIpcHandlers(repo, {
     database,
@@ -175,7 +185,9 @@ app.whenReady().then(async () => {
     scanManager,
     metadataQueue,
     playerWindows,
-    domainEvents
+    domainEvents,
+    duplicateCleanup,
+    duplicateCleanupJobs
   });
   registerMediaProtocol(repo, mediaCacheManager, () => settings.get().coverFrameTimeSeconds);
   const packagedSmokePhase = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_PHASE;
@@ -267,6 +279,8 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => {
+  duplicateCleanup?.stop();
+  duplicateCleanup = undefined;
   playerWindows?.close();
   playerWindows = undefined;
   mediaCacheManager?.stop();

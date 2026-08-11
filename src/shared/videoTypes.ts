@@ -6,7 +6,7 @@ export const DUPLICATE_PAGE_SIZES = [10, 20, 50, 100, 200, 300, 500] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 export type DuplicatePageSize = (typeof DUPLICATE_PAGE_SIZES)[number];
 export type SortDirection = "asc" | "desc";
-export type LibraryView = "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "duplicates";
+export type LibraryView = "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "duplicates";
 export type ViewMode = "grid" | "table";
 export type MetadataStatus = "pending" | "ready" | "failed";
 export type CacheStatus = "pending" | "ready" | "failed";
@@ -82,6 +82,36 @@ export interface ScanFailureSummary {
   latestError: string | null;
   latestFailedAt: string | null;
   totalRetryCount: number;
+}
+
+export type ScanFailureReviewKind = "all" | "video" | "unindexed-file" | "directory";
+export type ScanFailureReviewPageSize = 30 | 50 | 100;
+
+export interface ScanFailureReviewItem {
+  failure: ScanFailure;
+  kind: Exclude<ScanFailureReviewKind, "all">;
+  video: VideoRecord | null;
+}
+
+export interface ScanFailureReviewQuery {
+  sourceFolderId?: string;
+  kind: ScanFailureReviewKind;
+  page: number;
+  pageSize: ScanFailureReviewPageSize;
+}
+
+export interface ScanFailureReviewPage {
+  items: ScanFailureReviewItem[];
+  page: number;
+  pageSize: ScanFailureReviewPageSize;
+  totalPages: number;
+  totalCount: number;
+  counts: {
+    all: number;
+    video: number;
+    unindexedFile: number;
+    directory: number;
+  };
 }
 
 export interface ScanCounters {
@@ -206,6 +236,36 @@ export interface DuplicateResolvePreview {
   reclaimableBytes: number;
 }
 
+export type DuplicateResolveChangeType =
+  | "missing"
+  | "size-changed"
+  | "mtime-changed"
+  | "size-and-mtime-changed"
+  | "unreadable";
+
+export interface DuplicateResolveChangedItem {
+  videoId: string;
+  filename: string;
+  path: string;
+  changeType: DuplicateResolveChangeType;
+  previousSizeBytes: number;
+  currentSizeBytes?: number;
+  previousModifiedAt: string;
+  currentModifiedAt?: string;
+  errorCode?: string;
+  message: string;
+}
+
+export type DuplicateResolvePreviewResult =
+  | { status: "ready"; preview: DuplicateResolvePreview }
+  | { status: "stale"; changedItems: DuplicateResolveChangedItem[] };
+
+export interface DuplicateMissingCheckResult {
+  checkedFileCount: number;
+  removedCount: number;
+  changedCount: number;
+}
+
 export interface DuplicateResolveFailure {
   groupKey: string;
   videoId: string;
@@ -220,6 +280,92 @@ export interface DuplicateResolveResult {
   failureCount: number;
   reclaimedBytes: number;
   failures: DuplicateResolveFailure[];
+}
+
+export type DuplicateCleanupJobStatus =
+  | "queued"
+  | "running"
+  | "cancelling"
+  | "cancelled"
+  | "completed"
+  | "completed_with_errors"
+  | "interrupted";
+
+export type DuplicateCleanupItemStatus =
+  | "pending"
+  | "verifying"
+  | "deleting"
+  | "deleted"
+  | "failed"
+  | "skipped"
+  | "cancelled";
+
+export interface DuplicateCleanupAccepted {
+  jobId: string;
+  requestId: string;
+  status: DuplicateCleanupJobStatus;
+  totalGroups: number;
+  totalItems: number;
+  plannedReclaimableBytes: number;
+}
+
+export interface DuplicateCleanupSubmitRequest {
+  requestId: string;
+  plan: DuplicateResolvePlan;
+  sourceView?: string;
+}
+
+export interface DuplicateCleanupJob {
+  id: string;
+  requestId: string;
+  status: DuplicateCleanupJobStatus;
+  sourceView: string | null;
+  totalGroups: number;
+  totalItems: number;
+  processedItems: number;
+  successItems: number;
+  failedItems: number;
+  skippedItems: number;
+  plannedReclaimableBytes: number;
+  reclaimedBytes: number;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+  errorSummary: string | null;
+}
+
+export interface DuplicateCleanupItem {
+  id: string;
+  jobId: string;
+  groupKey: string;
+  keepVideoId: string;
+  deleteVideoId: string;
+  filename: string;
+  directory: string;
+  expectedDeleteSizeBytes: number;
+  plannedReclaimableBytes: number;
+  status: DuplicateCleanupItemStatus;
+  outcomeCode: string | null;
+  message: string | null;
+  updatedAt: string;
+}
+
+export interface DuplicateCleanupJobPage {
+  items: DuplicateCleanupJob[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  activeCount: number;
+}
+
+export interface DuplicateCleanupItemPage {
+  items: DuplicateCleanupItem[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 }
 
 export interface BatchOperationFailure { videoId: string; path: string; message: string; code?: string; }
@@ -278,6 +424,7 @@ export interface LibraryNavigationSnapshot {
   pendingDeleteVideos: number;
   pendingDeleteBytes: number;
   pendingMetadataVideos: number;
+  scanFailureCount: number;
   directoryPaths: string[];
 }
 
@@ -389,7 +536,8 @@ export type DomainEvent =
   | { sequence: number; type: "playback:changed"; videoIds: string[] }
   | { sequence: number; type: "settings:changed"; videoIds: string[] }
   | { sequence: number; type: "source-folder:updated"; videoIds: string[] }
-  | { sequence: number; type: "library:rescanned"; videoIds: string[] };
+  | { sequence: number; type: "library:rescanned"; videoIds: string[] }
+  | { sequence: number; type: "duplicate-cleanup:changed"; videoIds: string[]; jobId: string };
 
 export type DomainEventInput =
   | { type: "video:updated"; videoIds: string[] }
@@ -398,7 +546,8 @@ export type DomainEventInput =
   | { type: "playback:changed"; videoIds: string[] }
   | { type: "settings:changed"; videoIds: string[] }
   | { type: "source-folder:updated"; videoIds: string[] }
-  | { type: "library:rescanned"; videoIds: string[] };
+  | { type: "library:rescanned"; videoIds: string[] }
+  | { type: "duplicate-cleanup:changed"; videoIds: string[]; jobId: string };
 
 export interface PlayerSessionSnapshot {
   sequence: number;
@@ -425,6 +574,10 @@ export const IPC_CHANNELS = {
   folderScanFailuresRetry: "folder-scan-failures:retry",
   folderScanFailureSummary: "folder-scan-failures:summary",
   folderScanFailureList: "folder-scan-failures:list",
+  scanFailureReviewPage: "scan-failure-review:page",
+  scanFailureReviewRetry: "scan-failure-review:retry",
+  scanFailureReviewDelete: "scan-failure-review:delete",
+  scanFailureReviewOpen: "scan-failure-review:open",
   folderRemove: "folder:remove",
   folderRemovePreview: "folder:remove-preview",
   folderScanStatusList: "folder-scan-status:list",
@@ -432,7 +585,17 @@ export const IPC_CHANNELS = {
   folderScanResume: "folder-scan:resume",
   duplicateList: "duplicate:list",
   duplicatePreviewResolve: "duplicate:preview-resolve",
+  duplicateCheckMissing: "duplicate:check-missing",
   duplicateResolve: "duplicate:resolve",
+  duplicateCleanupSubmit: "duplicate-cleanup:submit",
+  duplicateCleanupJobs: "duplicate-cleanup:jobs",
+  duplicateCleanupJob: "duplicate-cleanup:job",
+  duplicateCleanupItems: "duplicate-cleanup:items",
+  duplicateCleanupCancel: "duplicate-cleanup:cancel",
+  duplicateCleanupResume: "duplicate-cleanup:resume",
+  duplicateCleanupRetry: "duplicate-cleanup:retry",
+  duplicateCleanupClear: "duplicate-cleanup:clear",
+  duplicateCleanupOpenItem: "duplicate-cleanup:open-item",
   videoRevealInFolder: "video:reveal-in-folder",
   videoFavorite: "video:favorite",
   videoPendingDelete: "video:pending-delete",
@@ -468,8 +631,18 @@ export interface VideoManagerApi {
   listMissingVideos(): Promise<VideoRecord[]>;
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
-  previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreview>;
+  previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
+  checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   resolveDuplicateGroups(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
+  listDuplicateCleanupJobs(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;
+  getDuplicateCleanupJob(jobId: string): Promise<DuplicateCleanupJob>;
+  listDuplicateCleanupItems(jobId: string, page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupItemPage>;
+  cancelDuplicateCleanup(jobId: string): Promise<DuplicateCleanupJob>;
+  resumeDuplicateCleanup(jobId: string): Promise<DuplicateCleanupJob>;
+  retryDuplicateCleanup(jobId: string): Promise<DuplicateCleanupJob>;
+  clearDuplicateCleanup(jobId: string): Promise<boolean>;
+  openDuplicateCleanupItem(itemId: string): Promise<boolean>;
   listFolders(): Promise<SourceFolder[]>;
   addFolder(): Promise<SourceFolder | null>;
   scanFolder(folderId: string): Promise<boolean>;
@@ -477,6 +650,10 @@ export interface VideoManagerApi {
   retryScanFailures(folderId: string): Promise<boolean>;
   getScanFailureSummary(folderId: string): Promise<ScanFailureSummary>;
   listScanFailures(folderId: string): Promise<ScanFailure[]>;
+  listScanFailureReviewPage(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
+  retryScanFailure(failureId: string): Promise<boolean>;
+  deleteScanFailureFile(failureId: string): Promise<boolean>;
+  openScanFailureLocation(failureId: string): Promise<boolean>;
   removeFolder(folderId: string): Promise<SourceFolderRemovalResult>;
   previewRemoveFolder(folderId: string): Promise<SourceFolderRemovalPreview>;
   listFolderScanStatuses(): Promise<FolderScanStatus[]>;

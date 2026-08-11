@@ -178,9 +178,7 @@ function createPlayerWindow(options: PlayerWindowOptions): BrowserWindow {
 
 async function loadPlayerEntry(window: BrowserWindow, options: PlayerWindowOptions): Promise<void> {
   if (options.isPackaged) {
-    await window.loadFile(path.join(options.currentDir, "../../dist-renderer/index.html"), {
-      query: { player: "1" }
-    });
+    await window.loadFile(path.join(options.currentDir, "../../dist-renderer/index.html"));
     return;
   }
   const url = new URL(options.devServerUrl);

@@ -6,8 +6,11 @@ import path from "node:path";
 import { IPC_CHANNELS, MAX_PLAYER_QUEUE_ITEMS, SORT_FIELDS } from "../shared/videoTypes.js";
 import { isValidShortcutBinding } from "../shared/shortcuts.js";
 import type { DatabaseConnection } from "./db/database.js";
+import type { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import type { VideoRepository } from "./db/videoRepository.js";
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
+import { deleteScanFailureFile } from "./files/scanFailureActions.js";
+import { isManagedPathWithin } from "./files/pathNormalization.js";
 import {
   buildDiagnosticPackage,
   buildDiagnosticsPreview,
@@ -18,9 +21,10 @@ import type { DiagnosticEnvironment } from "./logging/types.js";
 import type { StructuredLogger } from "./logging/logger.js";
 import { buildCacheKey, getCoverPath, getCoverTimeSeconds } from "./media/cacheService.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
-import { assertFileVersion, type FileVersion } from "./media/contentFingerprint.js";
+import { previewDuplicateResolveSafely, resolveDuplicatePlanSafely } from "./media/duplicateResolveSafety.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
+import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import { playWithMpv, waitForMpvStart } from "./media/mpvController.js";
 import type { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
 import { wrapTrustedIpcHandler } from "./security.js";
@@ -35,6 +39,8 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.folderScan,
   IPC_CHANNELS.folderScanAll,
   IPC_CHANNELS.folderScanFailuresRetry,
+  IPC_CHANNELS.scanFailureReviewRetry,
+  IPC_CHANNELS.scanFailureReviewDelete,
   IPC_CHANNELS.folderRemove,
   IPC_CHANNELS.folderScanPause,
   IPC_CHANNELS.folderScanResume,
@@ -143,6 +149,16 @@ const duplicateResolvePlanSchema = z
     )
   })
   .strict();
+const duplicateCleanupSubmitSchema = z.object({
+  requestId: z.string().min(1).max(200),
+  plan: duplicateResolvePlanSchema,
+  sourceView: z.string().max(100).optional()
+}).strict();
+const duplicateCleanupPageSchema = z.object({
+  page: z.number().int().min(1),
+  pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)])
+}).strict();
+const duplicateCleanupItemPageSchema = duplicateCleanupPageSchema.extend({ jobId: z.string().uuid() }).strict();
 const shortcutBindingSchema = z.string().min(1).max(64).refine(isValidShortcutBinding, "Invalid shortcut binding");
 const shortcutSettingsSchema = z.object({
   libraryPreviousPage: shortcutBindingSchema,
@@ -180,6 +196,14 @@ const settingsSchema = z.object({
   shortcuts: shortcutSettingsSchema
 }).strict();
 const diagnosticsOptionsSchema = z.object({ includeFullPaths: z.boolean() }).strict();
+const scanFailureIdSchema = z.object({ failureId: z.string().min(1) }).strict();
+const scanFailureReviewQuerySchema = z.object({
+  sourceFolderId: z.string().min(1).optional(),
+  kind: z.enum(["all", "video", "unindexed-file", "directory"]),
+  page: z.number().int().min(1),
+  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
+}).strict();
+
 
 interface IpcDependencies {
   database: DatabaseConnection;
@@ -192,6 +216,8 @@ interface IpcDependencies {
   domainEvents: DomainEventBus;
   scanManager: ScanManager;
   metadataQueue: MetadataQueue;
+  duplicateCleanup: DuplicateCleanupService;
+  duplicateCleanupJobs: DuplicateCleanupRepository;
 }
 
 async function previewBatchMove(repo: VideoRepository, videoIds: string[], targetDirectory: string, addTargetToLibrary: boolean) {
@@ -254,22 +280,6 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
   return { successCount, failureCount: failures.length, reclaimedBytes, failures };
 }
 
-async function verifyDuplicateResolvePlan(repo: VideoRepository, plan: z.infer<typeof duplicateResolvePlanSchema>) {
-  const entries = repo.validateDuplicateResolvePlan(plan);
-  const versions = new Map<string, FileVersion>();
-
-  for (const entry of entries) {
-    const videos = [entry.keepVideo, ...entry.deleteVideos];
-    for (const video of videos) {
-      const expectedVersion = { sizeBytes: video.sizeBytes, modifiedAt: video.modifiedAt };
-      await assertFileVersion(video.path, expectedVersion);
-      versions.set(video.path, expectedVersion);
-    }
-  }
-
-  return { entries, versions, preview: repo.previewDuplicateResolve(plan) };
-}
-
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
   ipcLogger = dependencies.logger;
   ipcMain.handle(IPC_CHANNELS.libraryList, (_event, query) => {
@@ -285,56 +295,70 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   );
 
   ipcMain.handle(IPC_CHANNELS.duplicatePreviewResolve, async (_event, payload) => {
-    const verified = await verifyDuplicateResolvePlan(repo, duplicateResolvePlanSchema.parse(payload));
-    return { ...verified.preview, verificationStatus: "file_versions_current" as const };
+    const result = await previewDuplicateResolveSafely(
+      repo,
+      dependencies.metadataQueue,
+      duplicateResolvePlanSchema.parse(payload)
+    );
+    if (result.status === "stale") {
+      dependencies.domainEvents.publish({
+        type: "video:updated",
+        videoIds: result.changedItems.filter((item) => item.changeType !== "unreadable").map((item) => item.videoId)
+      });
+    }
+    return result;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.duplicateCheckMissing, async (_event, payload) => {
+    const plan = duplicateResolvePlanSchema.parse(payload);
+    const videoIds = plan.groups.flatMap((group) => [group.keepVideoId, ...group.deleteVideoIds]);
+    const result = await previewDuplicateResolveSafely(repo, dependencies.metadataQueue, plan);
+    if (result.status === "stale") {
+      dependencies.domainEvents.publish({
+        type: "video:updated",
+        videoIds: result.changedItems.filter((item) => item.changeType !== "unreadable").map((item) => item.videoId)
+      });
+    }
+    const changedItems = result.status === "stale" ? result.changedItems : [];
+    return {
+      checkedFileCount: videoIds.length,
+      removedCount: changedItems.filter((item) => item.changeType === "missing").length,
+      changedCount: changedItems.filter((item) => item.changeType !== "missing" && item.changeType !== "unreadable").length
+    };
   });
 
   ipcMain.handle(IPC_CHANNELS.duplicateResolve, async (_event, payload) => {
     const plan = duplicateResolvePlanSchema.parse(payload);
-    const verified = await verifyDuplicateResolvePlan(repo, plan);
-    const failures: Array<{ groupKey: string; videoId: string; path: string; message: string }> = [];
-    let reclaimedBytes = 0;
-    let successCount = 0;
-
-    for (const group of verified.entries) {
-      for (const video of group.deleteVideos) {
-        const videoId = video.id;
-        try {
-          await assertFileVersion(group.keepVideo.path, verified.versions.get(group.keepVideo.path)!);
-          await assertFileVersion(video.path, verified.versions.get(video.path)!);
-          await permanentlyDeleteFile(video.path);
-          reclaimedBytes += video.sizeBytes;
-          successCount += 1;
-          repo.removeVideo(videoId);
-        } catch (cause) {
-          const currentVideo = (() => {
-            try {
-              return repo.getVideo(videoId);
-            } catch {
-              return null;
-            }
-          })();
-
-          failures.push({
-            groupKey: group.groupKey,
-            videoId,
-            path: currentVideo?.path ?? "",
-            message: cause instanceof Error ? cause.message : String(cause)
-          });
-        }
-      }
-    }
+    const videoIds = plan.groups.flatMap((group) => [group.keepVideoId, ...group.deleteVideoIds]);
+    dependencies.duplicateCleanup.assertVideosAvailable(videoIds);
+    const execution = await resolveDuplicatePlanSafely(repo, plan);
     dependencies.cacheManager.scheduleMaintenance(true);
-    publishRemovedVideos(repo, plan.groups.flatMap((group) => group.deleteVideoIds), dependencies.domainEvents);
+    publishRemovedVideos(repo, execution.removedVideoIds, dependencies.domainEvents);
+    return execution.result;
+  });
 
-    return {
-      groupCount: verified.preview.groupCount,
-      keepCount: verified.preview.keepCount,
-      successCount,
-      failureCount: failures.length,
-      reclaimedBytes,
-      failures
-    };
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupSubmit, (_event, payload) =>
+    dependencies.duplicateCleanup.submit(duplicateCleanupSubmitSchema.parse(payload))
+  );
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupJobs, (_event, payload) => {
+    const parsed = duplicateCleanupPageSchema.parse(payload);
+    return dependencies.duplicateCleanupJobs.listJobs(parsed.page, parsed.pageSize);
+  });
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupJob, (_event, jobId) =>
+    dependencies.duplicateCleanupJobs.getJob(z.string().uuid().parse(jobId))
+  );
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupItems, (_event, payload) => {
+    const parsed = duplicateCleanupItemPageSchema.parse(payload);
+    return dependencies.duplicateCleanupJobs.listItems(parsed.jobId, parsed.page, parsed.pageSize);
+  });
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupCancel, (_event, jobId) => dependencies.duplicateCleanup.cancel(z.string().uuid().parse(jobId)));
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupResume, (_event, jobId) => dependencies.duplicateCleanup.resume(z.string().uuid().parse(jobId)));
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupRetry, (_event, jobId) => dependencies.duplicateCleanup.retry(z.string().uuid().parse(jobId)));
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupClear, (_event, jobId) => dependencies.duplicateCleanupJobs.clear(z.string().uuid().parse(jobId)));
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupOpenItem, async (_event, itemId) => {
+    const error = await shell.openPath(dependencies.duplicateCleanupJobs.getItemDirectory(z.string().uuid().parse(itemId)));
+    if (error) throw new Error("无法打开文件所在目录");
+    return true;
   });
 
   ipcMain.handle(IPC_CHANNELS.folderList, () => repo.listSourceFolders());
@@ -396,9 +420,51 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.folderScanFailureList, (_event, folderId: unknown) =>
     repo.listScanFailures(z.string().min(1).parse(folderId))
   );
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewPage, (_event, query) =>
+    repo.listScanFailureReviewPage(scanFailureReviewQuerySchema.parse(query))
+  );
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewRetry, (_event, payload) => {
+    const { failureId } = scanFailureIdSchema.parse(payload);
+    const failure = repo.getScanFailure(failureId);
+    if (!failure) throw new Error("Scan failure not found");
+    const folder = repo.listSourceFolders().find((candidate) => candidate.id === failure.sourceFolderId);
+    if (!folder) throw new Error("Source folder not found for scan failure");
+    return dependencies.scanManager.retryFailure(folder, failureId).then(() => {
+      dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
+      return true;
+    });
+  });
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewDelete, async (_event, payload) => {
+    const { failureId } = scanFailureIdSchema.parse(payload);
+    const failure = repo.getScanFailure(failureId);
+    const linkedVideo = failure?.objectType === "file" ? repo.getVideoByPath(failure.objectPath) : null;
+    if (linkedVideo) dependencies.duplicateCleanup.assertVideosAvailable([linkedVideo.id]);
+    const result = await deleteScanFailureFile(repo, failureId);
+    if (result.videoId) dependencies.cacheManager.scheduleMaintenance(true);
+    dependencies.domainEvents.publish({
+      type: result.videoId ? "video:removed" : "library:rescanned",
+      videoIds: result.videoId ? [result.videoId] : []
+    });
+    return true;
+  });
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewOpen, async (_event, payload) => {
+    const { failureId } = scanFailureIdSchema.parse(payload);
+    const failure = repo.getScanFailure(failureId);
+    if (!failure || failure.status === "resolved") throw new Error("Scan failure is no longer available");
+    const folder = repo.listSourceFolders().find((candidate) => candidate.id === failure.sourceFolderId);
+    if (!folder) throw new Error("Source folder not found for scan failure");
+    if (!isManagedPathWithin(failure.objectPath, folder.path)) throw new Error("Scan failure is outside its source folder");
+    if (failure.objectType === "file") shell.showItemInFolder(failure.objectPath);
+    else {
+      const errorMessage = await shell.openPath(failure.objectPath);
+      if (errorMessage) throw new Error(errorMessage);
+    }
+    return true;
+  });
 
   ipcMain.handle(IPC_CHANNELS.folderRemove, (_event, folderId: unknown) => {
     const parsedFolderId = z.string().min(1).parse(folderId);
+    dependencies.duplicateCleanup.assertVideosAvailable(repo.listVideosBySourceFolder(parsedFolderId).map((video) => video.id));
     dependencies.scanManager.forget(parsedFolderId);
     const result = repo.removeSourceFolder(parsedFolderId);
     dependencies.cacheManager.scheduleMaintenance(true);
@@ -428,6 +494,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoPendingDeleteClear, () => {
     const videoIds = repo.listPendingDeleteVideos().map((video) => video.id);
+    dependencies.duplicateCleanup.assertVideosAvailable(videoIds);
     return permanentlyDeleteVideos(repo, videoIds).then((result) => {
       dependencies.cacheManager.scheduleMaintenance(true);
       publishRemovedVideos(repo, videoIds, dependencies.domainEvents);
@@ -435,15 +502,21 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     });
   });
 
-  ipcMain.handle(IPC_CHANNELS.videoRevealInFolder, (_event, payload) => {
+  ipcMain.handle(IPC_CHANNELS.videoRevealInFolder, async (_event, payload) => {
     const parsed = videoIdSchema.parse(payload);
     const video = repo.getVideo(parsed.videoId);
-    shell.showItemInFolder(video.path);
+    if (video.isMissing) {
+      const error = await shell.openPath(video.directory);
+      if (error) throw new Error("无法打开文件所在目录");
+    } else {
+      shell.showItemInFolder(video.path);
+    }
     return true;
   });
 
   ipcMain.handle(IPC_CHANNELS.videoRename, async (_event, payload) => {
     const parsed = videoIdSchema.extend({ baseName: z.string() }).parse(payload);
+    dependencies.duplicateCleanup.assertVideosAvailable([parsed.videoId]);
     const video = repo.getVideo(parsed.videoId);
     const nextPath = await renamePreservingExtension(video.path, parsed.baseName);
     const renamed = await commitRenameWithRollback(video.path, nextPath, () => repo.updateVideoPath(parsed.videoId, nextPath));
@@ -454,6 +527,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoDelete, async (_event, payload) => {
     const parsed = videoIdSchema.parse(payload);
+    dependencies.duplicateCleanup.assertVideosAvailable([parsed.videoId]);
     const video = repo.getVideo(parsed.videoId);
     await permanentlyDeleteFile(video.path);
     repo.removeVideo(parsed.videoId);
@@ -464,6 +538,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoBatchDelete, async (_event, videoIds) => {
     const parsedVideoIds = videoIdsSchema.parse(videoIds);
+    dependencies.duplicateCleanup.assertVideosAvailable(parsedVideoIds);
     const result = await permanentlyDeleteVideos(repo, parsedVideoIds);
     dependencies.cacheManager.scheduleMaintenance(true);
     publishRemovedVideos(repo, parsedVideoIds, dependencies.domainEvents);
@@ -477,11 +552,13 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoPreviewMove, async (_event, payload) => {
     const parsed = batchMoveSchema.parse(payload);
+    dependencies.duplicateCleanup.assertVideosAvailable(parsed.videoIds);
     return previewBatchMove(repo, parsed.videoIds, parsed.targetDirectory, parsed.addTargetToLibrary);
   });
 
   ipcMain.handle(IPC_CHANNELS.videoBatchMove, async (_event, payload) => {
     const parsed = batchMoveSchema.parse(payload);
+    dependencies.duplicateCleanup.assertVideosAvailable(parsed.videoIds);
     const preview = await previewBatchMove(repo, parsed.videoIds, parsed.targetDirectory, parsed.addTargetToLibrary);
     if (preview.failures.length > 0) return { ...preview, successCount: 0, failureCount: preview.failures.length, itemResults: [], failures: preview.failures };
     const covered = repo.listSourceFolders().some((folder) => pathContains(parsed.targetDirectory, folder.path));
@@ -522,6 +599,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoForget, (_event, payload) => {
     const parsed = videoIdSchema.parse(payload);
+    dependencies.duplicateCleanup.assertVideosAvailable([parsed.videoId]);
     repo.removeVideo(parsed.videoId);
     dependencies.cacheManager.scheduleMaintenance(true);
     dependencies.domainEvents.publish({ type: "video:removed", videoIds: [parsed.videoId] });

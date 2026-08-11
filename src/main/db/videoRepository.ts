@@ -17,6 +17,8 @@ import type {
   PlayHistoryEntry,
   ScanCounters,
   ScanFailure,
+  ScanFailureReviewPage,
+  ScanFailureReviewQuery,
   ScanFailureObjectType,
   ScanFailureSummary,
   ScanMode,
@@ -177,6 +179,7 @@ interface LibraryNavigationRow {
   pending_delete_videos: number;
   pending_delete_bytes: number;
   pending_metadata_videos: number;
+  scan_failure_count: number;
 }
 
 interface ExistingVideoRow {
@@ -377,11 +380,17 @@ export class VideoRepository {
   }
 
   markDirectorySnapshotIncomplete(sourceFolderId: string, directoryPath: string): void {
+    const now = new Date().toISOString();
+    const normalizedPath = normalizeManagedPath(directoryPath);
     this.db.prepare(`
-      UPDATE directory_snapshots
-      SET is_complete = 0, has_unresolved_failure = 1, updated_at = ?
-      WHERE source_folder_id = ? AND normalized_path = ?
-    `).run(new Date().toISOString(), sourceFolderId, normalizeManagedPath(directoryPath));
+      INSERT INTO directory_snapshots (
+        source_folder_id, directory_path, normalized_path,
+        directory_mtime, direct_video_count, direct_child_count, direct_entry_digest,
+        is_complete, has_unresolved_failure, updated_at
+      ) VALUES (?, ?, ?, ?, 0, 0, ?, 0, 1, ?)
+      ON CONFLICT(source_folder_id, normalized_path) DO UPDATE SET
+        is_complete = 0, has_unresolved_failure = 1, updated_at = excluded.updated_at
+    `).run(sourceFolderId, directoryPath, normalizedPath, now, '', now);
   }
 
   listDirectChildSnapshots(sourceFolderId: string, parentDirectoryPath: string): DirectorySnapshot[] {
@@ -488,6 +497,71 @@ export class VideoRepository {
       ORDER BY last_failed_at DESC, id ASC
     `).all(sourceFolderId) as ScanFailureRow[];
     return rows.map(mapScanFailure);
+  }
+
+  listScanFailureReviewPage(query: ScanFailureReviewQuery): ScanFailureReviewPage {
+    const params: Record<string, string | number> = {};
+    const where = ["failures.status != 'resolved'"];
+    if (query.sourceFolderId) {
+      where.push("failures.source_folder_id = @sourceFolderId");
+      params.sourceFolderId = query.sourceFolderId;
+    }
+
+    const joinedFrom = `
+      FROM scan_failures failures
+      JOIN source_folders sources ON sources.id = failures.source_folder_id
+      LEFT JOIN videos ON videos.path = failures.object_path
+      WHERE sources.enabled = 1 AND ${where.join(" AND ")}`;
+    const kindExpression = `CASE
+      WHEN failures.object_type = 'directory' THEN 'directory'
+      WHEN videos.id IS NOT NULL THEN 'video'
+      ELSE 'unindexed-file'
+    END`;
+    const countRows = this.db.prepare(`
+      SELECT ${kindExpression} AS kind, COUNT(*) AS count
+      ${joinedFrom}
+      GROUP BY kind
+    `).all(params) as Array<{ kind: "video" | "unindexed-file" | "directory"; count: number }>;
+    const countMap = new Map(countRows.map((row) => [row.kind, row.count]));
+    const counts = {
+      video: countMap.get("video") ?? 0,
+      unindexedFile: countMap.get("unindexed-file") ?? 0,
+      directory: countMap.get("directory") ?? 0,
+      all: countRows.reduce((total, row) => total + row.count, 0)
+    };
+
+    const kindWhere = query.kind === "all" ? "" : ` AND ${kindExpression} = @kind`;
+    if (query.kind !== "all") params.kind = query.kind;
+    const totalCount = query.kind === "all"
+      ? counts.all
+      : query.kind === "unindexed-file"
+        ? counts.unindexedFile
+        : counts[query.kind];
+    const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
+    const page = Math.min(Math.max(1, query.page), totalPages);
+    const rows = this.db.prepare(`
+      SELECT failures.*
+      ${joinedFrom}${kindWhere}
+      ORDER BY failures.last_failed_at DESC, failures.id ASC
+      LIMIT @limit OFFSET @offset
+    `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as ScanFailureRow[];
+
+    return {
+      items: rows.map((row) => {
+        const failure = mapScanFailure(row);
+        const video = failure.objectType === "file" ? this.getVideoByPath(failure.objectPath) : null;
+        return {
+          failure,
+          video,
+          kind: failure.objectType === "directory" ? "directory" : video ? "video" : "unindexed-file"
+        };
+      }),
+      page,
+      pageSize: query.pageSize,
+      totalPages,
+      totalCount,
+      counts
+    };
   }
 
   markScanFailureRetrying(failureId: string): void {
@@ -818,7 +892,8 @@ export class VideoRepository {
            COALESCE(SUM(CASE WHEN is_favorite = 1 THEN 1 ELSE 0 END), 0) AS favorite_videos,
            COALESCE(SUM(CASE WHEN is_pending_delete = 1 THEN 1 ELSE 0 END), 0) AS pending_delete_videos,
            COALESCE(SUM(CASE WHEN is_pending_delete = 1 THEN size_bytes ELSE 0 END), 0) AS pending_delete_bytes,
-           COALESCE(SUM(CASE WHEN metadata_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_metadata_videos
+           COALESCE(SUM(CASE WHEN metadata_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_metadata_videos,
+           (SELECT COUNT(*) FROM scan_failures failures JOIN source_folders sources ON sources.id = failures.source_folder_id WHERE failures.status != 'resolved' AND sources.enabled = 1) AS scan_failure_count
          FROM videos
          WHERE is_missing = 0`
       )
@@ -833,6 +908,7 @@ export class VideoRepository {
       pendingDeleteVideos: counts.pending_delete_videos,
       pendingDeleteBytes: counts.pending_delete_bytes,
       pendingMetadataVideos: counts.pending_metadata_videos,
+      scanFailureCount: counts.scan_failure_count,
       directoryPaths
     };
   }
@@ -923,6 +999,63 @@ export class VideoRepository {
 
   markMissing(videoId: string, missing: boolean): void {
     this.db.prepare("UPDATE videos SET is_missing = ?, updated_at = ? WHERE id = ?").run(missing ? 1 : 0, new Date().toISOString(), videoId);
+  }
+
+  markMissingIfVersion(videoId: string, expectedPath: string, expectedSizeBytes: number, expectedModifiedAt: string): boolean {
+    const result = this.db.prepare(`
+      UPDATE videos
+      SET is_missing = 1, updated_at = @updatedAt
+      WHERE id = @videoId
+        AND path = @expectedPath
+        AND size_bytes = @expectedSizeBytes
+        AND modified_at = @expectedModifiedAt
+    `).run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, updatedAt: new Date().toISOString() });
+    return result.changes > 0;
+  }
+
+  refreshVideoFileVersion(
+    videoId: string,
+    expectedPath: string,
+    expectedSizeBytes: number,
+    expectedModifiedAt: string,
+    currentSizeBytes: number,
+    currentModifiedAt: string
+  ): boolean {
+    return this.db.transaction(() => {
+      const result = this.db.prepare(`
+        UPDATE videos
+        SET size_bytes = @currentSizeBytes,
+            modified_at = @currentModifiedAt,
+            duration_ms = NULL,
+            width = NULL,
+            height = NULL,
+            format = NULL,
+            is_missing = 0,
+            metadata_status = 'pending',
+            thumbnail_status = 'pending',
+            timeline_preview_status = 'pending',
+            cover_cache_path = NULL,
+            content_fingerprint = NULL,
+            fingerprint_status = 'pending',
+            fingerprint_updated_at = NULL,
+            fingerprint_error = NULL,
+            updated_at = @updatedAt
+        WHERE id = @videoId
+          AND path = @expectedPath
+          AND size_bytes = @expectedSizeBytes
+          AND modified_at = @expectedModifiedAt
+      `).run({
+        videoId,
+        expectedPath,
+        expectedSizeBytes,
+        expectedModifiedAt,
+        currentSizeBytes,
+        currentModifiedAt,
+        updatedAt: new Date().toISOString()
+      });
+      if (result.changes > 0) this.deleteTimelinePreviews(videoId);
+      return result.changes > 0;
+    })();
   }
 
   markFingerprintPending(videoId: string): void {
@@ -1095,6 +1228,13 @@ export class VideoRepository {
         AND metadata_status = 'ready'
         AND duration_ms IS NOT NULL
         AND duration_ms > 0
+        AND NOT EXISTS (
+          SELECT 1 FROM duplicate_cleanup_reservations active_reservation
+          JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
+          WHERE active_reservation.released_at IS NULL
+            AND reserved_video.size_bytes = videos.size_bytes
+            AND reserved_video.duration_ms = videos.duration_ms
+        )
         AND (size_bytes, duration_ms) IN (${scopedIdentitiesQuery})
       GROUP BY size_bytes, duration_ms
       HAVING COUNT(*) >= 2
@@ -1145,6 +1285,13 @@ export class VideoRepository {
           AND metadata_status = 'ready'
           AND duration_ms IS NOT NULL
           AND duration_ms > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM duplicate_cleanup_reservations active_reservation
+            JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
+            WHERE active_reservation.released_at IS NULL
+              AND reserved_video.size_bytes = videos.size_bytes
+              AND reserved_video.duration_ms = videos.duration_ms
+          )
         GROUP BY size_bytes, duration_ms
         HAVING COUNT(*) >= 2
       )
@@ -1358,6 +1505,13 @@ export class VideoRepository {
             AND size_bytes = ?
             AND metadata_status = 'ready'
             AND duration_ms = ?
+            AND NOT EXISTS (
+              SELECT 1 FROM duplicate_cleanup_reservations active_reservation
+              JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
+              WHERE active_reservation.released_at IS NULL
+                AND reserved_video.size_bytes = videos.size_bytes
+                AND reserved_video.duration_ms = videos.duration_ms
+            )
           ORDER BY filename ASC
         `
       )

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-02 - Scan failure review
+
+- 新增侧栏“扫描异常”工作台及未解决异常总数，支持按已启用资料库目录、异常类型和页码筛选。
+- 异常记录区分已入库视频、未入库文件和目录；支持逐项重试、打开位置，视频可播放/查看详情/标记待删除，文件可经确认后永久删除。
+- 永久删除只接受异常记录 ID，由主进程重新解析路径、验证资料库边界和对象类型；目录异常不能从该入口删除，已不存在文件会安全解决异常。
+- 目录警告弹窗新增“查看异常项”，进入工作台时自动选中对应资料库目录。
+- 新增仓储、重试、删除安全边界、分页筛选和 renderer 交互测试；未修改数据库 schema。
+
 ## 2026-08-02 - Mapped-drive empty directory scan compatibility
 
 - Fixed incremental scans using `readdir()` while initial discovery used `opendir()`. Some mapped/cloud-drive providers report `ENOENT` or `EINVAL` while enumerating an existing empty directory even though Windows can read it normally.
@@ -250,3 +258,10 @@
 
 ### Fixed
 - 使脚手架可构建；加固仓储身份规则、媒体元数据边界、扫描容错和根扫描失败持久化。
+# 2026-08-04 - 重复项后台清理队列
+
+- 新增 schema v7：持久化清理任务、逐文件明细和 keep/delete 活动占用。
+- 重复项清理确认不再等待 NAS/网盘文件预检；确认后快速返回任务编号，低并发后台执行最终安全复查与永久删除。
+- 增加任务中心、进度、分页明细、取消、手动恢复、失败重试和记录清除。
+- 活动任务整组从重复项查询隐藏，并在移动、重命名、永久删除、移除目录等入口强制检查占用。
+- 应用重启后遗留任务变为 interrupted，不会静默继续永久删除。

@@ -193,6 +193,76 @@ export async function retryScanFailures(
   return finalizeScan(context, true);
 }
 
+/** Retry exactly one unresolved failure. The caller is responsible for deduplicating concurrent requests. */
+export async function retryScanFailure(
+  repo: VideoRepository,
+  sourceFolder: SourceFolder,
+  failureId: string,
+  dependencies: ScannerDependencies = {}
+): Promise<ScanResult> {
+  const failure = repo.getScanFailure(failureId);
+  if (!failure || failure.status === "resolved") throw new Error("Scan failure is no longer available");
+  if (failure.sourceFolderId !== sourceFolder.id || !isManagedPathWithin(failure.objectPath, sourceFolder.path)) {
+    throw new Error("Scan failure is outside its source folder");
+  }
+
+  const context = createContext(repo, sourceFolder, { ...dependencies, mode: "retry-failures" }, true);
+  context.counters.pendingFailures = 1;
+  safeMarkRetrying(repo, failure.id);
+  await dependencies.waitIfPaused?.();
+  throwIfCancelled(dependencies);
+  reportProgress(context, "retrying-failures", failure.objectPath);
+
+  if (failure.objectType === "directory") {
+    const readable = await scanDirectoryTree(
+      context,
+      failure.objectPath,
+      path.dirname(failure.objectPath),
+      normalizeManagedPath(failure.objectPath) === normalizeManagedPath(sourceFolder.path)
+    );
+    return finalizeScan(context, readable);
+  }
+
+  const presence = await inspectFailedFilePresence(context, failure.objectPath);
+  context.counters.retriedFailures += 1;
+  if (presence.state === "confirmed-missing") {
+    const video = repo.getVideoByPath(failure.objectPath);
+    if (video && !video.isMissing) {
+      repo.markMissing(video.id, true);
+      context.counters.missingVideos += 1;
+    }
+    context.counters.resolvedFailures += safeResolveAllObjectFailures(repo, sourceFolder.id, failure.objectPath);
+    return finalizeScan(context, true);
+  }
+  if (presence.state === "parent-unreadable") {
+    context.directoryFailureCount += 1;
+    context.counters.directoryFailures += 1;
+    safeRecordFailure(context, "directory", presence.parentPath, "directory-enumeration", presence.error);
+    context.fileFailureCount += 1;
+    context.counters.fileFailures += 1;
+    safeRecordFailure(context, "file", failure.objectPath, failure.failureStage, presence.error);
+    return finalizeScan(context, true);
+  }
+  if (presence.state === "file-unreadable") {
+    context.fileFailureCount += 1;
+    context.counters.fileFailures += 1;
+    safeRecordFailure(context, "file", failure.objectPath, failure.failureStage, presence.error);
+    return finalizeScan(context, true);
+  }
+  if (failure.failureStage === "metadata" && dependencies.onMetadataPending) {
+    const video = repo.getVideoByPath(failure.objectPath);
+    if (video && !video.isMissing) {
+      if (video.metadataStatus === "failed") repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
+      dependencies.onMetadataPending(video.id);
+      return finalizeScan(context, true);
+    }
+  }
+  if (await processVideoFile(context, failure.objectPath, presence.fileStat)) {
+    context.counters.resolvedFailures += safeResolveFailure(repo, failure.id);
+  }
+  return finalizeScan(context, true);
+}
+
 export async function syncEnabledFolders(
   repo: VideoRepository,
   scan: (repo: VideoRepository, sourceFolder: SourceFolder) => Promise<unknown> = scanSourceFolder
