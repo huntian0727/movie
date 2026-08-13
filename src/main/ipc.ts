@@ -400,17 +400,9 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     const parsedFolderId = z.string().min(1).parse(folderId);
     const folder = repo.listSourceFolders().find((candidate) => candidate.id === parsedFolderId);
     if (!folder) throw new Error(`Source folder not found: ${parsedFolderId}`);
-    dependencies.scanManager.retryFailuresInBackground(
-      folder,
-      () => dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] }),
-      (error: unknown) => dependencies.logger.error({
-        module: "library.scan",
-        event: "queued_retry_failed",
-        message: "Queued scan failure retry failed",
-        context: { folderId: folder.id },
-        error
-      })
-    );
+    await dependencies.scanManager.retryFailures(folder);
+    dependencies.domainEvents.publish({ type: "source-folder:updated", videoIds: [] });
+    dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
     return true;
   });
 

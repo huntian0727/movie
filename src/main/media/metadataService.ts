@@ -89,7 +89,7 @@ function resolveFfprobePath(ffprobePathOverride?: string): string {
 }
 
 async function executeProbe(ffprobePath: string, filePath: string): Promise<ProbeResult> {
-  return execa(ffprobePath, ["-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", filePath], { timeout: 60_000 });
+  return execa(ffprobePath, ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", filePath], { timeout: 60_000 });
 }
 
 function toErrorMessage(error: unknown): string {

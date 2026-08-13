@@ -742,7 +742,8 @@ describe("LibraryShell", () => {
     expect(screen.getByRole("button", { name: "正在重试异常项" })).toBeDisabled();
     expect(screen.getByText("正在重试…")).toBeInTheDocument();
     finishRetry();
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "上次扫描存在异常" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("重试完成，仍有 1 项失败。下方已显示最新错误。")).toBeInTheDocument());
+    expect(screen.getByRole("dialog", { name: "上次扫描存在异常" })).toBeInTheDocument();
   });
 
   it("opens the scan failure review from a folder warning with that source selected", async () => {

@@ -14,12 +14,14 @@ export interface MetadataQueueStatus {
 export class MetadataQueue {
   private readonly waiting: string[] = [];
   private readonly scheduled = new Set<string>();
+  private readonly explicitRetries = new Set<string>();
   private active = 0;
   private stopped = false;
   private paused = false;
   private resumePendingBatches = false;
   private pendingBatchSize = 1000;
   private readonly idleWaiters = new Set<() => void>();
+  private readonly videoWaiters = new Map<string, Set<() => void>>();
 
   constructor(
     private readonly repo: VideoRepository,
@@ -32,10 +34,16 @@ export class MetadataQueue {
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("Metadata queue concurrency must be at least 1");
   }
 
-  enqueue(videoId: string): boolean {
-    if (this.stopped || this.scheduled.has(videoId)) return false;
+  enqueue(videoId: string, explicitRetry = false): boolean {
+    if (this.stopped) return false;
+    if (explicitRetry) this.explicitRetries.add(videoId);
+    if (this.scheduled.has(videoId)) {
+      if (explicitRetry) this.prioritizeWaitingVideo(videoId);
+      return false;
+    }
     this.scheduled.add(videoId);
-    this.waiting.push(videoId);
+    if (explicitRetry) this.waiting.unshift(videoId);
+    else this.waiting.push(videoId);
     this.pump();
     return true;
   }
@@ -73,8 +81,17 @@ export class MetadataQueue {
     return new Promise((resolve) => this.idleWaiters.add(resolve));
   }
 
+  async waitForVideos(videoIds: Iterable<string>): Promise<void> {
+    await Promise.all([...new Set(videoIds)].map((videoId) => this.waitForVideo(videoId)));
+  }
+
   stop(): void {
     this.stopped = true;
+    for (const videoId of this.waiting) {
+      this.scheduled.delete(videoId);
+      this.explicitRetries.delete(videoId);
+      this.resolveVideoWaiters(videoId);
+    }
     this.waiting.length = 0;
     if (this.active === 0) this.resolveIdleWaiters();
   }
@@ -86,6 +103,8 @@ export class MetadataQueue {
       void this.process(videoId).finally(() => {
         this.active -= 1;
         this.scheduled.delete(videoId);
+        this.explicitRetries.delete(videoId);
+        this.resolveVideoWaiters(videoId);
         this.pump();
         if (this.active === 0 && this.waiting.length === 0) {
           const restored = this.resumePendingBatches && !this.stopped ? this.loadPendingBatch() : 0;
@@ -93,6 +112,27 @@ export class MetadataQueue {
         }
       });
     }
+  }
+
+  private waitForVideo(videoId: string): Promise<void> {
+    if (!this.scheduled.has(videoId)) return Promise.resolve();
+    return new Promise((resolve) => {
+      const waiters = this.videoWaiters.get(videoId) ?? new Set<() => void>();
+      waiters.add(resolve);
+      this.videoWaiters.set(videoId, waiters);
+    });
+  }
+
+  private prioritizeWaitingVideo(videoId: string): void {
+    const waitingIndex = this.waiting.indexOf(videoId);
+    if (waitingIndex < 0) return;
+    this.waiting.splice(waitingIndex, 1);
+    this.waiting.unshift(videoId);
+  }
+
+  private resolveVideoWaiters(videoId: string): void {
+    for (const resolve of this.videoWaiters.get(videoId) ?? []) resolve();
+    this.videoWaiters.delete(videoId);
   }
 
   private async process(videoId: string): Promise<void> {
@@ -129,7 +169,7 @@ export class MetadataQueue {
           failureStage: "metadata",
           errorCode: getErrorCode(failureError),
           errorSummary: getErrorSummary(failureError),
-          incrementRetry: false
+          incrementRetry: this.explicitRetries.has(video.id)
         });
         this.onSourceFolderUpdated?.(video.sourceFolderId);
         this.onVideoUpdated?.(video.id);

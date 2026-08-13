@@ -66,6 +66,45 @@ describe("MetadataQueue", () => {
     expect(onSourceFolderUpdated).toHaveBeenCalledWith(video.sourceFolderId);
   });
 
+  it("increments the failure retry count only for an explicit metadata retry", async () => {
+    const video = createVideo("v1", "Z:\\Cloud\\retry-failed.mp4");
+    const repo = createRepo(new Map([[video.id, video]]));
+    const queue = new MetadataQueue(repo.value, async () => { throw new Error("ffprobe failed again"); });
+
+    queue.enqueue(video.id, true);
+    await queue.whenIdle();
+
+    expect(repo.recordScanFailure).toHaveBeenCalledWith(expect.objectContaining({
+      objectPath: video.path,
+      failureStage: "metadata",
+      incrementRetry: true
+    }));
+  });
+
+  it("prioritizes an explicit retry ahead of ordinary queued metadata", async () => {
+    const first = createVideo("v1", "Z:\\Cloud\\first.mp4");
+    const ordinary = createVideo("v2", "Z:\\Cloud\\ordinary.mp4");
+    const retry = createVideo("v3", "Z:\\Cloud\\retry.mp4");
+    const repo = createRepo(new Map([[first.id, first], [ordinary.id, ordinary], [retry.id, retry]]));
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const order: string[] = [];
+    const queue = new MetadataQueue(repo.value, async (filePath) => {
+      order.push(filePath);
+      if (filePath === first.path) await firstGate;
+      return { durationMs: 1000, width: 1280, height: 720, format: "mp4" };
+    });
+
+    queue.enqueue(first.id);
+    queue.enqueue(ordinary.id);
+    queue.enqueue(retry.id);
+    queue.enqueue(retry.id, true);
+    releaseFirst();
+    await queue.whenIdle();
+
+    expect(order).toEqual([first.path, retry.path, ordinary.path]);
+  });
+
   it("notifies the renderer after metadata retry settles", async () => {
     const video = createVideo("v1", "Z:\\Cloud\\retry.mp4");
     const repo = createRepo(new Map([[video.id, video]]));

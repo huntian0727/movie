@@ -208,6 +208,33 @@ describe("ScanManager", () => {
     expect(onFailed).not.toHaveBeenCalled();
   });
 
+  it("keeps an exception retry active until its queued metadata probes settle", async () => {
+    const metadataGate = deferred();
+    let unresolved = 1;
+    const repo = { getScanFailureSummary: () => ({ totalUnresolved: unresolved }) } as unknown as VideoRepository;
+    const metadataQueue = {
+      enqueue: vi.fn(() => true),
+      waitForVideos: vi.fn(async () => {
+        await metadataGate.promise;
+        unresolved = 0;
+      })
+    };
+    const retryScan = vi.fn(async (_repo, _folder, dependencies) => {
+      dependencies.onMetadataPending?.("video-1");
+      return completedResult();
+    });
+    const manager = new ScanManager(repo, vi.fn(), metadataQueue as never, undefined, retryScan);
+
+    const retry = manager.retryFailures(folder);
+    await vi.waitFor(() => expect(metadataQueue.waitForVideos).toHaveBeenCalledWith(new Set(["video-1"])));
+    expect(metadataQueue.enqueue).toHaveBeenCalledWith("video-1", true);
+    expect(manager.listStatuses()[0]).toMatchObject({ state: "scanning", phase: "retrying-failures" });
+
+    metadataGate.resolve();
+    await retry;
+    expect(manager.listStatuses()[0]).toMatchObject({ state: "completed", phase: null });
+  });
+
   it("queues a normal scan after an active retry instead of treating it as equivalent", async () => {
     const retryGate = deferred();
     const order: string[] = [];

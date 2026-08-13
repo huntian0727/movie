@@ -135,6 +135,7 @@ export function LibraryShell({
     loading: boolean;
     loadError: string | null;
   } | null>(null);
+  const [retryingFolderId, setRetryingFolderId] = useState<string | null>(null);
   const [nextBaseName, setNextBaseName] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
@@ -963,14 +964,38 @@ export function LibraryShell({
               {onRetryFolderFailures && folderIssueTarget.summary?.totalUnresolved !== 0 && (
                 <button
                   className="primary"
-                  aria-label={actionPending ? "正在重试异常项" : "重试异常项"}
-                  disabled={actionPending || folderIssueTarget.loading || folderIssueTarget.summary?.totalUnresolved === 0}
-                  onClick={() => void runAction(async () => { await onRetryFolderFailures(folderIssueTarget.folder); }).then((retried) => {
-                    if (retried) setFolderIssueTarget(null);
-                  })}
+                  aria-label={retryingFolderId === folderIssueTarget.folder.id ? "正在重试异常项" : "重试异常项"}
+                  disabled={retryingFolderId === folderIssueTarget.folder.id || folderIssueTarget.loading || folderIssueTarget.summary?.totalUnresolved === 0}
+                  onClick={() => {
+                    const retryFolder = folderIssueTarget.folder;
+                    setActionError(null);
+                    setRetryingFolderId(retryFolder.id);
+                    setFolderIssueTarget((current) => current?.folder.id === retryFolder.id
+                      ? { ...current, message: "正在重新检查异常文件并读取视频元数据，请稍候。" }
+                      : current);
+                    void Promise.resolve(onRetryFolderFailures(retryFolder))
+                      .then(async () => {
+                        const [summary, failures] = await Promise.all([
+                          onLoadScanFailureSummary?.(retryFolder),
+                          onLoadScanFailures?.(retryFolder)
+                        ]);
+                        setFolderIssueTarget((current) => current?.folder.id === retryFolder.id
+                          ? {
+                              ...current,
+                              message: summary?.totalUnresolved
+                                ? `重试完成，仍有 ${summary.totalUnresolved} 项失败。下方已显示最新错误。`
+                                : "重试完成，异常项已全部解决。",
+                              summary: summary ?? current.summary,
+                              failures: failures ?? current.failures
+                            }
+                          : current);
+                      })
+                      .catch((cause) => setActionError(cause instanceof Error ? cause.message : String(cause)))
+                      .finally(() => setRetryingFolderId((current) => current === retryFolder.id ? null : current));
+                  }}
                 >
-                  <RotateCw size={14} className={actionPending ? "spin" : undefined} />
-                  {actionPending ? "正在重试…" : "重试异常项"}
+                  <RotateCw size={14} className={retryingFolderId === folderIssueTarget.folder.id ? "spin" : undefined} />
+                  {retryingFolderId === folderIssueTarget.folder.id ? "正在重试…" : "重试异常项"}
                 </button>
               )}
             </div>
