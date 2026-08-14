@@ -114,6 +114,23 @@ export interface ScanFailureReviewPage {
   };
 }
 
+export type ScanFailureCleanupAction = "mark-pending-delete" | "permanent-delete";
+
+export interface ScanFailureCleanupItemResult {
+  failureId: string;
+  status: "marked" | "deleted" | "skipped" | "failed";
+  message: string;
+}
+
+export interface ScanFailureCleanupResult {
+  action: ScanFailureCleanupAction;
+  successCount: number;
+  skippedCount: number;
+  failureCount: number;
+  reclaimedBytes: number;
+  items: ScanFailureCleanupItemResult[];
+}
+
 export interface ScanCounters {
   totalFolders: number;
   currentFolderIndex: number;
@@ -577,6 +594,7 @@ export const IPC_CHANNELS = {
   scanFailureReviewPage: "scan-failure-review:page",
   scanFailureReviewRetry: "scan-failure-review:retry",
   scanFailureReviewDelete: "scan-failure-review:delete",
+  scanFailureReviewCleanup: "scan-failure-review:cleanup",
   scanFailureReviewOpen: "scan-failure-review:open",
   folderRemove: "folder:remove",
   folderRemovePreview: "folder:remove-preview",
@@ -653,6 +671,7 @@ export interface VideoManagerApi {
   listScanFailureReviewPage(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
   retryScanFailure(failureId: string): Promise<boolean>;
   deleteScanFailureFile(failureId: string): Promise<boolean>;
+  cleanupScanFailures(failureIds: string[], action: ScanFailureCleanupAction): Promise<ScanFailureCleanupResult>;
   openScanFailureLocation(failureId: string): Promise<boolean>;
   removeFolder(folderId: string): Promise<SourceFolderRemovalResult>;
   previewRemoveFolder(folderId: string): Promise<SourceFolderRemovalPreview>;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ExternalLink, FileQuestion, FolderOpen, Info, LoaderCircle, Play, RotateCw, Trash2 } from "lucide-react";
-import type { ScanFailureReviewKind, ScanFailureReviewPage, ScanFailureReviewPageSize, ScanFailureReviewQuery, SourceFolder, VideoRecord } from "../../shared/videoTypes";
+import type { ScanFailureCleanupAction, ScanFailureCleanupResult, ScanFailureReviewKind, ScanFailureReviewPage, ScanFailureReviewPageSize, ScanFailureReviewQuery, SourceFolder, VideoRecord } from "../../shared/videoTypes";
+import { classifyScanFailureForCleanup } from "../../shared/scanFailureCleanup";
 import { formatBytes, formatDuration } from "./formatters";
 
 interface ScanFailuresPageProps {
@@ -10,6 +11,7 @@ interface ScanFailuresPageProps {
   loadPage(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
   onRetry(failureId: string): Promise<unknown>;
   onDeleteFile(failureId: string): Promise<unknown>;
+  onCleanup?(failureIds: string[], action: ScanFailureCleanupAction): Promise<ScanFailureCleanupResult>;
   onOpenLocation(failureId: string): Promise<unknown>;
   onOpenVideo?(video: VideoRecord): void;
   onShowDetails?(video: VideoRecord): void;
@@ -23,7 +25,7 @@ const EMPTY_PAGE: ScanFailureReviewPage = {
 };
 
 export function ScanFailuresPage({
-  folders, initialSourceFolderId, refreshSequence, loadPage, onRetry, onDeleteFile,
+  folders, initialSourceFolderId, refreshSequence, loadPage, onRetry, onDeleteFile, onCleanup,
   onOpenLocation, onOpenVideo, onShowDetails, onTogglePendingDelete, getCoverUrl
 }: ScanFailuresPageProps) {
   const [sourceFolderId, setSourceFolderId] = useState(initialSourceFolderId ?? "");
@@ -35,6 +37,11 @@ export function ScanFailuresPage({
   const [error, setError] = useState<string | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
   const [deleteFailureId, setDeleteFailureId] = useState<string | null>(null);
+  const [selectedFailureIds, setSelectedFailureIds] = useState<Set<string>>(() => new Set());
+  const [cleanupFilter, setCleanupFilter] = useState<"all" | "confirmed-corrupt">("all");
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const loadPageRef = useRef(loadPage);
   const previousQueryKeyRef = useRef<string | null>(null);
@@ -67,6 +74,13 @@ export function ScanFailuresPage({
   }, [kind, pageNumber, pageSize, refreshSequence, refreshVersion, sourceFolderId]);
 
   const selectedFolder = useMemo(() => folders.find((folder) => folder.id === sourceFolderId), [folders, sourceFolderId]);
+  const visibleItems = useMemo(() => result.items.filter((item) => cleanupFilter === "all" || classifyScanFailureForCleanup(item.failure).category === "confirmed-corrupt"), [cleanupFilter, result.items]);
+  const selectableIds = useMemo(() => visibleItems.filter((item) => item.video && classifyScanFailureForCleanup(item.failure).category === "confirmed-corrupt").map((item) => item.failure.id), [visibleItems]);
+
+  useEffect(() => {
+    const availableIds = new Set(result.items.map((item) => item.failure.id));
+    setSelectedFailureIds((current) => new Set([...current].filter((id) => availableIds.has(id))));
+  }, [result.items]);
 
   async function runAction(failureId: string, action: () => Promise<unknown>) {
     setBusyIds((current) => new Set(current).add(failureId));
@@ -78,6 +92,25 @@ export function ScanFailuresPage({
       setError(toMessage(cause));
     } finally {
       setBusyIds((current) => { const next = new Set(current); next.delete(failureId); return next; });
+    }
+  }
+
+  async function runBulkCleanup(action: ScanFailureCleanupAction) {
+    if (!onCleanup || selectedFailureIds.size === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const cleanupResult = await onCleanup([...selectedFailureIds], action);
+      setNotice(action === "mark-pending-delete"
+        ? `已将 ${cleanupResult.successCount} 个确认损坏视频加入“待删除”，可集中复核后清空。`
+        : `后台清理完成：删除 ${cleanupResult.successCount} 个，跳过 ${cleanupResult.skippedCount} 个，失败 ${cleanupResult.failureCount} 个。`);
+      setSelectedFailureIds(new Set());
+      setRefreshVersion((current) => current + 1);
+    } catch (cause) {
+      setError(toMessage(cause));
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -103,21 +136,49 @@ export function ScanFailuresPage({
             <option value={30}>30</option><option value={50}>50</option><option value={100}>100</option>
           </select>
         </label>
+        <label>清理筛选
+          <select value={cleanupFilter} onChange={(event) => setCleanupFilter(event.target.value as "all" | "confirmed-corrupt")}>
+            <option value="all">全部异常</option>
+            <option value="confirmed-corrupt">仅确认损坏（当前页）</option>
+          </select>
+        </label>
         <button className="icon-button" title="刷新异常列表" onClick={() => setRefreshVersion((current) => current + 1)}><RotateCw size={18} /></button>
+      </div>
+
+      <div className="scan-failure-cleanup-bar">
+        <strong>已选 {selectedFailureIds.size} 个确认损坏视频</strong>
+        <button disabled={selectableIds.length === 0 || bulkBusy} onClick={() => setSelectedFailureIds(new Set(selectableIds))}>全选当前页可清理项</button>
+        <button disabled={selectedFailureIds.size === 0 || bulkBusy || !onCleanup} onClick={() => void runBulkCleanup("mark-pending-delete")}>标记待删除</button>
+        <button className="danger-button" disabled={selectedFailureIds.size === 0 || bulkBusy || !onCleanup} onClick={() => setBulkDeleteOpen(true)}>{bulkBusy ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}永久删除所选</button>
+        {selectedFailureIds.size > 0 && <button disabled={bulkBusy} onClick={() => setSelectedFailureIds(new Set())}>取消选择</button>}
+        <span>只会选中 FFprobe 明确报告容器损坏且已有版本记录的视频；网盘超时、断线、权限异常不会被批量清理。</span>
       </div>
 
       {selectedFolder && <p className="scan-failure-scope">当前仅查看：{selectedFolder.path}</p>}
       {error && <div className="error-banner">{error}</div>}
+      {notice && <div className="success-banner" role="status">{notice}</div>}
       {loading && <div className="empty-state"><LoaderCircle className="spin" />正在读取异常记录…</div>}
       {!loading && result.items.length === 0 && (
         <div className="empty-state"><AlertTriangle size={42} /><strong>当前筛选下没有未解决的扫描异常</strong><span>已解决记录不会显示在这里。</span></div>
       )}
+      {!loading && result.items.length > 0 && visibleItems.length === 0 && (
+        <div className="empty-state"><AlertTriangle size={42} /><strong>当前页没有确认损坏的视频</strong><span>可切换回“全部异常”，或翻页继续查看。</span></div>
+      )}
 
-      {!loading && result.items.length > 0 && <div className="scan-failure-list">
-        {result.items.map(({ failure, kind: itemKind, video }) => {
+      {!loading && visibleItems.length > 0 && <div className="scan-failure-list">
+        {visibleItems.map(({ failure, kind: itemKind, video }) => {
           const busy = busyIds.has(failure.id);
           const coverUrl = video && getCoverUrl ? getCoverUrl(video) : null;
-          return <article className="scan-failure-card" key={failure.id}>
+          const classification = classifyScanFailureForCleanup(failure);
+          const selectable = Boolean(video) && classification.category === "confirmed-corrupt";
+          return <article className={`scan-failure-card scan-failure-${classification.category}`} key={failure.id}>
+            <label className="scan-failure-select" title={selectable ? "选择此确认损坏视频" : classification.reason}>
+              <input type="checkbox" disabled={!selectable || busy || bulkBusy} checked={selectedFailureIds.has(failure.id)} onChange={(event) => setSelectedFailureIds((current) => {
+                const next = new Set(current);
+                if (event.target.checked) next.add(failure.id); else next.delete(failure.id);
+                return next;
+              })} />
+            </label>
             <div className="scan-failure-preview">
               {coverUrl ? <img src={coverUrl} alt="" /> : itemKind === "directory" ? <FolderOpen size={38} /> : <FileQuestion size={38} />}
               <span>{itemKind === "video" ? "已入库视频" : itemKind === "directory" ? "目录" : "未入库文件"}</span>
@@ -127,6 +188,7 @@ export function ScanFailuresPage({
               <code>{failure.objectPath}</code>
               {video && <span>{formatBytes(video.sizeBytes)} · {formatDuration(video.durationMs)}</span>}
               <div className="scan-failure-error"><AlertTriangle size={16} /><span>{failure.errorSummary}</span></div>
+              <span className={`scan-failure-classification ${classification.category}`} title={classification.reason}>{classification.label}</span>
               <small>阶段：{failure.failureStage} · 错误码：{failure.errorCode ?? "未知"} · 最近失败：{formatDate(failure.lastFailedAt)} · 重试 {failure.retryCount} 次</small>
             </div>
             <div className="scan-failure-actions">
@@ -135,7 +197,7 @@ export function ScanFailuresPage({
               <button title="打开所在位置" disabled={busy} onClick={() => void runAction(failure.id, () => onOpenLocation(failure.id))}><ExternalLink size={17} />打开位置</button>
               <button title="仅重试此项" disabled={busy} onClick={() => void runAction(failure.id, () => onRetry(failure.id))}>{busy ? <LoaderCircle className="spin" size={17} /> : <RotateCw size={17} />}重试</button>
               {video && <button title={video.isPendingDelete ? "取消待删除" : "标记待删除"} disabled={busy} onClick={() => void runAction(failure.id, async () => onTogglePendingDelete?.(video))}><Trash2 size={17} />{video.isPendingDelete ? "取消标记" : "待删除"}</button>}
-              {itemKind !== "directory" && <button className="danger-button" title="永久删除文件" disabled={busy} onClick={() => setDeleteFailureId(failure.id)}><Trash2 size={17} />永久删除</button>}
+              {classification.category === "confirmed-corrupt" && <button className="danger-button" title="永久删除文件" disabled={busy} onClick={() => setDeleteFailureId(failure.id)}><Trash2 size={17} />永久删除</button>}
             </div>
           </article>;
         })}
@@ -158,6 +220,18 @@ export function ScanFailuresPage({
               setDeleteFailureId(null);
               void runAction(failureId, () => onDeleteFile(failureId));
             }}>确认永久删除</button>
+          </div>
+        </div>
+      </div>}
+
+      {bulkDeleteOpen && <div className="dialog-backdrop" role="presentation">
+        <div className="dialog-card" role="dialog" aria-modal="true" aria-labelledby="scan-failure-bulk-delete-title">
+          <h2 id="scan-failure-bulk-delete-title">确认后台永久删除 {selectedFailureIds.size} 个视频</h2>
+          <p>只处理当前选中的确认损坏视频。主进程会在每次删除前复查文件存在性、大小和修改时间；任何变化或访问失败都会跳过，不影响其他文件。</p>
+          <p>文件不会进入回收站，操作无法撤销。提交后可继续浏览，清理在后台逐个执行。</p>
+          <div className="dialog-actions">
+            <button onClick={() => setBulkDeleteOpen(false)}>取消</button>
+            <button className="danger-button" onClick={() => { setBulkDeleteOpen(false); void runBulkCleanup("permanent-delete"); }}>确认后台永久删除</button>
           </div>
         </div>
       </div>}

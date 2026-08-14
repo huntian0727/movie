@@ -469,6 +469,9 @@ export function App() {
       onLoadScanFailureReviewPage={api?.listScanFailureReviewPage}
       onRetryScanFailure={(failureId) => api ? api.retryScanFailure(failureId) : Promise.resolve(false)}
       onDeleteScanFailureFile={(failureId) => api ? api.deleteScanFailureFile(failureId) : Promise.resolve(false)}
+      onCleanupScanFailures={(failureIds, action) => api
+        ? api.cleanupScanFailures(failureIds, action)
+        : Promise.resolve({ action, successCount: 0, skippedCount: failureIds.length, failureCount: 0, reclaimedBytes: 0, items: [] })}
       onOpenScanFailureLocation={(failureId) => api ? api.openScanFailureLocation(failureId) : Promise.resolve(false)}
       onRefresh={refresh}
       onToggleFavorite={toggleFavorite}

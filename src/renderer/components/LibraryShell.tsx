@@ -43,6 +43,7 @@ interface LibraryShellProps {
   onLoadScanFailureReviewPage?(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
   onRetryScanFailure?(failureId: string): Promise<unknown>;
   onDeleteScanFailureFile?(failureId: string): Promise<unknown>;
+  onCleanupScanFailures?: VideoManagerApi["cleanupScanFailures"];
   onOpenScanFailureLocation?(failureId: string): Promise<unknown>;
   onRefresh?(): void | Promise<void>;
   onOpen?(video: VideoRecord, queue: VideoRecord[]): void;
@@ -91,6 +92,7 @@ export function LibraryShell({
   onLoadScanFailureReviewPage,
   onRetryScanFailure,
   onDeleteScanFailureFile,
+  onCleanupScanFailures,
   onOpenScanFailureLocation,
   onRefresh,
   onOpen,
@@ -810,6 +812,7 @@ export function LibraryShell({
                 loadPage={onLoadScanFailureReviewPage}
                 onRetry={onRetryScanFailure}
                 onDeleteFile={onDeleteScanFailureFile}
+                onCleanup={onCleanupScanFailures}
                 onOpenLocation={onOpenScanFailureLocation}
                 onOpenVideo={(video) => openVideo(video, [video])}
                 onShowDetails={viewVideoDetails}

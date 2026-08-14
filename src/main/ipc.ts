@@ -9,7 +9,7 @@ import type { DatabaseConnection } from "./db/database.js";
 import type { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import type { VideoRepository } from "./db/videoRepository.js";
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
-import { deleteScanFailureFile } from "./files/scanFailureActions.js";
+import { cleanupScanFailures, deleteScanFailureFile } from "./files/scanFailureActions.js";
 import { isManagedPathWithin } from "./files/pathNormalization.js";
 import {
   buildDiagnosticPackage,
@@ -41,6 +41,7 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.folderScanFailuresRetry,
   IPC_CHANNELS.scanFailureReviewRetry,
   IPC_CHANNELS.scanFailureReviewDelete,
+  IPC_CHANNELS.scanFailureReviewCleanup,
   IPC_CHANNELS.folderRemove,
   IPC_CHANNELS.folderScanPause,
   IPC_CHANNELS.folderScanResume,
@@ -197,6 +198,10 @@ const settingsSchema = z.object({
 }).strict();
 const diagnosticsOptionsSchema = z.object({ includeFullPaths: z.boolean() }).strict();
 const scanFailureIdSchema = z.object({ failureId: z.string().min(1) }).strict();
+const scanFailureCleanupSchema = z.object({
+  failureIds: z.array(z.string().min(1)).min(1).max(100),
+  action: z.enum(["mark-pending-delete", "permanent-delete"])
+}).strict();
 const scanFailureReviewQuerySchema = z.object({
   sourceFolderId: z.string().min(1).optional(),
   kind: z.enum(["all", "video", "unindexed-file", "directory"]),
@@ -438,6 +443,22 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
       videoIds: result.videoId ? [result.videoId] : []
     });
     return true;
+  });
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewCleanup, async (_event, payload) => {
+    const parsed = scanFailureCleanupSchema.parse(payload);
+    const linkedVideoIds = parsed.failureIds
+      .map((failureId) => repo.getScanFailure(failureId))
+      .filter((failure) => failure?.objectType === "file")
+      .map((failure) => repo.getVideoByPath(failure!.objectPath)?.id)
+      .filter((videoId): videoId is string => Boolean(videoId));
+    dependencies.duplicateCleanup.assertVideosAvailable(linkedVideoIds);
+    const result = await cleanupScanFailures(repo, parsed.failureIds, parsed.action);
+    if (parsed.action === "permanent-delete" && result.successCount > 0) dependencies.cacheManager.scheduleMaintenance(true);
+    dependencies.domainEvents.publish({
+      type: parsed.action === "permanent-delete" ? "video:removed" : "video:updated",
+      videoIds: linkedVideoIds
+    });
+    return result;
   });
   ipcMain.handle(IPC_CHANNELS.scanFailureReviewOpen, async (_event, payload) => {
     const { failureId } = scanFailureIdSchema.parse(payload);
