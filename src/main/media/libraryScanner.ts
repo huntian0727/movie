@@ -467,6 +467,10 @@ async function upsertScannedVideo(
       width: null,
       height: null,
       format: null,
+      videoCodec: null,
+      videoProfile: null,
+      pixelFormat: null,
+      audioCodec: null,
       modifiedAt,
       metadataStatus: "pending"
     });
@@ -484,6 +488,10 @@ async function upsertScannedVideo(
     width: metadata.width,
     height: metadata.height,
     format: metadata.format,
+    videoCodec: metadata.videoCodec ?? null,
+    videoProfile: metadata.videoProfile ?? null,
+    pixelFormat: metadata.pixelFormat ?? null,
+    audioCodec: metadata.audioCodec ?? null,
     modifiedAt
   });
 }

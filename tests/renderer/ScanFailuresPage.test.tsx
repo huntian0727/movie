@@ -7,7 +7,8 @@ const folder: SourceFolder = { id: "folder-1", path: "D:\\Movies", recursive: tr
 const video: VideoRecord = {
   id: "video-1", sourceFolderId: folder.id, path: "D:\\Movies\\clip.mp4", directory: folder.path,
   filename: "clip.mp4", basename: "clip", extension: ".mp4", sizeBytes: 1024, durationMs: 5000,
-  width: 1920, height: 1080, format: "mp4", modifiedAt: "2026-01-01", importedAt: "2026-01-01", updatedAt: "2026-01-01",
+  width: 1920, height: 1080, format: "mp4", videoCodec: null, videoProfile: null, pixelFormat: null, audioCodec: null,
+  modifiedAt: "2026-01-01", importedAt: "2026-01-01", updatedAt: "2026-01-01",
   isFavorite: false, isPendingDelete: false, isMissing: false, metadataStatus: "ready", thumbnailStatus: "ready", timelinePreviewStatus: "pending",
   coverCachePath: null, contentFingerprint: null, fingerprintStatus: "pending", fingerprintUpdatedAt: null, fingerprintError: null
 };

@@ -140,14 +140,14 @@ describe("PlayerWindowCoordinator", () => {
     expect(electronState.windows[1].listenerCount("closed")).toBe(1);
   });
 
-  it("moves to the next available queue item when the current video is deleted", () => {
+  it("moves to the next available queue item when the current video is deleted", async () => {
     const fixture = createRepo(["v1", "v2", "v3"]);
     const coordinator = new PlayerWindowCoordinator(fixture.repo, {
       currentDir: "C:\\app\\dist-main",
       devServerUrl: "http://127.0.0.1:5173/",
       isPackaged: false
     });
-    coordinator.setSession({ videoId: "v2", queueIds: ["v1", "v2", "v3"] }, 4);
+    await coordinator.setSession({ videoId: "v2", queueIds: ["v1", "v2", "v3"] }, 4);
     fixture.videos.delete("v2");
 
     expect(coordinator.getSnapshot(5).playerSession).toMatchObject({
@@ -196,6 +196,10 @@ function createVideo(id: string, isMissing: boolean): VideoRecord {
     width: 1280,
     height: 720,
     format: "mp4",
+    videoCodec: null,
+    videoProfile: null,
+    pixelFormat: null,
+    audioCodec: null,
     modifiedAt: "2026-07-24T00:00:00.000Z",
     importedAt: "2026-07-24T00:00:00.000Z",
     updatedAt: "2026-07-24T00:00:00.000Z",

@@ -25,6 +25,7 @@
 | “异常项重试/清理” | `ScanFailuresPage.tsx`、`scanFailureActions.ts`、`ipc.ts`、repository 的 scan failure 方法 | 文件存在性与父目录可读性、列表刷新、renderer/main 测试 |
 | “预览图/时间轴失败” | `mediaProtocol.ts`、`cacheService.ts`、`cacheManager.ts`、`mediaUrl.ts` | FFmpeg 路径、缓存 key/原子发布、真实格式手测 |
 | “播放、旋转、快捷键、播放列表” | `PlayerPage.tsx`、`playerWindow.ts`、`playerRouting.ts`、`mpvController.ts`、`shortcuts.ts` | 多窗口事件、fallback、窗口尺寸、播放器测试和桌面验证 |
+| “某些编码无法播放/自动选择播放器” | `metadataService.ts`、`metadataQueue.ts`、`playbackMetadataEnricher.ts`、`videoRepository.ts`、`shared/playbackRouting.ts`、`App.tsx` | v8 migration、文件版本失效、FFprobe 单调用、首次播放懒补全、native→mpv→系统 fallback、真实 codec 样本 |
 | “重复项规则/分页/筛选” | `videoRepository.ts`、`DuplicateGroupsPage.tsx`、shared duplicate 类型 | SQL 分组、未知时长、目录完整组语义、仓储/组件测试 |
 | “批量清理重复项” | `DuplicateCleanupButton.tsx`、`DuplicateCleanupTasksPanel.tsx`、`duplicateCleanupService.ts`、`duplicateCleanupRepository.ts` | v7 任务、幂等、取消/恢复、最终文件版本复查、不可逆删除测试 |
 | “移动/重命名/永久删除” | `fileOperations.ts`、`ipc.ts`、`videoRepository.ts` | 跨卷、同名、数据库失败回滚、Windows ACL/锁/磁盘满 |

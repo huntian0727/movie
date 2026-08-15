@@ -656,17 +656,17 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     dependencies.playerWindows.getSnapshot(dependencies.domainEvents.getSequence())
   );
 
-  ipcMain.handle(IPC_CHANNELS.playerSessionSet, (_event, payload) => {
+  ipcMain.handle(IPC_CHANNELS.playerSessionSet, async (_event, payload) => {
     const parsed = playerSessionSchema.parse(payload);
-    dependencies.playerWindows.setSession(parsed, dependencies.domainEvents.getSequence());
+    await dependencies.playerWindows.setSession(parsed, dependencies.domainEvents.getSequence());
     repo.recordPlayback(parsed.videoId);
     const event = dependencies.domainEvents.publish({ type: "playback:changed", videoIds: [parsed.videoId] });
     return dependencies.playerWindows.getSnapshot(event.sequence).playerSession;
   });
 
-  ipcMain.handle(IPC_CHANNELS.playerSessionSelect, (_event, payload) => {
+  ipcMain.handle(IPC_CHANNELS.playerSessionSelect, async (_event, payload) => {
     const parsed = videoIdSchema.parse(payload);
-    dependencies.playerWindows.select(parsed.videoId, dependencies.domainEvents.getSequence());
+    await dependencies.playerWindows.select(parsed.videoId, dependencies.domainEvents.getSequence());
     repo.recordPlayback(parsed.videoId);
     const event = dependencies.domainEvents.publish({ type: "playback:changed", videoIds: [parsed.videoId] });
     return dependencies.playerWindows.getSnapshot(event.sequence).playerSession;

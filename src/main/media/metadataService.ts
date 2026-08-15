@@ -7,6 +7,10 @@ export interface MediaMetadata {
   width: number | null;
   height: number | null;
   format: string | null;
+  videoCodec?: string | null;
+  videoProfile?: string | null;
+  pixelFormat?: string | null;
+  audioCodec?: string | null;
 }
 
 export interface FfprobeOutput {
@@ -16,6 +20,9 @@ export interface FfprobeOutput {
   };
   streams?: Array<{
     codec_type?: string;
+    codec_name?: string;
+    profile?: string;
+    pix_fmt?: string;
     width?: number;
     height?: number;
   }>;
@@ -68,14 +75,24 @@ export async function readMetadata(
 
 export function parseFfprobeOutput(output: FfprobeOutput): MediaMetadata {
   const videoStream = output.streams?.find((stream) => stream.codec_type === "video");
+  const audioStream = output.streams?.find((stream) => stream.codec_type === "audio");
   const durationSeconds = output.format?.duration ? Number(output.format.duration) : Number.NaN;
 
   return {
     durationMs: Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 1000) : null,
     width: videoStream?.width ?? null,
     height: videoStream?.height ?? null,
-    format: output.format?.format_name ?? null
+    format: output.format?.format_name ?? null,
+    videoCodec: normalizeProbeValue(videoStream?.codec_name),
+    videoProfile: normalizeProbeValue(videoStream?.profile),
+    pixelFormat: normalizeProbeValue(videoStream?.pix_fmt),
+    audioCodec: normalizeProbeValue(audioStream?.codec_name)
   };
+}
+
+function normalizeProbeValue(value: string | undefined): string | null {
+  const normalized = value?.trim().toLowerCase();
+  return normalized ? normalized : null;
 }
 
 function resolveFfprobePath(ffprobePathOverride?: string): string {

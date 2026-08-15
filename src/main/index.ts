@@ -12,6 +12,7 @@ import { buildCacheKey, getMediaCacheRoot, migrateLegacyMediaCache } from "./med
 import { MediaCacheManager } from "./media/cacheManager.js";
 import { MEDIA_SCHEME, registerMediaProtocol } from "./media/mediaProtocol.js";
 import { MetadataQueue } from "./media/metadataQueue.js";
+import { PlaybackMetadataEnricher } from "./media/playbackMetadataEnricher.js";
 import { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import {
   createDiagnosticEnvironment,
@@ -162,7 +163,12 @@ app.whenReady().then(async () => {
   const scanManager = new ScanManager(repo, undefined, metadataQueue, logger);
   const duplicateCleanupJobs = new DuplicateCleanupRepository(database, repo);
   duplicateCleanup = new DuplicateCleanupService(duplicateCleanupJobs, repo, metadataQueue, mediaCacheManager, domainEvents);
-  playerWindows = new PlayerWindowCoordinator(repo, { currentDir, devServerUrl, isPackaged: app.isPackaged });
+  const playbackMetadata = new PlaybackMetadataEnricher(repo, undefined, logger);
+  playerWindows = new PlayerWindowCoordinator(
+    repo,
+    { currentDir, devServerUrl, isPackaged: app.isPackaged },
+    (videoId) => playbackMetadata.ensureCodecMetadata(videoId)
+  );
   registerIpcHandlers(repo, {
     database,
     logger,

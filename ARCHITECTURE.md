@@ -1,5 +1,13 @@
 # 架构记忆
 
+## Codec-aware 播放准备（schema v8）
+
+FFprobe 的一次元数据调用同时采集容器、时长、分辨率以及首个视频/音频流的 `codec_name`、视频 `profile` 和 `pix_fmt`，由 `MetadataQueue` 通过带路径、大小、mtime 乐观锁的 repository 更新写入 SQLite。文件版本变化时，编码字段与其他派生元数据一起清空并重新进入后台队列。
+
+历史 `metadata_status = ready` 且 `video_codec IS NULL` 的记录不会在迁移或启动时批量探测。主进程只在该视频真正被选为播放器当前项时，通过 `PlaybackMetadataEnricher` 单次补全；同一视频的并发请求合并。探测失败只写脱敏结构化日志，保留空字段并按保守规则交给 mpv，不阻塞播放器会话。
+
+`auto` 路由同时检查容器和 codec：明确兼容的 H.264/AAC(MP3) 8-bit 4:2:0 MP4/MOV/M4V，以及 VP8/VP9 + Opus/Vorbis WebM 才使用 Chromium native；未知或复杂组合、HEVC 和传统容器走 mpv。`native-first` 保留原有容器优先语义，`mpv-first` 始终使用 mpv。native 运行时失败后继续沿用 native → mpv → 系统默认播放器 fallback。
+
 产品运行模型是 **Windows Electron Desktop Only**：Electron Main 提供 SQLite、文件系统、扫描、媒体和播放能力，Electron Renderer 使用 React/Vite 展示 UI。Vite dev server 仅是未打包 Electron 的 Renderer 开发入口，不是独立 Web 产品。缺少可信 preload 注入时，Renderer 只显示 unsupported-runtime 页面，不运行资料库业务。
 
 ## 总体模型

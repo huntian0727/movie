@@ -1,5 +1,11 @@
 # 开发与维护报告
 
+## 2026-08-16 Codec-aware Playback Routing
+
+旧 `auto` 播放路由只看扩展名，因此 HEVC MP4 等 Chromium 不稳定组合会先进入 native；若用全库 FFprobe 修正历史数据，又会给本地大库和映射网盘带来不可接受的启动读取。当前实现将 codec 纳入 schema v8，但迁移只追加 nullable 字段，10,000 条历史记录测试确认数据、ready 状态和空 codec 均原样保留。
+
+新视频复用既有单次 FFprobe 与 MetadataQueue 持久化 codec/profile/pixel format/audio codec；文件大小或 mtime 改变时全部失效。历史 ready 视频在真正成为播放器当前项时才懒补全，同一视频并发合并，失败仅写脱敏日志并按未知 codec 保守走 mpv。`native-first`、`mpv-first` 和 native 运行时失败后的既有 fallback 均未删除。
+
 ## 2026-08-16 取消独立 Web/demo 模式
 
 - 根因：浏览器缺少 preload API，却由 `App.tsx` 用 demo 数据和假成功分支模拟完整资料库，形成与真实 Electron 行为不一致的第二运行模型。

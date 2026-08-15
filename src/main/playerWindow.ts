@@ -18,6 +18,8 @@ interface PlayerWindowOptions {
   isPackaged: boolean;
 }
 
+type CodecMetadataEnsurer = (videoId: string) => Promise<void>;
+
 export interface OpenPlayerWindowInput {
   videoId: string;
   queueIds: string[];
@@ -51,11 +53,12 @@ export class PlayerWindowCoordinator {
 
   constructor(
     private readonly repo: VideoRepository,
-    private readonly options: PlayerWindowOptions
+    private readonly options: PlayerWindowOptions,
+    private readonly ensureCodecMetadata: CodecMetadataEnsurer = async () => undefined
   ) {}
 
   async open(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
-    const snapshot = this.setSession(input, sequence);
+    const snapshot = await this.setSession(input, sequence);
     this.opening = this.opening.catch(() => undefined).then(async () => {
       try {
         if (!this.window || this.window.isDestroyed()) {
@@ -77,17 +80,19 @@ export class PlayerWindowCoordinator {
     return snapshot;
   }
 
-  setSession(input: OpenPlayerWindowInput, sequence: number): PlayerSessionSnapshot {
+  async setSession(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
     this.session = normalizePlayerSession(this.repo, input);
+    await this.ensureCodecMetadata(this.session.selectedVideoId);
     return this.getSnapshot(sequence).playerSession!;
   }
 
-  select(videoId: string, sequence: number): PlayerSessionSnapshot {
+  async select(videoId: string, sequence: number): Promise<PlayerSessionSnapshot> {
     const snapshot = this.getSnapshot(sequence).playerSession;
     if (!snapshot || !snapshot.queueIds.includes(videoId)) {
       throw new Error("Selected video is not available in the current player queue");
     }
     this.session = { selectedVideoId: videoId, queueIds: snapshot.queueIds };
+    await this.ensureCodecMetadata(videoId);
     return this.getSnapshot(sequence).playerSession!;
   }
 

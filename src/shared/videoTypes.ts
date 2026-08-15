@@ -177,6 +177,10 @@ export interface VideoRecord {
   width: number | null;
   height: number | null;
   format: string | null;
+  videoCodec: string | null;
+  videoProfile: string | null;
+  pixelFormat: string | null;
+  audioCodec: string | null;
   modifiedAt: string;
   importedAt: string;
   updatedAt: string;

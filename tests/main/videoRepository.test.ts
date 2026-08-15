@@ -278,6 +278,41 @@ describe("VideoRepository", () => {
     });
   });
 
+  it("persists codec metadata and clears it when the file version changes", () => {
+    const { repo, folderId } = createRepo();
+    const video = createVideo(repo, folderId, {
+      videoCodec: "h264",
+      videoProfile: "high",
+      pixelFormat: "yuv420p",
+      audioCodec: "aac"
+    });
+
+    expect(repo.getVideo(video.id)).toMatchObject({
+      videoCodec: "h264",
+      videoProfile: "high",
+      pixelFormat: "yuv420p",
+      audioCodec: "aac"
+    });
+
+    const changed = repo.refreshVideoFileVersion(
+      video.id,
+      video.path,
+      video.sizeBytes,
+      video.modifiedAt,
+      video.sizeBytes + 1,
+      "2026-07-10T00:00:00.000Z"
+    );
+    expect(changed).toBe(true);
+    expect(repo.getVideo(video.id)).toMatchObject({
+      metadataStatus: "pending",
+      durationMs: null,
+      videoCodec: null,
+      videoProfile: null,
+      pixelFormat: null,
+      audioCodec: null
+    });
+  });
+
   it("can retry a failed metadata record without changing a newer file version", () => {
     const { repo, folderId } = createRepo();
     const video = createVideo(repo, folderId, { metadataStatus: "pending" });

@@ -6,7 +6,7 @@
 
 - Windows 桌面应用：Electron 33、React 18、TypeScript 5.7、Vite 6。
 - 产品为 Windows Electron Desktop Only；React/Vite 仅作为 Renderer 技术栈，不再维护浏览器 demo 或假业务 fallback。
-- 数据：better-sqlite3，当前 `LATEST_SCHEMA_VERSION = 7`；electron-store 保存应用设置。
+- 数据：better-sqlite3，当前 `LATEST_SCHEMA_VERSION = 8`；electron-store 保存应用设置。v8 只增加四个 nullable codec 字段，不批量探测历史视频。
 - 媒体：静态 FFprobe/FFmpeg 读取元数据和生成缓存；可选 mpv；最终可回退系统默认播放器。
 - 测试：Vitest、Testing Library、jsdom，以及 Electron/打包 smoke 和 Windows 发布门禁脚本。
 - 工具链固定为 Node 22.23.1、npm 10.9.8。Node 测试与 Electron native ABI 必须使用隔离 checkout/worktree。
@@ -19,7 +19,7 @@
 - 普通资料库和重复项均在 SQLite 分页；资料库支持搜索、排序、目录、收藏、最近播放和待删除视图。
 - 重复项正式规则是“缓存的精确大小 + 精确时长”，不读取视频内容或生成新指纹；时长未就绪的文件不参与分组。
 - 重复项永久清理由 schema v7 持久后台任务执行，提交前与实际删除前继续检查存在性、大小和修改时间。
-- 播放支持 native → mpv → 系统默认播放器 fallback；播放器队列有界并由主进程按当前资料库记录解析。
+- 播放支持 native → mpv → 系统默认播放器 fallback；`auto` 使用容器+codec 保守路由，历史 ready 视频仅在首次实际播放时懒补全 codec，失败时不阻塞会话并转向 mpv；播放器队列有界并由主进程按当前资料库记录解析。
 - 封面和时间轴按需生成并写入 userData 下的持久缓存；缓存可重建、有限额、可手动清理。
 - 文件移动、重命名和永久删除集中在主进程，包含路径校验、冲突处理和失败恢复逻辑。
 - 扫描异常工作台支持筛选、重试和对确认损坏/不可播放文件执行安全清理。

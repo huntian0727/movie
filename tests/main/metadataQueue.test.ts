@@ -23,7 +23,16 @@ describe("MetadataQueue", () => {
       maxActive = Math.max(maxActive, active);
       await new Promise((resolve) => setTimeout(resolve, 5));
       active -= 1;
-      return { durationMs: 5000, width: 1920, height: 1080, format: "mp4" };
+      return {
+        durationMs: 5000,
+        width: 1920,
+        height: 1080,
+        format: "mp4",
+        videoCodec: "h264",
+        videoProfile: "high",
+        pixelFormat: "yuv420p",
+        audioCodec: "aac"
+      };
     });
     const queue = new MetadataQueue(repo.value, reader, 1);
 
@@ -35,6 +44,13 @@ describe("MetadataQueue", () => {
     expect(maxActive).toBe(1);
     expect(reader).toHaveBeenCalledTimes(2);
     expect(repo.markMetadataReady).toHaveBeenCalledTimes(2);
+    expect(repo.markMetadataReady).toHaveBeenCalledWith(
+      "v1",
+      "Z:\\Cloud\\one.mp4",
+      1024,
+      "2026-07-16T00:00:00.000Z",
+      expect.objectContaining({ videoCodec: "h264", videoProfile: "high", pixelFormat: "yuv420p", audioCodec: "aac" })
+    );
     expect(repo.markMetadataFailed).not.toHaveBeenCalled();
     expect(queue.getStatus()).toEqual({ queued: 0, active: 0 });
   });
@@ -315,6 +331,10 @@ function createVideo(id: string, filePath: string): VideoRecord {
     width: null,
     height: null,
     format: null,
+    videoCodec: null,
+    videoProfile: null,
+    pixelFormat: null,
+    audioCodec: null,
     modifiedAt: "2026-07-16T00:00:00.000Z",
     importedAt: "2026-07-16T00:00:00.000Z",
     updatedAt: "2026-07-16T00:00:00.000Z",

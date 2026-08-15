@@ -43,6 +43,10 @@ interface UpsertVideoInput {
   width: number | null;
   height: number | null;
   format: string | null;
+  videoCodec?: string | null;
+  videoProfile?: string | null;
+  pixelFormat?: string | null;
+  audioCodec?: string | null;
   modifiedAt: string;
   metadataStatus?: MetadataStatus;
 }
@@ -71,6 +75,10 @@ interface VideoRow {
   width: number | null;
   height: number | null;
   format: string | null;
+  video_codec: string | null;
+  video_profile: string | null;
+  pixel_format: string | null;
+  audio_codec: string | null;
   modified_at: string;
   imported_at: string;
   updated_at: string;
@@ -195,6 +203,10 @@ interface ExistingVideoRow {
   fingerprint_status: FingerprintStatus;
   fingerprint_updated_at: string | null;
   fingerprint_error: string | null;
+  video_codec: string | null;
+  video_profile: string | null;
+  pixel_format: string | null;
+  audio_codec: string | null;
 }
 
 const SORT_COLUMNS: Record<SortField, string> = {
@@ -705,7 +717,11 @@ export class VideoRepository {
           content_fingerprint,
           fingerprint_status,
           fingerprint_updated_at,
-          fingerprint_error
+          fingerprint_error,
+          video_codec,
+          video_profile,
+          pixel_format,
+          audio_codec
         FROM videos
         WHERE path = ?
       `)
@@ -725,6 +741,10 @@ export class VideoRepository {
     const fingerprintUpdatedAt = metadataChanged ? null : existing?.fingerprint_updated_at ?? null;
     const fingerprintError = metadataChanged ? null : existing?.fingerprint_error ?? null;
     const metadataStatus = input.metadataStatus ?? "ready";
+    const videoCodec = metadataChanged ? input.videoCodec ?? null : input.videoCodec ?? existing?.video_codec ?? null;
+    const videoProfile = metadataChanged ? input.videoProfile ?? null : input.videoProfile ?? existing?.video_profile ?? null;
+    const pixelFormat = metadataChanged ? input.pixelFormat ?? null : input.pixelFormat ?? existing?.pixel_format ?? null;
+    const audioCodec = metadataChanged ? input.audioCodec ?? null : input.audioCodec ?? existing?.audio_codec ?? null;
 
     if (metadataChanged && existing) {
       this.deleteTimelinePreviews(existing.id);
@@ -735,12 +755,14 @@ export class VideoRepository {
         INSERT INTO videos (
           id, source_folder_id, path, directory, filename, basename, extension, size_bytes,
           duration_ms, width, height, format, modified_at, imported_at, updated_at,
+          video_codec, video_profile, pixel_format, audio_codec,
           is_favorite, is_pending_delete, is_missing, metadata_status, thumbnail_status, timeline_preview_status, cover_cache_path,
           content_fingerprint, fingerprint_status, fingerprint_updated_at, fingerprint_error
         )
         VALUES (
           @id, @sourceFolderId, @path, @directory, @filename, @basename, @extension, @sizeBytes,
           @durationMs, @width, @height, @format, @modifiedAt, @importedAt, @now,
+          @videoCodec, @videoProfile, @pixelFormat, @audioCodec,
           @isFavorite, 0, 0, @metadataStatus, @thumbnailStatus, @timelinePreviewStatus, @coverCachePath,
           @contentFingerprint, @fingerprintStatus, @fingerprintUpdatedAt, @fingerprintError
         )
@@ -755,6 +777,10 @@ export class VideoRepository {
           width = excluded.width,
           height = excluded.height,
           format = excluded.format,
+          video_codec = excluded.video_codec,
+          video_profile = excluded.video_profile,
+          pixel_format = excluded.pixel_format,
+          audio_codec = excluded.audio_codec,
           modified_at = excluded.modified_at,
           updated_at = excluded.updated_at,
           is_missing = 0,
@@ -781,7 +807,11 @@ export class VideoRepository {
         fingerprintStatus,
         fingerprintUpdatedAt,
         fingerprintError,
-        metadataStatus
+        metadataStatus,
+        videoCodec,
+        videoProfile,
+        pixelFormat,
+        audioCodec
       });
 
     return this.getVideo(id);
@@ -1030,6 +1060,10 @@ export class VideoRepository {
             width = NULL,
             height = NULL,
             format = NULL,
+            video_codec = NULL,
+            video_profile = NULL,
+            pixel_format = NULL,
+            audio_codec = NULL,
             is_missing = 0,
             metadata_status = 'pending',
             thumbnail_status = 'pending',
@@ -1126,7 +1160,7 @@ export class VideoRepository {
     expectedPath: string,
     expectedSizeBytes: number,
     expectedModifiedAt: string,
-    metadata: { durationMs: number | null; width: number | null; height: number | null; format: string | null }
+    metadata: { durationMs: number | null; width: number | null; height: number | null; format: string | null; videoCodec?: string | null; videoProfile?: string | null; pixelFormat?: string | null; audioCodec?: string | null }
   ): boolean {
     const result = this.db
       .prepare(
@@ -1135,6 +1169,10 @@ export class VideoRepository {
              width = @width,
              height = @height,
              format = @format,
+             video_codec = @videoCodec,
+             video_profile = @videoProfile,
+             pixel_format = @pixelFormat,
+             audio_codec = @audioCodec,
              metadata_status = 'ready',
              updated_at = @updatedAt
          WHERE id = @videoId
@@ -1143,7 +1181,42 @@ export class VideoRepository {
            AND modified_at = @expectedModifiedAt
            AND metadata_status = 'pending'`
       )
-      .run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, ...metadata, updatedAt: new Date().toISOString() });
+      .run({
+        videoId,
+        expectedPath,
+        expectedSizeBytes,
+        expectedModifiedAt,
+        ...metadata,
+        videoCodec: metadata.videoCodec ?? null,
+        videoProfile: metadata.videoProfile ?? null,
+        pixelFormat: metadata.pixelFormat ?? null,
+        audioCodec: metadata.audioCodec ?? null,
+        updatedAt: new Date().toISOString()
+      });
+    return result.changes > 0;
+  }
+
+  updateCodecMetadataIfVersion(
+    videoId: string,
+    expectedPath: string,
+    expectedSizeBytes: number,
+    expectedModifiedAt: string,
+    metadata: { videoCodec: string | null; videoProfile: string | null; pixelFormat: string | null; audioCodec: string | null }
+  ): boolean {
+    const result = this.db.prepare(`
+      UPDATE videos
+      SET video_codec = @videoCodec,
+          video_profile = @videoProfile,
+          pixel_format = @pixelFormat,
+          audio_codec = @audioCodec,
+          updated_at = @updatedAt
+      WHERE id = @videoId
+        AND path = @expectedPath
+        AND size_bytes = @expectedSizeBytes
+        AND modified_at = @expectedModifiedAt
+        AND metadata_status = 'ready'
+        AND video_codec IS NULL
+    `).run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, ...metadata, updatedAt: new Date().toISOString() });
     return result.changes > 0;
   }
 
@@ -1624,6 +1697,10 @@ function mapVideo(row: VideoRow): VideoRecord {
     width: row.width,
     height: row.height,
     format: row.format,
+    videoCodec: row.video_codec,
+    videoProfile: row.video_profile,
+    pixelFormat: row.pixel_format,
+    audioCodec: row.audio_codec,
     modifiedAt: row.modified_at,
     importedAt: row.imported_at,
     updatedAt: row.updated_at,

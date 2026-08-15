@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-16 - Codec-aware Playback Routing
+
+- schema v8 为视频追加 nullable 的 video codec、profile、pixel format 与 audio codec，迁移不执行全库 FFprobe 或 metadata 重置。
+- 新导入沿既有单次 FFprobe/MetadataQueue 持久化 codec；文件版本变化时同步失效。
+- 历史 ready 视频只在首次实际播放时懒补全，失败不阻塞会话；`auto` 改为保守容器+codec 路由，显式偏好和既有 fallback 保持不变。
+- 新增迁移 10,000 条记录、元数据解析、仓储失效、路由及首次/后续播放补全测试，并记录 ADR-005。
+
 ## 2026-08-16 - Windows Electron Desktop Only
 
 - 移除浏览器 demo 视频、目录及所有假业务成功 fallback。

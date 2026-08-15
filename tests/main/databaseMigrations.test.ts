@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createDatabase,
   DatabaseMigrationError,
@@ -87,7 +87,8 @@ describe("versioned database migrations", () => {
     try {
       expect(db.pragma("user_version", { simple: true })).toBe(LATEST_SCHEMA_VERSION);
       expect(listColumns(db, "videos")).toEqual(expect.arrayContaining([
-        "content_fingerprint", "fingerprint_status", "is_pending_delete"
+        "content_fingerprint", "fingerprint_status", "is_pending_delete",
+        "video_codec", "video_profile", "pixel_format", "audio_codec"
       ]));
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").pluck().all()).toEqual(expect.arrayContaining([
         "directory_snapshots", "scan_failures", "scan_tasks"
@@ -138,7 +139,7 @@ describe("versioned database migrations", () => {
     }
   });
 
-  for (const version of [1, 2, 3, 4, 5]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7]) {
     it(`upgrades schema version ${version} to the latest version`, () => {
       const dbPath = createTempDatabasePath();
       createVersionFixture(dbPath, version).close();
@@ -152,7 +153,7 @@ describe("versioned database migrations", () => {
     });
   }
 
-  for (const failedVersion of [1, 2, 3, 4, 5, 6]) {
+  for (const failedVersion of [1, 2, 3, 4, 5, 6, 7, 8]) {
     it(`rolls back completely when migration ${failedVersion} fails`, () => {
       const dbPath = createTempDatabasePath();
       const startingVersion = failedVersion - 1;
@@ -183,6 +184,10 @@ describe("versioned database migrations", () => {
           expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'directory_snapshots'").pluck().get()).toBeUndefined();
         } else if (failedVersion === 6) {
           expect(db.prepare("SELECT COUNT(*) FROM scan_failures").pluck().get()).toBe(0);
+        } else if (failedVersion === 7) {
+          expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'duplicate_cleanup_jobs'").pluck().get()).toBeUndefined();
+        } else if (failedVersion === 8) {
+          expect(listColumns(db, "videos")).not.toContain("video_codec");
         }
       } finally {
         db.close();
@@ -205,6 +210,38 @@ describe("versioned database migrations", () => {
       );
     } finally {
       reopened.close();
+    }
+  });
+
+  it("adds nullable codec columns to a 10,000-video v7 library without probing or resetting metadata", () => {
+    const dbPath = createTempDatabasePath();
+    const fixture = createVersionFixture(dbPath, 7);
+    insertSourceFolder(fixture, "large-library", null, "D:\\Large");
+    const insert = fixture.prepare(`
+      INSERT INTO videos (
+        id, source_folder_id, path, directory, filename, basename, extension, size_bytes,
+        duration_ms, width, height, format, modified_at, imported_at, updated_at,
+        metadata_status, thumbnail_status, timeline_preview_status
+      ) VALUES (?, 'large-library', ?, 'D:\\Large', ?, ?, '.mp4', 100, 1000, 1920, 1080, 'mp4',
+        '2026-01-01', '2026-01-01', '2026-01-01', 'ready', 'ready', 'ready')
+    `);
+    fixture.transaction(() => {
+      for (let index = 0; index < 10_000; index += 1) {
+        const filename = `video-${index}.mp4`;
+        insert.run(`video-${index}`, `D:\\Large\\${filename}`, filename, `video-${index}`);
+      }
+    })();
+    fixture.close();
+    const probe = vi.fn();
+
+    const migrated = createDatabase(dbPath);
+    try {
+      expect(probe).not.toHaveBeenCalled();
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos").pluck().get()).toBe(10_000);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE metadata_status = 'ready'").pluck().get()).toBe(10_000);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE video_codec IS NULL").pluck().get()).toBe(10_000);
+    } finally {
+      migrated.close();
     }
   });
 

@@ -1,5 +1,7 @@
 # 任务与路线
 
+> 2026-08-16 Codec-aware Playback Routing：已完成 schema v8 codec 字段、FFprobe 单调用采集、MetadataQueue/仓储持久化、文件版本变化失效、历史 ready 视频首次播放懒补全，以及 `auto` 保守 codec 路由；自动化覆盖迁移 10,000 条记录不回填、路由和懒加载。仍需用真实 H.264、HEVC 和 WebM/其他样本完成打包桌面证据，并继续观察网络盘首次 probe 延迟。
+
 > 2026-08-16 Desktop-only 收敛：已取消独立 Web/demo 产品模式，移除 Renderer 的假视频、假目录和假业务成功分支；Vite/React 继续作为 Electron Renderer。自动测试、Electron smoke、unpacked 打包、packaged smoke 和桌面快捷方式实启已完成；NSIS 安装/升级与干净 Windows VM 仍按发布清单验证。
 
 > 2026-08-16 多 AI 可维护化：已建立 `docs/ai/START_HERE.md` 第一入口、当前状态、代码地图、风险清单、ADR 和逐次交付记录目录；自动交付将校验本轮交付记录。下一步由 AI 项目经理定期审查文档与代码漂移、真实桌面证据和历史文档过期标记。

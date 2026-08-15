@@ -277,7 +277,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     : originalPlayerQueue;
   const selectedIndex = playerQueuedVideos.findIndex((video) => video.id === playerVideoId);
   const selectedVideo = selectedIndex >= 0 ? playerQueuedVideos[selectedIndex] : null;
-  const playbackRoute = selectedVideo ? choosePlaybackRoute(selectedVideo.extension, settings.playbackPreference) : "native";
+  const playbackRoute = selectedVideo ? choosePlaybackRoute(selectedVideo, settings.playbackPreference) : "native";
 
   if (isPlayerWindow && !selectedVideo) {
     return <div className="loading-state"><span /><p>正在打开播放器...</p></div>;
