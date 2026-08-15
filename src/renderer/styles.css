@@ -43,6 +43,12 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; }
 button, input, select { font: inherit; letter-spacing: 0; }
+
+.unsupported-runtime { min-height: 100vh; display: grid; place-items: center; padding: 32px; background: radial-gradient(circle at 50% 35%, #252825 0, #111212 58%); }
+.unsupported-runtime-card { width: min(520px, 100%); padding: 42px 36px; border: 1px solid #353936; border-radius: 18px; background: #191b19; box-shadow: 0 24px 80px #0008; text-align: center; }
+.unsupported-runtime-mark { width: 58px; height: 58px; margin: 0 auto 22px; display: grid; place-items: center; border-radius: 15px; background: #e85d45; color: white; font-size: 28px; font-weight: 800; }
+.unsupported-runtime-card h1 { margin: 0; font-size: clamp(24px, 4vw, 34px); }
+.unsupported-runtime-card p { margin: 14px 0 0; color: #9da19b; font-size: 16px; }
 button { color: inherit; }
 
 .app-shell { --sidebar-width: 300px; min-height: 0; height: 100vh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; background: #111212; }

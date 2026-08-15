@@ -4,7 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 describe("project scaffold", () => {
   it("defines the expected app scripts", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
-    expect(pkg.scripts.dev).toBe("vite --host 127.0.0.1");
+    expect(pkg.scripts.dev).toBeUndefined();
+    expect(pkg.scripts["dev:renderer"]).toBe("vite --host 127.0.0.1");
     expect(pkg.scripts["dev:electron"]).toBe("npm run verify:native:electron && node scripts/start-desktop.mjs");
     expect(pkg.scripts.test).toBe("npm run test:node");
     expect(pkg.scripts["test:node"]).toContain("verify:native:node");
@@ -39,6 +40,10 @@ describe("project scaffold", () => {
 
   it("has a desktop launcher that starts the dev server first", () => {
     expect(existsSync("scripts/start-desktop.mjs")).toBe(true);
+    const launcher = readFileSync("scripts/start-desktop.mjs", "utf8");
+    expect(launcher).toContain('path.join("node_modules", "vite", "bin", "vite.js")');
+    expect(launcher).toContain("spawnElectron");
+    expect(launcher).not.toContain("npm run dev");
   });
 
   it("builds renderer assets with file-compatible relative paths", () => {

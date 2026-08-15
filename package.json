@@ -17,7 +17,7 @@
     "preinstall": "node scripts/verify-environment.mjs",
     "verify:environment": "node scripts/verify-environment.mjs",
     "clean": "node -e \"require('fs').rmSync('dist-main',{recursive:true,force:true})\"",
-    "dev": "vite --host 127.0.0.1",
+    "dev:renderer": "vite --host 127.0.0.1",
     "rebuild:electron": "npm run verify:environment && node scripts/rebuild-electron.mjs",
     "prepare:electron": "npm run rebuild:electron && npm run verify:native:electron",
     "dev:electron": "npm run verify:native:electron && node scripts/start-desktop.mjs",

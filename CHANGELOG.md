@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-16 - Windows Electron Desktop Only
+
+- 移除浏览器 demo 视频、目录及所有假业务成功 fallback。
+- Renderer 在缺少 preload API 时只显示“仅支持 Windows 桌面应用”。
+- 将 `dev` 明确改名为内部 `dev:renderer`；`dev:electron` 继续自动启动 Vite Renderer server。
+- 新增 desktop-only runtime 测试和 ADR-004。
+
 ## 2026-08-16 - 多 AI 项目记忆库
 
 - 新增新 AI 第一入口、当前状态、代码/需求定位图、风险清单和架构决策记录。

@@ -1,11 +1,13 @@
 # 架构记忆
 
+产品运行模型是 **Windows Electron Desktop Only**：Electron Main 提供 SQLite、文件系统、扫描、媒体和播放能力，Electron Renderer 使用 React/Vite 展示 UI。Vite dev server 仅是未打包 Electron 的 Renderer 开发入口，不是独立 Web 产品。缺少可信 preload 注入时，Renderer 只显示 unsupported-runtime 页面，不运行资料库业务。
+
 ## 总体模型
 
 渲染进程不直接接触 Node、磁盘或数据库。React 通过 `window.videoManager` 调 preload 暴露的窄 API，IPC 主进程用 Zod 校验不可信参数，再调用仓储、扫描、文件、播放或设置服务。`local-video://` 特权协议负责原视频流、封面与时间轴图；原始文件是事实源，SQLite 是索引，缓存是衍生物。
 
 ```text
-React UI -> preload/contextBridge -> ipcMain/Zod -> services -> filesystem/ffprobe/ffmpeg/mpv
+Electron Renderer (React UI) -> preload/contextBridge -> ipcMain/Zod -> services -> filesystem/ffprobe/ffmpeg/mpv
                                       |          -> electron-store
                                       +-> VideoRepository -> better-sqlite3 (WAL)
 React <video>/<img> -> local-video:// -> mediaProtocol -> repository + file/cache
@@ -32,6 +34,7 @@ main boundaries -> StructuredLogger(JSONL/redaction/rotation) -> settings diagno
 
 ## 边界与风险
 
+- `window.videoManager` 是业务 UI 的必要运行条件。只允许应用入口处理 API 缺失并显示 unsupported-runtime；业务组件不得重新引入浏览器 demo 数据或假成功 fallback。
 - IPC 是信任边界；不要把 renderer 传来的路径直接用于磁盘操作，优先由 video id 反查。
 - 扫描修改任务由 `ScanManager` 全局串行且按 source-folder 去重；普通扫描、异常重试与全盘子任务不能并发写同一源。FFprobe 继续单并发，失败进入持久异常表并在成功后同步消除文件夹告警。
 - 快照优化依赖产品明确接受“不处理同名覆盖且目录直属名称/计数/mtime 都不变”的场景。若未来改变该规则，必须引入额外文件版本信号并重新评估网盘带宽。

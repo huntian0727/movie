@@ -5,6 +5,7 @@
 ## 产品与技术基线
 
 - Windows 桌面应用：Electron 33、React 18、TypeScript 5.7、Vite 6。
+- 产品为 Windows Electron Desktop Only；React/Vite 仅作为 Renderer 技术栈，不再维护浏览器 demo 或假业务 fallback。
 - 数据：better-sqlite3，当前 `LATEST_SCHEMA_VERSION = 7`；electron-store 保存应用设置。
 - 媒体：静态 FFprobe/FFmpeg 读取元数据和生成缓存；可选 mpv；最终可回退系统默认播放器。
 - 测试：Vitest、Testing Library、jsdom，以及 Electron/打包 smoke 和 Windows 发布门禁脚本。
@@ -26,6 +27,7 @@
 
 ## 最近维护重点
 
+- Renderer 已收敛为 desktop-only：`window.videoManager` 是业务运行前提，缺失时只显示明确的 unsupported-runtime 页面。
 - 扫描异常的重试、空目录/映射盘行为和损坏视频清理。
 - 重复项预检过期状态刷新、后台清理任务和高频删除交互性能。
 - 自动交付：功能分支提交后备份旧 `main` 为注释标签，再用普通快进推送更新 `main`。

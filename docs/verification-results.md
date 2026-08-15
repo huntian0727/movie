@@ -1,5 +1,17 @@
 # 验证结果记录
 
+## 2026-08-16 取消独立 Web/demo 模式
+
+- Node/Web TypeScript：通过。
+- 定向 `App` runtime、scaffold、Electron security、IPC contract：4 个文件、17 项通过。
+- 标准 release gate：lint、build、Windows 文件 37/37、迁移 23/23、性能/缓存/播放器 19/19 通过；最后嵌套环境检查解析到全局 npm 11.9.0 而非要求的 10.9.8，因此整条命令为环境阻塞。
+- 固定 Node 22 直接运行全量 Vitest：44 个文件、412 项通过。
+- Electron 33.4.11 ABI 130 native/main-process smoke：通过。
+- 实际 `scripts/start-desktop.mjs`：通过；主窗口获得 preload API、加载用户真实资料库，没有显示 unsupported-runtime。
+- unpacked artifact：3951 个 asar 条目检查通过；packaged smoke 的 SQLite、协议、Renderer、preload、安全边界和媒体工具检查通过。
+- 桌面快捷方式 `C:\Users\test\Desktop\Video Manager (Dev).lnk` 已确认指向本轮 unpacked exe，并从该快捷方式实际启动通过。
+- NSIS 安装/升级、签名与干净 Windows VM：NOT RUN，继续按发布验收单执行。
+
 ## 2026-08-16 多 AI 项目记忆与交付门禁
 
 - `finish-and-push.ps1 -ValidateOnly`：通过；正确识别仓库、功能分支、待提交交付记录和质量脚本，未执行 Git 写操作。

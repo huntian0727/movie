@@ -1,6 +1,6 @@
 # 映匣（Local Video Manager）
 
-面向 Windows 的本地视频资料库桌面应用。视频始终保留在原目录；应用只维护 SQLite 索引、收藏/播放历史和可重建的封面/时间轴缓存。本文是产品与开发总览，详细设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，状态与路线见 [TASK.md](TASK.md)。首次接手项目的 AI 必须从 [docs/ai/START_HERE.md](docs/ai/START_HERE.md) 开始。
+面向 Windows 的本地视频资料库 Electron 桌面应用。视频始终保留在原目录；应用只维护 SQLite 索引、收藏/播放历史和可重建的封面/时间轴缓存。项目不提供独立 Web 产品或浏览器演示模式；React、Vite、HTML 和 CSS 只用于 Electron Renderer。本文是产品与开发总览，详细设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，状态与路线见 [TASK.md](TASK.md)。首次接手项目的 AI 必须从 [docs/ai/START_HERE.md](docs/ai/START_HERE.md) 开始。
 
 封面与时间轴预览保存在应用数据目录下的专属持久缓存：`%APPDATA%\local-video-manager\media-cache`。默认总上限 10 GiB，采用节流访问时间的近似 LRU、365 天 TTL 和分类配额自动回收；设置页可查看用量、最近清理状态并手动清理。清理只触碰该专属目录，不读取或删除源视频。旧版本位于 Electron `Cache` 目录中的 `covers`/`timeline` 会在启动时迁移，`Cache_Data` 不受影响。
 
@@ -42,7 +42,7 @@ npm run test:electron-smoke
 npm run dev:electron
 ```
 
-`prepare:electron` 将该 checkout 明确转换为 Electron ABI；转换后不要在这里运行 Node Vitest。`dev:electron` 只验证 Electron native binding，不再每次隐式 rebuild。只开发浏览器 UI 可用 `npm run dev`（此时没有真实 Electron API，界面使用演示数据）。详细恢复步骤、cache key 和工作目录规则见 [docs/native-abi-workflow.md](docs/native-abi-workflow.md)。
+`prepare:electron` 将该 checkout 明确转换为 Electron ABI；转换后不要在这里运行 Node Vitest。`dev:electron` 只验证 Electron native binding，不再每次隐式 rebuild，并由 `scripts/start-desktop.mjs` 自动启动 Renderer 的 Vite dev server。`npm run dev:renderer` 仅供调试 Electron Renderer 资源；普通浏览器访问只显示“不支持的运行环境”，不提供资料库或任何假业务操作。详细恢复步骤、cache key 和工作目录规则见 [docs/native-abi-workflow.md](docs/native-abi-workflow.md)。
 
 打包必须在独立的 Electron ABI checkout/job 中执行：
 

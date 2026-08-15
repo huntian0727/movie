@@ -1,5 +1,12 @@
 # 开发与维护报告
 
+## 2026-08-16 取消独立 Web/demo 模式
+
+- 根因：浏览器缺少 preload API，却由 `App.tsx` 用 demo 数据和假成功分支模拟完整资料库，形成与真实 Electron 行为不一致的第二运行模型。
+- 修正：应用入口只负责 API 存在性判断；真实 `DesktopApp` 要求注入 API，所有收藏、删除、移动、扫描、重复项、设置和播放操作统一走 preload/IPC。
+- React/Vite、Renderer 构建和组件测试继续保留；Vite dev server 仍由 Electron 开发启动器使用。
+- 普通浏览器现在只显示 unsupported-runtime，不再掩盖 preload 注入或桌面启动问题。
+
 ## 2026-08-16 多 AI 项目记忆与交付追踪
 
 - 建立 `docs/ai/START_HERE.md` 作为首次接手的唯一推荐入口，明确可信度顺序和事实核验方法。

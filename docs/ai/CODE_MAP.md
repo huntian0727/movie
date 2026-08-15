@@ -12,7 +12,7 @@
 | 媒体与播放 | `src/main/media/`、`src/main/playerWindow.ts` | FFprobe/FFmpeg、缓存、协议、播放器路由与窗口同步 |
 | 文件操作 | `src/main/files/` | 路径规范化、移动/重命名/删除及异常文件动作 |
 | 设置与日志 | `src/main/settings/`、`src/main/logging/` | 持久设置、快捷键、脱敏日志和诊断导出 |
-| UI | `src/renderer/App.tsx`、`src/renderer/components/` | 资料库、重复项、扫描异常、播放器、设置 |
+| UI | `src/renderer/api/client.ts`、`src/renderer/App.tsx`、`src/renderer/components/` | Desktop-only 运行时边界、资料库、重复项、扫描异常、播放器、设置 |
 | 跨层契约 | `src/shared/` | 视频/扫描/重复项/播放器类型、快捷键和清理规则 |
 | 测试 | `tests/main/`、`tests/renderer/`、`tests/scripts/`、`tests/gates/` | 主进程、组件、交付脚本和规模/安全门禁 |
 
@@ -31,6 +31,7 @@
 | “增加排序或字段” | `videoTypes.ts`、migration、repository 白名单/row mapper、UI | preload/IPC 契约、旧库迁移、fixtures 和跨层测试 |
 | “设置项或快捷键” | `settingsStore.ts`、`shortcuts.ts`、`SettingsPage.tsx`、IPC/preload | 默认值升级、冲突检查、打开窗口同步、设置测试 |
 | “桌面启动/白屏/旧快捷方式” | `package.json`、`scripts/start-desktop.mjs`、`index.ts`、构建输出 | Node/Electron ABI、CSP/preload、重新打包和桌面快捷方式实启 |
+| “浏览器出现假数据/Renderer API 缺失” | `renderer/api/client.ts`、`App.tsx`、`preload.cts` | unsupported-runtime、preload URL 信任、App runtime 测试；不得恢复 demo fallback |
 | “缓存位置/长期保留/清理” | `cacheManager.ts`、`cacheService.ts`、设置页 | 只触碰专属缓存、并发 generation epoch、低磁盘/ACL |
 
 ## 跨层修改模板

@@ -6,6 +6,7 @@
 | P0 | 扫描误判缺失 | 根目录离线、子目录失败、超时或取消时，不用不完整枚举结果标记 missing | 增量/网络/异常重试测试，真实映射盘断线验证 |
 | P0 | SQLite 升级 | 只追加 migration；升级前一致性备份；事务失败回滚；新版本不能被旧程序打开写入 | 全迁移链、旧库副本、恢复演练 |
 | P0 | Electron IPC/协议 | sandbox/context isolation 保持开启；所有输入校验；按窗口角色校验 sender；路径不能任意穿透 | security、IPC contract、media protocol 测试和打包 smoke |
+| P0 | Desktop-only 运行时漂移 | `window.videoManager` 是业务前提；Vite 仅服务 Electron Renderer；普通浏览器不得模拟资料库或文件操作 | App runtime、scaffold、preload/IPC contract 与 Electron smoke |
 | P1 | 重复项误删 | 大小+时长只是候选规则；确认和实际删除前仍复查存在、大小、mtime；状态变化后旧计划作废 | duplicate safety/jobs 测试、真实网盘抽样播放 |
 | P1 | 网络盘带宽与阻塞 | 页面查询只读 SQLite；FFprobe 单并发后台执行；目录调用有界且可取消；失败不破坏旧记录 | network/CloudDrive 测试、长阻塞和大目录 E2E |
 | P1 | 缓存并发与磁盘 | 缓存始终可重建；只清专属目录；生成原子发布；清理后旧任务不能重新登记 | cache manager/service 测试、低磁盘/ACL 手测 |
