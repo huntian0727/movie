@@ -128,6 +128,33 @@ function Assert-PendingFilesSafe {
   }
 }
 
+function Assert-DeliveryRecordPresent {
+  $recordPattern = '^docs/ai/deliveries/\d{4}-\d{2}-\d{2}-[A-Za-z0-9._-]+\.md$'
+  $records = @(Get-PendingPaths | Where-Object {
+    $_.Replace("\", "/") -match $recordPattern
+  })
+  if ($records.Count -eq 0) {
+    throw "Every delivery must add or update docs/ai/deliveries/YYYY-MM-DD-<topic>.md. Copy TEMPLATE.md and record actual changes, verification, and risks."
+  }
+
+  $requiredSections = @("## Context", "## Changes", "## Verification", "## Risks and follow-up")
+  foreach ($relativePath in $records) {
+    $absolutePath = Join-Path $script:RepositoryRoot $relativePath
+    if (-not (Test-Path -LiteralPath $absolutePath -PathType Leaf)) {
+      throw "Delivery record is missing from the working tree: $relativePath"
+    }
+    $content = Get-Content -LiteralPath $absolutePath -Raw -Encoding utf8
+    if ($content.Length -lt 200) {
+      throw "Delivery record is too short to be useful: $relativePath"
+    }
+    foreach ($section in $requiredSections) {
+      if (-not $content.Contains($section)) {
+        throw "Delivery record '$relativePath' is missing required section '$section'."
+      }
+    }
+  }
+}
+
 function Get-QualityScripts {
   $packagePath = Join-Path $script:RepositoryRoot "package.json"
   if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) { return @() }
@@ -205,6 +232,7 @@ try {
   }
 
   Assert-PendingFilesSafe
+  Assert-DeliveryRecordPresent
   $qualityScripts = @(Get-QualityScripts)
   Write-Host "Quality checks: $(if ($qualityScripts.Count) { $qualityScripts -join ', ' } else { 'none declared' })"
 

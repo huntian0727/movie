@@ -1,6 +1,6 @@
 # AI 开发与交付规则
 
-本文件是本项目后续 AI 程序员的固定工作约定。当前本地代码始终是开发基准；开始任务时先阅读本文件并检查当前工作区。
+本文件是本项目后续 AI 程序员的固定工作约定。当前本地代码始终是开发基准；开始任务时先阅读本文件并检查当前工作区。首次接手项目还必须按 `docs/ai/START_HERE.md` 建立项目上下文。
 
 ## 工作区与分支安全
 
@@ -17,6 +17,7 @@
 3. 根据 `package.json` 中实际存在的脚本运行质量检查，包括 lint、typecheck、test、build、Electron smoke 和 E2E；不存在的脚本应明确记为“不适用”。
 4. 不得声称未实际运行的测试已经通过。测试失败时，优先修复本次修改引起的问题；环境阻塞必须如实报告。
 5. 不得提交敏感文件、凭据、运行数据库、日志、媒体缓存、依赖目录、覆盖率、临时文件或构建产物。
+6. 每次交付必须新增或更新 `docs/ai/deliveries/YYYY-MM-DD-<topic>.md`，按模板记录真实修改、验证、风险和后续；不得把未运行测试写成通过。
 
 ## 自动交付
 
@@ -32,7 +33,7 @@ powershell -ExecutionPolicy Bypass -File scripts/finish-and-push.ps1 -Message "<
 
 回滚不得强制把 `main` 指针倒退。应从对应 `backup-main-*` 标签创建修复分支，或对问题提交执行 `git revert`，通过新的正常提交恢复。
 
-以后每次开发固定执行：阅读 `AGENTS.md` → 检查工作区 → 创建功能分支 → 完成开发 → 运行测试 → 运行 `finish-and-push.ps1` → 备份旧 `main` → 更新 GitHub `main` → 只报告关键结果和备份标签。
+以后每次开发固定执行：阅读 `AGENTS.md`（首次接手再读 `docs/ai/START_HERE.md`）→ 检查工作区 → 创建功能分支 → 完成开发 → 写交付记录 → 运行测试 → 运行 `finish-and-push.ps1` → 备份旧 `main` → 更新 GitHub `main` → 只报告关键结果和备份标签。
 
 ## 桌面端可用性交付（强制）
 

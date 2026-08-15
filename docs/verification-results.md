@@ -1,5 +1,14 @@
 # 验证结果记录
 
+## 2026-08-16 多 AI 项目记忆与交付门禁
+
+- `finish-and-push.ps1 -ValidateOnly`：通过；正确识别仓库、功能分支、待提交交付记录和质量脚本，未执行 Git 写操作。
+- `tests/scripts/finishAndPush.test.ts`：3/3 通过；新增缺少交付记录时停止且不提交的覆盖，原有 main 备份/快进/禁止强推覆盖继续通过。
+- `npm run test:release-gate`（通过固定 Node/npm 的 npx 外层启动）：lint、build、Windows 文件测试 37/37、迁移 23/23、性能/缓存/播放器 19/19 通过；进入 `test:node` 后，嵌套 `npm run verify:environment` 解析到全局 npm 11.9.0 而非项目要求的 10.9.8，因此整条命令以环境校验失败结束。
+- `npx -y node@22.23.1 node_modules/vitest/vitest.mjs run`：43 个文件、410 个测试通过。
+- Node native smoke：ABI 127 通过。Electron 33.4.11 rebuild 后 Electron native/main-process smoke（ABI 130）通过；随后 `npm rebuild better-sqlite3` 恢复 Node ABI 127并再次通过 Node native smoke。
+- 本轮只修改文档、测试和交付脚本，没有 Electron 业务/UI 行为变化；桌面快捷方式人工验证不适用。
+
 ## 2026-08-01 扫描快照与异常重试
 
 | 检查 | 真实结果 | 结论 |

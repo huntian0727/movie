@@ -1,6 +1,6 @@
 # 映匣（Local Video Manager）
 
-面向 Windows 的本地视频资料库桌面应用。视频始终保留在原目录；应用只维护 SQLite 索引、收藏/播放历史和可重建的封面/时间轴缓存。本文是维护入口，详细设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，状态与路线见 [TASK.md](TASK.md)。
+面向 Windows 的本地视频资料库桌面应用。视频始终保留在原目录；应用只维护 SQLite 索引、收藏/播放历史和可重建的封面/时间轴缓存。本文是产品与开发总览，详细设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，状态与路线见 [TASK.md](TASK.md)。首次接手项目的 AI 必须从 [docs/ai/START_HERE.md](docs/ai/START_HERE.md) 开始。
 
 封面与时间轴预览保存在应用数据目录下的专属持久缓存：`%APPDATA%\local-video-manager\media-cache`。默认总上限 10 GiB，采用节流访问时间的近似 LRU、365 天 TTL 和分类配额自动回收；设置页可查看用量、最近清理状态并手动清理。清理只触碰该专属目录，不读取或删除源视频。旧版本位于 Electron `Cache` 目录中的 `covers`/`timeline` 会在启动时迁移，`Cache_Data` 不受影响。
 
@@ -67,6 +67,7 @@ npm run test:installer-smoke
 - `src/shared/`：跨进程类型、IPC 契约和播放路由。
 - `tests/`：主进程单元/集成式测试、渲染组件测试、脚手架烟测。
 - `docs/`：原始设计、实施计划、功能审计和桌面手测清单（历史依据，不覆盖）。
+- `docs/ai/`：新 AI 第一入口、当前状态、代码地图、风险和逐次交付记录。
 
 ## 维护规则
 
