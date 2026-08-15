@@ -277,7 +277,12 @@ try {
 
     # This is intentionally a normal push. If origin/main changed after fetch,
     # Git rejects it as non-fast-forward and the archived tag remains available.
-    [void](Invoke-Git -Arguments @("push", "-u", "origin", "HEAD:refs/heads/$MainBranch"))
+    $mainPushArguments = if ($branch -eq $MainBranch) {
+      @("push", "-u", "origin", "HEAD:refs/heads/$MainBranch")
+    } else {
+      @("push", "origin", "HEAD:refs/heads/$MainBranch")
+    }
+    [void](Invoke-Git -Arguments $mainPushArguments)
     $remoteMainAfter = Invoke-Git -Arguments @("ls-remote", "--heads", "origin", "refs/heads/$MainBranch") -Capture
     $remoteMainCommit = (([string]$remoteMainAfter.Output[0]) -split "\s+")[0]
     $localHead = ([string](Invoke-Git -Arguments @("rev-parse", "HEAD") -Capture).Output[0]).Trim()

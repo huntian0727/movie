@@ -47,6 +47,7 @@ describe("finish-and-push main backup delivery", () => {
     const newHead = git(worktree, "rev-parse", "HEAD");
     expect(git(root, "--git-dir", remote, "rev-parse", "refs/heads/main")).toBe(newHead);
     expect(git(root, "--git-dir", remote, "rev-parse", "refs/heads/ai/workflow-test")).toBe(newHead);
+    expect(git(worktree, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")).toBe("origin/ai/workflow-test");
     const tags = git(root, "--git-dir", remote, "tag", "--list", "backup-main-*").split(/\r?\n/).filter(Boolean);
     expect(tags).toHaveLength(1);
     expect(git(root, "--git-dir", remote, "rev-parse", `${tags[0]}^{}`)).toBe(oldMain);
