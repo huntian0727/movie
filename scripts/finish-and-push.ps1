@@ -6,6 +6,10 @@ param(
 
   [switch]$SkipChecks,
   [switch]$AllowProtectedBranch,
+  [switch]$SkipMainUpdate,
+
+  [ValidatePattern("^[A-Za-z0-9._/-]+$")]
+  [string]$MainBranch = "main",
 
   # Safe inspection mode used by maintainers and automated validation. It never stages, commits, fetches, rebases, or pushes.
   [switch]$ValidateOnly
@@ -222,7 +226,6 @@ try {
   }
 
   [void](Invoke-Git -Arguments @("commit", "-m", $Message))
-  $commit = ([string](Invoke-Git -Arguments @("rev-parse", "--short", "HEAD") -Capture).Output[0]).Trim()
 
   $remoteBranch = Invoke-Git -Arguments @("ls-remote", "--exit-code", "--heads", "origin", "refs/heads/$branch") -Capture -AllowFailure
   if ($remoteBranch.ExitCode -eq 0 -and $remoteBranch.Output.Count -gt 0) {
@@ -237,8 +240,52 @@ try {
     throw "Unable to query remote branch origin/$branch."
   }
 
-  [void](Invoke-Git -Arguments @("push", "-u", "origin", $branch))
-  Write-Host "RESULT Branch=$branch Commit=$commit Push=origin/$branch Checks=$(if ($SkipChecks) { 'skipped' } else { $qualityScripts -join ',' })" -ForegroundColor Green
+  $backupTag = "not-created"
+  $mainPush = "skipped"
+  $oldMainCommit = $null
+  if (-not $SkipMainUpdate) {
+    $remoteMain = Invoke-Git -Arguments @("ls-remote", "--exit-code", "--heads", "origin", "refs/heads/$MainBranch") -Capture -AllowFailure
+    if ($remoteMain.ExitCode -ne 0 -or $remoteMain.Output.Count -eq 0) {
+      throw "Remote protected branch origin/$MainBranch is unavailable; no branch or tag was pushed."
+    }
+    [void](Invoke-Git -Arguments @("fetch", "origin", $MainBranch))
+    $oldMainCommit = ([string](Invoke-Git -Arguments @("rev-parse", "origin/$MainBranch") -Capture).Output[0]).Trim()
+    $containsMain = Invoke-Git -Arguments @("merge-base", "--is-ancestor", $oldMainCommit, "HEAD") -AllowFailure
+    if ($containsMain -ne 0) {
+      $rebaseResult = Invoke-Git -Arguments @("rebase", "origin/$MainBranch") -AllowFailure
+      if ($rebaseResult -ne 0) {
+        $conflicts = (Invoke-Git -Arguments @("diff", "--name-only", "--diff-filter=U") -Capture -AllowFailure).Output
+        Write-Error "Main rebase conflict. Nothing was pushed. Resolve these files, run 'git rebase --continue', then rerun this script:`n - $($conflicts -join "`n - ")"
+        exit 2
+      }
+    }
+  }
+
+  $commit = ([string](Invoke-Git -Arguments @("rev-parse", "--short", "HEAD") -Capture).Output[0]).Trim()
+  if ($branch -ne $MainBranch -or $SkipMainUpdate) {
+    [void](Invoke-Git -Arguments @("push", "-u", "origin", $branch))
+  }
+
+  if (-not $SkipMainUpdate) {
+    $oldMainShort = ([string](Invoke-Git -Arguments @("rev-parse", "--short", $oldMainCommit) -Capture).Output[0]).Trim()
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $backupTag = "backup-$MainBranch-$timestamp-$oldMainShort"
+    $existingTag = Invoke-Git -Arguments @("show-ref", "--verify", "--quiet", "refs/tags/$backupTag") -AllowFailure
+    if ($existingTag -eq 0) { throw "Backup tag already exists locally: $backupTag" }
+    [void](Invoke-Git -Arguments @("tag", "-a", $backupTag, $oldMainCommit, "-m", "Backup origin/$MainBranch before deploying $commit"))
+    [void](Invoke-Git -Arguments @("push", "origin", "refs/tags/$backupTag"))
+
+    # This is intentionally a normal push. If origin/main changed after fetch,
+    # Git rejects it as non-fast-forward and the archived tag remains available.
+    [void](Invoke-Git -Arguments @("push", "-u", "origin", "HEAD:refs/heads/$MainBranch"))
+    $remoteMainAfter = Invoke-Git -Arguments @("ls-remote", "--heads", "origin", "refs/heads/$MainBranch") -Capture
+    $remoteMainCommit = (([string]$remoteMainAfter.Output[0]) -split "\s+")[0]
+    $localHead = ([string](Invoke-Git -Arguments @("rev-parse", "HEAD") -Capture).Output[0]).Trim()
+    if ($remoteMainCommit -ne $localHead) { throw "Remote main verification failed after push." }
+    $mainPush = "origin/$MainBranch"
+  }
+
+  Write-Host "RESULT Branch=$branch Commit=$commit Push=origin/$branch Main=$mainPush Backup=$backupTag Checks=$(if ($SkipChecks) { 'skipped' } else { $qualityScripts -join ',' })" -ForegroundColor Green
 } catch {
   Write-Error $_
   exit 1

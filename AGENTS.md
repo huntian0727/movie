@@ -7,7 +7,7 @@
 1. 不得丢弃、覆盖或回滚任何本地未提交修改。
 2. 禁止 `git reset --hard`、`git clean -fd`、`git restore .`、`git checkout -- .` 和任何形式的强制推送。
 3. 每项新任务优先创建独立功能分支，使用 `ai/<task-name>`，例如 `ai/scan-fix`、`ai/preview-fix`。
-4. `main` 和 `master` 默认是受保护分支；除非用户明确要求，否则不得直接向它们提交或推送开发代码。
+4. `main` 和 `master` 默认是受保护分支，不在这些分支上直接开发。用户已明确授权自动交付脚本在全部检查通过后，以普通快进推送更新 `main`；禁止强制推送。
 5. 不访问其他仓库，不重新 clone；需要同步时只使用当前仓库已配置的 `origin`。
 
 ## 开发与验证
@@ -28,9 +28,11 @@ powershell -ExecutionPolicy Bypass -File scripts/finish-and-push.ps1 -Message "<
 
 提交信息使用以下前缀之一：`feat:`、`fix:`、`refactor:`、`test:`、`docs:`、`chore:`。
 
-脚本会检查敏感文件、执行可用质量门禁、提交、同步远程同名分支并安全推送。不得绕过失败检查；仅当本轮已经在同一工作区完整执行并记录了等价检查时，才可使用 `-SkipChecks`。受保护分支只有在用户明确授权时才能使用 `-AllowProtectedBranch`。
+脚本会检查敏感文件、执行可用质量门禁、提交并同步功能分支，然后先为更新前的远程 `main` 创建并推送 `backup-main-<时间>-<短哈希>` 标签，再以普通快进推送更新 `main` 并核对远程 Commit。远程发生并发更新、rebase 冲突或非快进时必须停止，禁止强制推送。不得绕过失败检查；仅当本轮已经在同一工作区完整执行并记录了等价检查时，才可使用 `-SkipChecks`。只有用户明确要求本次不更新 `main` 时才使用 `-SkipMainUpdate`。
 
-以后每次开发固定执行：阅读 `AGENTS.md` → 检查工作区 → 必要时创建功能分支 → 完成开发 → 运行测试 → 运行 `finish-and-push.ps1` → 推送 GitHub → 只报告关键结果。
+回滚不得强制把 `main` 指针倒退。应从对应 `backup-main-*` 标签创建修复分支，或对问题提交执行 `git revert`，通过新的正常提交恢复。
+
+以后每次开发固定执行：阅读 `AGENTS.md` → 检查工作区 → 创建功能分支 → 完成开发 → 运行测试 → 运行 `finish-and-push.ps1` → 备份旧 `main` → 更新 GitHub `main` → 只报告关键结果和备份标签。
 
 ## 桌面端可用性交付（强制）
 
