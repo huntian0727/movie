@@ -271,6 +271,7 @@ describe("VideoRepository", () => {
     })).toBe(true);
     expect(repo.getVideo(video.id)).toMatchObject({
       metadataStatus: "ready",
+      codecProbeStatus: "ready",
       durationMs: 5000,
       width: 1920,
       height: 1080,
@@ -284,7 +285,8 @@ describe("VideoRepository", () => {
       videoCodec: "h264",
       videoProfile: "high",
       pixelFormat: "yuv420p",
-      audioCodec: "aac"
+      audioCodec: "aac",
+      codecProbeStatus: "ready"
     });
 
     expect(repo.getVideo(video.id)).toMatchObject({
@@ -309,7 +311,8 @@ describe("VideoRepository", () => {
       videoCodec: null,
       videoProfile: null,
       pixelFormat: null,
-      audioCodec: null
+      audioCodec: null,
+      codecProbeStatus: "unprobed"
     });
   });
 
@@ -318,10 +321,10 @@ describe("VideoRepository", () => {
     const video = createVideo(repo, folderId, { metadataStatus: "pending" });
 
     expect(repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt)).toBe(true);
-    expect(repo.getVideo(video.id).metadataStatus).toBe("failed");
+    expect(repo.getVideo(video.id)).toMatchObject({ metadataStatus: "failed", codecProbeStatus: "failed" });
     expect(repo.markMetadataPending(video.id, video.path, video.sizeBytes + 1, video.modifiedAt)).toBe(false);
     expect(repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt)).toBe(true);
-    expect(repo.getVideo(video.id).metadataStatus).toBe("pending");
+    expect(repo.getVideo(video.id)).toMatchObject({ metadataStatus: "pending", codecProbeStatus: "unprobed" });
   });
 
   it("stores generated timeline preview metadata and marks the video ready", () => {

@@ -335,6 +335,7 @@ function createVideo(id: string, filePath: string): VideoRecord {
     videoProfile: null,
     pixelFormat: null,
     audioCodec: null,
+    codecProbeStatus: "unprobed",
     modifiedAt: "2026-07-16T00:00:00.000Z",
     importedAt: "2026-07-16T00:00:00.000Z",
     updatedAt: "2026-07-16T00:00:00.000Z",

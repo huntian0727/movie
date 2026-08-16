@@ -7,6 +7,7 @@ import type {
   DuplicateGroupPageQuery,
   DuplicateResolvePlan,
   DuplicateResolvePreview,
+  CodecProbeStatus,
   DirectorySnapshot,
   FingerprintStatus,
   LibraryNavigationSnapshot,
@@ -47,6 +48,7 @@ interface UpsertVideoInput {
   videoProfile?: string | null;
   pixelFormat?: string | null;
   audioCodec?: string | null;
+  codecProbeStatus?: CodecProbeStatus;
   modifiedAt: string;
   metadataStatus?: MetadataStatus;
 }
@@ -79,6 +81,7 @@ interface VideoRow {
   video_profile: string | null;
   pixel_format: string | null;
   audio_codec: string | null;
+  codec_probe_status: CodecProbeStatus;
   modified_at: string;
   imported_at: string;
   updated_at: string;
@@ -207,6 +210,7 @@ interface ExistingVideoRow {
   video_profile: string | null;
   pixel_format: string | null;
   audio_codec: string | null;
+  codec_probe_status: CodecProbeStatus;
 }
 
 const SORT_COLUMNS: Record<SortField, string> = {
@@ -721,7 +725,8 @@ export class VideoRepository {
           video_codec,
           video_profile,
           pixel_format,
-          audio_codec
+          audio_codec,
+          codec_probe_status
         FROM videos
         WHERE path = ?
       `)
@@ -745,6 +750,9 @@ export class VideoRepository {
     const videoProfile = metadataChanged ? input.videoProfile ?? null : input.videoProfile ?? existing?.video_profile ?? null;
     const pixelFormat = metadataChanged ? input.pixelFormat ?? null : input.pixelFormat ?? existing?.pixel_format ?? null;
     const audioCodec = metadataChanged ? input.audioCodec ?? null : input.audioCodec ?? existing?.audio_codec ?? null;
+    const codecProbeStatus = metadataChanged
+      ? input.codecProbeStatus ?? "unprobed"
+      : input.codecProbeStatus ?? existing?.codec_probe_status ?? "unprobed";
 
     if (metadataChanged && existing) {
       this.deleteTimelinePreviews(existing.id);
@@ -755,14 +763,14 @@ export class VideoRepository {
         INSERT INTO videos (
           id, source_folder_id, path, directory, filename, basename, extension, size_bytes,
           duration_ms, width, height, format, modified_at, imported_at, updated_at,
-          video_codec, video_profile, pixel_format, audio_codec,
+          video_codec, video_profile, pixel_format, audio_codec, codec_probe_status,
           is_favorite, is_pending_delete, is_missing, metadata_status, thumbnail_status, timeline_preview_status, cover_cache_path,
           content_fingerprint, fingerprint_status, fingerprint_updated_at, fingerprint_error
         )
         VALUES (
           @id, @sourceFolderId, @path, @directory, @filename, @basename, @extension, @sizeBytes,
           @durationMs, @width, @height, @format, @modifiedAt, @importedAt, @now,
-          @videoCodec, @videoProfile, @pixelFormat, @audioCodec,
+          @videoCodec, @videoProfile, @pixelFormat, @audioCodec, @codecProbeStatus,
           @isFavorite, 0, 0, @metadataStatus, @thumbnailStatus, @timelinePreviewStatus, @coverCachePath,
           @contentFingerprint, @fingerprintStatus, @fingerprintUpdatedAt, @fingerprintError
         )
@@ -781,6 +789,7 @@ export class VideoRepository {
           video_profile = excluded.video_profile,
           pixel_format = excluded.pixel_format,
           audio_codec = excluded.audio_codec,
+          codec_probe_status = excluded.codec_probe_status,
           modified_at = excluded.modified_at,
           updated_at = excluded.updated_at,
           is_missing = 0,
@@ -811,7 +820,8 @@ export class VideoRepository {
         videoCodec,
         videoProfile,
         pixelFormat,
-        audioCodec
+        audioCodec,
+        codecProbeStatus
       });
 
     return this.getVideo(id);
@@ -1064,6 +1074,7 @@ export class VideoRepository {
             video_profile = NULL,
             pixel_format = NULL,
             audio_codec = NULL,
+            codec_probe_status = 'unprobed',
             is_missing = 0,
             metadata_status = 'pending',
             thumbnail_status = 'pending',
@@ -1173,6 +1184,7 @@ export class VideoRepository {
              video_profile = @videoProfile,
              pixel_format = @pixelFormat,
              audio_codec = @audioCodec,
+             codec_probe_status = 'ready',
              metadata_status = 'ready',
              updated_at = @updatedAt
          WHERE id = @videoId
@@ -1209,14 +1221,34 @@ export class VideoRepository {
           video_profile = @videoProfile,
           pixel_format = @pixelFormat,
           audio_codec = @audioCodec,
+          codec_probe_status = 'ready',
           updated_at = @updatedAt
       WHERE id = @videoId
         AND path = @expectedPath
         AND size_bytes = @expectedSizeBytes
         AND modified_at = @expectedModifiedAt
         AND metadata_status = 'ready'
-        AND video_codec IS NULL
+        AND codec_probe_status = 'unprobed'
     `).run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, ...metadata, updatedAt: new Date().toISOString() });
+    return result.changes > 0;
+  }
+
+  markCodecProbeFailedIfVersion(
+    videoId: string,
+    expectedPath: string,
+    expectedSizeBytes: number,
+    expectedModifiedAt: string
+  ): boolean {
+    const result = this.db.prepare(`
+      UPDATE videos
+      SET codec_probe_status = 'failed', updated_at = @updatedAt
+      WHERE id = @videoId
+        AND path = @expectedPath
+        AND size_bytes = @expectedSizeBytes
+        AND modified_at = @expectedModifiedAt
+        AND metadata_status = 'ready'
+        AND codec_probe_status = 'unprobed'
+    `).run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, updatedAt: new Date().toISOString() });
     return result.changes > 0;
   }
 
@@ -1224,7 +1256,7 @@ export class VideoRepository {
     const result = this.db
       .prepare(
         `UPDATE videos
-         SET metadata_status = 'failed', updated_at = @updatedAt
+         SET metadata_status = 'failed', codec_probe_status = 'failed', updated_at = @updatedAt
          WHERE id = @videoId
            AND path = @expectedPath
            AND size_bytes = @expectedSizeBytes
@@ -1239,7 +1271,7 @@ export class VideoRepository {
     const result = this.db
       .prepare(
         `UPDATE videos
-         SET metadata_status = 'pending', updated_at = @updatedAt
+         SET metadata_status = 'pending', codec_probe_status = 'unprobed', updated_at = @updatedAt
          WHERE id = @videoId
            AND path = @expectedPath
            AND size_bytes = @expectedSizeBytes
@@ -1701,6 +1733,7 @@ function mapVideo(row: VideoRow): VideoRecord {
     videoProfile: row.video_profile,
     pixelFormat: row.pixel_format,
     audioCodec: row.audio_codec,
+    codecProbeStatus: row.codec_probe_status,
     modifiedAt: row.modified_at,
     importedAt: row.imported_at,
     updatedAt: row.updated_at,

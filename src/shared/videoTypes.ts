@@ -9,6 +9,7 @@ export type SortDirection = "asc" | "desc";
 export type LibraryView = "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "duplicates";
 export type ViewMode = "grid" | "table";
 export type MetadataStatus = "pending" | "ready" | "failed";
+export type CodecProbeStatus = "unprobed" | "ready" | "failed";
 export type CacheStatus = "pending" | "ready" | "failed";
 export type FingerprintStatus = "pending" | "ready" | "failed";
 export type PlaybackPreference = "auto" | "native-first" | "mpv-first";
@@ -181,6 +182,7 @@ export interface VideoRecord {
   videoProfile: string | null;
   pixelFormat: string | null;
   audioCodec: string | null;
+  codecProbeStatus: CodecProbeStatus;
   modifiedAt: string;
   importedAt: string;
   updatedAt: string;

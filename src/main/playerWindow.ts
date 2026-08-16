@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { VideoRepository } from "./db/videoRepository.js";
+import type { StructuredLogger } from "./logging/logger.js";
 import { configureWindowSecurity } from "./security.js";
 import {
   IPC_CHANNELS,
@@ -19,6 +20,8 @@ interface PlayerWindowOptions {
 }
 
 type CodecMetadataEnsurer = (videoId: string) => Promise<void>;
+
+export const PLAYBACK_CODEC_PROBE_WAIT_MS = 2_000;
 
 export interface OpenPlayerWindowInput {
   videoId: string;
@@ -54,7 +57,8 @@ export class PlayerWindowCoordinator {
   constructor(
     private readonly repo: VideoRepository,
     private readonly options: PlayerWindowOptions,
-    private readonly ensureCodecMetadata: CodecMetadataEnsurer = async () => undefined
+    private readonly ensureCodecMetadata: CodecMetadataEnsurer = async () => undefined,
+    private readonly logger?: StructuredLogger
   ) {}
 
   async open(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
@@ -82,7 +86,9 @@ export class PlayerWindowCoordinator {
 
   async setSession(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
     this.session = normalizePlayerSession(this.repo, input);
-    await this.ensureCodecMetadata(this.session.selectedVideoId);
+    if (await waitForCodecMetadata(this.ensureCodecMetadata, this.session.selectedVideoId)) {
+      this.logCodecProbeWaitTimeout(this.session.selectedVideoId);
+    }
     return this.getSnapshot(sequence).playerSession!;
   }
 
@@ -92,7 +98,9 @@ export class PlayerWindowCoordinator {
       throw new Error("Selected video is not available in the current player queue");
     }
     this.session = { selectedVideoId: videoId, queueIds: snapshot.queueIds };
-    await this.ensureCodecMetadata(videoId);
+    if (await waitForCodecMetadata(this.ensureCodecMetadata, videoId)) {
+      this.logCodecProbeWaitTimeout(videoId);
+    }
     return this.getSnapshot(sequence).playerSession!;
   }
 
@@ -130,6 +138,32 @@ export class PlayerWindowCoordinator {
     if (this.window && !this.window.isDestroyed()) this.window.close();
     this.window = null;
     this.session = null;
+  }
+
+  private logCodecProbeWaitTimeout(videoId: string): void {
+    this.logger?.warn({
+      module: "media.playback",
+      event: "codec_probe_wait_timeout",
+      message: "Player preparation stopped waiting for codec probing",
+      context: { videoId }
+    });
+  }
+}
+
+async function waitForCodecMetadata(ensureCodecMetadata: CodecMetadataEnsurer, videoId: string): Promise<boolean> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const enrichment = Promise.resolve()
+    .then(() => ensureCodecMetadata(videoId))
+    .catch(() => undefined);
+  try {
+    return await Promise.race([
+      enrichment.then(() => false),
+      new Promise<true>((resolve) => {
+        timeout = setTimeout(() => resolve(true), PLAYBACK_CODEC_PROBE_WAIT_MS);
+      })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 

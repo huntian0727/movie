@@ -1,6 +1,6 @@
 # 任务与路线
 
-> 2026-08-16 Codec-aware Playback Routing：已完成 schema v8 codec 字段、FFprobe 单调用采集、MetadataQueue/仓储持久化、文件版本变化失效、历史 ready 视频首次播放懒补全，以及 `auto` 保守 codec 路由；自动化覆盖迁移 10,000 条记录不回填、路由和懒加载。仍需用真实 H.264、HEVC 和 WebM/其他样本完成打包桌面证据，并继续观察网络盘首次 probe 延迟。
+> 2026-08-16 Codec-aware Playback Routing 修复：schema v9 用 `codec_probe_status` 消除 NULL 歧义；历史 ready 视频按需最多自动 probe 一次，播放器只等待 2 秒，失败不重复、文件版本变化后重置。`auto` 对 metadata pending 常见容器临时 native-first，并将 VP9 10-bit WebM 保守路由到 mpv。自动化覆盖 v8→v9、10,000 条迁移、空 codec/失败、等待上限、真实协调器链路和路由；真实网络/离线媒体及打包桌面证据仍需本轮交付验证。
 
 > 2026-08-16 Desktop-only 收敛：已取消独立 Web/demo 产品模式，移除 Renderer 的假视频、假目录和假业务成功分支；Vite/React 继续作为 Electron Renderer。自动测试、Electron smoke、unpacked 打包、packaged smoke 和桌面快捷方式实启已完成；NSIS 安装/升级与干净 Windows VM 仍按发布清单验证。
 

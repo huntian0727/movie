@@ -8,7 +8,7 @@
 
 ## Schema 版本历史
 
-数据库使用 SQLite 原生 `PRAGMA user_version`，当前最新版为 8。
+数据库使用 SQLite 原生 `PRAGMA user_version`，当前最新版为 9。
 
 | 版本 | 内容 |
 | --- | --- |
@@ -20,12 +20,13 @@
 | 6 | 将旧版 source-folder `scan_error` 兼容为可重试异常记录 |
 | 7 | 持久化重复项后台清理任务、条目与活动占用 |
 | 8 | 播放路由使用的 nullable codec/profile/pixel format/audio codec 字段 |
+| 9 | `codec_probe_status`，区分未探测、成功和失败；已有 codec 的 v8 记录迁移为 ready |
 
-旧版本曾没有版本号。首次接管时只接受能明确对应 v1–v4 的表/列组合，再自动升级到 v8；部分指纹列、缺少核心表、未知业务表或高于当前版本的数据库都会停止启动，不会被盲目修改。v6 只为“旧 `scan_error` 非空且没有活动 `scan_failures`”的目录补一条根目录异常，不清空原摘要、不覆盖已有异常，重复执行不会重复插入。v8 只追加 nullable 列，绝不在迁移或启动时全库 FFprobe、重置 metadata 状态或回填历史 codec。
+旧版本曾没有版本号。首次接管时只接受能明确对应 v1–v4 的表/列组合，再自动升级到 v9；部分指纹列、缺少核心表、未知业务表或高于当前版本的数据库都会停止启动，不会被盲目修改。v6 只为“旧 `scan_error` 非空且没有活动 `scan_failures`”的目录补一条根目录异常，不清空原摘要、不覆盖已有异常，重复执行不会重复插入。v8 只追加 nullable codec 列；v9 只追加带默认值的 probe 状态，并按已有 `video_codec` 做 SQLite 内回填。两者都不会在迁移或启动时读取视频、全库 FFprobe 或重置 metadata 状态。
 
 ## 迁移与备份行为
 
-- 新库在单个事务内依次执行 v1–v8，不需要升级备份。
+- 新库在单个事务内依次执行 v1–v9，不需要升级备份。
 - 旧库升级前使用 SQLite `VACUUM INTO` 创建包含 WAL 当前一致视图的独立备份，再运行迁移事务。
 - 备份目录为 `<library.sqlite>.backups`，文件名为 `library.sqlite.v<旧版本>.<UTC 时间>.sqlite`。
 - 每一步都执行前置断言、DDL、后置断言并更新 `user_version`；任一步失败会回滚整个升级序列。
@@ -50,7 +51,7 @@
 
 ## 测试覆盖
 
-`databaseMigrations.test.ts` 覆盖空库、无版本旧库、v1–v8、10,000 条历史视频的 v8 无探测升级、旧异常回填/去重/幂等/重试清除、每步故障回滚、备份可独立打开、备份失败、未知/损坏 schema、默认值/索引/FK 和幂等启动。`videoRepository.test.ts` 覆盖 codec 持久化/文件版本失效、快照规范化、异常重试/解决和目录级缺失对账；`libraryScanner.incremental.test.ts` 覆盖快照算法。标准命令为 `npm run test:migrations` 和 `npm test`；native ABI 必须与运行测试的 Node 一致。
+`databaseMigrations.test.ts` 覆盖空库、无版本旧库、v1–v9、10,000 条历史视频的 v8→v9 无探测升级、codec 状态回填与用户状态保留、旧异常回填/去重/幂等/重试清除、每步故障回滚、备份可独立打开、备份失败、未知/损坏 schema、默认值/索引/FK 和幂等启动。`videoRepository.test.ts` 覆盖 codec/probe 状态持久化、人工重试和文件版本失效；`libraryScanner.incremental.test.ts` 覆盖快照算法。标准命令为 `npm run test:migrations` 和 `npm test`；native ABI 必须与运行测试的 Node 一致。
 # 重复项后台清理（schema v7）
 
 `duplicateCleanupRepository.ts` 负责持久化重复项清理任务、逐文件版本快照和活动占用。提交必须在一个 SQLite 事务中同时写入 `duplicate_cleanup_jobs`、`duplicate_cleanup_items` 和 keep/delete 两类 `duplicate_cleanup_reservations`；`request_id` 用于 IPC 重试幂等，活动 `video_id` 唯一索引用于阻止同一文件进入两个任务。

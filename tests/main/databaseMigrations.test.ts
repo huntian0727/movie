@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   createDatabase,
   DatabaseMigrationError,
@@ -88,7 +88,7 @@ describe("versioned database migrations", () => {
       expect(db.pragma("user_version", { simple: true })).toBe(LATEST_SCHEMA_VERSION);
       expect(listColumns(db, "videos")).toEqual(expect.arrayContaining([
         "content_fingerprint", "fingerprint_status", "is_pending_delete",
-        "video_codec", "video_profile", "pixel_format", "audio_codec"
+        "video_codec", "video_profile", "pixel_format", "audio_codec", "codec_probe_status"
       ]));
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").pluck().all()).toEqual(expect.arrayContaining([
         "directory_snapshots", "scan_failures", "scan_tasks"
@@ -139,7 +139,7 @@ describe("versioned database migrations", () => {
     }
   });
 
-  for (const version of [1, 2, 3, 4, 5, 6, 7]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8]) {
     it(`upgrades schema version ${version} to the latest version`, () => {
       const dbPath = createTempDatabasePath();
       createVersionFixture(dbPath, version).close();
@@ -153,7 +153,7 @@ describe("versioned database migrations", () => {
     });
   }
 
-  for (const failedVersion of [1, 2, 3, 4, 5, 6, 7, 8]) {
+  for (const failedVersion of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
     it(`rolls back completely when migration ${failedVersion} fails`, () => {
       const dbPath = createTempDatabasePath();
       const startingVersion = failedVersion - 1;
@@ -188,6 +188,8 @@ describe("versioned database migrations", () => {
           expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'duplicate_cleanup_jobs'").pluck().get()).toBeUndefined();
         } else if (failedVersion === 8) {
           expect(listColumns(db, "videos")).not.toContain("video_codec");
+        } else if (failedVersion === 9) {
+          expect(listColumns(db, "videos")).not.toContain("codec_probe_status");
         }
       } finally {
         db.close();
@@ -213,9 +215,9 @@ describe("versioned database migrations", () => {
     }
   });
 
-  it("adds nullable codec columns to a 10,000-video v7 library without probing or resetting metadata", () => {
+  it("adds probe status to a 10,000-video v8 library without resetting metadata or queueing the library", () => {
     const dbPath = createTempDatabasePath();
-    const fixture = createVersionFixture(dbPath, 7);
+    const fixture = createVersionFixture(dbPath, 8);
     insertSourceFolder(fixture, "large-library", null, "D:\\Large");
     const insert = fixture.prepare(`
       INSERT INTO videos (
@@ -232,14 +234,45 @@ describe("versioned database migrations", () => {
       }
     })();
     fixture.close();
-    const probe = vi.fn();
-
     const migrated = createDatabase(dbPath);
     try {
-      expect(probe).not.toHaveBeenCalled();
       expect(migrated.prepare("SELECT COUNT(*) FROM videos").pluck().get()).toBe(10_000);
       expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE metadata_status = 'ready'").pluck().get()).toBe(10_000);
       expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE video_codec IS NULL").pluck().get()).toBe(10_000);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE codec_probe_status = 'unprobed'").pluck().get()).toBe(10_000);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE metadata_status = 'pending'").pluck().get()).toBe(0);
+      expect(new VideoRepository(migrated).listVideosPendingMetadata()).toEqual([]);
+    } finally {
+      migrated.close();
+    }
+  });
+
+  it("migrates v8 codec records to ready while preserving null codec records and user state", () => {
+    const dbPath = createTempDatabasePath();
+    const fixture = createVersionFixture(dbPath, 8);
+    insertSourceFolder(fixture, "codec-library", null, "D:\\Codec");
+    const insert = fixture.prepare(`
+      INSERT INTO videos (
+        id, source_folder_id, path, directory, filename, basename, extension, size_bytes,
+        duration_ms, width, height, format, video_codec, modified_at, imported_at, updated_at,
+        is_favorite, is_pending_delete, metadata_status, thumbnail_status, timeline_preview_status
+      ) VALUES (?, 'codec-library', ?, 'D:\\Codec', ?, ?, '.mp4', ?, ?, 1920, 1080, 'mp4', ?,
+        '2026-01-01', '2026-01-01', '2026-01-01', ?, ?, ?, 'ready', 'ready')
+    `);
+    insert.run("known", "D:\\Codec\\known.mp4", "known.mp4", "known", 100, 1_000, "h264", 1, 1, "ready");
+    insert.run("unknown", "D:\\Codec\\unknown.mp4", "unknown.mp4", "unknown", 200, 2_000, null, 0, 0, "ready");
+    fixture.close();
+
+    const migrated = createDatabase(dbPath);
+    try {
+      expect(migrated.prepare(`
+        SELECT id, codec_probe_status, metadata_status, is_favorite, is_pending_delete, path
+        FROM videos ORDER BY id
+      `).all()).toEqual([
+        { id: "known", codec_probe_status: "ready", metadata_status: "ready", is_favorite: 1, is_pending_delete: 1, path: "D:\\Codec\\known.mp4" },
+        { id: "unknown", codec_probe_status: "unprobed", metadata_status: "ready", is_favorite: 0, is_pending_delete: 0, path: "D:\\Codec\\unknown.mp4" }
+      ]);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos").pluck().get()).toBe(2);
     } finally {
       migrated.close();
     }

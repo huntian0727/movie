@@ -1,6 +1,8 @@
 import type { PlaybackPreference, PlaybackRoute, VideoRecord } from "./videoTypes.js";
 
-type PlaybackIdentity = Pick<VideoRecord, "extension" | "videoCodec" | "videoProfile" | "pixelFormat" | "audioCodec">;
+type PlaybackIdentity = Pick<VideoRecord,
+  "extension" | "videoCodec" | "videoProfile" | "pixelFormat" | "audioCodec" | "metadataStatus" | "codecProbeStatus"
+>;
 
 const CONTAINER_NATIVE_EXTENSIONS = new Set([".mp4", ".m4v", ".mov", ".webm"]);
 const H264_NATIVE_PROFILES = new Set(["baseline", "constrained baseline", "main", "high"]);
@@ -16,10 +18,16 @@ export function choosePlaybackRoute(video: PlaybackIdentity, preference: Playbac
     return CONTAINER_NATIVE_EXTENSIONS.has(extension) ? "native" : "mpv";
   }
 
+  if (video.metadataStatus === "pending") {
+    return CONTAINER_NATIVE_EXTENSIONS.has(extension) ? "native" : "mpv";
+  }
+  if (video.metadataStatus !== "ready" || video.codecProbeStatus !== "ready") return "mpv";
+
   const videoCodec = normalizeNullable(video.videoCodec);
   const audioCodec = normalizeNullable(video.audioCodec);
   if (extension === ".webm") {
-    return videoCodec && WEBM_NATIVE_VIDEO.has(videoCodec) && isNullOrAllowed(audioCodec, WEBM_NATIVE_AUDIO)
+    const pixelFormat = normalizeNullable(video.pixelFormat);
+    return videoCodec && WEBM_NATIVE_VIDEO.has(videoCodec) && pixelFormat === "yuv420p" && isNullOrAllowed(audioCodec, WEBM_NATIVE_AUDIO)
       ? "native"
       : "mpv";
   }

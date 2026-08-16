@@ -42,6 +42,7 @@ describe("PlaybackMetadataEnricher", () => {
       videoProfile: "high",
       pixelFormat: "yuv420p",
       audioCodec: "aac",
+      codecProbeStatus: "ready",
       metadataStatus: "ready"
     });
   });
@@ -57,15 +58,37 @@ describe("PlaybackMetadataEnricher", () => {
   it("does not block player preparation when probing fails", async () => {
     const { repo, videoId } = fixture();
     const warn = vi.fn();
+    const reader = vi.fn(async () => { throw new Error("offline"); });
     const enricher = new PlaybackMetadataEnricher(
       repo,
-      async () => { throw new Error("offline"); },
-      { warn } as never
+      reader,
+      { info: vi.fn(), warn } as never
     );
 
     await expect(enricher.ensureCodecMetadata(videoId)).resolves.toBeUndefined();
+    await expect(enricher.ensureCodecMetadata(videoId)).resolves.toBeUndefined();
     expect(repo.getVideo(videoId).videoCodec).toBeNull();
-    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ event: "codec_metadata_enrichment_failed" }));
+    expect(repo.getVideo(videoId).codecProbeStatus).toBe("failed");
+    expect(reader).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ event: "codec_probe_failed" }));
+  });
+
+  it("records a successful probe with no codec as ready and does not probe again", async () => {
+    const { repo, videoId } = fixture();
+    const reader = vi.fn(async () => ({
+      durationMs: 1000,
+      width: 1920,
+      height: 1080,
+      format: "mp4",
+      videoCodec: null
+    }));
+    const enricher = new PlaybackMetadataEnricher(repo, reader);
+
+    await enricher.ensureCodecMetadata(videoId);
+    await enricher.ensureCodecMetadata(videoId);
+
+    expect(reader).toHaveBeenCalledTimes(1);
+    expect(repo.getVideo(videoId)).toMatchObject({ videoCodec: null, codecProbeStatus: "ready" });
   });
 });
 

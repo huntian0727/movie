@@ -6,6 +6,7 @@ import { scanSnapshotsAndFailuresMigration } from "./005-scan-snapshots-and-fail
 import { legacyScanErrorsMigration } from "./006-legacy-scan-errors.js";
 import { duplicateCleanupJobsMigration } from "./007-duplicate-cleanup-jobs.js";
 import { codecMetadataMigration } from "./008-codec-metadata.js";
+import { codecProbeStatusMigration } from "./009-codec-probe-status.js";
 
 export const migrations = [
   coreLibraryMigration,
@@ -15,7 +16,8 @@ export const migrations = [
   scanSnapshotsAndFailuresMigration,
   legacyScanErrorsMigration,
   duplicateCleanupJobsMigration,
-  codecMetadataMigration
+  codecMetadataMigration,
+  codecProbeStatusMigration
 ] as const;
 
-export const LATEST_SCHEMA_VERSION = 8;
+export const LATEST_SCHEMA_VERSION = 9;

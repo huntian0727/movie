@@ -726,6 +726,7 @@ class MemoryScanRepository {
       videoProfile: (input.videoProfile as string | null | undefined) ?? null,
       pixelFormat: (input.pixelFormat as string | null | undefined) ?? null,
       audioCodec: (input.audioCodec as string | null | undefined) ?? null,
+      codecProbeStatus: (input.codecProbeStatus as VideoRecord["codecProbeStatus"] | undefined) ?? "unprobed",
       modifiedAt: String(input.modifiedAt),
       importedAt: old?.importedAt ?? now,
       updatedAt: now,

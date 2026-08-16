@@ -1,12 +1,14 @@
 # 架构记忆
 
-## Codec-aware 播放准备（schema v8）
+## Codec-aware 播放准备（schema v9）
 
 FFprobe 的一次元数据调用同时采集容器、时长、分辨率以及首个视频/音频流的 `codec_name`、视频 `profile` 和 `pix_fmt`，由 `MetadataQueue` 通过带路径、大小、mtime 乐观锁的 repository 更新写入 SQLite。文件版本变化时，编码字段与其他派生元数据一起清空并重新进入后台队列。
 
-历史 `metadata_status = ready` 且 `video_codec IS NULL` 的记录不会在迁移或启动时批量探测。主进程只在该视频真正被选为播放器当前项时，通过 `PlaybackMetadataEnricher` 单次补全；同一视频的并发请求合并。探测失败只写脱敏结构化日志，保留空字段并按保守规则交给 mpv，不阻塞播放器会话。
+schema v9 用 `codec_probe_status = unprobed | ready | failed` 区分“尚未探测”“探测完成”和“探测失败”。v8 中已有 `video_codec` 的记录迁移为 `ready`，codec 为空的历史记录保持 `unprobed`，迁移不读取媒体文件或重置 metadata 状态。主进程只在历史 ready 视频真正被选为播放器当前项时懒补全；同一视频的并发请求合并。成功即写 `ready`（即使 codec 仍为空），失败写 `failed`，普通播放不再重复探测；文件大小或 mtime 变化时恢复为 `unprobed`。
 
-`auto` 路由同时检查容器和 codec：明确兼容的 H.264/AAC(MP3) 8-bit 4:2:0 MP4/MOV/M4V，以及 VP8/VP9 + Opus/Vorbis WebM 才使用 Chromium native；未知或复杂组合、HEVC 和传统容器走 mpv。`native-first` 保留原有容器优先语义，`mpv-first` 始终使用 mpv。native 运行时失败后继续沿用 native → mpv → 系统默认播放器 fallback。
+播放器准备最多等待 codec probe 2 秒。窗口/会话超过等待上限后使用保守快照继续打开，FFprobe 在后台完成、捕获自身异常并按文件版本乐观锁更新数据库，不继承 FFprobe 自身 60 秒超时。`metadata_status = pending` 的 MP4/M4V/MOV/WebM 临时 native-first；ready 但 probe 未完成或失败的未知 codec 仍保守走 mpv。
+
+`auto` 路由同时检查 metadata/probe 状态、容器和 codec：明确兼容的 H.264/AAC(MP3) 8-bit 4:2:0 MP4/MOV/M4V，以及 `yuv420p` 的 VP8/VP9 + Opus/Vorbis WebM 才使用 Chromium native；10-bit、未知或复杂组合、HEVC 和传统容器走 mpv。`native-first` 保留原有容器优先语义，`mpv-first` 始终使用 mpv。native 运行时失败后继续沿用 native → mpv → 系统默认播放器 fallback。
 
 产品运行模型是 **Windows Electron Desktop Only**：Electron Main 提供 SQLite、文件系统、扫描、媒体和播放能力，Electron Renderer 使用 React/Vite 展示 UI。Vite dev server 仅是未打包 Electron 的 Renderer 开发入口，不是独立 Web 产品。缺少可信 preload 注入时，Renderer 只显示 unsupported-runtime 页面，不运行资料库业务。
 
@@ -32,7 +34,7 @@ main boundaries -> StructuredLogger(JSONL/redaction/rotation) -> settings diagno
 
 ## 数据与关键决策
 
-- SQLite 使用 `PRAGMA user_version` 的有序迁移。v1–v4 保存核心资料库、播放历史、历史指纹兼容字段和待删除标记；v5 新增 `directory_snapshots`、`scan_failures`、`scan_tasks`；v6 为仅有旧 `scan_error` 摘要的目录补建可重试异常明细；v7 新增持久化重复项清理任务与明细。旧库升级前先 `VACUUM INTO` 备份，再在事务中迁移并执行 FK/quick check。
+- SQLite 使用 `PRAGMA user_version` 的有序迁移。v1–v4 保存核心资料库、播放历史、历史指纹兼容字段和待删除标记；v5 新增扫描快照/异常/任务；v6 兼容旧扫描错误；v7 新增重复项清理任务；v8 新增 codec 字段；v9 新增明确的 codec probe 状态。旧库升级前先 `VACUUM INTO` 备份，再在事务中迁移并执行 FK/quick check。
 - Windows 路径以 `COLLATE NOCASE` 唯一，应用生成 UUID；重扫同路径保持记录身份与收藏。
 - 缺失采用软状态而非立即删除，避免临时离线盘导致用户元数据丢失。
 - 收藏只存布尔标记，不移动文件；删除是明确确认后的永久磁盘删除。

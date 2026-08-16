@@ -167,7 +167,8 @@ app.whenReady().then(async () => {
   playerWindows = new PlayerWindowCoordinator(
     repo,
     { currentDir, devServerUrl, isPackaged: app.isPackaged },
-    (videoId) => playbackMetadata.ensureCodecMetadata(videoId)
+    (videoId) => playbackMetadata.ensureCodecMetadata(videoId),
+    logger
   );
   registerIpcHandlers(repo, {
     database,

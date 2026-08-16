@@ -212,7 +212,7 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
     "duration_ms", "width", "height", "format", "modified_at", "imported_at", "updated_at", "is_favorite",
     "is_pending_delete", "is_missing", "metadata_status", "thumbnail_status", "timeline_preview_status",
     "cover_cache_path", "content_fingerprint", "fingerprint_status", "fingerprint_updated_at", "fingerprint_error",
-    "video_codec", "video_profile", "pixel_format", "audio_codec"
+    "video_codec", "video_profile", "pixel_format", "audio_codec", "codec_probe_status"
   ]);
   requireColumns(db, "timeline_previews", ["id", "video_id", "time_ms", "cache_path", "created_at"]);
   requireColumns(db, "play_history", ["video_id", "played_at", "position_ms"]);

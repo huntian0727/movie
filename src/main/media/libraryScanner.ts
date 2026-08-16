@@ -471,6 +471,7 @@ async function upsertScannedVideo(
       videoProfile: null,
       pixelFormat: null,
       audioCodec: null,
+      codecProbeStatus: "unprobed",
       modifiedAt,
       metadataStatus: "pending"
     });
@@ -492,6 +493,7 @@ async function upsertScannedVideo(
     videoProfile: metadata.videoProfile ?? null,
     pixelFormat: metadata.pixelFormat ?? null,
     audioCodec: metadata.audioCodec ?? null,
+    codecProbeStatus: "ready",
     modifiedAt
   });
 }

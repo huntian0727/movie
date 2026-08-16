@@ -21,6 +21,7 @@ const video: VideoRecord = {
   videoProfile: null,
   pixelFormat: null,
   audioCodec: null,
+  codecProbeStatus: "ready",
   modifiedAt: "2026-07-09T00:00:00.000Z",
   importedAt: "2026-07-09T00:00:00.000Z",
   updatedAt: "2026-07-09T00:00:00.000Z",
