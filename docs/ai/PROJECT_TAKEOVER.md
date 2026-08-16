@@ -1,6 +1,6 @@
 # 映匣项目接管报告
 
-更新时间：2026-08-16。代码事实基线为 `7506da518e5a404d542072ff4d26cc717321c2d9`；最终远程交付 SHA 以 Git 为准。
+更新时间：2026-08-16。代码事实基线为 `7506da518e5a404d542072ff4d26cc717321c2d9`；已验证的接管实现 SHA 为 `2ffc7e19c5e8ba6924202c6711fcd654b06fea70`。
 
 ## Git
 
@@ -12,6 +12,7 @@
 - Unpushed at takeover start: none
 - Remote CI at baseline: FAIL; Node 434/435 because one test regex is PowerShell line-wrap sensitive; Electron smoke PASS
 - Branch protection: disabled on `main`
+- Takeover delivery: `main@2ffc7e1`; GitHub Windows CI run `31948566820` PASS.
 
 ## Product State
 
@@ -22,7 +23,7 @@
 ## Development State
 
 - Recent Completed: desktop-only convergence; codec-aware routing; v9 probe-status and bounded lazy enrichment fix.
-- Active: project management takeover and Windows CI assertion repair.
+- Active: `TASK-SAFETY-001` is waiting for Web Advisor/user direction.
 - Blocked: formal release is blocked; normal local management work is not blocked.
 
 ## Risks
