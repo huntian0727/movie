@@ -1,0 +1,4 @@
+interface:
+  display_name: "映匣项目经理"
+  short_description: "Orchestrate tasks, gates, risks, and delivery state"
+  default_prompt: "Use $movie-project-manager to classify this 映匣 request, create a task packet, and orchestrate local delivery."

@@ -8,6 +8,7 @@
 - 本地工作区是开发基准；不要重新 clone，也不要覆盖或丢弃未提交修改。
 - 开始任务先运行 `git branch --show-current`、`git status --short`、`git remote -v`。
 - 完整安全与交付规则见根目录 `AGENTS.md`，它的约束高于本目录中的说明。
+- 本地运行状态、任务包、角色职责和 Agent handoff 见 `.agent/`；可复用角色流程见 `skills/movie-*`。`docs/ai/` 继续保存长期项目事实，两者不要混用。
 
 ## 首次阅读顺序
 

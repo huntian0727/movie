@@ -1,0 +1,22 @@
+# Task Packet
+
+- Task ID:
+- Title:
+- Priority:
+- Owner:
+- Background:
+- User Goal:
+- Product Goal:
+- Scope:
+- Out of Scope:
+- Technical Constraints:
+- Acceptance:
+- Automated Tests:
+- Local Validation:
+- QA Required: YES / NO
+- UI Required: YES / NO
+- Web Advisor Review Required: YES / NO
+- Web Advisor Review Stage: NOT_REQUIRED / BEFORE_DESIGN / BEFORE_DEVELOPMENT / BEFORE_ARCHITECTURE_DECISION / AFTER_QA / BEFORE_RELEASE / MILESTONE_REVIEW
+- Git Requirements:
+- Status:
+- Next Actor:

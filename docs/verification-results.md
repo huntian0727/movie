@@ -1,5 +1,23 @@
 # 验证结果记录
 
+## 2026-08-16 项目接管独立 QA
+
+- 基线：`HEAD = origin/main = 7506da518e5a404d542072ff4d26cc717321c2d9`，接管开始时工作树干净。
+- 固定 Node 22.23.1 独立复现：45 个测试文件、435 项全部通过。
+- GitHub Windows CI：FAIL；Node job 434/435，唯一失败为 `finishAndPush.test.ts` 对 PowerShell 自动换行敏感；Electron native/main-process smoke PASS。
+- `main` branch protection：未启用。
+- QA verdict：`PASS_WITH_KNOWN_RISKS`，只适用于接管基线，不代表正式发布。
+- 发布：真实 SMB/离线媒体、mpv 缺失回退、物理跨卷、ACL/锁/磁盘满、真实旧库升级、签名和干净 VM 均未完成；正式发布继续阻断。
+- 契约冲突：发布清单要求重复删除前完整 SHA-256，当前 ADR/README/实现使用低带宽大小+时长候选和 size+mtime 复查；必须先统一产品/架构决策。
+
+## 2026-08-16 Codec-aware 播放准备修复
+
+- schema v9 使用 `codec_probe_status` 区分 unprobed/ready/failed；10,000 条 v8 迁移测试通过且不读取媒体。
+- 播放准备等待上限为 2 秒；后台 FFprobe 继续收尾，失败状态不在普通播放时重复探测，文件版本变化后重置。
+- 自动路由：pending MP4/MOV/M4V/WebM native-first；VP9 10-bit WebM、HEVC 和未知复杂组合使用 mpv。
+- 交付证据：定向 121 项、全量 435 项、release gate、Electron smoke、unpacked/packaged smoke、快捷方式实启和四类生成 codec 样本均记录为 PASS；真实网络/离线样本 NOT RUN。
+- 接管新增风险：超过两秒后完成的 probe 不会主动刷新当前播放器会话，本次打开可能继续使用超时点的保守路由快照；需要独立复现和修复。
+
 ## 2026-08-16 取消独立 Web/demo 模式
 
 - Node/Web TypeScript：通过。

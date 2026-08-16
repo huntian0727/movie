@@ -97,7 +97,13 @@ describe("finish-and-push main backup delivery", () => {
     expect(() => execFileSync("powershell.exe", [
       "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/finish-and-push.ps1",
       "-Message", "chore: reject missing delivery record", "-ValidateOnly"
-    ], { cwd: worktree, encoding: "utf8", timeout: 30_000, stdio: "pipe" })).toThrow(/Every delivery must a\s*dd or update/);
+    ], { cwd: worktree, encoding: "utf8", timeout: 30_000, stdio: "pipe" })).toThrow(
+      new RegExp(
+        ["Every", "delivery", "must", "add", "or", "update"]
+          .map((word) => word.split("").join("\\s*"))
+          .join("\\s+")
+      )
+    );
 
     expect(git(worktree, "status", "--porcelain")).toContain("feature.txt");
     expect(git(worktree, "rev-list", "--count", "HEAD")).toBe("1");
