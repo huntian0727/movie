@@ -18,8 +18,8 @@
 - Web Advisor Review Required: YES
 - Web Advisor Review Stage: COMPLETE — user returned the reviewed option 3 directive on 2026-08-16.
 - Git Requirements: Base all review claims on pushed GitHub SHA and list the exact review files.
-- Status: LOCAL_ACCEPTED
-- Next Actor: Local Project Manager performs normal Git delivery and remote Windows CI verification; real mapped/offline SMB remains a known risk.
+- Status: VERIFIED
+- Next Actor: Local Project Manager or user may arrange expendable mapped/offline SMB validation when suitable infrastructure is available; no implementation rework is open.
 
 ## Binding decision
 
@@ -123,6 +123,15 @@
 - Final focused renderer and LibraryShell rerun: 4 files, 81/81 PASS; task panel 17/17 PASS; no React `act(...)` warnings.
 - The previously accepted 900 px screenshot evidence gap and real mapped/offline SMB evidence gap remain non-blocking known risks.
 - Detailed evidence: `.agent/handoffs/TASK-SAFETY-001-ui-review-3.md`.
+
+## Git delivery and remote verification (2026-08-16)
+
+- Verified implementation commit: `853c0fb3d6b84a90448d25293ed502768f3338ca`.
+- Branch `ai/duplicate-sha256-safety` and `main` were pushed to the verified implementation commit.
+- GitHub Windows CI run `31956117214`: PASS.
+- Electron native and main-process smoke: PASS.
+- Node tests and Windows file safety release regression gate: PASS.
+- This task is verified and archived. This is not a formal Windows release approval: real mapped/offline SMB behavior remains an evidence gap.
 
 ## Recommended question for Web Advisor
 
