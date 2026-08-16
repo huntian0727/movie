@@ -61,7 +61,7 @@ interface LibraryShellProps {
   recentVideoIds?: string[];
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
-  duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">;
+  duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "confirmDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -843,10 +843,6 @@ export function LibraryShell({
             onOpen={openVideo}
             onViewDetails={viewVideoDetails}
             onRevealInFolder={onRevealInFolder}
-            onDelete={onDelete ? async (video) => {
-              await onDelete(video);
-              setDuplicateRefreshVersion((current) => current + 1);
-            } : undefined}
             onRefresh={() => setDuplicateRefreshVersion((current) => current + 1)}
             onPreviewResolve={async (plan) => {
               if (!onPreviewDuplicateResolve) {
@@ -864,6 +860,7 @@ export function LibraryShell({
               return result;
             }}
             onSubmitCleanup={duplicateCleanupApi ? (requestId, plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId, plan, sourceView: "duplicates" }) : undefined}
+            onConfirmCleanup={duplicateCleanupApi?.confirmDuplicateCleanup}
             onLoadCleanupJobs={duplicateCleanupApi?.listDuplicateCleanupJobs}
             onLoadCleanupItems={duplicateCleanupApi?.listDuplicateCleanupItems}
             onCancelCleanup={duplicateCleanupApi?.cancelDuplicateCleanup}

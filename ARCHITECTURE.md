@@ -34,7 +34,7 @@ main boundaries -> StructuredLogger(JSONL/redaction/rotation) -> settings diagno
 
 ## 数据与关键决策
 
-- SQLite 使用 `PRAGMA user_version` 的有序迁移。v1–v4 保存核心资料库、播放历史、历史指纹兼容字段和待删除标记；v5 新增扫描快照/异常/任务；v6 兼容旧扫描错误；v7 新增重复项清理任务；v8 新增 codec 字段；v9 新增明确的 codec probe 状态。旧库升级前先 `VACUUM INTO` 备份，再在事务中迁移并执行 FK/quick check。
+- SQLite 使用 `PRAGMA user_version` 的有序迁移。v1–v4 保存核心资料库、播放历史、历史指纹兼容字段和待删除标记；v5 新增扫描快照/异常/任务；v6 兼容旧扫描错误；v7 新增重复项清理任务；v8 新增 codec 字段；v9 新增明确的 codec probe 状态；v10 为永久重复清理新增完整 SHA-256、强文件身份、授权 revision、workflow phase 和可恢复隔离路径。旧库升级前先 `VACUUM INTO` 备份，再在事务中迁移并执行 FK/quick check。
 - Windows 路径以 `COLLATE NOCASE` 唯一，应用生成 UUID；重扫同路径保持记录身份与收藏。
 - 缺失采用软状态而非立即删除，避免临时离线盘导致用户元数据丢失。
 - 收藏只存布尔标记，不移动文件；删除是明确确认后的永久磁盘删除。

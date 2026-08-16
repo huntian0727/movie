@@ -410,6 +410,23 @@ Electron Node 模式命令仅用于本机补充验证：设置 `ELECTRON_RUN_AS_
 
 说明：原 packaged smoke 能成功加载 HTML 和 preload，但没有断言 React 根节点已渲染，因此未发现资源路径错误。本次补充的 `rendererMounted` 是后续所有 Windows 打包验收的必过项。
 
+## 2026-08-16 TASK-SAFETY-001 分阶段 SHA-256 永久删除门禁
+
+| 检查 | 结果 | 结论 |
+| --- | --- | --- |
+| 固定 Node 环境 | Node 22.23.1/npm 10.9.8，Node ABI 127 | 与项目工具链一致 |
+| 最终 Developer gate | typecheck、build、Node ABI smoke，47 files / 468 tests | 通过 |
+| 独立 QA release gate | lint/build、37 Windows files、32 migrations、21 performance，46 files / 459 tests（UI 后续纯 renderer 增量另行聚焦） | 通过 |
+| 原 P0 回归 | 同尺寸同 mtime 内容替换、scan-failure single/batch 绕过、direct/generic/resume/retry 等门禁 | 修复后 33/33 通过 |
+| 聚焦安全/迁移/恢复 | 5 files / 92 tests；staged rename、path swap、hash/read/cancel/delete/rename failure、原路径冲突、启动恢复 | 通过；均 fail-closed |
+| 最终 UI/LibraryShell | 4 files / 81 tests；候选语义、exact `DELETE`、focus、取消/停止、稳定结果映射、900px DOM/CSS gate | 通过，无 React act 警告 |
+| Electron smoke | 独立 detached 临时副本，Electron 33.4.11 / ABI 130；native/main smoke | 通过；主工作区保持 ABI 127 |
+| 真实本地大文件 | 256 MiB 非稀疏临时文件，流式完整哈希中取消、恢复后重哈希 | 1/1 通过；未操作用户媒体 |
+| Schema v9→v10 | 活跃旧清理任务安全取消、释放 reservation、缺少 SHA 授权时不可恢复删除 | 通过 |
+| 真实 SMB/映射盘 | 当前主机无 DriveType 4 或 SMB mapping | 需要验证；正式发布前检查断线、rename、file identity 和恢复 |
+
+结论：本地功能验收为 `PASS_WITH_KNOWN_RISKS`，UI_REVIEW 3 为 PASS。任何未完成完整 SHA-256 和独立二次确认的永久重复删除路径仍是发布阻断；真实 SMB 证据缺口使本结果不等于正式 Windows Release PASS。
+
 ## 桌面手测记录模板
 
 | 环境 | 样本格式 | 步骤 | 预期 | 实际 | 证据 | 结论 |

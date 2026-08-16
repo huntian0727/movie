@@ -208,15 +208,9 @@ describe("duplicate cleanup stale-file safety", () => {
     expect(ready.status).toBe("ready");
   });
 
-  it("keeps the final per-file version check and skips a changed delete target", async () => {
+  it("hard-fails the retired direct permanent-delete helper", async () => {
     const fixture = await createDuplicateFixture();
-    await setModifiedAt(fixture.deleteVideo.path, "2026-07-19T00:00:00.000Z");
-    const deleteFile = vi.fn(async () => undefined);
-
-    const execution = await resolveDuplicatePlanSafely(fixture.repo, fixture.plan, deleteFile);
-
-    expect(execution.result).toMatchObject({ successCount: 0, failureCount: 1 });
-    expect(deleteFile).not.toHaveBeenCalled();
+    await expect(resolveDuplicatePlanSafely(fixture.repo, fixture.plan)).rejects.toThrow(/Direct duplicate deletion is disabled/);
     expect(await readFile(fixture.deleteVideo.path)).toHaveLength(16);
   });
 });

@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import type { Stats } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DatabaseConnection } from "../../src/main/db/database";
 import { createDatabase } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
+import { DuplicateCleanupRepository } from "../../src/main/db/duplicateCleanupRepository";
 import { cleanupScanFailures, deleteScanFailureFile } from "../../src/main/files/scanFailureActions";
 import { classifyScanFailureForCleanup } from "../../src/shared/scanFailureCleanup";
 import { retryScanFailure } from "../../src/main/media/libraryScanner";
@@ -130,6 +131,59 @@ describe("scan failure review", () => {
     expect(deleteImpl).not.toHaveBeenCalled();
     expect(repo.getVideo(video.id)).toBeTruthy();
     expect(repo.getScanFailure(failure.id)?.status).toBe("unresolved");
+  });
+
+  it("does not let scan-failure permanent deletion bypass duplicate SHA-256 authorization", async () => {
+    const { repo, source, sourcePath } = setup();
+    const candidatePath = path.join(sourcePath, "candidate.mp4");
+    const peerPath = path.join(sourcePath, "peer.mp4");
+    writeFileSync(candidatePath, Buffer.alloc(64, 1));
+    writeFileSync(peerPath, Buffer.alloc(64, 1));
+    const candidateStat = statSync(candidatePath);
+    const peerStat = statSync(peerPath);
+    const candidate = repo.upsertVideo({
+      sourceFolderId: source.id, path: candidatePath, directory: sourcePath, filename: "candidate.mp4",
+      basename: "candidate", extension: ".mp4", sizeBytes: candidateStat.size, durationMs: 5000,
+      width: 1920, height: 1080, format: "mp4", modifiedAt: candidateStat.mtime.toISOString()
+    });
+    repo.upsertVideo({
+      sourceFolderId: source.id, path: peerPath, directory: sourcePath, filename: "peer.mp4",
+      basename: "peer", extension: ".mp4", sizeBytes: peerStat.size, durationMs: 5000,
+      width: 1920, height: 1080, format: "mp4", modifiedAt: peerStat.mtime.toISOString()
+    });
+    const failure = record(repo, source.id, candidatePath, "file", "moov atom not found");
+    const deleteImpl = vi.fn().mockResolvedValue(undefined);
+
+    await expect(deleteScanFailureFile(repo, failure.id, { deleteImpl })).rejects.toThrow(/full SHA-256 verification/i);
+    expect(deleteImpl).not.toHaveBeenCalled();
+    expect(repo.getVideo(candidate.id)).toBeTruthy();
+  });
+
+  it("applies the duplicate-candidate guard to batch permanent scan-failure cleanup", async () => {
+    const { repo, source, sourcePath } = setup();
+    const candidatePath = path.join(sourcePath, "batch-candidate.mp4");
+    const peerPath = path.join(sourcePath, "batch-peer.mp4");
+    writeFileSync(candidatePath, Buffer.alloc(64, 1));
+    writeFileSync(peerPath, Buffer.alloc(64, 1));
+    for (const [filePath, filename] of [[candidatePath, "batch-candidate.mp4"], [peerPath, "batch-peer.mp4"]]) {
+      const fileStat = statSync(filePath);
+      repo.upsertVideo({ sourceFolderId: source.id, path: filePath, directory: sourcePath, filename,
+        basename: path.parse(filename).name, extension: ".mp4", sizeBytes: fileStat.size, durationMs: 5000,
+        width: 1920, height: 1080, format: "mp4", modifiedAt: fileStat.mtime.toISOString() });
+    }
+    const failure = record(repo, source.id, candidatePath, "file", "moov atom not found");
+    const deleteImpl = vi.fn();
+    const jobs = new DuplicateCleanupRepository(db!, repo);
+
+    const result = await cleanupScanFailures(repo, [failure.id], "permanent-delete", {
+      deleteImpl,
+      assertPermanentDeleteAllowed: (videoIds) => jobs.assertGenericPermanentDeleteAllowed(videoIds)
+    });
+
+    expect(result).toMatchObject({ successCount: 0, failureCount: 1, skippedCount: 0 });
+    expect(result.items[0].message).toMatch(/full SHA-256 verification/i);
+    expect(deleteImpl).not.toHaveBeenCalled();
+    expect(repo.getVideoByPath(candidatePath)).toBeTruthy();
   });
 
   it("retries one file instead of starting a source-wide retry", async () => {

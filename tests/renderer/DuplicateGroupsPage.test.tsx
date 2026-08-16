@@ -1,403 +1,195 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DuplicateGroupsPage } from "../../src/renderer/components/DuplicateGroupsPage";
 import type { DuplicateGroup, VideoRecord } from "../../src/shared/videoTypes";
 
 const video: VideoRecord = {
-  id: "keep",
-  sourceFolderId: "f1",
-  path: "D:\\Movies\\clip.mp4",
-  directory: "D:\\Movies",
-  filename: "clip.mp4",
-  basename: "clip",
-  extension: ".mp4",
-  sizeBytes: 1024,
-  durationMs: 90000,
-  width: 1920,
-  height: 1080,
-  format: "mp4",
-  videoCodec: null,
-  videoProfile: null,
-  pixelFormat: null,
-  audioCodec: null,
-  codecProbeStatus: "ready",
-  modifiedAt: "2026-07-09T00:00:00.000Z",
-  importedAt: "2026-07-09T00:00:00.000Z",
-  updatedAt: "2026-07-09T00:00:00.000Z",
-  isFavorite: true,
-  isPendingDelete: false,
-  isMissing: false,
-  metadataStatus: "ready",
-  thumbnailStatus: "ready",
-  timelinePreviewStatus: "ready",
-  coverCachePath: null,
-  contentFingerprint: "fp-1",
-  fingerprintStatus: "ready",
-  fingerprintUpdatedAt: "2026-07-09T00:00:00.000Z",
-  fingerprintError: null
+  id: "keep", sourceFolderId: "f1", path: "D:\\Movies\\clip.mp4", directory: "D:\\Movies", filename: "clip.mp4",
+  basename: "clip", extension: ".mp4", sizeBytes: 1024, durationMs: 90000, width: 1920, height: 1080, format: "mp4",
+  videoCodec: null, videoProfile: null, pixelFormat: null, audioCodec: null, codecProbeStatus: "ready",
+  modifiedAt: "2026-07-09T00:00:00.000Z", importedAt: "2026-07-09T00:00:00.000Z", updatedAt: "2026-07-09T00:00:00.000Z",
+  isFavorite: true, isPendingDelete: false, isMissing: false, metadataStatus: "ready", thumbnailStatus: "ready",
+  timelinePreviewStatus: "ready", coverCachePath: null, contentFingerprint: "fp-1", fingerprintStatus: "ready",
+  fingerprintUpdatedAt: "2026-07-09T00:00:00.000Z", fingerprintError: null
 };
+const duplicateVideo: VideoRecord = { ...video, id: "delete", path: "D:\\Backup\\clip.mp4", directory: "D:\\Backup", filename: "clip-copy.mp4", basename: "clip-copy", sizeBytes: 4096, isFavorite: false };
+const groups: DuplicateGroup[] = [{
+  groupKey: "fp-1", identityStatus: "size_duration_match", recommendedKeepVideoId: video.id,
+  reclaimableBytes: duplicateVideo.sizeBytes,
+  items: [{ video, isRecommendedToKeep: true, keepReason: "已收藏" }, { video: duplicateVideo, isRecommendedToKeep: false, keepReason: null }]
+}];
 
-const duplicateVideo: VideoRecord = {
-  ...video,
-  id: "delete",
-  path: "D:\\Backup\\clip.mp4",
-  directory: "D:\\Backup",
-  filename: "clip-copy.mp4",
-  basename: "clip-copy",
-  sizeBytes: 4096,
-  isFavorite: false
-};
+function baseProps() {
+  return { groups, onOpen: vi.fn(), onViewDetails: vi.fn() };
+}
 
-const groups: DuplicateGroup[] = [
-  {
-    groupKey: "fp-1",
-    identityStatus: "size_duration_match",
-    recommendedKeepVideoId: video.id,
-    reclaimableBytes: duplicateVideo.sizeBytes,
-    items: [
-      { video, isRecommendedToKeep: true, keepReason: "已收藏" },
-      { video: duplicateVideo, isRecommendedToKeep: false, keepReason: null }
-    ]
-  }
-];
+function taskCenterProps() {
+  return {
+    onLoadCleanupJobs: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1, activeCount: 0 }),
+    onLoadCleanupItems: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 50, totalItems: 0, totalPages: 1 }),
+    onCancelCleanup: vi.fn(), onResumeCleanup: vi.fn(), onRetryCleanup: vi.fn(), onClearCleanup: vi.fn()
+  };
+}
 
-const readyPreview = {
-  status: "ready" as const,
-  preview: {
-    verificationStatus: "file_versions_current" as const,
-    groupCount: 1,
-    keepCount: 1,
-    deleteCount: 1,
-    reclaimableBytes: duplicateVideo.sizeBytes
-  }
-};
-
-describe("DuplicateGroupsPage", () => {
-  it("renders duplicate groups and summary counts", () => {
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onPreviewResolve={vi.fn().mockResolvedValue(readyPreview)}
-        onResolve={vi.fn().mockResolvedValue({
-          groupCount: 1,
-          keepCount: 1,
-          successCount: 1,
-          failureCount: 0,
-          reclaimedBytes: duplicateVideo.sizeBytes,
-          failures: []
-        })}
-      />
-    );
-
-    expect(screen.getByText("重复组 01")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
+describe("DuplicateGroupsPage staged safety flow", () => {
+  it("keeps candidate browsing metadata-only and explains the separate full verification", () => {
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
+    expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument();
-    expect(screen.getByText("大小＋时长匹配组")).toBeInTheDocument();
-    expect(screen.getByText(/不读取视频内容、不计算指纹/)).toBeInTheDocument();
+    expect(screen.getByText(/候选浏览只使用数据库/)).toHaveTextContent(/完整 SHA-256 验证/);
+    expect(container).toHaveTextContent(/计划保留/);
+    expect(container).toHaveTextContent(/候选移除/);
+    expect(container).toHaveTextContent(/候选可释放空间/);
+    expect(container.textContent).not.toMatch(/重复组|拟删除|待删除|预计可释放|待删文件/);
   });
 
-  it("resolves duplicates after a single confirmation click", async () => {
-    const onPreviewResolve = vi.fn().mockResolvedValue(readyPreview);
-    const onResolve = vi.fn().mockResolvedValue({
-      groupCount: 1,
-      keepCount: 1,
-      successCount: 1,
-      failureCount: 0,
-      reclaimedBytes: duplicateVideo.sizeBytes,
-      failures: []
-    });
-
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onPreviewResolve={onPreviewResolve}
-        onResolve={onResolve}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "清理当前页" }));
-
-    await waitFor(() => expect(onPreviewResolve).toHaveBeenCalledOnce());
-    expect(screen.getByText(/未读取或比较视频内容/)).toBeInTheDocument();
-    expect(screen.getByText("文件将从磁盘永久删除且无法撤销，请确认保留项选择无误。")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "确认删除" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
-
-    await waitFor(() => expect(onResolve).toHaveBeenCalledOnce());
-    expect(screen.getByText(/成功删除 1 个文件/)).toBeInTheDocument();
+  it("starts only full verification after an explicit preflight and does not claim deletion", async () => {
+    const onSubmitCleanup = vi.fn().mockResolvedValue({ jobId: "j", requestId: "r", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
+    render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
+    const opener = screen.getByRole("button", { name: "验证当前页" });
+    expect(opener).not.toHaveClass("danger");
+    fireEvent.click(opener);
+    const dialog = screen.getByRole("dialog", { name: "开始完整内容验证？" });
+    expect(dialog).toHaveTextContent(/完整读取每个计划保留文件和候选移除文件/);
+    expect(dialog).not.toHaveTextContent(/待删文件|待删除|拟删除/);
+    expect(dialog).toHaveTextContent(/仍需单独的第二次永久删除确认/);
+    fireEvent.click(screen.getByRole("button", { name: "开始完整验证" }));
+    await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent(/验证阶段不会删除文件/);
+    expect(status).toHaveTextContent(/候选移除文件/);
+    expect(status).not.toHaveTextContent(/待删文件|待删除|拟删除/);
   });
 
-  it("shows the safety preflight immediately while slow storage is still being checked", async () => {
-    let finishPreview: ((value: typeof readyPreview) => void) | undefined;
-    const onPreviewResolve = vi.fn(() => new Promise<typeof readyPreview>((resolve) => {
-      finishPreview = resolve;
-    }));
-
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onPreviewResolve={onPreviewResolve}
-        onResolve={vi.fn()}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "清理当前页" }));
-
-    expect(await screen.findByRole("dialog", { name: "正在安全复查当前页" })).toBeInTheDocument();
-    expect(screen.getByText(/正在并行检查 2 个文件/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "清理当前页" })).toBeDisabled();
-
-    await act(async () => finishPreview?.(readyPreview));
-    expect(await screen.findByRole("button", { name: "确认删除" })).toBeEnabled();
-    expect(screen.queryByRole("dialog", { name: "正在安全复查当前页" })).not.toBeInTheDocument();
+  it("cancels the verification preflight with Escape and restores focus without submitting", async () => {
+    const onSubmitCleanup = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
+    const opener = screen.getByRole("button", { name: "验证当前页" });
+    fireEvent.click(opener);
+    const dialog = screen.getByRole("dialog", { name: "开始完整内容验证？" });
+    expect(screen.getByRole("button", { name: "取消" })).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "开始完整内容验证？" })).not.toBeInTheDocument());
+    expect(opener).toHaveFocus();
+    expect(onSubmitCleanup).not.toHaveBeenCalled();
   });
 
-  it("shows structured stale details, refreshes groups, and requires a new confirmation", async () => {
-    const onRefresh = vi.fn();
-    const onRevealInFolder = vi.fn();
-    const onResolve = vi.fn();
-    const onPreviewResolve = vi.fn().mockResolvedValue({
-      status: "stale",
-      changedItems: [{
-        videoId: duplicateVideo.id,
-        filename: duplicateVideo.filename,
-        path: duplicateVideo.path,
-        changeType: "mtime-changed",
-        previousSizeBytes: duplicateVideo.sizeBytes,
-        currentSizeBytes: duplicateVideo.sizeBytes,
-        previousModifiedAt: duplicateVideo.modifiedAt,
-        currentModifiedAt: "2026-07-10T00:00:00.000Z",
-        message: "文件修改时间已变化"
-      }]
-    });
-
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        preferredDirectoryPath="D:\\Movies"
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onRevealInFolder={onRevealInFolder}
-        onRefresh={onRefresh}
-        onPreviewResolve={onPreviewResolve}
-        onResolve={onResolve}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "清理当前页" }));
-
-    expect(await screen.findByRole("dialog", { name: "检测到文件状态变化" })).toBeInTheDocument();
-    expect(screen.getByText(/本次未执行删除/)).toBeInTheDocument();
-    expect(screen.getByText(/异常文件可能位于同一重复组的其他目录中/)).toBeInTheDocument();
-    expect(screen.getAllByText(duplicateVideo.path)).toHaveLength(2);
-    expect(screen.getByText(/修改时间变化/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "确认删除" })).not.toBeInTheDocument();
-    expect(onResolve).not.toHaveBeenCalled();
-    expect(onRefresh).toHaveBeenCalledOnce();
-
-    fireEvent.click(screen.getByRole("button", { name: "打开所在文件夹" }));
-    expect(onRevealInFolder).toHaveBeenCalledWith(duplicateVideo);
-    fireEvent.click(screen.getByRole("button", { name: "刷新重复项" }));
-    expect(onRefresh).toHaveBeenCalledTimes(2);
+  it("submits the currently selected keep file in the verification plan", async () => {
+    const onSubmitCleanup = vi.fn().mockResolvedValue({ jobId: "j", requestId: "r", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 1024 });
+    render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "设为计划保留" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "验证当前页" }));
+    fireEvent.click(screen.getByRole("button", { name: "开始完整验证" }));
+    await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
+    expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
   });
 
-  it("does not expose raw Electron IPC errors to the user", async () => {
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onPreviewResolve={vi.fn().mockRejectedValue(new Error("Error invoking remote method 'duplicate:preview-resolve': Error: 文件已变化，已停止删除"))}
-        onResolve={vi.fn()}
-      />
-    );
+  it("does not expose the former single-item permanent-delete control", () => {
+    render(<DuplicateGroupsPage {...baseProps()} />);
+    expect(screen.queryByRole("button", { name: /手动删除/ })).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "清理当前页" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("重复项检查失败，请刷新重复项后重试。");
-    expect(screen.queryByText(/Error invoking remote method/)).not.toBeInTheDocument();
+  it("does not expose the retired direct resolve fallback", () => {
+    render(<DuplicateGroupsPage {...baseProps()} onPreviewResolve={vi.fn()} onResolve={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "清理当前页" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /确认删除/ })).not.toBeInTheDocument();
   });
 
   it("sorts duplicate files by size in both directions", () => {
-    const { container } = render(
-      <DuplicateGroupsPage
-        groups={groups}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onPreviewResolve={vi.fn()}
-        onResolve={vi.fn()}
-      />
-    );
-
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
     const filenames = () => [...container.querySelectorAll(".duplicate-item-heading strong")].map((element) => element.textContent);
     expect(filenames()).toEqual(["clip-copy.mp4", "clip.mp4"]);
-
-    fireEvent.change(screen.getByLabelText("重复项大小排序"), { target: { value: "asc" } });
+    fireEvent.change(screen.getByLabelText("候选项大小排序"), { target: { value: "asc" } });
     expect(filenames()).toEqual(["clip.mp4", "clip-copy.mp4"]);
   });
 
-  it("confirms and manually deletes a single duplicate video", async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined);
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onDelete={onDelete}
-        onPreviewResolve={vi.fn()}
-        onResolve={vi.fn()}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "手动删除 clip-copy.mp4" }));
-    expect(screen.getByRole("alertdialog", { name: "永久删除这个重复视频？" })).toBeInTheDocument();
-    expect(screen.getAllByText("D:\\Backup\\clip.mp4")).toHaveLength(2);
-    fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
-
-    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(duplicateVideo));
-  });
-
-  it("renders global counts and delegates page navigation", () => {
-    const onPage = vi.fn();
-    const onPageSize = vi.fn();
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        page={2}
-        pageSize={20}
-        totalPages={4}
-        totalGroups={63}
-        totalCandidateGroups={70}
-        totalCandidateFiles={150}
-        totalReclaimableBytes={1024 * 1024}
-        onPage={onPage}
-        onPageSize={onPageSize}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onPreviewResolve={vi.fn()}
-        onResolve={vi.fn()}
-      />
-    );
-
-    expect(screen.getByText("63")).toBeInTheDocument();
-    expect(screen.getByText("70")).toBeInTheDocument();
-    expect(screen.getByText("150")).toBeInTheDocument();
-    expect(screen.getByText("重复组 21")).toBeInTheDocument();
+  it("delegates pagination and directory filters", () => {
+    const onPage = vi.fn(); const onPageSize = vi.fn(); const onPreferredDirectoryPathChange = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} page={2} pageSize={20} totalPages={4} totalGroups={63}
+      directoryOptions={[{ path: "D:\\Backup", groupCount: 1, estimatedReclaimableBytes: 4096 }]}
+      onPage={onPage} onPageSize={onPageSize} onPreferredDirectoryPathChange={onPreferredDirectoryPathChange} />);
     fireEvent.click(screen.getByRole("button", { name: "下一页" }));
     expect(onPage).toHaveBeenCalledWith(3);
-    fireEvent.change(screen.getByLabelText("重复项每页数量"), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText("候选项每页数量"), { target: { value: "500" } });
     expect(onPageSize).toHaveBeenCalledWith(500);
-  });
-
-  it("selects a directory as the preferred duplicate keep location", async () => {
-    const onPreferredDirectoryPathChange = vi.fn();
-    const onPreferredDirectoryScopeChange = vi.fn();
-    const onPreviewResolve = vi.fn().mockResolvedValue(readyPreview);
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        directoryOptions={[
-          { path: "D:\\Movies", groupCount: 1, estimatedReclaimableBytes: 1024 },
-          { path: "D:\\Backup", groupCount: 1, estimatedReclaimableBytes: 1024 }
-        ]}
-        preferredDirectoryPath="D:\\Movies"
-        preferredDirectoryScope="recursive"
-        onPreferredDirectoryPathChange={onPreferredDirectoryPathChange}
-        onPreferredDirectoryScopeChange={onPreferredDirectoryScopeChange}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onPreviewResolve={onPreviewResolve}
-        onResolve={vi.fn()}
-      />
-    );
-
-    fireEvent.click(screen.getByLabelText("选择重复项优先保留目录"));
+    fireEvent.click(screen.getByLabelText("选择候选项计划保留目录"));
     fireEvent.click(screen.getByRole("option", { name: /Backup/ }));
     expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("D:\\Backup");
-    fireEvent.change(screen.getByLabelText("重复项目录范围"), { target: { value: "exact" } });
-    expect(onPreferredDirectoryScopeChange).toHaveBeenCalledWith("exact");
-    fireEvent.click(screen.getByRole("button", { name: "清理当前页" }));
-    await waitFor(() => expect(screen.getByText(/每个重复组会优先保留/)).toBeInTheDocument());
   });
 
-  it("returns to all duplicate groups when a directory filter has no results", () => {
-    const onPreferredDirectoryPathChange = vi.fn();
-    render(
-      <DuplicateGroupsPage
-        groups={[]}
-        preferredDirectoryPath="D:\\NoDuplicates"
-        onPreferredDirectoryPathChange={onPreferredDirectoryPathChange}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onPreviewResolve={vi.fn()}
-        onResolve={vi.fn()}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "返回全部重复项" }));
-    expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("");
-  });
-
-  it("checks missing files and reports removed duplicates", async () => {
+  it("checks missing files without running full hashes or deletion", async () => {
     const onRefresh = vi.fn();
     const onCheckMissing = vi.fn().mockResolvedValue({ checkedFileCount: 2, removedCount: 1, changedCount: 0 });
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onRefresh={onRefresh}
-        onCheckMissing={onCheckMissing}
-        onPreviewResolve={vi.fn()}
-        onResolve={vi.fn()}
-      />
-    );
-
+    render(<DuplicateGroupsPage {...baseProps()} onRefresh={onRefresh} onCheckMissing={onCheckMissing} />);
     fireEvent.click(screen.getByRole("button", { name: "检查缺失文件" }));
-    expect(screen.getByRole("button", { name: /正在复查 2 个文件/ })).toBeInTheDocument();
-
     await waitFor(() => expect(onCheckMissing).toHaveBeenCalledOnce());
     expect(screen.getByText(/已从列表移除 1 个已删除文件/)).toBeInTheDocument();
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
-  it("reports when no missing files are found", async () => {
-    const onCheckMissing = vi.fn().mockResolvedValue({ checkedFileCount: 2, removedCount: 0, changedCount: 0 });
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onCheckMissing={onCheckMissing}
-        onPreviewResolve={vi.fn()}
-        onResolve={vi.fn()}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "检查缺失文件" }));
-    await waitFor(() => expect(screen.getByText(/未发现缺失文件（共复查 2 个）/)).toBeInTheDocument());
+  it("returns to all groups when a directory filter has no results", () => {
+    const onPreferredDirectoryPathChange = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} groups={[]} preferredDirectoryPath="D:\\None" onPreferredDirectoryPathChange={onPreferredDirectoryPathChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "返回全部候选项" }));
+    expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("");
   });
 
-  it("surfaces check-missing errors without losing the button", async () => {
-    const onCheckMissing = vi.fn().mockRejectedValue(new Error("无法读取文件状态"));
-    render(
-      <DuplicateGroupsPage
-        groups={groups}
-        onOpen={vi.fn()}
-        onViewDetails={vi.fn()}
-        onCheckMissing={onCheckMissing}
-        onPreviewResolve={vi.fn()}
-        onResolve={vi.fn()}
-      />
-    );
+  it("does not offer verification when there are no candidate groups", () => {
+    render(<DuplicateGroupsPage {...baseProps()} groups={[]} onSubmitCleanup={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "验证当前页" })).not.toBeInTheDocument();
+  });
 
+  it("reports when a missing-file check finds no missing or changed files", async () => {
+    const onCheckMissing = vi.fn().mockResolvedValue({ checkedFileCount: 2, removedCount: 0, changedCount: 0 });
+    render(<DuplicateGroupsPage {...baseProps()} onCheckMissing={onCheckMissing} />);
     fireEvent.click(screen.getByRole("button", { name: "检查缺失文件" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("无法读取文件状态");
-    expect(screen.getByRole("button", { name: "检查缺失文件" })).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent("未发现缺失文件（共复查 2 个）");
+  });
+
+  it("surfaces missing-check errors without removing the retry control", async () => {
+    const onCheckMissing = vi.fn().mockRejectedValue(new Error("mapped drive offline"));
+    render(<DuplicateGroupsPage {...baseProps()} onCheckMissing={onCheckMissing} />);
+    fireEvent.click(screen.getByRole("button", { name: "检查缺失文件" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/mapped drive offline/);
+    expect(screen.getByRole("button", { name: "检查缺失文件" })).toBeEnabled();
+  });
+
+  it("delegates play and detail actions for the selected duplicate item", () => {
+    const onOpen = vi.fn();
+    const onViewDetails = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} onOpen={onOpen} onViewDetails={onViewDetails} />);
+    fireEvent.click(screen.getByRole("button", { name: "播放 clip-copy.mp4" }));
+    expect(onOpen).toHaveBeenCalledWith(duplicateVideo, [duplicateVideo, video]);
+    fireEvent.click(screen.getByRole("button", { name: "查看 clip-copy.mp4 详情" }));
+    expect(onViewDetails).toHaveBeenCalledWith(duplicateVideo);
+  });
+
+  it("restores focus to the exact task-center opener after Escape, header close, and backdrop close", async () => {
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} {...taskCenterProps()} />);
+    const opener = screen.getByRole("button", { name: /后台任务 0/ });
+
+    for (const closeBy of ["escape", "button", "backdrop"] as const) {
+      opener.focus();
+      fireEvent.click(opener);
+      const dialog = await screen.findByRole("dialog", { name: "候选文件安全任务" });
+      if (closeBy === "escape") fireEvent.keyDown(dialog, { key: "Escape" });
+      else if (closeBy === "button") fireEvent.click(screen.getByRole("button", { name: "关闭任务中心" }));
+      else fireEvent.mouseDown(container.querySelector(".task-center-backdrop")!);
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "候选文件安全任务" })).not.toBeInTheDocument());
+      expect(opener).toHaveFocus();
+    }
+  });
+
+  it("keeps the isolated task-center DOM complete at a 900px fixture width", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} {...taskCenterProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: /后台任务 0/ }));
+    const dialog = await screen.findByRole("dialog", { name: "候选文件安全任务" });
+    expect(dialog).toHaveClass("duplicate-task-center");
+    const layout = container.querySelector(".duplicate-task-layout")!;
+    expect(layout.children).toHaveLength(2);
+    expect(layout.querySelector(".duplicate-task-list")).toBeInTheDocument();
+    expect(layout.querySelector(".duplicate-task-detail")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "关闭任务中心" })).toBeVisible();
   });
 });

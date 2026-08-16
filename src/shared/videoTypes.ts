@@ -323,6 +323,22 @@ export type DuplicateCleanupItemStatus =
   | "skipped"
   | "cancelled";
 
+export type DuplicateCleanupPhase =
+  | "verification"
+  | "awaiting_confirmation"
+  | "deletion"
+  | "finished"
+  | "legacy_blocked";
+
+export type DuplicateVerificationStatus =
+  | "unverified"
+  | "pending"
+  | "verifying"
+  | "verified-identical"
+  | "content-different"
+  | "unverifiable"
+  | "cancelled";
+
 export interface DuplicateCleanupAccepted {
   jobId: string;
   requestId: string;
@@ -356,6 +372,16 @@ export interface DuplicateCleanupJob {
   completedAt: string | null;
   updatedAt: string;
   errorSummary: string | null;
+  workflowVersion: number;
+  phase: DuplicateCleanupPhase;
+  verificationRevision: string | null;
+  verificationProcessedItems: number;
+  identicalItems: number;
+  differentItems: number;
+  unverifiableItems: number;
+  verificationCompletedAt: string | null;
+  authorizedRevision: string | null;
+  authorizedAt: string | null;
 }
 
 export interface DuplicateCleanupItem {
@@ -372,6 +398,17 @@ export interface DuplicateCleanupItem {
   outcomeCode: string | null;
   message: string | null;
   updatedAt: string;
+  verificationStatus: DuplicateVerificationStatus;
+  verificationRevision: string | null;
+  verifiedAt: string | null;
+  verificationError: string | null;
+  stagedDeletePath?: string | null;
+}
+
+export interface DuplicateCleanupConfirmRequest {
+  jobId: string;
+  verificationRevision: string;
+  confirmation: "DELETE";
 }
 
 export interface DuplicateCleanupJobPage {
@@ -610,8 +647,8 @@ export const IPC_CHANNELS = {
   duplicateList: "duplicate:list",
   duplicatePreviewResolve: "duplicate:preview-resolve",
   duplicateCheckMissing: "duplicate:check-missing",
-  duplicateResolve: "duplicate:resolve",
   duplicateCleanupSubmit: "duplicate-cleanup:submit",
+  duplicateCleanupConfirm: "duplicate-cleanup:confirm",
   duplicateCleanupJobs: "duplicate-cleanup:jobs",
   duplicateCleanupJob: "duplicate-cleanup:job",
   duplicateCleanupItems: "duplicate-cleanup:items",
@@ -657,8 +694,8 @@ export interface VideoManagerApi {
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
-  resolveDuplicateGroups(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
+  confirmDuplicateCleanup(request: DuplicateCleanupConfirmRequest): Promise<DuplicateCleanupJob>;
   listDuplicateCleanupJobs(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;
   getDuplicateCleanupJob(jobId: string): Promise<DuplicateCleanupJob>;
   listDuplicateCleanupItems(jobId: string, page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupItemPage>;

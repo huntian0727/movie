@@ -6,12 +6,9 @@ import type {
   DuplicateResolveChangeType,
   DuplicateResolvePlan,
   DuplicateResolvePreviewResult,
-  DuplicateResolveResult,
   VideoRecord
 } from "../../shared/videoTypes.js";
 import type { VideoRepository } from "../db/videoRepository.js";
-import { permanentlyDeleteFile } from "../files/fileOperations.js";
-import { assertFileVersion } from "./contentFingerprint.js";
 import type { MetadataQueue } from "./metadataQueue.js";
 
 interface DuplicateResolveSafetyDependencies {
@@ -74,53 +71,10 @@ export async function previewDuplicateResolveSafely(
 }
 
 export async function resolveDuplicatePlanSafely(
-  repo: VideoRepository,
-  plan: DuplicateResolvePlan,
-  deleteFile: (filePath: string) => Promise<void> = permanentlyDeleteFile
-): Promise<{ result: DuplicateResolveResult; removedVideoIds: string[] }> {
-  const entries = repo.validateDuplicateResolvePlan(plan);
-  const preview = summarizeResolveEntries(entries);
-  const failures: DuplicateResolveResult["failures"] = [];
-  const removedVideoIds: string[] = [];
-  let reclaimedBytes = 0;
-
-  for (const group of entries) {
-    for (const video of group.deleteVideos) {
-      try {
-        await assertFileVersion(group.keepVideo.path, {
-          sizeBytes: group.keepVideo.sizeBytes,
-          modifiedAt: group.keepVideo.modifiedAt
-        });
-        await assertFileVersion(video.path, {
-          sizeBytes: video.sizeBytes,
-          modifiedAt: video.modifiedAt
-        });
-        await deleteFile(video.path);
-        repo.removeVideo(video.id);
-        removedVideoIds.push(video.id);
-        reclaimedBytes += video.sizeBytes;
-      } catch (cause) {
-        failures.push({
-          groupKey: group.groupKey,
-          videoId: video.id,
-          path: safeVideoPath(repo, video.id),
-          message: cause instanceof Error ? cause.message : String(cause)
-        });
-      }
-    }
-  }
-
-  return {
-    removedVideoIds,
-    result: {
-      groupCount: preview.groupCount,
-      keepCount: preview.keepCount,
-      successCount: removedVideoIds.length,
-      failureCount: failures.length,
-      reclaimedBytes,
-      failures
-    }
-  };
+  _repo: VideoRepository,
+  _plan: DuplicateResolvePlan
+): Promise<never> {
+  throw new Error("Direct duplicate deletion is disabled. Run full SHA-256 verification and use the separately confirmed cleanup task.");
 }
 
 function summarizeResolveEntries(entries: ValidatedDuplicateResolveEntry[]): {
@@ -247,14 +201,6 @@ function errorSummary(cause: unknown): string {
 function uniqueVideos(videos: VideoRecord[]): VideoRecord[] {
   const seen = new Set<string>();
   return videos.filter((video) => !seen.has(video.id) && Boolean(seen.add(video.id)));
-}
-
-function safeVideoPath(repo: VideoRepository, videoId: string): string {
-  try {
-    return repo.getVideo(videoId).path;
-  } catch {
-    return "";
-  }
 }
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>): Promise<R[]> {

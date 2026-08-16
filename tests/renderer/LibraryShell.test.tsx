@@ -544,7 +544,7 @@ describe("LibraryShell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
 
-    expect(screen.getByText("重复组 01")).toBeInTheDocument();
+    expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip.mp4")).toBeInTheDocument();
     expect(screen.getByText("episode-01.mp4")).toBeInTheDocument();
   });
@@ -577,10 +577,10 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalledWith({ page: 1, pageSize: 20, sortDirection: "desc" }));
     expect(screen.getAllByText("41")).toHaveLength(2);
 
-    fireEvent.change(screen.getByLabelText("重复项大小排序"), { target: { value: "asc" } });
+    fireEvent.change(screen.getByLabelText("候选项大小排序"), { target: { value: "asc" } });
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({ page: 1, pageSize: 20, sortDirection: "asc" }));
 
-    fireEvent.click(screen.getByLabelText("选择重复项优先保留目录"));
+    fireEvent.click(screen.getByLabelText("选择候选项计划保留目录"));
     fireEvent.click(screen.getByRole("option", { name: /^Movies D:/ }));
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
       page: 1,

@@ -21,7 +21,7 @@ import type { DiagnosticEnvironment } from "./logging/types.js";
 import type { StructuredLogger } from "./logging/logger.js";
 import { buildCacheKey, getCoverPath, getCoverTimeSeconds } from "./media/cacheService.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
-import { previewDuplicateResolveSafely, resolveDuplicatePlanSafely } from "./media/duplicateResolveSafety.js";
+import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
 import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
@@ -34,7 +34,7 @@ type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => unknown;
 
 let ipcLogger: StructuredLogger | undefined;
 const loggedIpcChannels = new Set<string>([
-  IPC_CHANNELS.duplicateResolve,
+  IPC_CHANNELS.duplicateCleanupConfirm,
   IPC_CHANNELS.folderAdd,
   IPC_CHANNELS.folderScan,
   IPC_CHANNELS.folderScanAll,
@@ -154,6 +154,11 @@ const duplicateCleanupSubmitSchema = z.object({
   requestId: z.string().min(1).max(200),
   plan: duplicateResolvePlanSchema,
   sourceView: z.string().max(100).optional()
+}).strict();
+const duplicateCleanupConfirmSchema = z.object({
+  jobId: z.string().uuid(),
+  verificationRevision: z.string().uuid(),
+  confirmation: z.literal("DELETE")
 }).strict();
 const duplicateCleanupPageSchema = z.object({
   page: z.number().int().min(1),
@@ -332,18 +337,11 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     };
   });
 
-  ipcMain.handle(IPC_CHANNELS.duplicateResolve, async (_event, payload) => {
-    const plan = duplicateResolvePlanSchema.parse(payload);
-    const videoIds = plan.groups.flatMap((group) => [group.keepVideoId, ...group.deleteVideoIds]);
-    dependencies.duplicateCleanup.assertVideosAvailable(videoIds);
-    const execution = await resolveDuplicatePlanSafely(repo, plan);
-    dependencies.cacheManager.scheduleMaintenance(true);
-    publishRemovedVideos(repo, execution.removedVideoIds, dependencies.domainEvents);
-    return execution.result;
-  });
-
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupSubmit, (_event, payload) =>
     dependencies.duplicateCleanup.submit(duplicateCleanupSubmitSchema.parse(payload))
+  );
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupConfirm, (_event, payload) =>
+    dependencies.duplicateCleanup.confirm(duplicateCleanupConfirmSchema.parse(payload))
   );
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupJobs, (_event, payload) => {
     const parsed = duplicateCleanupPageSchema.parse(payload);
@@ -433,10 +431,9 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
   ipcMain.handle(IPC_CHANNELS.scanFailureReviewDelete, async (_event, payload) => {
     const { failureId } = scanFailureIdSchema.parse(payload);
-    const failure = repo.getScanFailure(failureId);
-    const linkedVideo = failure?.objectType === "file" ? repo.getVideoByPath(failure.objectPath) : null;
-    if (linkedVideo) dependencies.duplicateCleanup.assertVideosAvailable([linkedVideo.id]);
-    const result = await deleteScanFailureFile(repo, failureId);
+    const result = await deleteScanFailureFile(repo, failureId, {
+      assertPermanentDeleteAllowed: (videoIds) => dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(videoIds)
+    });
     if (result.videoId) dependencies.cacheManager.scheduleMaintenance(true);
     dependencies.domainEvents.publish({
       type: result.videoId ? "video:removed" : "library:rescanned",
@@ -451,8 +448,10 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
       .filter((failure) => failure?.objectType === "file")
       .map((failure) => repo.getVideoByPath(failure!.objectPath)?.id)
       .filter((videoId): videoId is string => Boolean(videoId));
-    dependencies.duplicateCleanup.assertVideosAvailable(linkedVideoIds);
-    const result = await cleanupScanFailures(repo, parsed.failureIds, parsed.action);
+    if (parsed.action !== "permanent-delete") dependencies.duplicateCleanup.assertVideosAvailable(linkedVideoIds);
+    const result = await cleanupScanFailures(repo, parsed.failureIds, parsed.action, {
+      assertPermanentDeleteAllowed: (videoIds) => dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(videoIds)
+    });
     if (parsed.action === "permanent-delete" && result.successCount > 0) dependencies.cacheManager.scheduleMaintenance(true);
     dependencies.domainEvents.publish({
       type: parsed.action === "permanent-delete" ? "video:removed" : "video:updated",
@@ -507,7 +506,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoPendingDeleteClear, () => {
     const videoIds = repo.listPendingDeleteVideos().map((video) => video.id);
-    dependencies.duplicateCleanup.assertVideosAvailable(videoIds);
+    dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(videoIds);
     return permanentlyDeleteVideos(repo, videoIds).then((result) => {
       dependencies.cacheManager.scheduleMaintenance(true);
       publishRemovedVideos(repo, videoIds, dependencies.domainEvents);
@@ -540,7 +539,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoDelete, async (_event, payload) => {
     const parsed = videoIdSchema.parse(payload);
-    dependencies.duplicateCleanup.assertVideosAvailable([parsed.videoId]);
+    dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed([parsed.videoId]);
     const video = repo.getVideo(parsed.videoId);
     await permanentlyDeleteFile(video.path);
     repo.removeVideo(parsed.videoId);
@@ -551,7 +550,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoBatchDelete, async (_event, videoIds) => {
     const parsedVideoIds = videoIdsSchema.parse(videoIds);
-    dependencies.duplicateCleanup.assertVideosAvailable(parsedVideoIds);
+    dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(parsedVideoIds);
     const result = await permanentlyDeleteVideos(repo, parsedVideoIds);
     dependencies.cacheManager.scheduleMaintenance(true);
     publishRemovedVideos(repo, parsedVideoIds, dependencies.domainEvents);

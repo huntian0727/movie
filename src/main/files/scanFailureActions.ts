@@ -9,6 +9,7 @@ import { permanentlyDeleteFile } from "./fileOperations.js";
 export interface DeleteScanFailureFileDependencies {
   statImpl?: (targetPath: string) => Promise<Stats>;
   deleteImpl?: (targetPath: string) => Promise<void>;
+  assertPermanentDeleteAllowed?: (videoIds: string[]) => void;
 }
 
 export interface DeleteScanFailureFileResult {
@@ -46,7 +47,15 @@ export async function deleteScanFailureFile(
     missing = true;
   }
 
-  if (!missing) await (dependencies.deleteImpl ?? permanentlyDeleteFile)(failure.objectPath);
+  if (!missing) {
+    if (video) {
+      if (!dependencies.assertPermanentDeleteAllowed) {
+        throw new Error("Permanent deletion requires the trusted duplicate-candidate full SHA-256 verification guard.");
+      }
+      dependencies.assertPermanentDeleteAllowed([video.id]);
+    }
+    await (dependencies.deleteImpl ?? permanentlyDeleteFile)(failure.objectPath);
+  }
   repo.resolveScanFailuresForObject(failure.sourceFolderId, failure.objectPath);
   if (video) repo.removeVideo(video.id);
   return { deleted: !missing, videoId: video?.id ?? null };

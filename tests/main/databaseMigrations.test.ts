@@ -278,6 +278,38 @@ describe("versioned database migrations", () => {
     }
   });
 
+  it("migrates v9 cleanup tasks to v10 with legacy authorization safely invalidated", () => {
+    const dbPath = createTempDatabasePath();
+    const legacy = createVersionFixture(dbPath, 9);
+    const now = "2026-08-16T00:00:00.000Z";
+    legacy.prepare(`INSERT INTO duplicate_cleanup_jobs
+      (id, request_id, status, total_groups, total_items, created_at, updated_at)
+      VALUES ('legacy-job', 'legacy-request', 'running', 1, 1, ?, ?)`)
+      .run(now, now);
+    legacy.prepare(`INSERT INTO duplicate_cleanup_items
+      (id, job_id, group_key, keep_video_id, delete_video_id, keep_path, delete_path, filename, directory,
+       expected_keep_size_bytes, expected_keep_modified_at, expected_delete_size_bytes, expected_delete_modified_at,
+       planned_reclaimable_bytes, status, created_at, updated_at)
+      VALUES ('legacy-item', 'legacy-job', 'g', 'keep', 'delete', 'K:/keep.mp4', 'K:/delete.mp4', 'delete.mp4', 'K:/',
+       64, ?, 64, ?, 64, 'deleting', ?, ?)`)
+      .run(now, now, now, now);
+    legacy.prepare(`INSERT INTO duplicate_cleanup_reservations
+      (id, job_id, video_id, role, created_at, released_at)
+      VALUES ('legacy-reservation', 'legacy-job', 'delete', 'delete', ?, NULL)`).run(now);
+    legacy.close();
+
+    const upgraded = createDatabase(dbPath);
+    expect(upgraded.pragma("user_version", { simple: true })).toBe(10);
+    expect(upgraded.prepare("SELECT workflow_version, phase, status, authorized_revision FROM duplicate_cleanup_jobs WHERE id = 'legacy-job'").get())
+      .toEqual({ workflow_version: 1, phase: "legacy_blocked", status: "cancelled", authorized_revision: null });
+    expect(upgraded.prepare(`SELECT status, verification_status, keep_sha256, delete_sha256,
+      keep_file_identity, delete_file_identity, staged_delete_path FROM duplicate_cleanup_items WHERE id = 'legacy-item'`).get())
+      .toEqual({ status: "cancelled", verification_status: "unverified", keep_sha256: null, delete_sha256: null,
+        keep_file_identity: null, delete_file_identity: null, staged_delete_path: null });
+    expect((upgraded.prepare("SELECT released_at FROM duplicate_cleanup_reservations WHERE id = 'legacy-reservation'").get() as { released_at: string | null }).released_at).not.toBeNull();
+    upgraded.close();
+  });
+
   it("backfills a legacy folder scan error as one retryable directory failure", () => {
     const dbPath = createTempDatabasePath();
     const fixture = createVersionFixture(dbPath, 5);

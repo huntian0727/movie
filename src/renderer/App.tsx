@@ -441,11 +441,6 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       duplicateCleanupApi={api}
       recentVideoIds={recentVideoIds}
       onPreviewDuplicateResolve={(plan: DuplicateResolvePlan) => api.previewDuplicateResolve(plan)}
-      onResolveDuplicateGroups={async (plan: DuplicateResolvePlan) => {
-        const result = await api.resolveDuplicateGroups(plan);
-        await reload();
-        return result;
-      }}
       onRevealInFolder={(video) => api.revealVideoInFolder(video.id).then(() => undefined)}
       onOpen={async (video, queue) => {
         const queueIds = queue.map((item) => item.id);

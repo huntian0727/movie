@@ -6,7 +6,7 @@
 
 - Windows 桌面应用：Electron 33、React 18、TypeScript 5.7、Vite 6。
 - 产品为 Windows Electron Desktop Only；React/Vite 仅作为 Renderer 技术栈，不再维护浏览器 demo 或假业务 fallback。
-- 数据：better-sqlite3，当前 `LATEST_SCHEMA_VERSION = 9`；electron-store 保存应用设置。v8 增加四个 nullable codec 字段，v9 增加 `codec_probe_status`，迁移不批量探测历史视频。
+- 数据：better-sqlite3，当前 `LATEST_SCHEMA_VERSION = 10`；electron-store 保存应用设置。v8 增加四个 nullable codec 字段，v9 增加 `codec_probe_status`，v10 增加重复清理的完整 SHA-256、强文件身份、授权 revision 和可恢复隔离状态；迁移不读取媒体内容。
 - 媒体：静态 FFprobe/FFmpeg 读取元数据和生成缓存；可选 mpv；最终可回退系统默认播放器。
 - 测试：Vitest、Testing Library、jsdom，以及 Electron/打包 smoke 和 Windows 发布门禁脚本。
 - 工具链固定为 Node 22.23.1、npm 10.9.8。Node 测试与 Electron native ABI 必须使用隔离 checkout/worktree。
@@ -17,8 +17,8 @@
 - 扫描按目录持久化快照与异常；当前目录增量扫描、异常重试、全部源目录扫描是三个独立入口。
 - 新视频先快速入库，再由单并发 MetadataQueue 后台读取元数据。
 - 普通资料库和重复项均在 SQLite 分页；资料库支持搜索、排序、目录、收藏、最近播放和待删除视图。
-- 重复项正式规则是“缓存的精确大小 + 精确时长”，不读取视频内容或生成新指纹；时长未就绪的文件不参与分组。
-- 重复项永久清理由 schema v7 持久后台任务执行，提交前与实际删除前继续检查存在性、大小和修改时间。
+- 重复候选仍按“缓存的精确大小 + 精确时长”发现，普通浏览不读取视频内容；时长未就绪的文件不参与候选分组。
+- 永久重复清理使用 schema v10 两阶段任务：独立可取消的完整 SHA-256 只读验证先产生“完全相同 / 内容不同 / 无法验证”，只有完全相同项经精确 `DELETE` 二次确认、删除边界重哈希、强身份复核和同目录可恢复隔离后才允许永久删除。取消、失败、离线、变化和恢复冲突均不执行永久删除。
 - 播放支持 native → mpv → 系统默认播放器 fallback；`auto` 使用 metadata/probe 状态+容器+codec 保守路由。历史 ready 视频按 `codec_probe_status` 最多自动探测一次，播放准备最多等待 2 秒；失败后不重复探测，文件版本变化后重新允许。pending 的常见 native 容器临时 native-first，WebM 10-bit 等复杂格式转 mpv。
 - 封面和时间轴按需生成并写入 userData 下的持久缓存；缓存可重建、有限额、可手动清理。
 - 文件移动、重命名和永久删除集中在主进程，包含路径校验、冲突处理和失败恢复逻辑。
@@ -42,7 +42,7 @@
 - 两个真实物理卷、ACL、文件独占、磁盘满、跨卷移动和不可逆删除的人工证据。
 - 签名安装包、上一正式版本升级、干净 Windows VM 安装/卸载。
 - 超深 OFFSET、`%关键词%` 搜索和 10 万以上资料库的性能演进。
-- `main@7506da5` 的 Windows CI 因测试断言不适应 PowerShell 自动换行而为红；Electron smoke 通过，Node suite 为 434/435。该门禁测试必须修复并在 GitHub 重新跑绿。
-- 发布清单仍要求重复项删除前完整 SHA-256，但当前 ADR/README/实现明确采用大小+时长候选和 size+mtime 删除前复查；发布前必须先完成独立产品/架构风险判断并统一契约。
+- 接管分支的 PowerShell 换行与 Windows 8.3/长路径断言已修复；`main@2bc1359` 的 Windows CI 已在重跑后全绿。
+- 重复清理的 ADR、README、实现、测试和发布清单已统一为“低带宽候选发现 + 不可绕过的完整 SHA-256 永久删除门禁”。真实 SMB/映射盘断线、服务器端原子改名和 file identity 行为仍需发布前实机验证。
 
 未在代码、测试或人工证据中确认的能力必须标记“需要验证”，不能由历史计划推断为已完成。
