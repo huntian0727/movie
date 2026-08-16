@@ -93,8 +93,8 @@ describeWindows("agent management PowerShell safety", () => {
       "-Branch", "ai/handoff-test"
     ];
 
-    expect(invokePowerShell(scriptPath, [...commonArgs, "-OutputPath", allowedOutput], worktree)).toContain(
-      `Generated ${allowedOutput}`
+    expect(invokePowerShell(scriptPath, [...commonArgs, "-OutputPath", allowedOutput], worktree)).toMatch(
+      /Generated\s+[\s\S]*?TASK-PM-TEST\.md\s+for\s+origin\/ai\/handoff-test\s+at\s+[0-9a-f]{40}\./i
     );
     expect(readFileSync(allowedOutput, "utf8")).toContain("# Web Advisor Handoff");
 

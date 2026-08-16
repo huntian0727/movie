@@ -19,7 +19,7 @@
 - Web Advisor Review Stage: NOT_REQUIRED
 - Git Requirements: `ai/project-takeover`; delivery record; normal push; remote SHA verification; no force push.
 - Status: LOCAL_ACCEPTED
-- Next Actor: Local Project Manager (Git delivery), then User/Web Advisor for `TASK-SAFETY-001`
+- Next Actor: Local Project Manager (Git delivery)
 
 ## QA Rework 1
 
@@ -45,3 +45,23 @@
 - Seven PowerShell scripts parsed with zero AST errors; unsafe mixed ABI, handoff traversal, external output, and non-Markdown output fail closed.
 - Four `movie-*` skills passed UTF-8 quick validation and explicit prompt checks.
 - Known risks: remote GitHub CI is pending until push; Electron smoke is intentionally NOT RUN in this Node ABI checkout; the upstream skill validator is not repository-self-contained.
+
+## CI Rework 2
+
+- Remote run `31948200847` passed Electron smoke and reached 440/441 Node tests; the only failure compared an `os.tmpdir()` 8.3 short path with PowerShell's equivalent long path.
+- The successful handoff-generation assertion no longer compares the output path literal, casing, or short/long expansion.
+- It now requires semantic output containing `TASK-PM-TEST.md`, `origin/ai/handoff-test`, and a 40-character hexadecimal SHA.
+- The existing `readFileSync(allowedOutput)` assertion remains and proves that the generated handoff is actually written at the allowed resolved location.
+- `npx vitest run tests/scripts/agentManagementScripts.test.ts`: PASS, 1 file and 6/6 tests.
+- Safety scripts and business code are unchanged in this rework.
+
+## Independent QA Rework 2
+
+- QA verdict: `QA_PASS`; task state advanced to `LOCAL_ACCEPTED` for local scope.
+- Remote failure run `31948200847` was independently inspected: Electron smoke passed and the sole Node failure was the equivalent `RUNNER~1` versus `runneradmin` temporary-path rendering.
+- `npx -y node@22.23.1 node_modules/vitest/vitest.mjs run tests/scripts/agentManagementScripts.test.ts --reporter=dot`: PASS, 1 file and 6/6 tests.
+- The success assertion does not compare absolute paths, path casing, or 8.3/long-path expansion. It still requires `TASK-PM-TEST.md`, `origin/ai/handoff-test`, and a 40-character hexadecimal SHA in the generated status line.
+- `readFileSync(allowedOutput)` still reads the file at the actual allowed path and verifies generated Web Advisor handoff content.
+- `git diff --check`: PASS.
+- Scope audit: `scripts/agent/`, `src/`, package manifests, and database migrations are unchanged relative to `origin/ai/project-takeover`; only the test assertion and management evidence changed.
+- Delivery follow-up: push normally and require a green GitHub Windows CI run for the new SHA.
