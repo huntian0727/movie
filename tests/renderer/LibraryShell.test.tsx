@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryShell } from "../../src/renderer/components/LibraryShell";
-import type { DuplicateGroup, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
+import type { DuplicateGroup, DuplicateGroupPageQuery, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
 const folder: SourceFolder = {
@@ -550,9 +550,9 @@ describe("LibraryShell", () => {
   });
 
   it("loads duplicate groups only after opening the paginated duplicates view", async () => {
-    const onLoadDuplicateGroups = vi.fn().mockResolvedValue({
+    const onLoadDuplicateGroups = vi.fn().mockImplementation(async (query: DuplicateGroupPageQuery) => ({
       groups: duplicateGroups,
-      page: 1,
+      page: query.page,
       pageSize: 20,
       totalPages: 3,
       totalGroups: 41,
@@ -560,7 +560,7 @@ describe("LibraryShell", () => {
       totalCandidateFiles: 90,
       totalReclaimableBytes: 4096,
       directoryOptions: [{ path: "D:\\Movies", groupCount: 41, estimatedReclaimableBytes: 4096 }]
-    });
+    }));
     render(
       <LibraryShell
         videos={[video, nestedVideo]}
@@ -580,14 +580,28 @@ describe("LibraryShell", () => {
     fireEvent.change(screen.getByLabelText("候选项大小排序"), { target: { value: "asc" } });
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({ page: 1, pageSize: 20, sortDirection: "asc" }));
 
-    fireEvent.click(screen.getByLabelText("选择候选项计划保留目录"));
+    fireEvent.click(screen.getByLabelText("选择候选项计划保留目录（包含所有子目录）"));
     fireEvent.click(screen.getByRole("option", { name: /^Movies D:/ }));
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
       page: 1,
       pageSize: 20,
       sortDirection: "asc",
-      preferredDirectoryPath: "D:\\Movies",
-      preferredDirectoryScope: "recursive"
+      preferredDirectoryPath: "D:\\Movies"
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
+      page: 2,
+      pageSize: 20,
+      sortDirection: "asc",
+      preferredDirectoryPath: "D:\\Movies"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "优先保留 D:\\Movies\\Drama 及其所有子目录（来自 episode-01.mp4）" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 20,
+      sortDirection: "asc",
+      preferredDirectoryPath: "D:\\Movies\\Drama"
     }));
   });
 

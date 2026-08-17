@@ -220,7 +220,6 @@ export interface DuplicateGroupPageQuery {
   pageSize: DuplicatePageSize;
   sortDirection: SortDirection;
   preferredDirectoryPath?: string;
-  preferredDirectoryScope?: "recursive" | "exact";
 }
 
 export interface DuplicateDirectoryOption {

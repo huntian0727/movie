@@ -36,12 +36,10 @@ interface DuplicateGroupsPageProps {
   sizeSortDirection?: SortDirection;
   directoryOptions?: DuplicateDirectoryOption[];
   preferredDirectoryPath?: string;
-  preferredDirectoryScope?: "recursive" | "exact";
   onPage?(page: number): void;
   onPageSize?(pageSize: DuplicatePageSize): void;
   onSizeSortDirection?(direction: SortDirection): void;
   onPreferredDirectoryPathChange?(path: string): void;
-  onPreferredDirectoryScopeChange?(scope: "recursive" | "exact"): void;
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
@@ -74,12 +72,10 @@ export function DuplicateGroupsPage({
   sizeSortDirection: controlledSizeSortDirection,
   directoryOptions = [],
   preferredDirectoryPath,
-  preferredDirectoryScope = "recursive",
   onPage,
   onPageSize,
   onSizeSortDirection,
   onPreferredDirectoryPathChange,
-  onPreferredDirectoryScopeChange,
   onOpen,
   onViewDetails,
   onRevealInFolder,
@@ -98,7 +94,7 @@ export function DuplicateGroupsPage({
   onOpenCleanupItem,
   cleanupRefreshSequence
 }: DuplicateGroupsPageProps) {
-  const [selectedKeepByGroup, setSelectedKeepByGroup] = useState<Record<string, string>>({});
+  const [manualKeepByGroup, setManualKeepByGroup] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<DuplicateResolvePreview | null>(null);
   const [staleItems, setStaleItems] = useState<DuplicateResolveChangedItem[] | null>(null);
   const [staleVideosById, setStaleVideosById] = useState<Record<string, VideoRecord>>({});
@@ -119,7 +115,7 @@ export function DuplicateGroupsPage({
   const taskCenterOpenerRef = useRef<HTMLButtonElement>(null);
   const sizeSortDirection = controlledSizeSortDirection ?? internalSizeSortDirection;
   const legacyResolveEnabled: boolean = false;
-  const previewFileCount = useMemo(() => new Set(planVideoIds(groups, selectedKeepByGroup)).size, [groups, selectedKeepByGroup]);
+  const previewFileCount = useMemo(() => new Set(planVideoIds(groups, manualKeepByGroup)).size, [groups, manualKeepByGroup]);
 
   const sortedGroups = useMemo(
     () => [...groups].sort((left, right) => {
@@ -130,7 +126,18 @@ export function DuplicateGroupsPage({
   );
 
   useEffect(() => {
-    setSelectedKeepByGroup(Object.fromEntries(groups.map((group) => [group.groupKey, group.recommendedKeepVideoId])));
+    setManualKeepByGroup((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const group of groups) {
+        const selected = next[group.groupKey];
+        if (selected && !group.items.some((item) => item.video.id === selected)) {
+          delete next[group.groupKey];
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
   }, [groups]);
 
   useEffect(() => {
@@ -141,7 +148,7 @@ export function DuplicateGroupsPage({
   const plan = useMemo<DuplicateResolvePlan>(
     () => ({
       groups: groups.map((group) => {
-        const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
+        const keepVideoId = manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
         return {
           groupKey: group.groupKey,
           keepVideoId,
@@ -149,11 +156,12 @@ export function DuplicateGroupsPage({
         };
       })
     }),
-    [groups, selectedKeepByGroup]
+    [groups, manualKeepByGroup]
   );
 
   const resetSelectionToRecommended = () => {
-    setSelectedKeepByGroup(Object.fromEntries(groups.map((group) => [group.groupKey, group.recommendedKeepVideoId])));
+    const currentGroupKeys = new Set(groups.map((group) => group.groupKey));
+    setManualKeepByGroup((current) => Object.fromEntries(Object.entries(current).filter(([groupKey]) => !currentGroupKeys.has(groupKey))));
   };
 
   const handleResolveFirstParty = async () => {
@@ -249,7 +257,7 @@ export function DuplicateGroupsPage({
         </div>
         <div className="duplicate-summary-actions">
           <div className="duplicate-sort duplicate-directory-filter">
-            <span>优先保留目录</span>
+            <span>优先保留目录（包含所有子目录）</span>
             <DirectoryPicker
               directoryOptions={directoryOptions.map((option) => ({
                 ...option,
@@ -257,19 +265,16 @@ export function DuplicateGroupsPage({
               }))}
               value={preferredDirectoryPath}
               placeholder="全部资料库（自动推荐）"
-              ariaLabel="选择候选项计划保留目录"
+              ariaLabel="选择候选项计划保留目录（包含所有子目录）"
               allowClear
               onChange={(path) => onPreferredDirectoryPathChange?.(path)}
             />
           </div>
           {preferredDirectoryPath && (
-            <label className="duplicate-sort">
-              <span>目录范围</span>
-              <select aria-label="候选项目录范围" value={preferredDirectoryScope} onChange={(event) => onPreferredDirectoryScopeChange?.(event.target.value as "recursive" | "exact")}>
-                <option value="recursive">包含子目录</option>
-                <option value="exact">仅当前目录</option>
-              </select>
-            </label>
+            <div className="duplicate-directory-scope">
+              <p role="status">正在优先保留 <code title={preferredDirectoryPath}>{preferredDirectoryPath}</code> 及其所有子目录，并查看包含该目录树文件的候选组。</p>
+              <button type="button" onClick={() => onPreferredDirectoryPathChange?.("")}>清除优先目录</button>
+            </div>
           )}
           <label className="duplicate-sort">
             <span>按大小排序</span>
@@ -341,8 +346,9 @@ export function DuplicateGroupsPage({
             page={page}
             pageSize={pageSize}
             sizeSortDirection={sizeSortDirection}
-            selectedKeepByGroup={selectedKeepByGroup}
-            onSetKeep={(groupId, videoId) => setSelectedKeepByGroup((current) => ({ ...current, [groupId]: videoId }))}
+            selectedKeepByGroup={manualKeepByGroup}
+            onSetKeep={(groupId, videoId) => setManualKeepByGroup((current) => ({ ...current, [groupId]: videoId }))}
+            onPreferDirectory={(path) => onPreferredDirectoryPathChange?.(path)}
             onOpen={onOpen}
             onViewDetails={onViewDetails}
             onRevealInFolder={onRevealInFolder}
@@ -432,6 +438,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   sizeSortDirection,
   selectedKeepByGroup,
   onSetKeep,
+  onPreferDirectory,
   onOpen,
   onViewDetails,
   onRevealInFolder
@@ -443,6 +450,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   sizeSortDirection: SortDirection;
   selectedKeepByGroup: Record<string, string>;
   onSetKeep(groupId: string, videoId: string): void;
+  onPreferDirectory(path: string): void;
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
@@ -500,6 +508,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
               </div>
               <div className="duplicate-item-actions">
                 <button type="button" className={isKeeping ? "primary" : undefined} onClick={() => onSetKeep(group.groupKey, item.video.id)}>设为计划保留</button>
+                <button type="button" aria-label={`优先保留 ${item.video.directory} 及其所有子目录（来自 ${item.video.filename}）`} title="筛选包含此目录树文件的候选组，并优先计划保留目录树中的文件" onClick={() => onPreferDirectory(item.video.directory)}><FolderOpen size={16} />优先保留此目录</button>
                 <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
                 <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
                 <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>

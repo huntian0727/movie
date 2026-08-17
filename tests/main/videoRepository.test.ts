@@ -612,8 +612,7 @@ describe("VideoRepository", () => {
       page: 1,
       pageSize: 20,
       sortDirection: "desc",
-      preferredDirectoryPath: "D:\\Movies\\Series",
-      preferredDirectoryScope: "recursive"
+      preferredDirectoryPath: "D:\\Movies\\Series"
     });
 
     expect(page).toMatchObject({ totalGroups: 1, totalCandidateFiles: 2 });
@@ -626,6 +625,51 @@ describe("VideoRepository", () => {
       expect.objectContaining({ path: "E:\\Backup", groupCount: 2, estimatedReclaimableBytes: 16000 })
     ]));
     expect(page.directoryOptions.some((option) => option.path === "D:\\Movies\\Solo")).toBe(false);
+  });
+
+  it("recursively matches descendants without matching a sibling path prefix", () => {
+    const { repo, folderId } = createRepo();
+    const descendant = createVideo(repo, folderId, {
+      path: "D:\\Movies\\Series\\Season 1\\keep.mp4",
+      directory: "D:\\Movies\\Series\\Season 1",
+      filename: "keep.mp4",
+      basename: "keep",
+      sizeBytes: 9100
+    });
+    const outsideFolder = repo.addSourceFolder("E:\\Backup", true);
+    const outside = createVideo(repo, outsideFolder.id, {
+      path: "E:\\Backup\\copy.mp4",
+      directory: "E:\\Backup",
+      filename: "copy.mp4",
+      basename: "copy",
+      sizeBytes: 9100
+    });
+    createVideo(repo, folderId, {
+      path: "D:\\Movies\\Series Archive\\other.mp4",
+      directory: "D:\\Movies\\Series Archive",
+      filename: "other.mp4",
+      basename: "other",
+      sizeBytes: 9200
+    });
+    createVideo(repo, outsideFolder.id, {
+      path: "E:\\Backup\\other.mp4",
+      directory: "E:\\Backup",
+      filename: "other.mp4",
+      basename: "other",
+      sizeBytes: 9200
+    });
+
+    const page = repo.listDuplicateGroupsPage({
+      page: 1,
+      pageSize: 20,
+      sortDirection: "desc",
+      preferredDirectoryPath: "D:\\Movies\\Series"
+    });
+
+    expect(page.totalGroups).toBe(1);
+    expect(page.groups[0]?.recommendedKeepVideoId).toBe(descendant.id);
+    expect(page.groups[0]?.items.map((item) => item.video.id)).toEqual(expect.arrayContaining([descendant.id, outside.id]));
+    expect(page.groups.some((group) => group.groupKey === "size-duration:9200:5000")).toBe(false);
   });
 
   it("builds a duplicate resolve preview and rejects invalid plans", () => {

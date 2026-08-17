@@ -112,9 +112,47 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(onPage).toHaveBeenCalledWith(3);
     fireEvent.change(screen.getByLabelText("候选项每页数量"), { target: { value: "500" } });
     expect(onPageSize).toHaveBeenCalledWith(500);
-    fireEvent.click(screen.getByLabelText("选择候选项计划保留目录"));
+    fireEvent.click(screen.getByLabelText("选择候选项计划保留目录（包含所有子目录）"));
     fireEvent.click(screen.getByRole("option", { name: /Backup/ }));
     expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("D:\\Backup");
+  });
+
+  it("uses a candidate directory as the recursive preferred directory without starting verification", () => {
+    const onPreferredDirectoryPathChange = vi.fn();
+    const onSubmitCleanup = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} onPreferredDirectoryPathChange={onPreferredDirectoryPathChange} onSubmitCleanup={onSubmitCleanup} />);
+
+    const shortcut = screen.getByRole("button", { name: "优先保留 D:\\Backup 及其所有子目录（来自 clip-copy.mp4）" });
+    expect(shortcut).not.toHaveClass("danger");
+    fireEvent.click(shortcut);
+
+    expect(onPreferredDirectoryPathChange).toHaveBeenCalledOnce();
+    expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("D:\\Backup");
+    expect(onSubmitCleanup).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("候选项目录范围")).not.toBeInTheDocument();
+  });
+
+  it("shows the full recursive preferred path and clears it directly", () => {
+    const onPreferredDirectoryPathChange = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} preferredDirectoryPath={"D:\\Movies\\Archive"} onPreferredDirectoryPathChange={onPreferredDirectoryPathChange} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("D:\\Movies\\Archive");
+    expect(screen.getByRole("status")).toHaveTextContent("所有子目录");
+    fireEvent.click(screen.getByRole("button", { name: "清除优先目录" }));
+    expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("");
+  });
+
+  it("preserves an explicit per-group keep choice when directory recommendations reload", async () => {
+    const onSubmitCleanup = vi.fn().mockResolvedValue({ jobId: "j", requestId: "r", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 1024 });
+    const { rerender } = render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "设为计划保留" })[1]);
+
+    rerender(<DuplicateGroupsPage {...baseProps()} groups={[{ ...groups[0], recommendedKeepVideoId: "delete", items: [...groups[0].items] }]} preferredDirectoryPath="D:\\Backup" onSubmitCleanup={onSubmitCleanup} />);
+    fireEvent.click(screen.getByRole("button", { name: "验证当前页" }));
+    fireEvent.click(screen.getByRole("button", { name: "开始完整验证" }));
+
+    await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
+    expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }] });
   });
 
   it("checks missing files without running full hashes or deletion", async () => {

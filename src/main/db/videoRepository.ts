@@ -1287,12 +1287,8 @@ export class VideoRepository {
     const scopedSizeParams: Record<string, unknown> = {};
     if (query.preferredDirectoryPath) {
       scopedSizeParams.preferredDirectoryPath = query.preferredDirectoryPath;
-      if (query.preferredDirectoryScope === "exact") {
-        scopedSizeWhere.push("directory = @preferredDirectoryPath COLLATE NOCASE");
-      } else {
-        scopedSizeParams.preferredDirectoryPrefix = `${escapeLikePattern(trimTrailingSeparators(query.preferredDirectoryPath))}\\%`;
-        scopedSizeWhere.push("(directory = @preferredDirectoryPath COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix ESCAPE '!' COLLATE NOCASE)");
-      }
+      scopedSizeParams.preferredDirectoryPrefix = `${escapeLikePattern(trimTrailingSeparators(query.preferredDirectoryPath))}\\%`;
+      scopedSizeWhere.push("(directory = @preferredDirectoryPath COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix ESCAPE '!' COLLATE NOCASE)");
     }
     const scopedSizesQuery = `SELECT DISTINCT size_bytes FROM videos WHERE ${scopedSizeWhere.join(" AND ")}`;
     const candidateSizesQuery = `
@@ -1319,11 +1315,7 @@ export class VideoRepository {
       "duration_ms > 0"
     ];
     if (query.preferredDirectoryPath) {
-      if (query.preferredDirectoryScope === "exact") {
-        scopedIdentityWhere.push("directory = @preferredDirectoryPath COLLATE NOCASE");
-      } else {
-        scopedIdentityWhere.push("(directory = @preferredDirectoryPath COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix ESCAPE '!' COLLATE NOCASE)");
-      }
+      scopedIdentityWhere.push("(directory = @preferredDirectoryPath COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix ESCAPE '!' COLLATE NOCASE)");
     }
     const scopedIdentitiesQuery = `SELECT DISTINCT size_bytes, duration_ms FROM videos WHERE ${scopedIdentityWhere.join(" AND ")}`;
     const duplicateGroupsQuery = `
@@ -1365,7 +1357,7 @@ export class VideoRepository {
       )
       .all({ ...scopedSizeParams, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as DuplicateIdentityRow[];
     const groups = identityRows
-      .map((group) => this.buildDuplicateGroup(buildSizeDurationGroupKey(group.size_bytes, group.duration_ms), query.preferredDirectoryPath, query.preferredDirectoryScope))
+      .map((group) => this.buildDuplicateGroup(buildSizeDurationGroupKey(group.size_bytes, group.duration_ms), query.preferredDirectoryPath))
       .filter((group): group is DuplicateGroup => group !== null);
 
     return {
@@ -1596,7 +1588,7 @@ export class VideoRepository {
     }
   }
 
-  private buildDuplicateGroup(groupKey: string, preferredDirectoryPath?: string, preferredDirectoryScope: "recursive" | "exact" = "recursive"): DuplicateGroup | null {
+  private buildDuplicateGroup(groupKey: string, preferredDirectoryPath?: string): DuplicateGroup | null {
     const identity = parseSizeDurationGroupKey(groupKey);
     if (!identity) {
       return null;
@@ -1628,7 +1620,7 @@ export class VideoRepository {
 
     const videos = rows.map(mapVideo);
     const preferredDirectoryVideos = preferredDirectoryPath
-      ? videos.filter((video) => isVideoInDirectoryScope(video.directory, preferredDirectoryPath, preferredDirectoryScope))
+      ? videos.filter((video) => isVideoInDirectoryTree(video.directory, preferredDirectoryPath))
       : [];
     const keepCandidates = preferredDirectoryVideos.length > 0 ? preferredDirectoryVideos : videos;
     const recommendedKeep = [...keepCandidates].sort(compareDuplicateKeepCandidates)[0];
@@ -1820,10 +1812,10 @@ function listDirectoryAncestors(directory: string, sourceFolderPath: string): st
   return result;
 }
 
-function isVideoInDirectoryScope(directory: string, directoryPath: string, scope: "recursive" | "exact"): boolean {
+function isVideoInDirectoryTree(directory: string, directoryPath: string): boolean {
   const candidate = normalizeManagedPath(directory);
   const selected = normalizeManagedPath(directoryPath);
-  return scope === "exact" ? candidate === selected : candidate === selected || candidate.startsWith(`${selected}\\`);
+  return candidate === selected || candidate.startsWith(`${selected}\\`);
 }
 
 function buildSizeDurationGroupKey(sizeBytes: number, durationMs: number): string {

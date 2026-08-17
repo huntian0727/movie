@@ -134,8 +134,7 @@ const duplicateGroupPageQuerySchema = z.object({
   page: z.number().int().min(1),
   pageSize: z.union([z.literal(10), z.literal(20), z.literal(50), z.literal(100), z.literal(200), z.literal(300), z.literal(500)]),
   sortDirection: z.enum(["asc", "desc"]),
-  preferredDirectoryPath: z.string().min(1).optional(),
-  preferredDirectoryScope: z.enum(["recursive", "exact"]).optional()
+  preferredDirectoryPath: z.string().min(1).optional()
 }).strict();
 const duplicateResolvePlanSchema = z
   .object({

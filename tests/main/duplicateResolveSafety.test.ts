@@ -229,8 +229,7 @@ async function createDuplicateFixture(preferredDirectoryPlan = false) {
     page: 1,
     pageSize: 20,
     sortDirection: "desc",
-    preferredDirectoryPath: preferredDirectoryPlan ? preferredDirectory : undefined,
-    preferredDirectoryScope: "recursive"
+    preferredDirectoryPath: preferredDirectoryPlan ? preferredDirectory : undefined
   });
   const group = page.groups[0];
   const plan: DuplicateResolvePlan = {

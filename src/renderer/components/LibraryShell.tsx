@@ -152,7 +152,6 @@ export function LibraryShell({
   const [duplicatePageSize, setDuplicatePageSize] = useState<DuplicatePageSize>(20);
   const [duplicateSortDirection, setDuplicateSortDirection] = useState<SortDirection>("desc");
   const [duplicatePreferredDirectoryPath, setDuplicatePreferredDirectoryPath] = useState("");
-  const [duplicatePreferredDirectoryScope, setDuplicatePreferredDirectoryScope] = useState<"recursive" | "exact">("recursive");
   const [duplicatePage, setDuplicatePage] = useState<DuplicateGroupPage>(() => createStaticDuplicatePage(duplicateGroups));
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
@@ -348,7 +347,6 @@ export function LibraryShell({
     };
     if (duplicatePreferredDirectoryPath) {
       query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
-      query.preferredDirectoryScope = duplicatePreferredDirectoryScope;
     }
     void onLoadDuplicateGroups(query).then((result) => {
       if (disposed) return;
@@ -361,7 +359,7 @@ export function LibraryShell({
     });
 
     return () => { disposed = true; };
-  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectoryPath, duplicatePreferredDirectoryScope, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
+  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectoryPath, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
 
   const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
   const toolbarCount = view === "duplicates" ? duplicatePage.totalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
@@ -837,9 +835,7 @@ export function LibraryShell({
             onSizeSortDirection={(direction) => { setDuplicateSortDirection(direction); setDuplicatePageNumber(1); }}
             directoryOptions={duplicatePage.directoryOptions}
             preferredDirectoryPath={duplicatePreferredDirectoryPath || undefined}
-            preferredDirectoryScope={duplicatePreferredDirectoryScope}
             onPreferredDirectoryPathChange={(path) => { setDuplicatePreferredDirectoryPath(path); setDuplicatePageNumber(1); }}
-            onPreferredDirectoryScopeChange={(scope) => { setDuplicatePreferredDirectoryScope(scope); setDuplicatePageNumber(1); }}
             onOpen={openVideo}
             onViewDetails={viewVideoDetails}
             onRevealInFolder={onRevealInFolder}
