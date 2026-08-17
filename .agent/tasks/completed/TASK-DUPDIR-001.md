@@ -14,8 +14,8 @@
 - QA Required: YES
 - UI Required: YES
 - Web Advisor Review Required: NO
-- Status: LOCAL_ACCEPTED
-- Next Actor: Local Project Manager performs Git delivery and remote Windows CI verification.
+- Status: VERIFIED
+- Next Actor: None for this task.
 
 ## Result
 
@@ -23,7 +23,9 @@
 - Removed exact-only scope from the public/internal query contract so preferred directories always include descendants.
 - QA: PASS. UI review: PASS.
 - Fixed Node Developer Gate: `DEV_GATE_PASS`, 47 files and 472/472 tests PASS.
-- Git delivery and remote Windows CI remain pending.
+- Verified implementation commit: `65cb3ea677f9f14ca4ea9a8c098cd73664e4fe30`.
+- GitHub Windows CI run `32044478504`: PASS, including Node tests/Windows file safety and Electron native/main-process smoke.
+- Branch and `main` delivery completed with backup tag `backup-main-20260818-000840-dbb8431`.
 
 ## Binding product decision
 
