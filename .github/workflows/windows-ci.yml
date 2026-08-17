@@ -17,7 +17,7 @@ jobs:
     name: Node tests and Windows file safety
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: setup-node
         uses: actions/setup-node@v4
         with:
@@ -38,7 +38,7 @@ jobs:
     name: Electron native and main-process smoke
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22.23.1
@@ -61,7 +61,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22.23.1
