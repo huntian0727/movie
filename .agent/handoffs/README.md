@@ -2,4 +2,4 @@
 
 This directory stores short-lived role-to-PM and PM-to-role handoffs. Durable product facts belong in `docs/ai/`; pushed Web Advisor context belongs in `docs/ai/web-handoff/`.
 
-Every handoff records task ID, from/to roles, status, branch/SHA, changed files, evidence, risks, requested action, and next actor. Formal routing always passes through the Local PM.
+New role handoffs are UTF-8 JSON: `<TASK-ID>-dev.json`, `<TASK-ID>-qa.json`, and `<TASK-ID>-ui.json`. Use the matching template. PASS is short; only failures add findings, reproduction, impact, and rework scope. Formal routing always passes through the Local PM. Existing Markdown handoffs are historical evidence and need not be rewritten.

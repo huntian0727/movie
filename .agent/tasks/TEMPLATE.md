@@ -2,21 +2,19 @@
 
 - Task ID:
 - Title:
-- Priority:
-- Owner:
-- Background:
-- User Goal:
-- Product Goal:
-- Scope:
-- Out of Scope:
-- Technical Constraints:
-- Acceptance:
-- Automated Tests:
-- Local Validation:
+- Workflow: LITE / STANDARD / FULL
+- Risk Areas: NONE / AGENT_INFRA / TOOLING / DOCUMENTATION / UI / CROSS_LAYER / DATA / FILESYSTEM / IRREVERSIBLE / MIGRATION / PLAYBACK / CLOUDDRIVE / INSTALLER / RELEASE / SECURITY / CONCURRENCY
 - QA Required: YES / NO
 - UI Required: YES / NO
-- Web Advisor Review Required: YES / NO
-- Web Advisor Review Stage: NOT_REQUIRED / BEFORE_DESIGN / BEFORE_DEVELOPMENT / BEFORE_ARCHITECTURE_DECISION / AFTER_QA / BEFORE_RELEASE / MILESTONE_REVIEW
-- Git Requirements:
+- Web Advisor Required: YES / NO
+- Workflow Reason:
+- Owner:
+- User Goal:
+- Scope:
+- Out of Scope:
+- Acceptance:
+- Automated Tests:
 - Status:
 - Next Actor:
+
+Normal target length: 300–800 Chinese characters. Add exceptional constraints only when they change execution.

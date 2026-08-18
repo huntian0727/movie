@@ -1,0 +1,10 @@
+{
+  "task_id": "TASK-XXX",
+  "role": "Developer",
+  "status": "DEV_COMPLETE",
+  "commit": "0000000000000000000000000000000000000000",
+  "changed_files": [],
+  "tests": { "status": "PASS", "summary": "TEST=PASS SUITES=0 TESTS=0 FAILED=0" },
+  "risks": [],
+  "next": "Local Project Manager"
+}

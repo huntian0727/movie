@@ -32,7 +32,7 @@
 - 重复项预检过期状态刷新、后台清理任务和高频删除交互性能。
 - 自动交付：功能分支提交后备份旧 `main` 为注释标签，再用普通快进推送更新 `main`。
 - 本轮建立 `docs/ai/` 项目记忆入口和每次交付记录门禁。
-- 已建立 Local PM、Developer、QA、UI/UX 与外部 Web Advisor 的项目运行层：`.agent/` 保存当前任务/状态/handoff，`skills/movie-*` 保存可复用角色流程，`scripts/agent/` 提供可重复的工作区、GitHub 同步、开发、QA、Web handoff 和发布就绪检查。
+- Agent 运行层采用风险驱动的 LITE/STANDARD/FULL：小型可逆任务只走 Developer+定向门禁；一般回归风险加入独立聚焦 QA；不可逆文件动作、迁移、播放架构、CloudDrive 核心、重大 UI 和发布走 FULL。默认从 `PROJECT_SNAPSHOT`、task、角色规则和相关代码/测试按需展开；handoff 使用短 JSON，Git/测试/状态事实由脚本生成。
 
 ## 仍需验证或推进
 

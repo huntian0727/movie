@@ -28,6 +28,10 @@ $countLine = ([string]((Invoke-Git -GitArguments @("rev-list", "--left-right", "
 $counts = ($countLine -split "\s+")
 $lsRemoteLine = ([string]((Invoke-Git -GitArguments @("ls-remote", $Remote, "refs/heads/$Branch")) | Select-Object -First 1)).Trim()
 $publishedHead = ($lsRemoteLine -split "\s+")[0]
+$statusLines = @(Invoke-Git -GitArguments @("status", "--porcelain=v1"))
+$changed = @($statusLines | Where-Object { $_ -and -not $_.StartsWith("??") -and $_.Substring(0, 2) -notmatch "[AD]" }).Count
+$new = @($statusLines | Where-Object { $_ -and ($_.StartsWith("??") -or $_.Substring(0, 2) -match "A") }).Count
+$deleted = @($statusLines | Where-Object { $_ -and $_.Substring(0, 2) -match "D" }).Count
 
 if ($counts.Count -ne 2) { throw "Unable to parse ahead/behind counts for $remoteRef." }
 if ([int]$counts[0] -ne 0 -or [int]$counts[1] -ne 0 -or $head -ne $remoteHead -or $head -ne $publishedHead) {
@@ -41,5 +45,9 @@ if ([int]$counts[0] -ne 0 -or [int]$counts[1] -ne 0 -or $head -ne $remoteHead -o
   RemoteHEAD = $remoteHead
   Behind = [int]$counts[0]
   Ahead = [int]$counts[1]
+  Clean = $statusLines.Count -eq 0
+  ChangedFiles = $changed
+  NewFiles = $new
+  DeletedFiles = $deleted
   Synchronized = $true
 } | ConvertTo-Json

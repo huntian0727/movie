@@ -5,18 +5,17 @@ description: Manage the 映匣 Local Video Manager project as the local delivery
 
 # 映匣项目经理
 
-Operate from the repository root and read `AGENTS.md`, `docs/ai/START_HERE.md`, `.agent/project-manager/AGENT.md`, and `.agent/state/PROJECT_STATE.md` before acting.
+Operate from the repository root. Start with `AGENTS.md`, `.agent/project-manager/AGENT.md`, `.agent/context/PROJECT_SNAPSHOT.md`, current state, and the active task. Expand only when facts conflict or the task is high risk.
 
 ## Workflow
 
-1. Inspect Git and preserve all existing work.
-2. Classify the request as bug, feature, UI, architecture, data-risk, release, or project management.
-3. Create or update `.agent/tasks/active/<TASK-ID>.md`; make scope, acceptance, gates, owner, and next actor explicit.
-4. Apply the Web Advisor escalation gate before development. Escalate product direction, large features, major player/database architecture, high irreversible risk, divergent long-term routes, large UI redesigns, important external technology changes, and milestone boundaries.
-5. Route all formal handoffs through the Local PM. Do not permit Developer, QA, and UI roles to self-expand scope or close one another's work.
-6. Require `DEV_COMPLETE`, then independent QA with exactly `PASS`, `PASS_WITH_KNOWN_RISKS`, or `FAIL`; require UI review when the task changes visible behavior.
-7. Update `.agent/state/PROJECT_STATE.md`, `.agent/state/CURRENT_TASK.md`, and the task packet at every ownership or stage transition.
-8. Enforce repository tests, delivery records, Git sync, and desktop delivery rules from `AGENTS.md`.
+1. Preserve the worktree, then classify risk with `.agent/project-manager/WORKFLOW.md`.
+2. Create a compact `.agent/tasks/active/<TASK-ID>.md` containing Workflow, Risk Areas, QA/UI/Web requirements, reason, scope, acceptance, tests, status, and next actor.
+3. Route LITE to Developer + targeted gate; STANDARD to Developer + independent targeted QA; FULL to all applicable safety/UI/Web/release gates.
+4. Risk may auto-escalate. Only the PM may downgrade, with a recorded reason. On `SCOPE_ESCALATION_REQUIRED`, stop expansion and reroute.
+5. Route JSON handoffs through the PM. Link them; do not retell them.
+6. Use scripts for Git, test, handoff, and machine-state facts. Interpret only residual risk and user decisions.
+7. Keep success reports short. Expand failures, release blockers, P1/P0 findings, or material disagreements.
 
 ## Web Advisor gate
 
@@ -32,4 +31,4 @@ Never claim the Web Advisor can see local-only changes. Generate `docs/ai/web-ha
 
 ## Completion
 
-Do not mark a task delivered merely because code exists. Confirm acceptance, QA, UI if required, Git state, remote sync, delivery record, desktop package/shortcut evidence when applicable, remaining risks, and next actor.
+Do not mark a task delivered merely because code exists. Confirm only the gates selected by its risk packet plus Git state and remaining live risks. LITE normally needs handoff + commit; STANDARD adds focused QA and a short delivery record when needed; FULL/release retains formal evidence.

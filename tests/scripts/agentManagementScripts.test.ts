@@ -35,6 +35,70 @@ function invokePowerShell(scriptPath: string, args: string[], cwd: string, env =
 }
 
 describeWindows("agent management PowerShell safety", () => {
+  it("selects LITE, STANDARD, and FULL from risk instead of role count", () => {
+    const script = path.resolve("scripts/agent/select-workflow.ps1");
+    const lite = JSON.parse(invokePowerShell(script, ["-ChangeType", "TEXT"], process.cwd()));
+    const standard = JSON.parse(invokePowerShell(script, ["-ChangeType", "BUG", "-RiskAreas", "PLAYBACK"], process.cwd()));
+    const full = JSON.parse(invokePowerShell(script, ["-ChangeType", "BUG", "-RiskAreas", "FILESYSTEM_BATCH,IRREVERSIBLE"], process.cwd()));
+
+    expect(lite).toMatchObject({ Workflow: "LITE", QARequired: false, Roles: ["Developer"] });
+    expect(standard).toMatchObject({ Workflow: "STANDARD", QARequired: true, Roles: ["Developer", "QA"] });
+    expect(full).toMatchObject({ Workflow: "FULL", QARequired: true, WebAdvisorConsider: true, Roles: ["Developer", "QA"] });
+  });
+
+  it("summarizes machine-readable test output in one line", () => {
+    const root = createTempRoot("agent-test-summary-");
+    const resultPath = path.join(root, "result.json");
+    writeFileSync(resultPath, JSON.stringify({
+      success: true,
+      numTotalTestSuites: 3,
+      numTotalTests: 42,
+      numFailedTests: 0,
+      startTime: 1000,
+      testResults: [{ endTime: 2300 }, { endTime: 2400 }, { endTime: 2500 }]
+    }));
+    const output = invokePowerShell(path.resolve("scripts/agent/summarize-test-result.ps1"), ["-JsonPath", resultPath], root);
+    expect(output.trim()).toBe("TEST=PASS SUITES=3 TESTS=42 FAILED=0 DURATION=1.5s");
+  });
+
+  it("validates short JSON handoffs and requires QA to test the Developer commit", () => {
+    const root = createTempRoot("agent-json-handoff-");
+    const commit = "a".repeat(40);
+    const devPath = path.join(root, "TASK-TEST-dev.json");
+    const qaPath = path.join(root, "TASK-TEST-qa.json");
+    writeFileSync(devPath, JSON.stringify({ task_id: "TASK-TEST", role: "Developer", status: "DEV_COMPLETE", commit, changed_files: [], tests: {}, risks: [], next: "Local Project Manager" }));
+    writeFileSync(qaPath, JSON.stringify({ task_id: "TASK-TEST", role: "QA", status: "PASS", commit, tests: {}, risks: [], next: "Local Project Manager" }));
+    const script = path.resolve("scripts/agent/verify-agent-handoff.ps1");
+
+    expect(invokePowerShell(script, ["-Path", devPath, "-Role", "Developer"], root)).toContain("HANDOFF=PASS ROLE=Developer");
+    expect(invokePowerShell(script, ["-Path", qaPath, "-Role", "QA", "-DeveloperHandoffPath", devPath], root)).toContain("HANDOFF=PASS ROLE=QA");
+
+    writeFileSync(qaPath, JSON.stringify({ task_id: "TASK-TEST", role: "QA", status: "PASS", commit: "b".repeat(40), tests: {}, risks: [], next: "Local Project Manager" }));
+    expect(() => invokePowerShell(script, ["-Path", qaPath, "-Role", "QA", "-DeveloperHandoffPath", devPath], root)).toThrow(/QA commit does not equal Developer commit/);
+  });
+
+  it("generates compact machine state from Git and the active task", () => {
+    const root = createTempRoot("agent-machine-state-");
+    git(root, "init", "-b", "ai/test-state");
+    git(root, "config", "user.name", "Agent Script Test");
+    git(root, "config", "user.email", "agent-script@example.invalid");
+    writeFileSync(path.join(root, "tracked.txt"), "initial\n");
+    git(root, "add", "tracked.txt");
+    git(root, "commit", "-m", "chore: initialize state fixture");
+    writeFileSync(path.join(root, "TASK.md"), "- Task ID: TASK-STATE\n- Workflow: STANDARD\n- Status: IN_QA\n");
+    writeFileSync(path.join(root, "new.txt"), "new\n");
+    const outputPath = path.join(root, ".agent", "state", "machine-state.json");
+    const output = invokePowerShell(path.resolve("scripts/agent/update-machine-state.ps1"), [
+      "-TaskPath", path.join(root, "TASK.md"), "-Gate", "DEV=PASS"
+    ], root);
+    const state = JSON.parse(readFileSync(outputPath, "utf8").replace(/^\uFEFF/, ""));
+
+    expect(output).toContain("STATE=UPDATED BRANCH=ai/test-state");
+    expect(state.git).toMatchObject({ branch: "ai/test-state", clean: false, new: 2 });
+    expect(state.task).toEqual({ id: "TASK-STATE", workflow: "STANDARD", status: "IN_QA" });
+    expect(state.gates).toEqual({ DEV: "PASS" });
+  });
+
   it("runs only the Node release gate and rejects mixed Electron smoke before invoking npm", () => {
     const root = createTempRoot("agent-qa-gate-");
     const fakeBin = path.join(root, "bin");

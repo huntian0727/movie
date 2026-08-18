@@ -13,13 +13,10 @@
 ## 首次阅读顺序
 
 1. `AGENTS.md`：不可违反的工作区、测试、桌面交付和 Git 规则。
-2. `README.md`：产品目标、当前能力、启动方式和常见需求入口。
-3. `docs/ai/CURRENT_STATE.md`：当前实现、边界、最近变化和未验证事项。
-4. `docs/ai/CODE_MAP.md`：自然语言需求到代码、契约和测试的定位表。
-5. `ARCHITECTURE.md`：进程边界、数据流和核心设计决策。
-6. `docs/ai/KNOWN_RISKS.md`：高风险不变量和修改前检查项。
-7. `TASK.md`：当前路线和优先级；再按任务进入模块 README 或专题文档。
-8. `docs/ai/deliveries/`：按时间查看近期 AI 交付记录，理解最新进度和验证结果。
+2. `.agent/context/PROJECT_SNAPSHOT.md`：低成本缓存，只用于快速建立项目模型。
+3. 当前 task、角色规则和最新 required handoff。
+4. `docs/ai/CODE_MAP.md`：定位 3–8 个直接相关的代码和测试文件。
+5. 只有发生冲突、高风险或证据不足时，再展开 `CURRENT_STATE`、`KNOWN_RISKS`、架构和历史交付。
 
 不要把 `docs/plans/`、`docs/superpowers/plans/` 或历史执行包当作当前事实。它们保存设计背景；如果与代码、迁移、测试或最新交付记录冲突，以当前代码为准，并在交付记录中说明偏差。
 
@@ -61,4 +58,4 @@ React renderer
 
 ## 发生矛盾时的可信度顺序
 
-当前可执行代码与迁移 > 当前自动测试 > 最新交付记录 > 根级维护文档 > 模块 README > 历史计划/审查/聊天记录。任何“通过”都必须能指出实际执行的命令或人工证据。
+当前可执行代码 > migrations > 当前自动测试 > Git > 最新正式文档 > `PROJECT_SNAPSHOT` > 历史计划/审查/聊天记录。任何“通过”都必须能指出实际执行的命令或人工证据。

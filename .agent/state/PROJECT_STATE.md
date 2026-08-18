@@ -1,16 +1,14 @@
 # Project State
 
-- Verified Implementation SHA: `65cb3ea677f9f14ca4ea9a8c098cd73664e4fe30`
+- Active Task: `TASK-WORKFLOW-001`
+- Current Stage: `DEV_COMPLETE`
+- Current Owner: QA
+- Branch: `ai/agent-workflow-optimization`
 - Current Schema: `10`
-- Current Milestone: Duplicate cleanup workflow usability
-- Active Task: None
-- Current Stage: `VERIFIED`
-- Current Owner: Local Project Manager / User
-- Open P0: None reproduced after TASK-SAFETY-001 REWORK 1; both prior permanent-deletion bypass regressions now pass.
-- Open P1: Real SMB/offline codec-probe behavior, real legacy-database recovery, multi-window stress, physical file-operation faults, and broad media compatibility remain incompletely evidenced.
-- Blocking: None for `TASK-DUPDIR-001`; formal Windows release still lacks real mapped/offline SMB evidence and other checklist evidence outside this task.
-- Next Actor: User or Local Project Manager selects the next product task.
-- Recent Decisions: Desktop-only product; source media is truth; low-bandwidth duplicate candidates; permanent duplicate deletion requires non-bypassable full SHA-256 verification; safe main backup delivery; codec-aware conservative playback routing; Local PM operating model verified.
-- Next Recommended Work: Retain real SMB/mapped-drive validation as a formal-release follow-up, or select the next product usability task.
-- Needs Web Advisor Review: NO (completed for the architecture decision)
-- Web Advisor Review Reason: User returned the option 3 directive; implementation must preserve its non-bypassable SHA-256 guarantee.
+- Current Milestone: Risk-based low-token Agent workflow
+- Open P0: None known.
+- Live P1: Real SMB/offline mapped-drive semantics, real legacy-database recovery, physical file-operation faults, broad media compatibility, signed installer, and clean-VM release remain incompletely evidenced.
+- Product Decision: Duplicate candidates use cached size+duration; the user-approved fast permanent-delete path accepts content-misclassification risk while retaining main-process plan/group guards.
+- Workflow Decision: LITE/STANDARD/FULL is selected by risk; permanent or batch user-data operations are always FULL.
+- Machine Facts: `.agent/state/machine-state.json` (regenerate; do not treat cached values as current truth).
+- Next Actor: QA.

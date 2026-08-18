@@ -1,0 +1,9 @@
+{
+  "task_id": "TASK-XXX",
+  "role": "QA",
+  "status": "PASS",
+  "commit": "0000000000000000000000000000000000000000",
+  "tests": { "status": "PASS", "summary": "TEST=PASS SUITES=0 TESTS=0 FAILED=0" },
+  "risks": [],
+  "next": "Local Project Manager"
+}
