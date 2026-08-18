@@ -16,6 +16,7 @@
 - 三项模拟依次返回 LITE/Developer、STANDARD/Developer+QA、FULL/Developer+QA 且 Web Advisor consider。
 - PowerShell AST 全部通过；四个 movie Skills 通过 UTF-8 quick validation。
 - 固定 Node 22.23.1/npm 10.9.8：定向 agent script tests 10/10；完整 Developer gate 47 files/479 tests PASS，typecheck/build/Node ABI 127 smoke PASS。
+- 提交后 focused QA：11/11 PASS；PowerShell AST 0 error；Skills 4/4；生产代码边界 PASS；Developer/QA handoff 指向同一提交。
 
 ## Risks and follow-up
 

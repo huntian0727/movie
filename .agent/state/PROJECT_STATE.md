@@ -1,8 +1,8 @@
 # Project State
 
 - Active Task: `TASK-WORKFLOW-001`
-- Current Stage: `DEV_COMPLETE`
-- Current Owner: QA
+- Current Stage: `QA_PASS`
+- Current Owner: Local Project Manager
 - Branch: `ai/agent-workflow-optimization`
 - Current Schema: `10`
 - Current Milestone: Risk-based low-token Agent workflow
@@ -11,4 +11,4 @@
 - Product Decision: Duplicate candidates use cached size+duration; the user-approved fast permanent-delete path accepts content-misclassification risk while retaining main-process plan/group guards.
 - Workflow Decision: LITE/STANDARD/FULL is selected by risk; permanent or batch user-data operations are always FULL.
 - Machine Facts: `.agent/state/machine-state.json` (regenerate; do not treat cached values as current truth).
-- Next Actor: QA.
+- Next Actor: Local Project Manager closes delivery, then user confirms the new operating model.

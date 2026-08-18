@@ -77,6 +77,19 @@ describeWindows("agent management PowerShell safety", () => {
     expect(() => invokePowerShell(script, ["-Path", qaPath, "-Role", "QA", "-DeveloperHandoffPath", devPath], root)).toThrow(/QA commit does not equal Developer commit/);
   });
 
+  it("keeps successful handoffs short but requires actionable failure detail", () => {
+    const root = createTempRoot("agent-failed-handoff-");
+    const qaPath = path.join(root, "TASK-FAIL-qa.json");
+    writeFileSync(qaPath, JSON.stringify({
+      task_id: "TASK-FAIL", role: "QA", status: "FAIL", commit: "c".repeat(40),
+      tests: { status: "FAIL" }, risks: [], next: "Local Project Manager"
+    }));
+
+    expect(() => invokePowerShell(path.resolve("scripts/agent/verify-agent-handoff.ps1"), ["-Path", qaPath, "-Role", "QA"], root)).toThrow(
+      /Failure handoff must include: findings/
+    );
+  });
+
   it("generates compact machine state from Git and the active task", () => {
     const root = createTempRoot("agent-machine-state-");
     git(root, "init", "-b", "ai/test-state");

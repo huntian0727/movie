@@ -14,5 +14,5 @@
 - Out of Scope: 播放、永久删除、UI、扫描、CloudDrive、数据库及其他业务开发。
 - Acceptance: 三个模拟分别得到 LITE/Developer、STANDARD/Developer+QA、FULL/Developer+QA+严格 gate；风险可升级且仅 PM 可降级；成功短、失败详；确定性状态可脚本复现。
 - Automated Tests: agent script tests、PowerShell AST、skill validation、workflow simulations、git diff check。
-- Status: DEV_COMPLETE
-- Next Actor: QA
+- Status: QA_PASS
+- Next Actor: Local Project Manager
