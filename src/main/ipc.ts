@@ -21,7 +21,7 @@ import type { DiagnosticEnvironment } from "./logging/types.js";
 import type { StructuredLogger } from "./logging/logger.js";
 import { buildCacheKey, getCoverPath, getCoverTimeSeconds } from "./media/cacheService.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
-import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js";
+import { previewDuplicateResolveSafely, resolveDuplicatePlanFast } from "./media/duplicateResolveSafety.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
 import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
@@ -34,6 +34,7 @@ type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => unknown;
 
 let ipcLogger: StructuredLogger | undefined;
 const loggedIpcChannels = new Set<string>([
+  IPC_CHANNELS.duplicateFastDelete,
   IPC_CHANNELS.duplicateCleanupConfirm,
   IPC_CHANNELS.folderAdd,
   IPC_CHANNELS.folderScan,
@@ -315,6 +316,15 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
         videoIds: result.changedItems.filter((item) => item.changeType !== "unreadable").map((item) => item.videoId)
       });
     }
+    return result;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.duplicateFastDelete, async (_event, payload) => {
+    const plan = duplicateResolvePlanSchema.parse(payload);
+    const deleteVideoIds = plan.groups.flatMap((group) => group.deleteVideoIds);
+    const result = await resolveDuplicatePlanFast(repo, plan);
+    dependencies.cacheManager.scheduleMaintenance(true);
+    publishRemovedVideos(repo, deleteVideoIds, dependencies.domainEvents);
     return result;
   });
 

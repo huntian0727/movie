@@ -47,6 +47,7 @@ interface DuplicateGroupsPageProps {
   onPreviewResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onCheckMissing?(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  onFastDelete?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   onSubmitCleanup?(requestId: string, plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onConfirmCleanup?(request: DuplicateCleanupConfirmRequest): Promise<DuplicateCleanupJob>;
   onLoadCleanupJobs?(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;
@@ -83,6 +84,7 @@ export function DuplicateGroupsPage({
   onPreviewResolve,
   onCheckMissing,
   onResolve,
+  onFastDelete,
   onSubmitCleanup,
   onConfirmCleanup,
   onLoadCleanupJobs,
@@ -101,6 +103,7 @@ export function DuplicateGroupsPage({
   const [resolveResult, setResolveResult] = useState<DuplicateResolveResult | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
+  const [fastDeletePending, setFastDeletePending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [internalSizeSortDirection, setInternalSizeSortDirection] = useState<SortDirection>("desc");
   const [taskCenterOpen, setTaskCenterOpen] = useState(false);
@@ -158,6 +161,10 @@ export function DuplicateGroupsPage({
     }),
     [groups, manualKeepByGroup]
   );
+  const fastDeleteCount = useMemo(
+    () => plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),
+    [plan]
+  );
 
   const resetSelectionToRecommended = () => {
     const currentGroupKeys = new Set(groups.map((group) => group.groupKey));
@@ -167,6 +174,24 @@ export function DuplicateGroupsPage({
   const handleResolveFirstParty = async () => {
     setConfirmOpen(false);
     setActionError("候选项不能直接删除；请先运行完整 SHA-256 验证。 ");
+  };
+
+  const handleFastDelete = async () => {
+    if (!onFastDelete || actionPending || fastDeleteCount === 0) return;
+    setActionPending(true);
+    setFastDeletePending(true);
+    setActionError(null);
+    setResolveResult(null);
+    try {
+      const result = await onFastDelete(plan);
+      setResolveResult(result);
+      onRefresh?.();
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+    } finally {
+      setFastDeletePending(false);
+      setActionPending(false);
+    }
   };
 
   const handlePreviewDirect = async () => {
@@ -238,7 +263,7 @@ export function DuplicateGroupsPage({
       {missingCheckMessage && <div className="success-banner" role="status">{missingCheckMessage}</div>}
 
       <div className="duplicate-summary">
-        <p className="duplicate-size-warning">候选浏览只使用数据库中已缓存的文件大小和时长，不读取视频内容。永久删除必须先运行独立、可取消的完整 SHA-256 验证；内容不同、无法读取、离线、取消或文件变化都不会删除。</p>
+        <p className="duplicate-size-warning">快速删除按数据库中缓存的文件大小和时长判断，不读取视频内容、不计算 SHA-256，也不再二次确认。点击“一键永久删除”后会立即删除当前页所有候选移除项；计划保留项不会删除。</p>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
           <span>大小＋时长匹配组</span>
@@ -292,6 +317,9 @@ export function DuplicateGroupsPage({
             {missingCheckPending ? `正在复查 ${previewFileCount} 个文件...` : "检查缺失文件"}
           </button>}
           {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
+          {onFastDelete && <button className="danger" type="button" disabled={actionPending || fastDeleteCount === 0} onClick={() => void handleFastDelete()}>
+            {fastDeletePending ? "正在永久删除..." : `一键永久删除候选移除项（${fastDeleteCount}）`}
+          </button>}
           {onSubmitCleanup ? (
             <DuplicateCleanupButton
               plan={plan}

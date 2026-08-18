@@ -1,6 +1,6 @@
 # ADR-002：低带宽重复候选规则
 
-状态：Accepted（2026-08-16 修订）
+状态：Superseded by ADR-003（2026-08-18）
 
 ## Context
 

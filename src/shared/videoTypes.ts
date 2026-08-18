@@ -645,6 +645,7 @@ export const IPC_CHANNELS = {
   folderScanResume: "folder-scan:resume",
   duplicateList: "duplicate:list",
   duplicatePreviewResolve: "duplicate:preview-resolve",
+  duplicateFastDelete: "duplicate:fast-delete",
   duplicateCheckMissing: "duplicate:check-missing",
   duplicateCleanupSubmit: "duplicate-cleanup:submit",
   duplicateCleanupConfirm: "duplicate-cleanup:confirm",
@@ -692,6 +693,7 @@ export interface VideoManagerApi {
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
+  fastDeleteDuplicateCandidates(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
   confirmDuplicateCleanup(request: DuplicateCleanupConfirmRequest): Promise<DuplicateCleanupJob>;

@@ -32,15 +32,31 @@ function taskCenterProps() {
 }
 
 describe("DuplicateGroupsPage staged safety flow", () => {
-  it("keeps candidate browsing metadata-only and explains the separate full verification", () => {
+  it("keeps candidate browsing metadata-only and explains immediate fast deletion", () => {
     const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
     expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument();
-    expect(screen.getByText(/候选浏览只使用数据库/)).toHaveTextContent(/完整 SHA-256 验证/);
+    expect(screen.getByText(/快速删除按数据库/)).toHaveTextContent(/不计算 SHA-256，也不再二次确认/);
     expect(container).toHaveTextContent(/计划保留/);
     expect(container).toHaveTextContent(/候选移除/);
     expect(container).toHaveTextContent(/候选可释放空间/);
     expect(container.textContent).not.toMatch(/重复组|拟删除|待删除|预计可释放|待删文件/);
+  });
+
+  it("fast-deletes every candidate removal item immediately without opening a confirmation", async () => {
+    const onFastDelete = vi.fn().mockResolvedValue({
+      groupCount: 1, keepCount: 1, successCount: 1, failureCount: 0, reclaimedBytes: 4096, failures: []
+    });
+    render(<DuplicateGroupsPage {...baseProps()} preferredDirectoryPath="D:\\Movies" onFastDelete={onFastDelete} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "一键永久删除候选移除项（1）" }));
+
+    await waitFor(() => expect(onFastDelete).toHaveBeenCalledOnce());
+    expect(onFastDelete).toHaveBeenCalledWith({
+      groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }]
+    });
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "批量清理结果" })).toHaveTextContent(/成功删除 1 个文件/);
   });
 
   it("starts only full verification after an explicit preflight and does not claim deletion", async () => {

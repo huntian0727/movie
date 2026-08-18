@@ -27,7 +27,7 @@
 | “播放、旋转、快捷键、播放列表” | `PlayerPage.tsx`、`playerWindow.ts`、`playerRouting.ts`、`mpvController.ts`、`shortcuts.ts` | 多窗口事件、fallback、窗口尺寸、播放器测试和桌面验证 |
 | “某些编码无法播放/自动选择播放器” | `metadataService.ts`、`metadataQueue.ts`、`playbackMetadataEnricher.ts`、`playerWindow.ts`、`videoRepository.ts`、`shared/playbackRouting.ts`、`App.tsx` | v8 codec + v9 probe-status migration、2 秒播放前等待、文件版本失效、FFprobe 单调用/失败不重试、pending 路由、native→mpv→系统 fallback、真实 codec 样本 |
 | “重复项规则/分页/筛选” | `videoRepository.ts`、`DuplicateGroupsPage.tsx`、shared duplicate 类型 | SQL 分组、未知时长、目录完整组语义、仓储/组件测试 |
-| “批量清理重复项” | `DuplicateCleanupButton.tsx`、`DuplicateCleanupTasksPanel.tsx`、`duplicateCleanupService.ts`、`duplicateCleanupRepository.ts`、`010-duplicate-sha256-safety.ts` | v10 两阶段任务、完整 SHA-256、强身份/授权 revision、二次确认、可恢复隔离、取消/恢复/重试和不可绕过删除测试 |
+| “批量清理重复项” | `DuplicateGroupsPage.tsx`、`duplicateResolveSafety.ts`、`ipc.ts`、`DuplicateCleanupButton.tsx`、`DuplicateCleanupTasksPanel.tsx` | 默认专用快速永久删除通道按当前 keep/delete 计划直接执行；v10 完整 SHA-256 两阶段任务作为可选安全模式保留 |
 | “移动/重命名/永久删除” | `fileOperations.ts`、`ipc.ts`、`videoRepository.ts` | 跨卷、同名、数据库失败回滚、Windows ACL/锁/磁盘满 |
 | “增加排序或字段” | `videoTypes.ts`、migration、repository 白名单/row mapper、UI | preload/IPC 契约、旧库迁移、fixtures 和跨层测试 |
 | “设置项或快捷键” | `settingsStore.ts`、`shortcuts.ts`、`SettingsPage.tsx`、IPC/preload | 默认值升级、冲突检查、打开窗口同步、设置测试 |

@@ -2,6 +2,7 @@ import path from "node:path";
 import { readdir, stat } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import type {
+  DuplicateResolveResult,
   DuplicateResolveChangedItem,
   DuplicateResolveChangeType,
   DuplicateResolvePlan,
@@ -9,6 +10,7 @@ import type {
   VideoRecord
 } from "../../shared/videoTypes.js";
 import type { VideoRepository } from "../db/videoRepository.js";
+import { permanentlyDeleteFile } from "../files/fileOperations.js";
 import type { MetadataQueue } from "./metadataQueue.js";
 
 interface DuplicateResolveSafetyDependencies {
@@ -75,6 +77,45 @@ export async function resolveDuplicatePlanSafely(
   _plan: DuplicateResolvePlan
 ): Promise<never> {
   throw new Error("Direct duplicate deletion is disabled. Run full SHA-256 verification and use the separately confirmed cleanup task.");
+}
+
+export async function resolveDuplicatePlanFast(
+  repo: VideoRepository,
+  plan: DuplicateResolvePlan,
+  dependencies: { deleteFile?: (filePath: string) => Promise<void> } = {}
+): Promise<DuplicateResolveResult> {
+  const entries = repo.validateDuplicateResolvePlan(plan);
+  const deleteFile = dependencies.deleteFile ?? permanentlyDeleteFile;
+  const failures: DuplicateResolveResult["failures"] = [];
+  let successCount = 0;
+  let reclaimedBytes = 0;
+
+  for (const entry of entries) {
+    for (const video of entry.deleteVideos) {
+      try {
+        await deleteFile(video.path);
+        repo.removeVideo(video.id);
+        successCount += 1;
+        reclaimedBytes += video.sizeBytes;
+      } catch (cause) {
+        failures.push({
+          groupKey: entry.groupKey,
+          videoId: video.id,
+          path: video.path,
+          message: cause instanceof Error ? cause.message : String(cause)
+        });
+      }
+    }
+  }
+
+  return {
+    groupCount: entries.length,
+    keepCount: entries.length,
+    successCount,
+    failureCount: failures.length,
+    reclaimedBytes,
+    failures
+  };
 }
 
 function summarizeResolveEntries(entries: ValidatedDuplicateResolveEntry[]): {

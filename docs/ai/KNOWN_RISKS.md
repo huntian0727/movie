@@ -7,7 +7,7 @@
 | P0 | SQLite 升级 | 只追加 migration；升级前一致性备份；事务失败回滚；新版本不能被旧程序打开写入 | 全迁移链、旧库副本、恢复演练 |
 | P0 | Electron IPC/协议 | sandbox/context isolation 保持开启；所有输入校验；按窗口角色校验 sender；路径不能任意穿透 | security、IPC contract、media protocol 测试和打包 smoke |
 | P0 | Desktop-only 运行时漂移 | `window.videoManager` 是业务前提；Vite 仅服务 Electron Renderer；普通浏览器不得模拟资料库或文件操作 | App runtime、scaffold、preload/IPC contract 与 Electron smoke |
-| P0 | 永久重复删除绕过 | 大小+时长只生成候选；永久删除必须经过独立完整 SHA-256、强文件身份、精确 `DELETE` 二次确认、删除边界重哈希和可恢复同目录隔离。任一通用/扫描异常/恢复/重试入口不得绕过 | duplicate safety/jobs/scan guard、迁移、对抗替换、隔离恢复和真实 Windows/SMB 验证 |
+| P0 | 快速重复永久删除误判 | 用户明确接受效率优先风险：专用快速通道按缓存大小+时长永久删除，不做 SHA-256 或确认。主进程仍必须校验组归属、保留项和候选 ID，且通用删除/扫描异常入口不得借此绕过各自 guard | fast duplicate resolve、IPC contract、计划篡改与部分失败测试；真实 Windows/SMB 验证 |
 | P1 | SMB 隔离与恢复差异 | 本地 NTFS 的原子隔离、崩溃恢复和 256 MiB 取消已验证；不同 SMB 服务器的 rename、file identity、断线和重新连接语义可能不同 | 可抛弃映射盘样本、断线/重连、原路径冲突、隔离恢复和零删除核对 |
 | P1 | 网络盘带宽与阻塞 | 页面查询只读 SQLite；FFprobe 单并发后台执行；目录调用有界且可取消；失败不破坏旧记录 | network/CloudDrive 测试、长阻塞和大目录 E2E |
 | P1 | 缓存并发与磁盘 | 缓存始终可重建；只清专属目录；生成原子发布；清理后旧任务不能重新登记 | cache manager/service 测试、低磁盘/ACL 手测 |
