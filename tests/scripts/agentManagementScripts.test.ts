@@ -89,14 +89,14 @@ describeWindows("agent management PowerShell safety", () => {
     writeFileSync(path.join(root, "new.txt"), "new\n");
     const outputPath = path.join(root, ".agent", "state", "machine-state.json");
     const output = invokePowerShell(path.resolve("scripts/agent/update-machine-state.ps1"), [
-      "-TaskPath", path.join(root, "TASK.md"), "-Gate", "DEV=PASS"
+      "-TaskPath", path.join(root, "TASK.md"), "-Gate", "DEV=PASS,QA=PASS"
     ], root);
     const state = JSON.parse(readFileSync(outputPath, "utf8").replace(/^\uFEFF/, ""));
 
     expect(output).toContain("STATE=UPDATED BRANCH=ai/test-state");
     expect(state.git).toMatchObject({ branch: "ai/test-state", clean: false, new: 2 });
     expect(state.task).toEqual({ id: "TASK-STATE", workflow: "STANDARD", status: "IN_QA" });
-    expect(state.gates).toEqual({ DEV: "PASS" });
+    expect(state.gates).toEqual({ DEV: "PASS", QA: "PASS" });
   });
 
   it("runs only the Node release gate and rejects mixed Electron smoke before invoking npm", () => {

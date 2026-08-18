@@ -32,7 +32,7 @@ if ($remoteHead) {
   $counts = (([string](Invoke-Git @("rev-list", "--left-right", "--count", "origin/$branch...HEAD")).Lines[0]).Trim() -split "\s+")
   $behind = [int]$counts[0]; $ahead = [int]$counts[1]
 }
-$status = @((Invoke-Git @("status", "--porcelain=v1")).Lines | Where-Object { $_ })
+$status = @((Invoke-Git @("status", "--porcelain=v1", "--", ".", ":(exclude).agent/state/machine-state.json")).Lines | Where-Object { $_ })
 $modified = @($status | Where-Object { -not $_.StartsWith("??") -and $_.Substring(0, 2) -notmatch "[AD]" }).Count
 $new = @($status | Where-Object { $_.StartsWith("??") -or $_.Substring(0, 2) -match "A" }).Count
 $deleted = @($status | Where-Object { $_.Substring(0, 2) -match "D" }).Count
@@ -44,14 +44,15 @@ if ($TaskPath) {
   $taskStatus = [regex]::Match($task, "(?m)^- Status:\s*(.+)$").Groups[1].Value.Trim()
 }
 $gates = [ordered]@{}
-foreach ($item in $Gate) {
+$gateItems = @($Gate | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+foreach ($item in $gateItems) {
   $parts = $item -split "=", 2
   if ($parts.Count -ne 2) { throw "Gate must use NAME=RESULT: $item" }
   $gates[$parts[0]] = $parts[1]
 }
 $state = [ordered]@{
   generated_at = (Get-Date).ToUniversalTime().ToString("o")
-  git = [ordered]@{ branch = $branch; head = $head; remote_head = $remoteHead; ahead = $ahead; behind = $behind; clean = $status.Count -eq 0; modified = $modified; new = $new; deleted = $deleted }
+  git = [ordered]@{ branch = $branch; head = $head; remote_head = $remoteHead; ahead = $ahead; behind = $behind; clean = $status.Count -eq 0; state_file_excluded = $true; modified = $modified; new = $new; deleted = $deleted }
   task = [ordered]@{ id = $taskId; workflow = $workflow; status = $taskStatus }
   gates = $gates
 }
