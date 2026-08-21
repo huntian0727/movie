@@ -31,9 +31,10 @@ npm --version
 | --- | --- |
 | 仓库根目录 | `C:\Users\test\Documents\视频管理\movie`（转交后路径可变化，以 `git rev-parse --show-toplevel` 为准） |
 | 当前分支 | `ai/agent-workflow-optimization` |
-| HEAD / origin/main | `895a0d893e07d051fe0d1151c336ef2ca6570323` |
-| Git 状态 | clean；功能分支与远端 ahead=0、behind=0；`origin/main` 同一 SHA |
-| Windows CI | run `32160173533` success；Electron smoke 与 Node/Windows safety gate 均通过 |
+| 最后一个实现基线 | `895a0d893e07d051fe0d1151c336ef2ca6570323`；之后仅增加本交接文档/入口，当前 HEAD 必须实时查询 |
+| 交接文档首次提交 | `cec8af784e53b3c7c96ebce97f03fe5e96a83a6a`；文档后续修订仍以 Git 为准 |
+| Git 状态 | 交接提交后 clean；功能分支与远端 ahead=0、behind=0，`origin/main` 已同步 |
+| Windows CI | 实现基线 run `32160173533` success；交接提交 run `32484786243` 首次遇到无关的扫描测试 15 秒超时，失败 job 重跑后 Electron smoke 与 Node/Windows safety gate 全部 success |
 | 数据库 schema | v10；只允许追加 migration |
 | 固定工具链 | Node 22.23.1、npm 10.9.8 |
 | 最近完整本地门禁 | 47 files / 479 tests PASS；Node ABI 127、typecheck、build PASS |
