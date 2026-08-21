@@ -1,10 +1,12 @@
 import type { VideoRepository } from "../db/videoRepository.js";
 import type { StructuredLogger } from "../logging/logger.js";
-import { readMetadata, type MediaMetadata } from "./metadataService.js";
+import { readMetadata, type MediaMetadata, type ProbeProfile } from "./metadataService.js";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 
-type MetadataReader = (filePath: string) => Promise<MediaMetadata>;
+type MetadataReader = (filePath: string, profile: ProbeProfile) => Promise<MediaMetadata>;
+type PathProbeProfileResolver = (filePath: string) => ProbeProfile;
+type AfterProbeHook = (filePath: string) => void | Promise<void>;
 
 export interface MetadataQueueStatus {
   queued: number;
@@ -14,28 +16,41 @@ export interface MetadataQueueStatus {
 export class MetadataQueue {
   private readonly waiting: string[] = [];
   private readonly scheduled = new Set<string>();
+  private readonly explicitRetries = new Set<string>();
   private active = 0;
   private stopped = false;
   private paused = false;
   private resumePendingBatches = false;
   private pendingBatchSize = 1000;
   private readonly idleWaiters = new Set<() => void>();
+  private readonly videoWaiters = new Map<string, Set<() => void>>();
 
   constructor(
     private readonly repo: VideoRepository,
-    private readonly metadataReader: MetadataReader = readMetadata,
+    metadataReader: ((filePath: string) => Promise<MediaMetadata>) | MetadataReader = readMetadata,
     private readonly concurrency = 1,
     private readonly logger?: StructuredLogger,
     private readonly onVideoUpdated?: (videoId: string) => void,
-    private readonly onSourceFolderUpdated?: (sourceFolderId: string) => void
+    private readonly onSourceFolderUpdated?: (sourceFolderId: string) => void,
+    private readonly resolveProbeProfile?: PathProbeProfileResolver,
+    private readonly afterProbe?: AfterProbeHook
   ) {
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("Metadata queue concurrency must be at least 1");
+    this.metadataReader = adaptMetadataReader(metadataReader);
   }
 
-  enqueue(videoId: string): boolean {
-    if (this.stopped || this.scheduled.has(videoId)) return false;
+  private readonly metadataReader: MetadataReader;
+
+  enqueue(videoId: string, explicitRetry = false): boolean {
+    if (this.stopped) return false;
+    if (explicitRetry) this.explicitRetries.add(videoId);
+    if (this.scheduled.has(videoId)) {
+      if (explicitRetry) this.prioritizeWaitingVideo(videoId);
+      return false;
+    }
     this.scheduled.add(videoId);
-    this.waiting.push(videoId);
+    if (explicitRetry) this.waiting.unshift(videoId);
+    else this.waiting.push(videoId);
     this.pump();
     return true;
   }
@@ -73,8 +88,17 @@ export class MetadataQueue {
     return new Promise((resolve) => this.idleWaiters.add(resolve));
   }
 
+  async waitForVideos(videoIds: Iterable<string>): Promise<void> {
+    await Promise.all([...new Set(videoIds)].map((videoId) => this.waitForVideo(videoId)));
+  }
+
   stop(): void {
     this.stopped = true;
+    for (const videoId of this.waiting) {
+      this.scheduled.delete(videoId);
+      this.explicitRetries.delete(videoId);
+      this.resolveVideoWaiters(videoId);
+    }
     this.waiting.length = 0;
     if (this.active === 0) this.resolveIdleWaiters();
   }
@@ -86,6 +110,8 @@ export class MetadataQueue {
       void this.process(videoId).finally(() => {
         this.active -= 1;
         this.scheduled.delete(videoId);
+        this.explicitRetries.delete(videoId);
+        this.resolveVideoWaiters(videoId);
         this.pump();
         if (this.active === 0 && this.waiting.length === 0) {
           const restored = this.resumePendingBatches && !this.stopped ? this.loadPendingBatch() : 0;
@@ -93,6 +119,27 @@ export class MetadataQueue {
         }
       });
     }
+  }
+
+  private waitForVideo(videoId: string): Promise<void> {
+    if (!this.scheduled.has(videoId)) return Promise.resolve();
+    return new Promise((resolve) => {
+      const waiters = this.videoWaiters.get(videoId) ?? new Set<() => void>();
+      waiters.add(resolve);
+      this.videoWaiters.set(videoId, waiters);
+    });
+  }
+
+  private prioritizeWaitingVideo(videoId: string): void {
+    const waitingIndex = this.waiting.indexOf(videoId);
+    if (waitingIndex < 0) return;
+    this.waiting.splice(waitingIndex, 1);
+    this.waiting.unshift(videoId);
+  }
+
+  private resolveVideoWaiters(videoId: string): void {
+    for (const resolve of this.videoWaiters.get(videoId) ?? []) resolve();
+    this.videoWaiters.delete(videoId);
   }
 
   private async process(videoId: string): Promise<void> {
@@ -104,8 +151,9 @@ export class MetadataQueue {
     }
     if (video.isMissing || video.metadataStatus !== "pending") return;
 
+    const profile = this.resolveProbeProfile?.(video.path) ?? "local";
     try {
-      const metadata = await this.metadataReader(video.path);
+      const metadata = await this.metadataReader(video.path, profile);
       if (this.stopped) return;
       if (this.repo.markMetadataReady(video.id, video.path, video.sizeBytes, video.modifiedAt, metadata)) {
         const resolved = this.repo.resolveScanFailuresForObjectStage?.(video.sourceFolderId, video.path, "file", "metadata") ?? 0;
@@ -129,7 +177,7 @@ export class MetadataQueue {
           failureStage: "metadata",
           errorCode: getErrorCode(failureError),
           errorSummary: getErrorSummary(failureError),
-          incrementRetry: false
+          incrementRetry: this.explicitRetries.has(video.id)
         });
         this.onSourceFolderUpdated?.(video.sourceFolderId);
         this.onVideoUpdated?.(video.id);
@@ -138,9 +186,17 @@ export class MetadataQueue {
         module: "media.metadata",
         event: "ffprobe_failed",
         message: "Video metadata extraction failed",
-        context: { videoId: video.id, extension: video.extension },
+        context: { videoId: video.id, extension: video.extension, probeProfile: profile },
         error: failureError
       });
+    } finally {
+      if (this.afterProbe) {
+        try {
+          await this.afterProbe(video.path);
+        } catch {
+          // advisory hook (e.g. CloudDrive2 CloseFileReader); never fail the probe
+        }
+      }
     }
   }
 
@@ -222,14 +278,23 @@ function isSameVideoVersion(current: Awaited<ReturnType<VideoRepository["getVide
     && current.modifiedAt === expected.modifiedAt;
 }
 
-async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([
+    return Promise.race([
       operation,
       new Promise<T>((_resolve, reject) => { timeout = setTimeout(() => reject(new Error(message)), timeoutMs); })
     ]);
   } finally {
     if (timeout) clearTimeout(timeout);
   }
+}
+
+function adaptMetadataReader(
+  reader: ((filePath: string) => Promise<MediaMetadata>) | MetadataReader
+): MetadataReader {
+  // Backward-compatible adapter: a reader with arity < 2 is the old
+  // `(filePath) => Promise<MediaMetadata>` signature and ignores the profile.
+  if (reader.length >= 2) return reader as MetadataReader;
+  return async (filePath: string) => (reader as (path: string) => Promise<MediaMetadata>)(filePath);
 }

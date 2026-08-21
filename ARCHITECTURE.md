@@ -1,11 +1,23 @@
 # 架构记忆
 
+## Codec-aware 播放准备（schema v9）
+
+FFprobe 的一次元数据调用同时采集容器、时长、分辨率以及首个视频/音频流的 `codec_name`、视频 `profile` 和 `pix_fmt`，由 `MetadataQueue` 通过带路径、大小、mtime 乐观锁的 repository 更新写入 SQLite。文件版本变化时，编码字段与其他派生元数据一起清空并重新进入后台队列。
+
+schema v9 用 `codec_probe_status = unprobed | ready | failed` 区分“尚未探测”“探测完成”和“探测失败”。v8 中已有 `video_codec` 的记录迁移为 `ready`，codec 为空的历史记录保持 `unprobed`，迁移不读取媒体文件或重置 metadata 状态。主进程只在历史 ready 视频真正被选为播放器当前项时懒补全；同一视频的并发请求合并。成功即写 `ready`（即使 codec 仍为空），失败写 `failed`，普通播放不再重复探测；文件大小或 mtime 变化时恢复为 `unprobed`。
+
+播放器准备最多等待 codec probe 2 秒。窗口/会话超过等待上限后使用保守快照继续打开，FFprobe 在后台完成、捕获自身异常并按文件版本乐观锁更新数据库，不继承 FFprobe 自身 60 秒超时。`metadata_status = pending` 的 MP4/M4V/MOV/WebM 临时 native-first；ready 但 probe 未完成或失败的未知 codec 仍保守走 mpv。
+
+`auto` 路由同时检查 metadata/probe 状态、容器和 codec：明确兼容的 H.264/AAC(MP3) 8-bit 4:2:0 MP4/MOV/M4V，以及 `yuv420p` 的 VP8/VP9 + Opus/Vorbis WebM 才使用 Chromium native；10-bit、未知或复杂组合、HEVC 和传统容器走 mpv。`native-first` 保留原有容器优先语义，`mpv-first` 始终使用 mpv。native 运行时失败后继续沿用 native → mpv → 系统默认播放器 fallback。
+
+产品运行模型是 **Windows Electron Desktop Only**：Electron Main 提供 SQLite、文件系统、扫描、媒体和播放能力，Electron Renderer 使用 React/Vite 展示 UI。Vite dev server 仅是未打包 Electron 的 Renderer 开发入口，不是独立 Web 产品。缺少可信 preload 注入时，Renderer 只显示 unsupported-runtime 页面，不运行资料库业务。
+
 ## 总体模型
 
 渲染进程不直接接触 Node、磁盘或数据库。React 通过 `window.videoManager` 调 preload 暴露的窄 API，IPC 主进程用 Zod 校验不可信参数，再调用仓储、扫描、文件、播放或设置服务。`local-video://` 特权协议负责原视频流、封面与时间轴图；原始文件是事实源，SQLite 是索引，缓存是衍生物。
 
 ```text
-React UI -> preload/contextBridge -> ipcMain/Zod -> services -> filesystem/ffprobe/ffmpeg/mpv
+Electron Renderer (React UI) -> preload/contextBridge -> ipcMain/Zod -> services -> filesystem/ffprobe/ffmpeg/mpv
                                       |          -> electron-store
                                       +-> VideoRepository -> better-sqlite3 (WAL)
 React <video>/<img> -> local-video:// -> mediaProtocol -> repository + file/cache
@@ -22,7 +34,7 @@ main boundaries -> StructuredLogger(JSONL/redaction/rotation) -> settings diagno
 
 ## 数据与关键决策
 
-- SQLite 使用 `PRAGMA user_version` 的有序迁移。v1–v4 保存核心资料库、播放历史、历史指纹兼容字段和待删除标记；v5 新增 `directory_snapshots`、`scan_failures`、`scan_tasks`；v6 为仅有旧 `scan_error` 摘要的目录补建可重试异常明细。旧库升级前先 `VACUUM INTO` 备份，再在事务中迁移并执行 FK/quick check。
+- SQLite 使用 `PRAGMA user_version` 的有序迁移。v1–v4 保存核心资料库、播放历史、历史指纹兼容字段和待删除标记；v5 新增扫描快照/异常/任务；v6 兼容旧扫描错误；v7 新增重复项清理任务；v8 新增 codec 字段；v9 新增明确的 codec probe 状态；v10 为永久重复清理新增完整 SHA-256、强文件身份、授权 revision、workflow phase 和可恢复隔离路径。旧库升级前先 `VACUUM INTO` 备份，再在事务中迁移并执行 FK/quick check。
 - Windows 路径以 `COLLATE NOCASE` 唯一，应用生成 UUID；重扫同路径保持记录身份与收藏。
 - 缺失采用软状态而非立即删除，避免临时离线盘导致用户元数据丢失。
 - 收藏只存布尔标记，不移动文件；删除是明确确认后的永久磁盘删除。
@@ -32,6 +44,7 @@ main boundaries -> StructuredLogger(JSONL/redaction/rotation) -> settings diagno
 
 ## 边界与风险
 
+- `window.videoManager` 是业务 UI 的必要运行条件。只允许应用入口处理 API 缺失并显示 unsupported-runtime；业务组件不得重新引入浏览器 demo 数据或假成功 fallback。
 - IPC 是信任边界；不要把 renderer 传来的路径直接用于磁盘操作，优先由 video id 反查。
 - 扫描修改任务由 `ScanManager` 全局串行且按 source-folder 去重；普通扫描、异常重试与全盘子任务不能并发写同一源。FFprobe 继续单并发，失败进入持久异常表并在成功后同步消除文件夹告警。
 - 快照优化依赖产品明确接受“不处理同名覆盖且目录直属名称/计数/mtime 都不变”的场景。若未来改变该规则，必须引入额外文件版本信号并重新评估网盘带宽。
@@ -52,5 +65,5 @@ main boundaries -> StructuredLogger(JSONL/redaction/rotation) -> settings diagno
 | 导入时关键帧 | 导入时生成封面和少量关键帧 | 封面/时间轴图由协议请求按需生成 | 有意形成的性能折中；首次 hover 可能延迟，是否改回预生成需要基准 |
 | 统一播放器体验 | native 与 mpv 尽量呈现统一控制体验 | native 在应用窗口内受控；mpv/系统默认播放器为外部程序 | 部分实现；外部播放器无法共享应用内控制和状态，真实体验需要验证 |
 | 数据库分页 | 搜索、排序和分页可下推 SQLite | 普通资料库与重复项均已数据库分页；目录树改用 DISTINCT directory 轻量快照，播放器按队列 id 取数 | 已实现；超深 OFFSET 和模糊搜索基准仍需验证 |
-| Schema migration | 数据库层承担 schema 创建与迁移 | 已实现 `user_version`、升级前一致性备份、事务回滚与 v1–v6 自动测试 | 已实现；真实旧用户库副本升级/恢复演练仍需人工验证 |
+| Schema migration | 数据库层承担 schema 创建与迁移 | 已实现 `user_version`、升级前一致性备份、事务回滚与 v1–v7 自动测试 | 已实现；真实旧用户库副本升级/恢复演练仍需人工验证 |
 | 真实桌面验证 | 用真实 Windows、媒体格式和大目录验收 | 自动测试较多，部分桌面自查有记录；完整证据链缺失 | 需要验证；以 `docs/verification-results.md` 和手测表为准 |

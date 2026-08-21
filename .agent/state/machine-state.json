@@ -1,0 +1,25 @@
+﻿{
+    "generated_at":  "2026-08-18T16:24:16.8846638Z",
+    "git":  {
+                "branch":  "ai/agent-workflow-optimization",
+                "head":  "4f6ed8d517ec43f296dde220d599136722f077fe",
+                "remote_head":  null,
+                "ahead":  0,
+                "behind":  0,
+                "clean":  false,
+                "state_file_excluded":  true,
+                "modified":  5,
+                "new":  2,
+                "deleted":  0
+            },
+    "task":  {
+                 "id":  "TASK-WORKFLOW-001",
+                 "workflow":  "STANDARD",
+                 "status":  "QA_PASS"
+             },
+    "gates":  {
+                  "DEV":  "PASS",
+                  "QA":  "PASS",
+                  "HANDOFF":  "PASS"
+              }
+}

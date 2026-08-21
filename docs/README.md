@@ -1,9 +1,15 @@
 # 文档索引
 
-面向维护 AI 的阅读顺序：先读根目录 `README.md` 与 `ARCHITECTURE.md`，再按问题进入下列专题。历史设计文档保留为决策背景，不能覆盖当前代码和验证记录。
+首次接手的 AI 从 [`ai/START_HERE.md`](ai/START_HERE.md) 开始，再按其中顺序读取当前状态、代码地图、风险与架构。历史设计文档保留为决策背景，不能覆盖当前代码和验证记录。
 
 | 文档 | 用途 |
 | --- | --- |
+| `ai/START_HERE.md` | 新 AI 的第一入口、阅读顺序、事实验证与完成定义 |
+| `ai/CURRENT_STATE.md` | 当前技术/功能基线、最近重点和待验证边界 |
+| `ai/CODE_MAP.md` | 模块关系与自然语言需求到代码/测试的定位表 |
+| `ai/KNOWN_RISKS.md` | 文件、扫描、数据库、IPC、缓存、ABI 等高风险不变量 |
+| `ai/deliveries/` | 每次 AI 更新的背景、修改、真实验证和后续风险 |
+| `decisions/` | 当前仍有效的关键架构与交付决策 |
 | `scan-modes-and-snapshots.md` | 三种扫描模式、v5 快照、异常恢复、路径与缺失安全不变量 |
 | `verification-results.md` | 已实际运行命令、自动测试结果、ABI 阻塞和待手测证据 |
 | `manual-test-checklist.md` | Windows、真实媒体、网盘、播放器与高风险文件操作手测 |

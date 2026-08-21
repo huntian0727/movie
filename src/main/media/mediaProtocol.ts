@@ -14,10 +14,17 @@ const imageResponseHeaders = {
   "Cache-Control": "no-store"
 };
 
+/**
+ * Called after a video Range request is served for a cloud-drive file,
+ * so the caller can issue a PrefetchFileRanges hint for the upcoming bytes.
+ */
+export type VideoPrefetchHook = (filePath: string, startByte: number, fileSize: number) => void;
+
 export function registerMediaProtocol(
   repo: VideoRepository,
   cacheManager: MediaCacheManager,
-  getCoverFrameTimeSeconds: () => number = () => 5
+  getCoverFrameTimeSeconds: () => number = () => 5,
+  onVideoByteRange?: VideoPrefetchHook
 ): void {
   protocol.handle(MEDIA_SCHEME, async (request) => {
     try {
@@ -26,7 +33,17 @@ export function registerMediaProtocol(
       if (parsed.hostname === "media") {
         const videoId = getVideoIdFromMediaUrl(request.url);
         const video = repo.getVideo(videoId);
-        return createVideoResponse(video.path, getRequestHeader(request, "range"));
+        const rangeHeader = getRequestHeader(request, "range");
+        const response = await createVideoResponse(video.path, rangeHeader);
+        if (onVideoByteRange && video.sizeBytes > 0) {
+          const parsedRange = parseRangeHeader(rangeHeader, video.sizeBytes);
+          if (parsedRange && parsedRange !== "invalid") {
+            onVideoByteRange(video.path, parsedRange.start, video.sizeBytes);
+          } else if (!parsedRange) {
+            onVideoByteRange(video.path, 0, video.sizeBytes);
+          }
+        }
+        return response;
       }
 
       if (parsed.hostname === "preview") {

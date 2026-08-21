@@ -12,7 +12,10 @@ import { buildCacheKey, getMediaCacheRoot, migrateLegacyMediaCache } from "./med
 import { MediaCacheManager } from "./media/cacheManager.js";
 import { MEDIA_SCHEME, registerMediaProtocol } from "./media/mediaProtocol.js";
 import { MetadataQueue } from "./media/metadataQueue.js";
+import { PlaybackMetadataEnricher } from "./media/playbackMetadataEnricher.js";
 import { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
+import { isCloudDrivePath, tryReleaseCloudDriveReader } from "./clouddrive/mountedScanner.js";
+import { CloudDrivePrefetchManager } from "./clouddrive/prefetchManager.js";
 import {
   createDiagnosticEnvironment,
   StructuredLogger
@@ -44,6 +47,7 @@ let metadataQueue: MetadataQueue | undefined;
 let mediaCacheManager: MediaCacheManager | undefined;
 let playerWindows: PlayerWindowCoordinator | undefined;
 let duplicateCleanup: DuplicateCleanupService | undefined;
+let cloudPrefetch: CloudDrivePrefetchManager | undefined;
 
 protocol.registerSchemesAsPrivileged([
   { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
@@ -157,12 +161,35 @@ app.whenReady().then(async () => {
     1,
     logger,
     (videoId) => domainEvents.publish({ type: "video:updated", videoIds: [videoId] }),
-    () => domainEvents.publish({ type: "source-folder:updated", videoIds: [] })
+    () => domainEvents.publish({ type: "source-folder:updated", videoIds: [] }),
+    (filePath) => isCloudDrivePath(filePath) ? "cloud" : "local",
+    (filePath) => void tryReleaseCloudDriveReader(filePath)
   );
   const scanManager = new ScanManager(repo, undefined, metadataQueue, logger);
   const duplicateCleanupJobs = new DuplicateCleanupRepository(database, repo);
   duplicateCleanup = new DuplicateCleanupService(duplicateCleanupJobs, repo, metadataQueue, mediaCacheManager, domainEvents);
-  playerWindows = new PlayerWindowCoordinator(repo, { currentDir, devServerUrl, isPackaged: app.isPackaged });
+  const playbackMetadata = new PlaybackMetadataEnricher(
+    repo,
+    undefined,
+    logger,
+    (filePath) => isCloudDrivePath(filePath) ? "cloud" : "local",
+    (filePath) => void tryReleaseCloudDriveReader(filePath)
+  );
+  cloudPrefetch = new CloudDrivePrefetchManager();
+  playerWindows = new PlayerWindowCoordinator(
+    repo,
+    { currentDir, devServerUrl, isPackaged: app.isPackaged },
+    (videoId) => playbackMetadata.ensureCodecMetadata(videoId),
+    logger,
+    (currentFilePath, nextFilePath, reason) => {
+      cloudPrefetch?.onPlaybackStart(currentFilePath);
+      if (nextFilePath) cloudPrefetch?.onNextEpisodeKnown(nextFilePath);
+      if (reason === "select") {
+        // Also fire seek-aware prefetch for the beginning of the selected file.
+        cloudPrefetch?.onSeek(currentFilePath, 0);
+      }
+    }
+  );
   registerIpcHandlers(repo, {
     database,
     logger,
@@ -189,7 +216,16 @@ app.whenReady().then(async () => {
     duplicateCleanup,
     duplicateCleanupJobs
   });
-  registerMediaProtocol(repo, mediaCacheManager, () => settings.get().coverFrameTimeSeconds);
+  registerMediaProtocol(
+    repo,
+    mediaCacheManager,
+    () => settings.get().coverFrameTimeSeconds,
+    (filePath, startByte, fileSize) => {
+      if (isCloudDrivePath(filePath) && cloudPrefetch) {
+        cloudPrefetch.onSeek(filePath, startByte, fileSize);
+      }
+    }
+  );
   const packagedSmokePhase = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_PHASE;
   const packagedSmokeResult = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_RESULT;
   if ((packagedSmokePhase === "create" || packagedSmokePhase === "verify") && packagedSmokeResult) {
@@ -279,6 +315,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => {
+  void cloudPrefetch?.cancelAllFiles();
   duplicateCleanup?.stop();
   duplicateCleanup = undefined;
   playerWindows?.close();

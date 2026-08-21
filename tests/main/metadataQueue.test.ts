@@ -23,7 +23,16 @@ describe("MetadataQueue", () => {
       maxActive = Math.max(maxActive, active);
       await new Promise((resolve) => setTimeout(resolve, 5));
       active -= 1;
-      return { durationMs: 5000, width: 1920, height: 1080, format: "mp4" };
+      return {
+        durationMs: 5000,
+        width: 1920,
+        height: 1080,
+        format: "mp4",
+        videoCodec: "h264",
+        videoProfile: "high",
+        pixelFormat: "yuv420p",
+        audioCodec: "aac"
+      };
     });
     const queue = new MetadataQueue(repo.value, reader, 1);
 
@@ -35,6 +44,13 @@ describe("MetadataQueue", () => {
     expect(maxActive).toBe(1);
     expect(reader).toHaveBeenCalledTimes(2);
     expect(repo.markMetadataReady).toHaveBeenCalledTimes(2);
+    expect(repo.markMetadataReady).toHaveBeenCalledWith(
+      "v1",
+      "Z:\\Cloud\\one.mp4",
+      1024,
+      "2026-07-16T00:00:00.000Z",
+      expect.objectContaining({ videoCodec: "h264", videoProfile: "high", pixelFormat: "yuv420p", audioCodec: "aac" })
+    );
     expect(repo.markMetadataFailed).not.toHaveBeenCalled();
     expect(queue.getStatus()).toEqual({ queued: 0, active: 0 });
   });
@@ -64,6 +80,45 @@ describe("MetadataQueue", () => {
       errorSummary: "ffprobe failed"
     }));
     expect(onSourceFolderUpdated).toHaveBeenCalledWith(video.sourceFolderId);
+  });
+
+  it("increments the failure retry count only for an explicit metadata retry", async () => {
+    const video = createVideo("v1", "Z:\\Cloud\\retry-failed.mp4");
+    const repo = createRepo(new Map([[video.id, video]]));
+    const queue = new MetadataQueue(repo.value, async () => { throw new Error("ffprobe failed again"); });
+
+    queue.enqueue(video.id, true);
+    await queue.whenIdle();
+
+    expect(repo.recordScanFailure).toHaveBeenCalledWith(expect.objectContaining({
+      objectPath: video.path,
+      failureStage: "metadata",
+      incrementRetry: true
+    }));
+  });
+
+  it("prioritizes an explicit retry ahead of ordinary queued metadata", async () => {
+    const first = createVideo("v1", "Z:\\Cloud\\first.mp4");
+    const ordinary = createVideo("v2", "Z:\\Cloud\\ordinary.mp4");
+    const retry = createVideo("v3", "Z:\\Cloud\\retry.mp4");
+    const repo = createRepo(new Map([[first.id, first], [ordinary.id, ordinary], [retry.id, retry]]));
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const order: string[] = [];
+    const queue = new MetadataQueue(repo.value, async (filePath: string) => {
+      order.push(filePath);
+      if (filePath === first.path) await firstGate;
+      return { durationMs: 1000, width: 1280, height: 720, format: "mp4" };
+    });
+
+    queue.enqueue(first.id);
+    queue.enqueue(ordinary.id);
+    queue.enqueue(retry.id);
+    queue.enqueue(retry.id, true);
+    releaseFirst();
+    await queue.whenIdle();
+
+    expect(order).toEqual([first.path, retry.path, ordinary.path]);
   });
 
   it("notifies the renderer after metadata retry settles", async () => {
@@ -232,6 +287,47 @@ describe("MetadataQueue", () => {
     expect(repo.markMetadataFailed).not.toHaveBeenCalled();
     expect(repo.recordScanFailure).not.toHaveBeenCalled();
   });
+
+  it("calls the afterProbe hook after each metadata attempt", async () => {
+    const video = createVideo("v1", "Z:\\Cloud\\probe-complete.mp4");
+    const videos = new Map([[video.id, video]]);
+    const repo = createRepo(videos);
+    const afterProbe = vi.fn(async () => {});
+    const queue = new MetadataQueue(
+      repo.value,
+      async () => ({ durationMs: 1000, width: 1920, height: 1080, format: "mp4" }),
+      1,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      afterProbe
+    );
+
+    queue.enqueue(video.id);
+    await queue.whenIdle();
+
+    expect(afterProbe).toHaveBeenCalledWith(video.path);
+  });
+
+  it("uses the resolved probe profile for each video", async () => {
+    const cloudVideo = createVideo("v1", "Z:\\Cloud\\cloud.mp4");
+    const localVideo = createVideo("v2", "C:\\local\\local.mp4");
+    const videos = new Map([[cloudVideo.id, cloudVideo], [localVideo.id, localVideo]]);
+    const repo = createRepo(videos);
+    const reader = vi.fn(async (_path: string, profile: string) => {
+      return { durationMs: 1000, width: 1280, height: 720, format: "mp4" };
+    });
+    const resolveProfile = vi.fn((path: string) => path.startsWith("Z:") ? "cloud" : "local");
+    const queue = new MetadataQueue(repo.value, reader, 1, undefined, undefined, undefined, resolveProfile);
+
+    queue.enqueue(cloudVideo.id);
+    queue.enqueue(localVideo.id);
+    await queue.whenIdle();
+
+    expect(reader).toHaveBeenCalledWith(cloudVideo.path, "cloud");
+    expect(reader).toHaveBeenCalledWith(localVideo.path, "local");
+  });
 });
 
 function createRepo(videos: Map<string, VideoRecord>) {
@@ -276,6 +372,11 @@ function createVideo(id: string, filePath: string): VideoRecord {
     width: null,
     height: null,
     format: null,
+    videoCodec: null,
+    videoProfile: null,
+    pixelFormat: null,
+    audioCodec: null,
+    codecProbeStatus: "unprobed",
     modifiedAt: "2026-07-16T00:00:00.000Z",
     importedAt: "2026-07-16T00:00:00.000Z",
     updatedAt: "2026-07-16T00:00:00.000Z",

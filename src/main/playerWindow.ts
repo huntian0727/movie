@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { VideoRepository } from "./db/videoRepository.js";
+import type { StructuredLogger } from "./logging/logger.js";
 import { configureWindowSecurity } from "./security.js";
 import {
   IPC_CHANNELS,
@@ -17,6 +18,20 @@ interface PlayerWindowOptions {
   devServerUrl: string;
   isPackaged: boolean;
 }
+
+type CodecMetadataEnsurer = (videoId: string) => Promise<void>;
+
+/**
+ * Called when a video starts playing or the next episode is known.
+ * Used by CloudDrive prefetch to warm up the server-side cache.
+ */
+export type PlaybackPrefetchHook = (
+  currentFilePath: string,
+  nextFilePath: string | null,
+  reason: "start" | "select"
+) => void;
+
+export const PLAYBACK_CODEC_PROBE_WAIT_MS = 2_000;
 
 export interface OpenPlayerWindowInput {
   videoId: string;
@@ -51,11 +66,14 @@ export class PlayerWindowCoordinator {
 
   constructor(
     private readonly repo: VideoRepository,
-    private readonly options: PlayerWindowOptions
+    private readonly options: PlayerWindowOptions,
+    private readonly ensureCodecMetadata: CodecMetadataEnsurer = async () => undefined,
+    private readonly logger?: StructuredLogger,
+    private readonly onPrefetch?: PlaybackPrefetchHook
   ) {}
 
   async open(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
-    const snapshot = this.setSession(input, sequence);
+    const snapshot = await this.setSession(input, sequence);
     this.opening = this.opening.catch(() => undefined).then(async () => {
       try {
         if (!this.window || this.window.isDestroyed()) {
@@ -77,17 +95,25 @@ export class PlayerWindowCoordinator {
     return snapshot;
   }
 
-  setSession(input: OpenPlayerWindowInput, sequence: number): PlayerSessionSnapshot {
+  async setSession(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
     this.session = normalizePlayerSession(this.repo, input);
+    if (await waitForCodecMetadata(this.ensureCodecMetadata, this.session.selectedVideoId)) {
+      this.logCodecProbeWaitTimeout(this.session.selectedVideoId);
+    }
+    this.firePrefetch(this.session.selectedVideoId, this.session.queueIds, "start");
     return this.getSnapshot(sequence).playerSession!;
   }
 
-  select(videoId: string, sequence: number): PlayerSessionSnapshot {
+  async select(videoId: string, sequence: number): Promise<PlayerSessionSnapshot> {
     const snapshot = this.getSnapshot(sequence).playerSession;
     if (!snapshot || !snapshot.queueIds.includes(videoId)) {
       throw new Error("Selected video is not available in the current player queue");
     }
     this.session = { selectedVideoId: videoId, queueIds: snapshot.queueIds };
+    if (await waitForCodecMetadata(this.ensureCodecMetadata, videoId)) {
+      this.logCodecProbeWaitTimeout(videoId);
+    }
+    this.firePrefetch(videoId, snapshot.queueIds, "select");
     return this.getSnapshot(sequence).playerSession!;
   }
 
@@ -125,6 +151,55 @@ export class PlayerWindowCoordinator {
     if (this.window && !this.window.isDestroyed()) this.window.close();
     this.window = null;
     this.session = null;
+  }
+
+  private firePrefetch(
+    selectedVideoId: string,
+    queueIds: string[],
+    reason: "start" | "select"
+  ): void {
+    if (!this.onPrefetch) return;
+    const currentVideo = this.repo.getVideo(selectedVideoId);
+    if (!currentVideo) return;
+    let nextFilePath: string | null = null;
+    const selectedIndex = queueIds.indexOf(selectedVideoId);
+    if (selectedIndex >= 0 && selectedIndex + 1 < queueIds.length) {
+      const nextVideo = this.repo.getVideo(queueIds[selectedIndex + 1]);
+      if (nextVideo && !nextVideo.isMissing) {
+        nextFilePath = nextVideo.path;
+      }
+    }
+    try {
+      this.onPrefetch(currentVideo.path, nextFilePath, reason);
+    } catch {
+      // Advisory — never break playback over prefetch.
+    }
+  }
+
+  private logCodecProbeWaitTimeout(videoId: string): void {
+    this.logger?.warn({
+      module: "media.playback",
+      event: "codec_probe_wait_timeout",
+      message: "Player preparation stopped waiting for codec probing",
+      context: { videoId }
+    });
+  }
+}
+
+async function waitForCodecMetadata(ensureCodecMetadata: CodecMetadataEnsurer, videoId: string): Promise<boolean> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const enrichment = Promise.resolve()
+    .then(() => ensureCodecMetadata(videoId))
+    .catch(() => undefined);
+  try {
+    return await Promise.race([
+      enrichment.then(() => false),
+      new Promise<true>((resolve) => {
+        timeout = setTimeout(() => resolve(true), PLAYBACK_CODEC_PROBE_WAIT_MS);
+      })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 

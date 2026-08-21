@@ -6,6 +6,10 @@ param(
 
   [switch]$SkipChecks,
   [switch]$AllowProtectedBranch,
+  [switch]$SkipMainUpdate,
+
+  [ValidatePattern("^[A-Za-z0-9._/-]+$")]
+  [string]$MainBranch = "main",
 
   # Safe inspection mode used by maintainers and automated validation. It never stages, commits, fetches, rebases, or pushes.
   [switch]$ValidateOnly
@@ -124,6 +128,33 @@ function Assert-PendingFilesSafe {
   }
 }
 
+function Assert-DeliveryRecordPresent {
+  $recordPattern = '^docs/ai/deliveries/\d{4}-\d{2}-\d{2}-[A-Za-z0-9._-]+\.md$'
+  $records = @(Get-PendingPaths | Where-Object {
+    $_.Replace("\", "/") -match $recordPattern
+  })
+  if ($records.Count -eq 0) {
+    throw "Every delivery must add or update docs/ai/deliveries/YYYY-MM-DD-<topic>.md. Copy TEMPLATE.md and record actual changes, verification, and risks."
+  }
+
+  $requiredSections = @("## Context", "## Changes", "## Verification", "## Risks and follow-up")
+  foreach ($relativePath in $records) {
+    $absolutePath = Join-Path $script:RepositoryRoot $relativePath
+    if (-not (Test-Path -LiteralPath $absolutePath -PathType Leaf)) {
+      throw "Delivery record is missing from the working tree: $relativePath"
+    }
+    $content = Get-Content -LiteralPath $absolutePath -Raw -Encoding utf8
+    if ($content.Length -lt 200) {
+      throw "Delivery record is too short to be useful: $relativePath"
+    }
+    foreach ($section in $requiredSections) {
+      if (-not $content.Contains($section)) {
+        throw "Delivery record '$relativePath' is missing required section '$section'."
+      }
+    }
+  }
+}
+
 function Get-QualityScripts {
   $packagePath = Join-Path $script:RepositoryRoot "package.json"
   if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) { return @() }
@@ -201,6 +232,7 @@ try {
   }
 
   Assert-PendingFilesSafe
+  Assert-DeliveryRecordPresent
   $qualityScripts = @(Get-QualityScripts)
   Write-Host "Quality checks: $(if ($qualityScripts.Count) { $qualityScripts -join ', ' } else { 'none declared' })"
 
@@ -222,7 +254,6 @@ try {
   }
 
   [void](Invoke-Git -Arguments @("commit", "-m", $Message))
-  $commit = ([string](Invoke-Git -Arguments @("rev-parse", "--short", "HEAD") -Capture).Output[0]).Trim()
 
   $remoteBranch = Invoke-Git -Arguments @("ls-remote", "--exit-code", "--heads", "origin", "refs/heads/$branch") -Capture -AllowFailure
   if ($remoteBranch.ExitCode -eq 0 -and $remoteBranch.Output.Count -gt 0) {
@@ -237,8 +268,57 @@ try {
     throw "Unable to query remote branch origin/$branch."
   }
 
-  [void](Invoke-Git -Arguments @("push", "-u", "origin", $branch))
-  Write-Host "RESULT Branch=$branch Commit=$commit Push=origin/$branch Checks=$(if ($SkipChecks) { 'skipped' } else { $qualityScripts -join ',' })" -ForegroundColor Green
+  $backupTag = "not-created"
+  $mainPush = "skipped"
+  $oldMainCommit = $null
+  if (-not $SkipMainUpdate) {
+    $remoteMain = Invoke-Git -Arguments @("ls-remote", "--exit-code", "--heads", "origin", "refs/heads/$MainBranch") -Capture -AllowFailure
+    if ($remoteMain.ExitCode -ne 0 -or $remoteMain.Output.Count -eq 0) {
+      throw "Remote protected branch origin/$MainBranch is unavailable; no branch or tag was pushed."
+    }
+    [void](Invoke-Git -Arguments @("fetch", "origin", $MainBranch))
+    $oldMainCommit = ([string](Invoke-Git -Arguments @("rev-parse", "origin/$MainBranch") -Capture).Output[0]).Trim()
+    $containsMain = Invoke-Git -Arguments @("merge-base", "--is-ancestor", $oldMainCommit, "HEAD") -AllowFailure
+    if ($containsMain -ne 0) {
+      $rebaseResult = Invoke-Git -Arguments @("rebase", "origin/$MainBranch") -AllowFailure
+      if ($rebaseResult -ne 0) {
+        $conflicts = (Invoke-Git -Arguments @("diff", "--name-only", "--diff-filter=U") -Capture -AllowFailure).Output
+        Write-Error "Main rebase conflict. Nothing was pushed. Resolve these files, run 'git rebase --continue', then rerun this script:`n - $($conflicts -join "`n - ")"
+        exit 2
+      }
+    }
+  }
+
+  $commit = ([string](Invoke-Git -Arguments @("rev-parse", "--short", "HEAD") -Capture).Output[0]).Trim()
+  if ($branch -ne $MainBranch -or $SkipMainUpdate) {
+    [void](Invoke-Git -Arguments @("push", "-u", "origin", $branch))
+  }
+
+  if (-not $SkipMainUpdate) {
+    $oldMainShort = ([string](Invoke-Git -Arguments @("rev-parse", "--short", $oldMainCommit) -Capture).Output[0]).Trim()
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $backupTag = "backup-$MainBranch-$timestamp-$oldMainShort"
+    $existingTag = Invoke-Git -Arguments @("show-ref", "--verify", "--quiet", "refs/tags/$backupTag") -AllowFailure
+    if ($existingTag -eq 0) { throw "Backup tag already exists locally: $backupTag" }
+    [void](Invoke-Git -Arguments @("tag", "-a", $backupTag, $oldMainCommit, "-m", "Backup origin/$MainBranch before deploying $commit"))
+    [void](Invoke-Git -Arguments @("push", "origin", "refs/tags/$backupTag"))
+
+    # This is intentionally a normal push. If origin/main changed after fetch,
+    # Git rejects it as non-fast-forward and the archived tag remains available.
+    $mainPushArguments = if ($branch -eq $MainBranch) {
+      @("push", "-u", "origin", "HEAD:refs/heads/$MainBranch")
+    } else {
+      @("push", "origin", "HEAD:refs/heads/$MainBranch")
+    }
+    [void](Invoke-Git -Arguments $mainPushArguments)
+    $remoteMainAfter = Invoke-Git -Arguments @("ls-remote", "--heads", "origin", "refs/heads/$MainBranch") -Capture
+    $remoteMainCommit = (([string]$remoteMainAfter.Output[0]) -split "\s+")[0]
+    $localHead = ([string](Invoke-Git -Arguments @("rev-parse", "HEAD") -Capture).Output[0]).Trim()
+    if ($remoteMainCommit -ne $localHead) { throw "Remote main verification failed after push." }
+    $mainPush = "origin/$MainBranch"
+  }
+
+  Write-Host "RESULT Branch=$branch Commit=$commit Push=origin/$branch Main=$mainPush Backup=$backupTag Checks=$(if ($SkipChecks) { 'skipped' } else { $qualityScripts -join ',' })" -ForegroundColor Green
 } catch {
   Write-Error $_
   exit 1

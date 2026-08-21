@@ -5,8 +5,8 @@
 - `VideoGrid.tsx`/`VideoTable.tsx`：两种资料库呈现；网格卡片操作栏支持打开文件所在文件夹，以及按视频直属目录快速筛选系列视频。网格的整块封面均可点击或按 Enter/空格播放；封面失败状态按 URL 记录，后台分页刷新不能重新触发相同失败封面的请求。
 - `PlayerPage.tsx`：native/mpv 两态、控制、可配置快捷键、同目录播放列表、hover 预览与失败降级。默认上下键按 5% 调音量、Ctrl + 左/右每次旋转 90°，`Ctrl+D` 只打开永久删除确认框且必须再次确认；实际匹配必须读取 `AppSettings.shortcuts`。播放器还可持久化标记待删除；外部 mpv 窗口不受这些主窗口快捷键控制。
 - `SettingsPage.tsx`：设置、快捷键捕获/冲突提示、缓存确认、封面截帧位置和诊断预览/导出。缺失文件不再在设置页展示，但底层扫描标记仍保留。诊断区必须先预览白名单，再允许导出；完整应用目录披露默认关闭且切换后必须重新预览。诊断接口仅主窗口可用。
-- `DuplicateGroupsPage.tsx`：分别展示同大小候选统计与“精确大小＋缓存时长”匹配组，支持分页、全局大小排序、当前页保留选择、单项永久删除和当前页批量清理确认。目录筛选的含义是“命中并优先保留目录内一个文件”，不是只显示或只删除该目录中的文件。重复页不得为了判断而主动读取视频或计算指纹；UI 只能提交清理意图，文件存在性、大小与修改时间复查必须留在主进程。
-- `LibraryShell.tsx`：普通资料库在 Electron 环境通过 `onLoadVideoPage` 请求数据库分页；静态 `videos` 筛选路径仅供浏览器演示和组件测试。目录树使用轻量 `LibraryNavigationSnapshot`，不要重新传入全量视频构树。
+- `DuplicateGroupsPage.tsx`：分别展示同大小候选统计与“精确大小＋缓存时长”匹配组，支持分页、全局大小排序、当前页保留选择，以及从任一候选文件一键把其所在目录树设为优先保留范围。优先目录始终递归包含所有子目录；筛选会返回命中目录树的候选组及组内跨目录的全部文件，并优先推荐保留目录树中的一个文件。显式单组选择高于目录推荐。重复页不得为了判断而主动读取视频或计算指纹；“一键永久删除候选移除项”跳过 SHA-256 与确认，但必须把完整 keep/delete 计划交给主进程重新校验，不能接受 renderer 提供的任意路径。
+- `LibraryShell.tsx`：正式应用始终通过 `onLoadVideoPage` 请求数据库分页；静态 `videos` 筛选路径只用于隔离组件测试，不代表浏览器产品模式。目录树使用轻量 `LibraryNavigationSnapshot`，不要重新传入全量视频构树。
 - `formatters.ts`：大小/时长展示。
 
 自然语言定位：预览/播放控制先看 `PlayerPage`；快捷键新增或修改看 shared `shortcuts.ts`/`videoTypes.ts`、`settingsStore.ts`、IPC schema、`SettingsPage` 及 `LibraryShell`/`PlayerPage` 消费点；播放器队列切换或跨窗口刷新还要看 `App.tsx`、`renderer/windowSync.ts`、shared 契约及 main `playerWindow.ts`/`ipc.ts`；“避开开头黑屏”或“重建单个预览”看 `SettingsPage`、`VideoGrid`、main media protocol/cache；大量视频卡顿看 `LibraryShell`、grid/table 与上游查询；增加排序看 Toolbar + shared + repository；删除确认/重命名看 LibraryShell 与主进程文件链；设置看 SettingsPage。

@@ -1,0 +1,9 @@
+{
+  "task_id": "TASK-XXX",
+  "role": "UI",
+  "status": "UI_REVIEW_PASS",
+  "commit": "0000000000000000000000000000000000000000",
+  "evidence": [],
+  "findings": [],
+  "next": "Local Project Manager"
+}

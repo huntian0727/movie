@@ -43,6 +43,7 @@ interface LibraryShellProps {
   onLoadScanFailureReviewPage?(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
   onRetryScanFailure?(failureId: string): Promise<unknown>;
   onDeleteScanFailureFile?(failureId: string): Promise<unknown>;
+  onCleanupScanFailures?: VideoManagerApi["cleanupScanFailures"];
   onOpenScanFailureLocation?(failureId: string): Promise<unknown>;
   onRefresh?(): void | Promise<void>;
   onOpen?(video: VideoRecord, queue: VideoRecord[]): void;
@@ -60,7 +61,8 @@ interface LibraryShellProps {
   recentVideoIds?: string[];
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
-  duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">;
+  duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "confirmDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">
+    & Partial<Pick<VideoManagerApi, "fastDeleteDuplicateCandidates">>;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -91,6 +93,7 @@ export function LibraryShell({
   onLoadScanFailureReviewPage,
   onRetryScanFailure,
   onDeleteScanFailureFile,
+  onCleanupScanFailures,
   onOpenScanFailureLocation,
   onRefresh,
   onOpen,
@@ -135,6 +138,7 @@ export function LibraryShell({
     loading: boolean;
     loadError: string | null;
   } | null>(null);
+  const [retryingFolderId, setRetryingFolderId] = useState<string | null>(null);
   const [nextBaseName, setNextBaseName] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
@@ -149,7 +153,6 @@ export function LibraryShell({
   const [duplicatePageSize, setDuplicatePageSize] = useState<DuplicatePageSize>(20);
   const [duplicateSortDirection, setDuplicateSortDirection] = useState<SortDirection>("desc");
   const [duplicatePreferredDirectoryPath, setDuplicatePreferredDirectoryPath] = useState("");
-  const [duplicatePreferredDirectoryScope, setDuplicatePreferredDirectoryScope] = useState<"recursive" | "exact">("recursive");
   const [duplicatePage, setDuplicatePage] = useState<DuplicateGroupPage>(() => createStaticDuplicatePage(duplicateGroups));
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
@@ -345,7 +348,6 @@ export function LibraryShell({
     };
     if (duplicatePreferredDirectoryPath) {
       query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
-      query.preferredDirectoryScope = duplicatePreferredDirectoryScope;
     }
     void onLoadDuplicateGroups(query).then((result) => {
       if (disposed) return;
@@ -358,7 +360,7 @@ export function LibraryShell({
     });
 
     return () => { disposed = true; };
-  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectoryPath, duplicatePreferredDirectoryScope, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
+  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectoryPath, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
 
   const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
   const toolbarCount = view === "duplicates" ? duplicatePage.totalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
@@ -809,6 +811,7 @@ export function LibraryShell({
                 loadPage={onLoadScanFailureReviewPage}
                 onRetry={onRetryScanFailure}
                 onDeleteFile={onDeleteScanFailureFile}
+                onCleanup={onCleanupScanFailures}
                 onOpenLocation={onOpenScanFailureLocation}
                 onOpenVideo={(video) => openVideo(video, [video])}
                 onShowDetails={viewVideoDetails}
@@ -833,16 +836,10 @@ export function LibraryShell({
             onSizeSortDirection={(direction) => { setDuplicateSortDirection(direction); setDuplicatePageNumber(1); }}
             directoryOptions={duplicatePage.directoryOptions}
             preferredDirectoryPath={duplicatePreferredDirectoryPath || undefined}
-            preferredDirectoryScope={duplicatePreferredDirectoryScope}
             onPreferredDirectoryPathChange={(path) => { setDuplicatePreferredDirectoryPath(path); setDuplicatePageNumber(1); }}
-            onPreferredDirectoryScopeChange={(scope) => { setDuplicatePreferredDirectoryScope(scope); setDuplicatePageNumber(1); }}
             onOpen={openVideo}
             onViewDetails={viewVideoDetails}
             onRevealInFolder={onRevealInFolder}
-            onDelete={onDelete ? async (video) => {
-              await onDelete(video);
-              setDuplicateRefreshVersion((current) => current + 1);
-            } : undefined}
             onRefresh={() => setDuplicateRefreshVersion((current) => current + 1)}
             onPreviewResolve={async (plan) => {
               if (!onPreviewDuplicateResolve) {
@@ -851,6 +848,7 @@ export function LibraryShell({
               return onPreviewDuplicateResolve(plan);
             }}
             onCheckMissing={duplicateCleanupApi?.checkDuplicateMissing}
+            onFastDelete={duplicateCleanupApi?.fastDeleteDuplicateCandidates}
             onResolve={async (plan) => {
               if (!onResolveDuplicateGroups) {
                 throw new Error("重复项清理能力未连接");
@@ -860,6 +858,7 @@ export function LibraryShell({
               return result;
             }}
             onSubmitCleanup={duplicateCleanupApi ? (requestId, plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId, plan, sourceView: "duplicates" }) : undefined}
+            onConfirmCleanup={duplicateCleanupApi?.confirmDuplicateCleanup}
             onLoadCleanupJobs={duplicateCleanupApi?.listDuplicateCleanupJobs}
             onLoadCleanupItems={duplicateCleanupApi?.listDuplicateCleanupItems}
             onCancelCleanup={duplicateCleanupApi?.cancelDuplicateCleanup}
@@ -963,14 +962,38 @@ export function LibraryShell({
               {onRetryFolderFailures && folderIssueTarget.summary?.totalUnresolved !== 0 && (
                 <button
                   className="primary"
-                  aria-label={actionPending ? "正在重试异常项" : "重试异常项"}
-                  disabled={actionPending || folderIssueTarget.loading || folderIssueTarget.summary?.totalUnresolved === 0}
-                  onClick={() => void runAction(async () => { await onRetryFolderFailures(folderIssueTarget.folder); }).then((retried) => {
-                    if (retried) setFolderIssueTarget(null);
-                  })}
+                  aria-label={retryingFolderId === folderIssueTarget.folder.id ? "正在重试异常项" : "重试异常项"}
+                  disabled={retryingFolderId === folderIssueTarget.folder.id || folderIssueTarget.loading || folderIssueTarget.summary?.totalUnresolved === 0}
+                  onClick={() => {
+                    const retryFolder = folderIssueTarget.folder;
+                    setActionError(null);
+                    setRetryingFolderId(retryFolder.id);
+                    setFolderIssueTarget((current) => current?.folder.id === retryFolder.id
+                      ? { ...current, message: "正在重新检查异常文件并读取视频元数据，请稍候。" }
+                      : current);
+                    void Promise.resolve(onRetryFolderFailures(retryFolder))
+                      .then(async () => {
+                        const [summary, failures] = await Promise.all([
+                          onLoadScanFailureSummary?.(retryFolder),
+                          onLoadScanFailures?.(retryFolder)
+                        ]);
+                        setFolderIssueTarget((current) => current?.folder.id === retryFolder.id
+                          ? {
+                              ...current,
+                              message: summary?.totalUnresolved
+                                ? `重试完成，仍有 ${summary.totalUnresolved} 项失败。下方已显示最新错误。`
+                                : "重试完成，异常项已全部解决。",
+                              summary: summary ?? current.summary,
+                              failures: failures ?? current.failures
+                            }
+                          : current);
+                      })
+                      .catch((cause) => setActionError(cause instanceof Error ? cause.message : String(cause)))
+                      .finally(() => setRetryingFolderId((current) => current === retryFolder.id ? null : current));
+                  }}
                 >
-                  <RotateCw size={14} className={actionPending ? "spin" : undefined} />
-                  {actionPending ? "正在重试…" : "重试异常项"}
+                  <RotateCw size={14} className={retryingFolderId === folderIssueTarget.folder.id ? "spin" : undefined} />
+                  {retryingFolderId === folderIssueTarget.folder.id ? "正在重试…" : "重试异常项"}
                 </button>
               )}
             </div>

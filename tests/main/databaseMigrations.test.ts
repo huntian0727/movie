@@ -87,7 +87,8 @@ describe("versioned database migrations", () => {
     try {
       expect(db.pragma("user_version", { simple: true })).toBe(LATEST_SCHEMA_VERSION);
       expect(listColumns(db, "videos")).toEqual(expect.arrayContaining([
-        "content_fingerprint", "fingerprint_status", "is_pending_delete"
+        "content_fingerprint", "fingerprint_status", "is_pending_delete",
+        "video_codec", "video_profile", "pixel_format", "audio_codec", "codec_probe_status"
       ]));
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").pluck().all()).toEqual(expect.arrayContaining([
         "directory_snapshots", "scan_failures", "scan_tasks"
@@ -138,7 +139,7 @@ describe("versioned database migrations", () => {
     }
   });
 
-  for (const version of [1, 2, 3, 4, 5]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8]) {
     it(`upgrades schema version ${version} to the latest version`, () => {
       const dbPath = createTempDatabasePath();
       createVersionFixture(dbPath, version).close();
@@ -152,7 +153,7 @@ describe("versioned database migrations", () => {
     });
   }
 
-  for (const failedVersion of [1, 2, 3, 4, 5, 6]) {
+  for (const failedVersion of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
     it(`rolls back completely when migration ${failedVersion} fails`, () => {
       const dbPath = createTempDatabasePath();
       const startingVersion = failedVersion - 1;
@@ -183,6 +184,12 @@ describe("versioned database migrations", () => {
           expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'directory_snapshots'").pluck().get()).toBeUndefined();
         } else if (failedVersion === 6) {
           expect(db.prepare("SELECT COUNT(*) FROM scan_failures").pluck().get()).toBe(0);
+        } else if (failedVersion === 7) {
+          expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'duplicate_cleanup_jobs'").pluck().get()).toBeUndefined();
+        } else if (failedVersion === 8) {
+          expect(listColumns(db, "videos")).not.toContain("video_codec");
+        } else if (failedVersion === 9) {
+          expect(listColumns(db, "videos")).not.toContain("codec_probe_status");
         }
       } finally {
         db.close();
@@ -206,6 +213,101 @@ describe("versioned database migrations", () => {
     } finally {
       reopened.close();
     }
+  });
+
+  it("adds probe status to a 10,000-video v8 library without resetting metadata or queueing the library", () => {
+    const dbPath = createTempDatabasePath();
+    const fixture = createVersionFixture(dbPath, 8);
+    insertSourceFolder(fixture, "large-library", null, "D:\\Large");
+    const insert = fixture.prepare(`
+      INSERT INTO videos (
+        id, source_folder_id, path, directory, filename, basename, extension, size_bytes,
+        duration_ms, width, height, format, modified_at, imported_at, updated_at,
+        metadata_status, thumbnail_status, timeline_preview_status
+      ) VALUES (?, 'large-library', ?, 'D:\\Large', ?, ?, '.mp4', 100, 1000, 1920, 1080, 'mp4',
+        '2026-01-01', '2026-01-01', '2026-01-01', 'ready', 'ready', 'ready')
+    `);
+    fixture.transaction(() => {
+      for (let index = 0; index < 10_000; index += 1) {
+        const filename = `video-${index}.mp4`;
+        insert.run(`video-${index}`, `D:\\Large\\${filename}`, filename, `video-${index}`);
+      }
+    })();
+    fixture.close();
+    const migrated = createDatabase(dbPath);
+    try {
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos").pluck().get()).toBe(10_000);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE metadata_status = 'ready'").pluck().get()).toBe(10_000);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE video_codec IS NULL").pluck().get()).toBe(10_000);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE codec_probe_status = 'unprobed'").pluck().get()).toBe(10_000);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos WHERE metadata_status = 'pending'").pluck().get()).toBe(0);
+      expect(new VideoRepository(migrated).listVideosPendingMetadata()).toEqual([]);
+    } finally {
+      migrated.close();
+    }
+  });
+
+  it("migrates v8 codec records to ready while preserving null codec records and user state", () => {
+    const dbPath = createTempDatabasePath();
+    const fixture = createVersionFixture(dbPath, 8);
+    insertSourceFolder(fixture, "codec-library", null, "D:\\Codec");
+    const insert = fixture.prepare(`
+      INSERT INTO videos (
+        id, source_folder_id, path, directory, filename, basename, extension, size_bytes,
+        duration_ms, width, height, format, video_codec, modified_at, imported_at, updated_at,
+        is_favorite, is_pending_delete, metadata_status, thumbnail_status, timeline_preview_status
+      ) VALUES (?, 'codec-library', ?, 'D:\\Codec', ?, ?, '.mp4', ?, ?, 1920, 1080, 'mp4', ?,
+        '2026-01-01', '2026-01-01', '2026-01-01', ?, ?, ?, 'ready', 'ready')
+    `);
+    insert.run("known", "D:\\Codec\\known.mp4", "known.mp4", "known", 100, 1_000, "h264", 1, 1, "ready");
+    insert.run("unknown", "D:\\Codec\\unknown.mp4", "unknown.mp4", "unknown", 200, 2_000, null, 0, 0, "ready");
+    fixture.close();
+
+    const migrated = createDatabase(dbPath);
+    try {
+      expect(migrated.prepare(`
+        SELECT id, codec_probe_status, metadata_status, is_favorite, is_pending_delete, path
+        FROM videos ORDER BY id
+      `).all()).toEqual([
+        { id: "known", codec_probe_status: "ready", metadata_status: "ready", is_favorite: 1, is_pending_delete: 1, path: "D:\\Codec\\known.mp4" },
+        { id: "unknown", codec_probe_status: "unprobed", metadata_status: "ready", is_favorite: 0, is_pending_delete: 0, path: "D:\\Codec\\unknown.mp4" }
+      ]);
+      expect(migrated.prepare("SELECT COUNT(*) FROM videos").pluck().get()).toBe(2);
+    } finally {
+      migrated.close();
+    }
+  });
+
+  it("migrates v9 cleanup tasks to v10 with legacy authorization safely invalidated", () => {
+    const dbPath = createTempDatabasePath();
+    const legacy = createVersionFixture(dbPath, 9);
+    const now = "2026-08-16T00:00:00.000Z";
+    legacy.prepare(`INSERT INTO duplicate_cleanup_jobs
+      (id, request_id, status, total_groups, total_items, created_at, updated_at)
+      VALUES ('legacy-job', 'legacy-request', 'running', 1, 1, ?, ?)`)
+      .run(now, now);
+    legacy.prepare(`INSERT INTO duplicate_cleanup_items
+      (id, job_id, group_key, keep_video_id, delete_video_id, keep_path, delete_path, filename, directory,
+       expected_keep_size_bytes, expected_keep_modified_at, expected_delete_size_bytes, expected_delete_modified_at,
+       planned_reclaimable_bytes, status, created_at, updated_at)
+      VALUES ('legacy-item', 'legacy-job', 'g', 'keep', 'delete', 'K:/keep.mp4', 'K:/delete.mp4', 'delete.mp4', 'K:/',
+       64, ?, 64, ?, 64, 'deleting', ?, ?)`)
+      .run(now, now, now, now);
+    legacy.prepare(`INSERT INTO duplicate_cleanup_reservations
+      (id, job_id, video_id, role, created_at, released_at)
+      VALUES ('legacy-reservation', 'legacy-job', 'delete', 'delete', ?, NULL)`).run(now);
+    legacy.close();
+
+    const upgraded = createDatabase(dbPath);
+    expect(upgraded.pragma("user_version", { simple: true })).toBe(10);
+    expect(upgraded.prepare("SELECT workflow_version, phase, status, authorized_revision FROM duplicate_cleanup_jobs WHERE id = 'legacy-job'").get())
+      .toEqual({ workflow_version: 1, phase: "legacy_blocked", status: "cancelled", authorized_revision: null });
+    expect(upgraded.prepare(`SELECT status, verification_status, keep_sha256, delete_sha256,
+      keep_file_identity, delete_file_identity, staged_delete_path FROM duplicate_cleanup_items WHERE id = 'legacy-item'`).get())
+      .toEqual({ status: "cancelled", verification_status: "unverified", keep_sha256: null, delete_sha256: null,
+        keep_file_identity: null, delete_file_identity: null, staged_delete_path: null });
+    expect((upgraded.prepare("SELECT released_at FROM duplicate_cleanup_reservations WHERE id = 'legacy-reservation'").get() as { released_at: string | null }).released_at).not.toBeNull();
+    upgraded.close();
   });
 
   it("backfills a legacy folder scan error as one retryable directory failure", () => {

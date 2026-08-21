@@ -11,6 +11,7 @@ import { VideoRepository } from "../../src/main/db/videoRepository";
 import {
   DUPLICATE_PREFLIGHT_CONCURRENCY,
   previewDuplicateResolveSafely,
+  resolveDuplicatePlanFast,
   resolveDuplicatePlanSafely
 } from "../../src/main/media/duplicateResolveSafety";
 import type { DuplicateResolvePlan, VideoRecord } from "../../src/shared/videoTypes";
@@ -208,15 +209,36 @@ describe("duplicate cleanup stale-file safety", () => {
     expect(ready.status).toBe("ready");
   });
 
-  it("keeps the final per-file version check and skips a changed delete target", async () => {
+  it("hard-fails the retired direct permanent-delete helper", async () => {
     const fixture = await createDuplicateFixture();
-    await setModifiedAt(fixture.deleteVideo.path, "2026-07-19T00:00:00.000Z");
-    const deleteFile = vi.fn(async () => undefined);
+    await expect(resolveDuplicatePlanSafely(fixture.repo, fixture.plan)).rejects.toThrow(/Direct duplicate deletion is disabled/);
+    expect(await readFile(fixture.deleteVideo.path)).toHaveLength(16);
+  });
 
-    const execution = await resolveDuplicatePlanSafely(fixture.repo, fixture.plan, deleteFile);
+  it("fast-deletes every planned candidate without hashing or a confirmation step", async () => {
+    const fixture = await createDuplicateFixture();
+    const deleteFile = vi.fn(async (filePath: string) => unlink(filePath));
 
-    expect(execution.result).toMatchObject({ successCount: 0, failureCount: 1 });
+    const result = await resolveDuplicatePlanFast(fixture.repo, fixture.plan, { deleteFile });
+
+    expect(result).toMatchObject({ groupCount: 1, keepCount: 1, successCount: 1, failureCount: 0 });
+    expect(deleteFile).toHaveBeenCalledOnce();
+    expect(deleteFile).toHaveBeenCalledWith(fixture.deleteVideo.path);
+    expect(await readFile(fixture.keepVideo.path)).toHaveLength(16);
+    await expect(readFile(fixture.deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(() => fixture.repo.getVideo(fixture.deleteVideo.id)).toThrow();
+  });
+
+  it("validates the complete keep/delete plan before fast deletion", async () => {
+    const fixture = await createDuplicateFixture();
+    const deleteFile = vi.fn();
+    const invalidPlan: DuplicateResolvePlan = {
+      groups: [{ ...fixture.plan.groups[0], deleteVideoIds: [fixture.keepVideo.id] }]
+    };
+
+    await expect(resolveDuplicatePlanFast(fixture.repo, invalidPlan, { deleteFile })).rejects.toThrow(/cannot delete the kept video/);
     expect(deleteFile).not.toHaveBeenCalled();
+    expect(await readFile(fixture.keepVideo.path)).toHaveLength(16);
     expect(await readFile(fixture.deleteVideo.path)).toHaveLength(16);
   });
 });
@@ -235,8 +257,7 @@ async function createDuplicateFixture(preferredDirectoryPlan = false) {
     page: 1,
     pageSize: 20,
     sortDirection: "desc",
-    preferredDirectoryPath: preferredDirectoryPlan ? preferredDirectory : undefined,
-    preferredDirectoryScope: "recursive"
+    preferredDirectoryPath: preferredDirectoryPlan ? preferredDirectory : undefined
   });
   const group = page.groups[0];
   const plan: DuplicateResolvePlan = {

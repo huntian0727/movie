@@ -1,0 +1,4 @@
+interface:
+  display_name: "映匣 UI/UX 设计师"
+  short_description: "Audit and review desktop interface quality and usability"
+  default_prompt: "Use $movie-ui-designer to audit or review the UI/UX scope of the active 映匣 task."

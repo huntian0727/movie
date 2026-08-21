@@ -211,7 +211,8 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
     "id", "source_folder_id", "path", "directory", "filename", "basename", "extension", "size_bytes",
     "duration_ms", "width", "height", "format", "modified_at", "imported_at", "updated_at", "is_favorite",
     "is_pending_delete", "is_missing", "metadata_status", "thumbnail_status", "timeline_preview_status",
-    "cover_cache_path", "content_fingerprint", "fingerprint_status", "fingerprint_updated_at", "fingerprint_error"
+    "cover_cache_path", "content_fingerprint", "fingerprint_status", "fingerprint_updated_at", "fingerprint_error",
+    "video_codec", "video_profile", "pixel_format", "audio_codec", "codec_probe_status"
   ]);
   requireColumns(db, "timeline_previews", ["id", "video_id", "time_ms", "cache_path", "created_at"]);
   requireColumns(db, "play_history", ["video_id", "played_at", "position_ms"]);
@@ -226,8 +227,16 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
     "retry_count", "status", "resolved_at"
   ]);
   requireColumns(db, "scan_tasks", ["id", "source_folder_id", "mode", "status", "started_at", "completed_at", "counters_json"]);
-  requireColumns(db, "duplicate_cleanup_jobs", ["id", "request_id", "status", "total_items", "processed_items", "planned_reclaimable_bytes", "created_at", "updated_at"]);
-  requireColumns(db, "duplicate_cleanup_items", ["id", "job_id", "group_key", "keep_video_id", "delete_video_id", "status", "outcome_code"]);
+  requireColumns(db, "duplicate_cleanup_jobs", [
+    "id", "request_id", "status", "total_items", "processed_items", "planned_reclaimable_bytes", "created_at", "updated_at",
+    "workflow_version", "phase", "verification_revision", "verification_processed_items", "identical_items", "different_items",
+    "unverifiable_items", "verification_completed_at", "authorized_revision", "authorized_at"
+  ]);
+  requireColumns(db, "duplicate_cleanup_items", [
+    "id", "job_id", "group_key", "keep_video_id", "delete_video_id", "status", "outcome_code",
+    "verification_status", "verification_revision", "keep_sha256", "delete_sha256", "verified_at", "verification_error", "authorized_revision",
+    "keep_file_identity", "delete_file_identity", "staged_delete_path", "staged_at"
+  ]);
   requireColumns(db, "duplicate_cleanup_reservations", ["id", "job_id", "video_id", "role", "released_at"]);
   validateIntegrity(db);
 }

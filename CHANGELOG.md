@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-08-16 - Codec-aware Playback Routing
+
+- schema v8 为视频追加 nullable 的 video codec、profile、pixel format 与 audio codec，迁移不执行全库 FFprobe 或 metadata 重置。
+- 新导入沿既有单次 FFprobe/MetadataQueue 持久化 codec；文件版本变化时同步失效。
+- 历史 ready 视频只在首次实际播放时懒补全，失败不阻塞会话；`auto` 改为保守容器+codec 路由，显式偏好和既有 fallback 保持不变。
+- 新增迁移 10,000 条记录、元数据解析、仓储失效、路由及首次/后续播放补全测试，并记录 ADR-005。
+
+## 2026-08-16 - Windows Electron Desktop Only
+
+- 移除浏览器 demo 视频、目录及所有假业务成功 fallback。
+- Renderer 在缺少 preload API 时只显示“仅支持 Windows 桌面应用”。
+- 将 `dev` 明确改名为内部 `dev:renderer`；`dev:electron` 继续自动启动 Vite Renderer server。
+- 新增 desktop-only runtime 测试和 ADR-004。
+
+## 2026-08-16 - 多 AI 项目记忆库
+
+- 新增新 AI 第一入口、当前状态、代码/需求定位图、风险清单和架构决策记录。
+- 新增逐次 AI 交付记录模板，并将其纳入自动提交/推送前检查。
+- 修正文档中的数据库迁移范围为当前 v1–v7。
+
+## 2026-08-16 - Main 自动更新与回滚存档
+
+- 自动交付脚本现在默认在质量检查和功能分支同步完成后，为更新前的远程 `main` 创建 `backup-main-<时间>-<短哈希>` 注释标签并先推送，再以普通快进推送更新 `main`。
+- 更新前会拉取远程 `main` 并检查祖先关系；rebase 冲突、远程并发更新、非快进或远程校验不一致都会停止，始终禁止强制推送。
+- `AGENTS.md` 与 AI 开发流程文档补充固定交付、备份和基于标签分支/`git revert` 的安全回滚规则。
+- 新增本地裸仓库集成测试，真实验证旧 `main` 标签、功能分支、新 `main` 指针和脚本输出。
+
+## 2026-08-15 - 安全清理无法解析的视频
+
+- 扫描异常工作台新增保守分类：仅 `moov atom not found`、`Invalid data found when processing input` 等明确容器损坏特征标记为“确认损坏，可清理”；网盘超时、断线、权限和占用异常不会进入批量清理。
+- 确认损坏且已入库的视频支持当前页多选、批量标记待删除，以及一次确认后在主进程逐项永久删除；其他浏览操作不会被删除循环阻塞。
+- 永久删除前重新验证受管目录边界、文件类型、大小和修改时间。文件被替换、发生变化或无法访问时只跳过该项，磁盘删除成功后才移除资料库记录。
+- 新增损坏分类、批量标记、瞬时错误排除、文件版本变化拦截及 renderer 交互测试；未修改数据库 schema。
+
 ## 2026-08-02 - Scan failure review
 
 - 新增侧栏“扫描异常”工作台及未解决异常总数，支持按已启用资料库目录、异常类型和页码筛选。

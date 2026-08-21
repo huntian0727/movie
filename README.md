@@ -1,6 +1,6 @@
 # 映匣（Local Video Manager）
 
-面向 Windows 的本地视频资料库桌面应用。视频始终保留在原目录；应用只维护 SQLite 索引、收藏/播放历史和可重建的封面/时间轴缓存。本文是维护入口，详细设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，状态与路线见 [TASK.md](TASK.md)。
+面向 Windows 的本地视频资料库 Electron 桌面应用。视频始终保留在原目录；应用只维护 SQLite 索引、收藏/播放历史和可重建的封面/时间轴缓存。项目不提供独立 Web 产品或浏览器演示模式；React、Vite、HTML 和 CSS 只用于 Electron Renderer。本文是产品与开发总览，详细设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，状态与路线见 [TASK.md](TASK.md)。首次接手项目的 AI 必须从 [docs/ai/START_HERE.md](docs/ai/START_HERE.md) 开始；项目经理换手时先读 [项目经理交接文档](docs/ai/deliveries/2026-08-21-project-manager-handoff.md)。
 
 封面与时间轴预览保存在应用数据目录下的专属持久缓存：`%APPDATA%\local-video-manager\media-cache`。默认总上限 10 GiB，采用节流访问时间的近似 LRU、365 天 TTL 和分类配额自动回收；设置页可查看用量、最近清理状态并手动清理。清理只触碰该专属目录，不读取或删除源视频。旧版本位于 Electron `Cache` 目录中的 `covers`/`timeline` 会在启动时迁移，`Cache_Data` 不受影响。
 
@@ -12,9 +12,9 @@
 - 支持同时添加父目录与其子目录；视频规范归属到最具体的已添加目录，移除父目录时保留仍被显式子目录覆盖的视频。
 - 启动/手动同步；路径去重；未变化文件跳过 ffprobe；消失文件标为缺失。
 - 网格/表格、搜索、收藏、最近播放、文件夹视图、排序、30/50/100/200/300 分页、页码直达与左右键翻页；网格预览支持五档大小并记忆偏好。
-- 重复项只按 SQLite 中已缓存的精确文件大小和时长分组，不会因打开或刷新重复项页面而读取视频内容、计算指纹或执行完整哈希；时长未知/失败的文件暂不进入正式重复组。确认与实际执行永久删除前，主进程只复查文件是否存在以及大小、修改时间是否变化。该规则优先节省网盘带宽，不能证明内容完全相同，永久删除前必须人工播放确认。
+- 重复项只按 SQLite 中已缓存的精确文件大小和时长发现候选，打开或刷新页面不会读取视频内容。重复页提供用户明确选择的“一键永久删除候选移除项”：主进程会重新校验每组只能保留一个文件、候选 ID 必须属于当前组，但按产品决策跳过 SHA-256 和二次确认并立即永久删除。原有完整 SHA-256 后台验证流程仍保留为可选安全模式。
 - 重复项可按目录命中筛选：只显示包含该目录（可选是否包含子目录）文件的完整重复组，并优先保留该目录中的一个文件；同组其他目录的文件仍会展示并可被清理。
-- 独立播放窗口；单次播放队列最多 300 条，由主进程去重、按库中当前记录解析并过滤缺失文件，固定播放器 URL 不携带业务 ID 或完整队列。窗口通过带序列号的类型化 IPC 快照与领域事件同步；Chromium 原生 → mpv → 系统默认播放器三级 fallback；播放控制、快捷键、上下部。
+- 独立播放窗口；单次播放队列最多 300 条，由主进程去重、按库中当前记录解析并过滤缺失文件，固定播放器 URL 不携带业务 ID 或完整队列。窗口通过带序列号的类型化 IPC 快照与领域事件同步；`auto` 根据 metadata/probe 状态、容器和 codec 保守选择 native/mpv，历史视频按需最多自动 probe 一次且播放只等待 2 秒；Chromium 原生 → mpv → 系统默认播放器三级 fallback；播放控制、快捷键、上下部。
 - 设置页列出并允许修改视频库翻页与播放器播放、跳转、音量、旋转、永久删除快捷键；同一作用域禁止重复，旧设置自动补默认值，修改会同步到已打开窗口。
 - 按需生成封面和时间轴 hover 图；封面可选择开头/3/5/10/15 秒截帧（默认 5 秒，短视频自动取中间帧），并可单视频重新生成；持久化设置；缓存清理。
 - 安全校验后的原地重命名和永久删除；支持当前页批量移动。移动遇到同名目标一律生成数字后缀，不按大小覆盖；跨卷先写专用临时文件并校验，文件落盘后才更新数据库，数据库更新失败会尝试恢复原路径。
@@ -42,7 +42,7 @@ npm run test:electron-smoke
 npm run dev:electron
 ```
 
-`prepare:electron` 将该 checkout 明确转换为 Electron ABI；转换后不要在这里运行 Node Vitest。`dev:electron` 只验证 Electron native binding，不再每次隐式 rebuild。只开发浏览器 UI 可用 `npm run dev`（此时没有真实 Electron API，界面使用演示数据）。详细恢复步骤、cache key 和工作目录规则见 [docs/native-abi-workflow.md](docs/native-abi-workflow.md)。
+`prepare:electron` 将该 checkout 明确转换为 Electron ABI；转换后不要在这里运行 Node Vitest。`dev:electron` 只验证 Electron native binding，不再每次隐式 rebuild，并由 `scripts/start-desktop.mjs` 自动启动 Renderer 的 Vite dev server。`npm run dev:renderer` 仅供调试 Electron Renderer 资源；普通浏览器访问只显示“不支持的运行环境”，不提供资料库或任何假业务操作。详细恢复步骤、cache key 和工作目录规则见 [docs/native-abi-workflow.md](docs/native-abi-workflow.md)。
 
 打包必须在独立的 Electron ABI checkout/job 中执行：
 
@@ -67,6 +67,7 @@ npm run test:installer-smoke
 - `src/shared/`：跨进程类型、IPC 契约和播放路由。
 - `tests/`：主进程单元/集成式测试、渲染组件测试、脚手架烟测。
 - `docs/`：原始设计、实施计划、功能审计和桌面手测清单（历史依据，不覆盖）。
+- `docs/ai/`：新 AI 第一入口、当前状态、代码地图、风险和逐次交付记录。
 
 ## 维护规则
 

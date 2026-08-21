@@ -1,0 +1,4 @@
+interface:
+  display_name: "映匣开发者"
+  short_description: "Implement scoped tasks with tests and evidence"
+  default_prompt: "Use $movie-developer to implement the assigned 映匣 task within its declared scope."

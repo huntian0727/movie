@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryShell } from "../../src/renderer/components/LibraryShell";
-import type { DuplicateGroup, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
+import type { DuplicateGroup, DuplicateGroupPageQuery, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
 const folder: SourceFolder = {
@@ -34,6 +34,11 @@ const video: VideoRecord = {
   width: 1920,
   height: 1080,
   format: "mp4",
+  videoCodec: null,
+  videoProfile: null,
+  pixelFormat: null,
+  audioCodec: null,
+  codecProbeStatus: "ready",
   modifiedAt: "2026-07-09T00:00:00.000Z",
   importedAt: "2026-07-09T00:00:00.000Z",
   updatedAt: "2026-07-09T00:00:00.000Z",
@@ -539,15 +544,15 @@ describe("LibraryShell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
 
-    expect(screen.getByText("重复组 01")).toBeInTheDocument();
+    expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip.mp4")).toBeInTheDocument();
     expect(screen.getByText("episode-01.mp4")).toBeInTheDocument();
   });
 
   it("loads duplicate groups only after opening the paginated duplicates view", async () => {
-    const onLoadDuplicateGroups = vi.fn().mockResolvedValue({
+    const onLoadDuplicateGroups = vi.fn().mockImplementation(async (query: DuplicateGroupPageQuery) => ({
       groups: duplicateGroups,
-      page: 1,
+      page: query.page,
       pageSize: 20,
       totalPages: 3,
       totalGroups: 41,
@@ -555,7 +560,7 @@ describe("LibraryShell", () => {
       totalCandidateFiles: 90,
       totalReclaimableBytes: 4096,
       directoryOptions: [{ path: "D:\\Movies", groupCount: 41, estimatedReclaimableBytes: 4096 }]
-    });
+    }));
     render(
       <LibraryShell
         videos={[video, nestedVideo]}
@@ -572,17 +577,31 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalledWith({ page: 1, pageSize: 20, sortDirection: "desc" }));
     expect(screen.getAllByText("41")).toHaveLength(2);
 
-    fireEvent.change(screen.getByLabelText("重复项大小排序"), { target: { value: "asc" } });
+    fireEvent.change(screen.getByLabelText("候选项大小排序"), { target: { value: "asc" } });
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({ page: 1, pageSize: 20, sortDirection: "asc" }));
 
-    fireEvent.click(screen.getByLabelText("选择重复项优先保留目录"));
+    fireEvent.click(screen.getByLabelText("选择候选项计划保留目录（包含所有子目录）"));
     fireEvent.click(screen.getByRole("option", { name: /^Movies D:/ }));
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
       page: 1,
       pageSize: 20,
       sortDirection: "asc",
-      preferredDirectoryPath: "D:\\Movies",
-      preferredDirectoryScope: "recursive"
+      preferredDirectoryPath: "D:\\Movies"
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
+      page: 2,
+      pageSize: 20,
+      sortDirection: "asc",
+      preferredDirectoryPath: "D:\\Movies"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "优先保留 D:\\Movies\\Drama 及其所有子目录（来自 episode-01.mp4）" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 20,
+      sortDirection: "asc",
+      preferredDirectoryPath: "D:\\Movies\\Drama"
     }));
   });
 
@@ -742,7 +761,8 @@ describe("LibraryShell", () => {
     expect(screen.getByRole("button", { name: "正在重试异常项" })).toBeDisabled();
     expect(screen.getByText("正在重试…")).toBeInTheDocument();
     finishRetry();
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "上次扫描存在异常" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("重试完成，仍有 1 项失败。下方已显示最新错误。")).toBeInTheDocument());
+    expect(screen.getByRole("dialog", { name: "上次扫描存在异常" })).toBeInTheDocument();
   });
 
   it("opens the scan failure review from a folder warning with that source selected", async () => {

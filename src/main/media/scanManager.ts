@@ -237,18 +237,35 @@ export class ScanManager {
           });
         }
       });
+      for (const videoId of pendingMetadataIds) this.metadataQueue?.enqueue(videoId, mode === "retry-failures");
+      if (mode === "retry-failures" && this.metadataQueue && pendingMetadataIds.size > 0) {
+        this.setStatus(folder.id, {
+          mode,
+          state: "scanning",
+          phase: "retrying-failures",
+          totalFiles: result.totalFiles,
+          processedFiles: result.processedFiles,
+          currentPath: null,
+          message: `正在重新读取 ${pendingMetadataIds.size} 个视频的元数据`,
+          counters: mergeBatchCounters(result.counters ?? createEmptyScanCounters(), batch)
+        });
+        await this.metadataQueue.waitForVideos(pendingMetadataIds);
+      }
       const counters = result.counters ?? createEmptyScanCounters();
+      const retryStillHasFailures = mode === "retry-failures" && this.hasUnresolvedFailures(folder.id);
+      const finalState = retryStillHasFailures ? "completed-with-errors" : result.state;
+      const finalMessage = retryStillHasFailures ? "部分异常项重试后仍然失败，请查看最新错误" : result.message;
       this.setStatus(folder.id, {
         mode,
-        state: result.state,
+        state: finalState,
         phase: null,
         totalFiles: result.totalFiles,
         processedFiles: result.processedFiles,
         currentPath: null,
-        message: result.message,
+        message: finalMessage,
         counters: mergeBatchCounters(counters, batch)
       });
-      this.repo.completeScanTask?.(taskId, result.state, counters, result.message);
+      this.repo.completeScanTask?.(taskId, finalState, counters, finalMessage);
       this.logger?.info({
         module: "library.scan",
         operationId,
@@ -257,7 +274,7 @@ export class ScanManager {
         context: {
           folderId: folder.id,
           mode,
-          state: result.state,
+          state: finalState,
           totalFiles: result.totalFiles,
           processedFiles: result.processedFiles,
           pendingMetadataCount: pendingMetadataIds.size

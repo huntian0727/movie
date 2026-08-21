@@ -7,6 +7,7 @@ import type {
   DuplicateGroupPageQuery,
   DuplicateResolvePlan,
   DuplicateResolvePreview,
+  CodecProbeStatus,
   DirectorySnapshot,
   FingerprintStatus,
   LibraryNavigationSnapshot,
@@ -43,6 +44,11 @@ interface UpsertVideoInput {
   width: number | null;
   height: number | null;
   format: string | null;
+  videoCodec?: string | null;
+  videoProfile?: string | null;
+  pixelFormat?: string | null;
+  audioCodec?: string | null;
+  codecProbeStatus?: CodecProbeStatus;
   modifiedAt: string;
   metadataStatus?: MetadataStatus;
 }
@@ -71,6 +77,11 @@ interface VideoRow {
   width: number | null;
   height: number | null;
   format: string | null;
+  video_codec: string | null;
+  video_profile: string | null;
+  pixel_format: string | null;
+  audio_codec: string | null;
+  codec_probe_status: CodecProbeStatus;
   modified_at: string;
   imported_at: string;
   updated_at: string;
@@ -195,6 +206,11 @@ interface ExistingVideoRow {
   fingerprint_status: FingerprintStatus;
   fingerprint_updated_at: string | null;
   fingerprint_error: string | null;
+  video_codec: string | null;
+  video_profile: string | null;
+  pixel_format: string | null;
+  audio_codec: string | null;
+  codec_probe_status: CodecProbeStatus;
 }
 
 const SORT_COLUMNS: Record<SortField, string> = {
@@ -705,7 +721,12 @@ export class VideoRepository {
           content_fingerprint,
           fingerprint_status,
           fingerprint_updated_at,
-          fingerprint_error
+          fingerprint_error,
+          video_codec,
+          video_profile,
+          pixel_format,
+          audio_codec,
+          codec_probe_status
         FROM videos
         WHERE path = ?
       `)
@@ -725,6 +746,13 @@ export class VideoRepository {
     const fingerprintUpdatedAt = metadataChanged ? null : existing?.fingerprint_updated_at ?? null;
     const fingerprintError = metadataChanged ? null : existing?.fingerprint_error ?? null;
     const metadataStatus = input.metadataStatus ?? "ready";
+    const videoCodec = metadataChanged ? input.videoCodec ?? null : input.videoCodec ?? existing?.video_codec ?? null;
+    const videoProfile = metadataChanged ? input.videoProfile ?? null : input.videoProfile ?? existing?.video_profile ?? null;
+    const pixelFormat = metadataChanged ? input.pixelFormat ?? null : input.pixelFormat ?? existing?.pixel_format ?? null;
+    const audioCodec = metadataChanged ? input.audioCodec ?? null : input.audioCodec ?? existing?.audio_codec ?? null;
+    const codecProbeStatus = metadataChanged
+      ? input.codecProbeStatus ?? "unprobed"
+      : input.codecProbeStatus ?? existing?.codec_probe_status ?? "unprobed";
 
     if (metadataChanged && existing) {
       this.deleteTimelinePreviews(existing.id);
@@ -735,12 +763,14 @@ export class VideoRepository {
         INSERT INTO videos (
           id, source_folder_id, path, directory, filename, basename, extension, size_bytes,
           duration_ms, width, height, format, modified_at, imported_at, updated_at,
+          video_codec, video_profile, pixel_format, audio_codec, codec_probe_status,
           is_favorite, is_pending_delete, is_missing, metadata_status, thumbnail_status, timeline_preview_status, cover_cache_path,
           content_fingerprint, fingerprint_status, fingerprint_updated_at, fingerprint_error
         )
         VALUES (
           @id, @sourceFolderId, @path, @directory, @filename, @basename, @extension, @sizeBytes,
           @durationMs, @width, @height, @format, @modifiedAt, @importedAt, @now,
+          @videoCodec, @videoProfile, @pixelFormat, @audioCodec, @codecProbeStatus,
           @isFavorite, 0, 0, @metadataStatus, @thumbnailStatus, @timelinePreviewStatus, @coverCachePath,
           @contentFingerprint, @fingerprintStatus, @fingerprintUpdatedAt, @fingerprintError
         )
@@ -755,6 +785,11 @@ export class VideoRepository {
           width = excluded.width,
           height = excluded.height,
           format = excluded.format,
+          video_codec = excluded.video_codec,
+          video_profile = excluded.video_profile,
+          pixel_format = excluded.pixel_format,
+          audio_codec = excluded.audio_codec,
+          codec_probe_status = excluded.codec_probe_status,
           modified_at = excluded.modified_at,
           updated_at = excluded.updated_at,
           is_missing = 0,
@@ -781,7 +816,12 @@ export class VideoRepository {
         fingerprintStatus,
         fingerprintUpdatedAt,
         fingerprintError,
-        metadataStatus
+        metadataStatus,
+        videoCodec,
+        videoProfile,
+        pixelFormat,
+        audioCodec,
+        codecProbeStatus
       });
 
     return this.getVideo(id);
@@ -1030,6 +1070,11 @@ export class VideoRepository {
             width = NULL,
             height = NULL,
             format = NULL,
+            video_codec = NULL,
+            video_profile = NULL,
+            pixel_format = NULL,
+            audio_codec = NULL,
+            codec_probe_status = 'unprobed',
             is_missing = 0,
             metadata_status = 'pending',
             thumbnail_status = 'pending',
@@ -1126,7 +1171,7 @@ export class VideoRepository {
     expectedPath: string,
     expectedSizeBytes: number,
     expectedModifiedAt: string,
-    metadata: { durationMs: number | null; width: number | null; height: number | null; format: string | null }
+    metadata: { durationMs: number | null; width: number | null; height: number | null; format: string | null; videoCodec?: string | null; videoProfile?: string | null; pixelFormat?: string | null; audioCodec?: string | null }
   ): boolean {
     const result = this.db
       .prepare(
@@ -1135,6 +1180,11 @@ export class VideoRepository {
              width = @width,
              height = @height,
              format = @format,
+             video_codec = @videoCodec,
+             video_profile = @videoProfile,
+             pixel_format = @pixelFormat,
+             audio_codec = @audioCodec,
+             codec_probe_status = 'ready',
              metadata_status = 'ready',
              updated_at = @updatedAt
          WHERE id = @videoId
@@ -1143,7 +1193,62 @@ export class VideoRepository {
            AND modified_at = @expectedModifiedAt
            AND metadata_status = 'pending'`
       )
-      .run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, ...metadata, updatedAt: new Date().toISOString() });
+      .run({
+        videoId,
+        expectedPath,
+        expectedSizeBytes,
+        expectedModifiedAt,
+        ...metadata,
+        videoCodec: metadata.videoCodec ?? null,
+        videoProfile: metadata.videoProfile ?? null,
+        pixelFormat: metadata.pixelFormat ?? null,
+        audioCodec: metadata.audioCodec ?? null,
+        updatedAt: new Date().toISOString()
+      });
+    return result.changes > 0;
+  }
+
+  updateCodecMetadataIfVersion(
+    videoId: string,
+    expectedPath: string,
+    expectedSizeBytes: number,
+    expectedModifiedAt: string,
+    metadata: { videoCodec: string | null; videoProfile: string | null; pixelFormat: string | null; audioCodec: string | null }
+  ): boolean {
+    const result = this.db.prepare(`
+      UPDATE videos
+      SET video_codec = @videoCodec,
+          video_profile = @videoProfile,
+          pixel_format = @pixelFormat,
+          audio_codec = @audioCodec,
+          codec_probe_status = 'ready',
+          updated_at = @updatedAt
+      WHERE id = @videoId
+        AND path = @expectedPath
+        AND size_bytes = @expectedSizeBytes
+        AND modified_at = @expectedModifiedAt
+        AND metadata_status = 'ready'
+        AND codec_probe_status = 'unprobed'
+    `).run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, ...metadata, updatedAt: new Date().toISOString() });
+    return result.changes > 0;
+  }
+
+  markCodecProbeFailedIfVersion(
+    videoId: string,
+    expectedPath: string,
+    expectedSizeBytes: number,
+    expectedModifiedAt: string
+  ): boolean {
+    const result = this.db.prepare(`
+      UPDATE videos
+      SET codec_probe_status = 'failed', updated_at = @updatedAt
+      WHERE id = @videoId
+        AND path = @expectedPath
+        AND size_bytes = @expectedSizeBytes
+        AND modified_at = @expectedModifiedAt
+        AND metadata_status = 'ready'
+        AND codec_probe_status = 'unprobed'
+    `).run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, updatedAt: new Date().toISOString() });
     return result.changes > 0;
   }
 
@@ -1151,7 +1256,7 @@ export class VideoRepository {
     const result = this.db
       .prepare(
         `UPDATE videos
-         SET metadata_status = 'failed', updated_at = @updatedAt
+         SET metadata_status = 'failed', codec_probe_status = 'failed', updated_at = @updatedAt
          WHERE id = @videoId
            AND path = @expectedPath
            AND size_bytes = @expectedSizeBytes
@@ -1166,7 +1271,7 @@ export class VideoRepository {
     const result = this.db
       .prepare(
         `UPDATE videos
-         SET metadata_status = 'pending', updated_at = @updatedAt
+         SET metadata_status = 'pending', codec_probe_status = 'unprobed', updated_at = @updatedAt
          WHERE id = @videoId
            AND path = @expectedPath
            AND size_bytes = @expectedSizeBytes
@@ -1182,12 +1287,8 @@ export class VideoRepository {
     const scopedSizeParams: Record<string, unknown> = {};
     if (query.preferredDirectoryPath) {
       scopedSizeParams.preferredDirectoryPath = query.preferredDirectoryPath;
-      if (query.preferredDirectoryScope === "exact") {
-        scopedSizeWhere.push("directory = @preferredDirectoryPath COLLATE NOCASE");
-      } else {
-        scopedSizeParams.preferredDirectoryPrefix = `${escapeLikePattern(trimTrailingSeparators(query.preferredDirectoryPath))}\\%`;
-        scopedSizeWhere.push("(directory = @preferredDirectoryPath COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix ESCAPE '!' COLLATE NOCASE)");
-      }
+      scopedSizeParams.preferredDirectoryPrefix = `${escapeLikePattern(trimTrailingSeparators(query.preferredDirectoryPath))}\\%`;
+      scopedSizeWhere.push("(directory = @preferredDirectoryPath COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix ESCAPE '!' COLLATE NOCASE)");
     }
     const scopedSizesQuery = `SELECT DISTINCT size_bytes FROM videos WHERE ${scopedSizeWhere.join(" AND ")}`;
     const candidateSizesQuery = `
@@ -1214,11 +1315,7 @@ export class VideoRepository {
       "duration_ms > 0"
     ];
     if (query.preferredDirectoryPath) {
-      if (query.preferredDirectoryScope === "exact") {
-        scopedIdentityWhere.push("directory = @preferredDirectoryPath COLLATE NOCASE");
-      } else {
-        scopedIdentityWhere.push("(directory = @preferredDirectoryPath COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix ESCAPE '!' COLLATE NOCASE)");
-      }
+      scopedIdentityWhere.push("(directory = @preferredDirectoryPath COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix ESCAPE '!' COLLATE NOCASE)");
     }
     const scopedIdentitiesQuery = `SELECT DISTINCT size_bytes, duration_ms FROM videos WHERE ${scopedIdentityWhere.join(" AND ")}`;
     const duplicateGroupsQuery = `
@@ -1260,7 +1357,7 @@ export class VideoRepository {
       )
       .all({ ...scopedSizeParams, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as DuplicateIdentityRow[];
     const groups = identityRows
-      .map((group) => this.buildDuplicateGroup(buildSizeDurationGroupKey(group.size_bytes, group.duration_ms), query.preferredDirectoryPath, query.preferredDirectoryScope))
+      .map((group) => this.buildDuplicateGroup(buildSizeDurationGroupKey(group.size_bytes, group.duration_ms), query.preferredDirectoryPath))
       .filter((group): group is DuplicateGroup => group !== null);
 
     return {
@@ -1491,7 +1588,7 @@ export class VideoRepository {
     }
   }
 
-  private buildDuplicateGroup(groupKey: string, preferredDirectoryPath?: string, preferredDirectoryScope: "recursive" | "exact" = "recursive"): DuplicateGroup | null {
+  private buildDuplicateGroup(groupKey: string, preferredDirectoryPath?: string): DuplicateGroup | null {
     const identity = parseSizeDurationGroupKey(groupKey);
     if (!identity) {
       return null;
@@ -1523,7 +1620,7 @@ export class VideoRepository {
 
     const videos = rows.map(mapVideo);
     const preferredDirectoryVideos = preferredDirectoryPath
-      ? videos.filter((video) => isVideoInDirectoryScope(video.directory, preferredDirectoryPath, preferredDirectoryScope))
+      ? videos.filter((video) => isVideoInDirectoryTree(video.directory, preferredDirectoryPath))
       : [];
     const keepCandidates = preferredDirectoryVideos.length > 0 ? preferredDirectoryVideos : videos;
     const recommendedKeep = [...keepCandidates].sort(compareDuplicateKeepCandidates)[0];
@@ -1624,6 +1721,11 @@ function mapVideo(row: VideoRow): VideoRecord {
     width: row.width,
     height: row.height,
     format: row.format,
+    videoCodec: row.video_codec,
+    videoProfile: row.video_profile,
+    pixelFormat: row.pixel_format,
+    audioCodec: row.audio_codec,
+    codecProbeStatus: row.codec_probe_status,
     modifiedAt: row.modified_at,
     importedAt: row.imported_at,
     updatedAt: row.updated_at,
@@ -1710,10 +1812,10 @@ function listDirectoryAncestors(directory: string, sourceFolderPath: string): st
   return result;
 }
 
-function isVideoInDirectoryScope(directory: string, directoryPath: string, scope: "recursive" | "exact"): boolean {
+function isVideoInDirectoryTree(directory: string, directoryPath: string): boolean {
   const candidate = normalizeManagedPath(directory);
   const selected = normalizeManagedPath(directoryPath);
-  return scope === "exact" ? candidate === selected : candidate === selected || candidate.startsWith(`${selected}\\`);
+  return candidate === selected || candidate.startsWith(`${selected}\\`);
 }
 
 function buildSizeDurationGroupKey(sizeBytes: number, durationMs: number): string {

@@ -124,6 +124,7 @@ describe("Electron security policy", () => {
       expect(getAllowedIpcRoles(IPC_CHANNELS.playerSessionSet)).toEqual(["main", "player"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.playerSessionSelect)).toEqual(["main", "player"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.videoBatchDelete)).toEqual(["main"]);
+      expect(getAllowedIpcRoles(IPC_CHANNELS.duplicateFastDelete)).toEqual(["main"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.videoBatchMove)).toEqual(["main"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.diagnosticsPreview)).toEqual(["main"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.diagnosticsExport)).toEqual(["main"]);

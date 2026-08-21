@@ -271,10 +271,48 @@ describe("VideoRepository", () => {
     })).toBe(true);
     expect(repo.getVideo(video.id)).toMatchObject({
       metadataStatus: "ready",
+      codecProbeStatus: "ready",
       durationMs: 5000,
       width: 1920,
       height: 1080,
       format: "mp4"
+    });
+  });
+
+  it("persists codec metadata and clears it when the file version changes", () => {
+    const { repo, folderId } = createRepo();
+    const video = createVideo(repo, folderId, {
+      videoCodec: "h264",
+      videoProfile: "high",
+      pixelFormat: "yuv420p",
+      audioCodec: "aac",
+      codecProbeStatus: "ready"
+    });
+
+    expect(repo.getVideo(video.id)).toMatchObject({
+      videoCodec: "h264",
+      videoProfile: "high",
+      pixelFormat: "yuv420p",
+      audioCodec: "aac"
+    });
+
+    const changed = repo.refreshVideoFileVersion(
+      video.id,
+      video.path,
+      video.sizeBytes,
+      video.modifiedAt,
+      video.sizeBytes + 1,
+      "2026-07-10T00:00:00.000Z"
+    );
+    expect(changed).toBe(true);
+    expect(repo.getVideo(video.id)).toMatchObject({
+      metadataStatus: "pending",
+      durationMs: null,
+      videoCodec: null,
+      videoProfile: null,
+      pixelFormat: null,
+      audioCodec: null,
+      codecProbeStatus: "unprobed"
     });
   });
 
@@ -283,10 +321,10 @@ describe("VideoRepository", () => {
     const video = createVideo(repo, folderId, { metadataStatus: "pending" });
 
     expect(repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt)).toBe(true);
-    expect(repo.getVideo(video.id).metadataStatus).toBe("failed");
+    expect(repo.getVideo(video.id)).toMatchObject({ metadataStatus: "failed", codecProbeStatus: "failed" });
     expect(repo.markMetadataPending(video.id, video.path, video.sizeBytes + 1, video.modifiedAt)).toBe(false);
     expect(repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt)).toBe(true);
-    expect(repo.getVideo(video.id).metadataStatus).toBe("pending");
+    expect(repo.getVideo(video.id)).toMatchObject({ metadataStatus: "pending", codecProbeStatus: "unprobed" });
   });
 
   it("stores generated timeline preview metadata and marks the video ready", () => {
@@ -574,8 +612,7 @@ describe("VideoRepository", () => {
       page: 1,
       pageSize: 20,
       sortDirection: "desc",
-      preferredDirectoryPath: "D:\\Movies\\Series",
-      preferredDirectoryScope: "recursive"
+      preferredDirectoryPath: "D:\\Movies\\Series"
     });
 
     expect(page).toMatchObject({ totalGroups: 1, totalCandidateFiles: 2 });
@@ -588,6 +625,51 @@ describe("VideoRepository", () => {
       expect.objectContaining({ path: "E:\\Backup", groupCount: 2, estimatedReclaimableBytes: 16000 })
     ]));
     expect(page.directoryOptions.some((option) => option.path === "D:\\Movies\\Solo")).toBe(false);
+  });
+
+  it("recursively matches descendants without matching a sibling path prefix", () => {
+    const { repo, folderId } = createRepo();
+    const descendant = createVideo(repo, folderId, {
+      path: "D:\\Movies\\Series\\Season 1\\keep.mp4",
+      directory: "D:\\Movies\\Series\\Season 1",
+      filename: "keep.mp4",
+      basename: "keep",
+      sizeBytes: 9100
+    });
+    const outsideFolder = repo.addSourceFolder("E:\\Backup", true);
+    const outside = createVideo(repo, outsideFolder.id, {
+      path: "E:\\Backup\\copy.mp4",
+      directory: "E:\\Backup",
+      filename: "copy.mp4",
+      basename: "copy",
+      sizeBytes: 9100
+    });
+    createVideo(repo, folderId, {
+      path: "D:\\Movies\\Series Archive\\other.mp4",
+      directory: "D:\\Movies\\Series Archive",
+      filename: "other.mp4",
+      basename: "other",
+      sizeBytes: 9200
+    });
+    createVideo(repo, outsideFolder.id, {
+      path: "E:\\Backup\\other.mp4",
+      directory: "E:\\Backup",
+      filename: "other.mp4",
+      basename: "other",
+      sizeBytes: 9200
+    });
+
+    const page = repo.listDuplicateGroupsPage({
+      page: 1,
+      pageSize: 20,
+      sortDirection: "desc",
+      preferredDirectoryPath: "D:\\Movies\\Series"
+    });
+
+    expect(page.totalGroups).toBe(1);
+    expect(page.groups[0]?.recommendedKeepVideoId).toBe(descendant.id);
+    expect(page.groups[0]?.items.map((item) => item.video.id)).toEqual(expect.arrayContaining([descendant.id, outside.id]));
+    expect(page.groups.some((group) => group.groupKey === "size-duration:9200:5000")).toBe(false);
   });
 
   it("builds a duplicate resolve preview and rejects invalid plans", () => {

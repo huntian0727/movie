@@ -2,8 +2,9 @@
 
 ## 测试准备
 
-- 启动 Vite：`npm run dev`
-- 启动桌面端：`npm run dev:electron`
+- 准备 Electron ABI：`npm run prepare:electron`
+- 启动桌面端：`npm run dev:electron`（启动器会自动拉起 Renderer 的 Vite dev server）
+- 可选资源调试：`npm run dev:renderer`；普通浏览器只能看到“不支持的运行环境”，不能用于业务验收
 - 准备至少 6 个样本视频：
   - `.mp4`
   - `.mov`

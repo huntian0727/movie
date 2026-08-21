@@ -1,0 +1,4 @@
+interface:
+  display_name: "映匣 QA"
+  short_description: "Verify changes independently and report strict verdicts"
+  default_prompt: "Use $movie-qa to independently verify the active 映匣 task and report a strict verdict."

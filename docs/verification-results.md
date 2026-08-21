@@ -1,5 +1,44 @@
 # 验证结果记录
 
+## 2026-08-16 项目接管独立 QA
+
+- 基线：`HEAD = origin/main = 7506da518e5a404d542072ff4d26cc717321c2d9`，接管开始时工作树干净。
+- 固定 Node 22.23.1 独立复现：45 个测试文件、435 项全部通过。
+- GitHub Windows CI：FAIL；Node job 434/435，唯一失败为 `finishAndPush.test.ts` 对 PowerShell 自动换行敏感；Electron native/main-process smoke PASS。
+- `main` branch protection：未启用。
+- QA verdict：`PASS_WITH_KNOWN_RISKS`，只适用于接管基线，不代表正式发布。
+- 发布：真实 SMB/离线媒体、mpv 缺失回退、物理跨卷、ACL/锁/磁盘满、真实旧库升级、签名和干净 VM 均未完成；正式发布继续阻断。
+- 契约冲突：发布清单要求重复删除前完整 SHA-256，当前 ADR/README/实现使用低带宽大小+时长候选和 size+mtime 复查；必须先统一产品/架构决策。
+
+## 2026-08-16 Codec-aware 播放准备修复
+
+- schema v9 使用 `codec_probe_status` 区分 unprobed/ready/failed；10,000 条 v8 迁移测试通过且不读取媒体。
+- 播放准备等待上限为 2 秒；后台 FFprobe 继续收尾，失败状态不在普通播放时重复探测，文件版本变化后重置。
+- 自动路由：pending MP4/MOV/M4V/WebM native-first；VP9 10-bit WebM、HEVC 和未知复杂组合使用 mpv。
+- 交付证据：定向 121 项、全量 435 项、release gate、Electron smoke、unpacked/packaged smoke、快捷方式实启和四类生成 codec 样本均记录为 PASS；真实网络/离线样本 NOT RUN。
+- 接管新增风险：超过两秒后完成的 probe 不会主动刷新当前播放器会话，本次打开可能继续使用超时点的保守路由快照；需要独立复现和修复。
+
+## 2026-08-16 取消独立 Web/demo 模式
+
+- Node/Web TypeScript：通过。
+- 定向 `App` runtime、scaffold、Electron security、IPC contract：4 个文件、17 项通过。
+- 标准 release gate：lint、build、Windows 文件 37/37、迁移 23/23、性能/缓存/播放器 19/19 通过；最后嵌套环境检查解析到全局 npm 11.9.0 而非要求的 10.9.8，因此整条命令为环境阻塞。
+- 固定 Node 22 直接运行全量 Vitest：44 个文件、412 项通过。
+- Electron 33.4.11 ABI 130 native/main-process smoke：通过。
+- 实际 `scripts/start-desktop.mjs`：通过；主窗口获得 preload API、加载用户真实资料库，没有显示 unsupported-runtime。
+- unpacked artifact：3951 个 asar 条目检查通过；packaged smoke 的 SQLite、协议、Renderer、preload、安全边界和媒体工具检查通过。
+- 桌面快捷方式 `C:\Users\test\Desktop\Video Manager (Dev).lnk` 已确认指向本轮 unpacked exe，并从该快捷方式实际启动通过。
+- NSIS 安装/升级、签名与干净 Windows VM：NOT RUN，继续按发布验收单执行。
+
+## 2026-08-16 多 AI 项目记忆与交付门禁
+
+- `finish-and-push.ps1 -ValidateOnly`：通过；正确识别仓库、功能分支、待提交交付记录和质量脚本，未执行 Git 写操作。
+- `tests/scripts/finishAndPush.test.ts`：3/3 通过；新增缺少交付记录时停止且不提交的覆盖，原有 main 备份/快进/禁止强推覆盖继续通过。
+- `npm run test:release-gate`（通过固定 Node/npm 的 npx 外层启动）：lint、build、Windows 文件测试 37/37、迁移 23/23、性能/缓存/播放器 19/19 通过；进入 `test:node` 后，嵌套 `npm run verify:environment` 解析到全局 npm 11.9.0 而非项目要求的 10.9.8，因此整条命令以环境校验失败结束。
+- `npx -y node@22.23.1 node_modules/vitest/vitest.mjs run`：43 个文件、410 个测试通过。
+- Node native smoke：ABI 127 通过。Electron 33.4.11 rebuild 后 Electron native/main-process smoke（ABI 130）通过；随后 `npm rebuild better-sqlite3` 恢复 Node ABI 127并再次通过 Node native smoke。
+- 本轮只修改文档、测试和交付脚本，没有 Electron 业务/UI 行为变化；桌面快捷方式人工验证不适用。
+
 ## 2026-08-01 扫描快照与异常重试
 
 | 检查 | 真实结果 | 结论 |
@@ -370,6 +409,23 @@ Electron Node 模式命令仅用于本机补充验证：设置 `ELECTRON_RUN_AS_
 | 桌面快捷方式 | 直接启动重新打包的 `win-unpacked` 程序；主窗口标题为“本地视频管理”且进程响应 | 通过 |
 
 说明：原 packaged smoke 能成功加载 HTML 和 preload，但没有断言 React 根节点已渲染，因此未发现资源路径错误。本次补充的 `rendererMounted` 是后续所有 Windows 打包验收的必过项。
+
+## 2026-08-16 TASK-SAFETY-001 分阶段 SHA-256 永久删除门禁
+
+| 检查 | 结果 | 结论 |
+| --- | --- | --- |
+| 固定 Node 环境 | Node 22.23.1/npm 10.9.8，Node ABI 127 | 与项目工具链一致 |
+| 最终 Developer gate | typecheck、build、Node ABI smoke，47 files / 468 tests | 通过 |
+| 独立 QA release gate | lint/build、37 Windows files、32 migrations、21 performance，46 files / 459 tests（UI 后续纯 renderer 增量另行聚焦） | 通过 |
+| 原 P0 回归 | 同尺寸同 mtime 内容替换、scan-failure single/batch 绕过、direct/generic/resume/retry 等门禁 | 修复后 33/33 通过 |
+| 聚焦安全/迁移/恢复 | 5 files / 92 tests；staged rename、path swap、hash/read/cancel/delete/rename failure、原路径冲突、启动恢复 | 通过；均 fail-closed |
+| 最终 UI/LibraryShell | 4 files / 81 tests；候选语义、exact `DELETE`、focus、取消/停止、稳定结果映射、900px DOM/CSS gate | 通过，无 React act 警告 |
+| Electron smoke | 独立 detached 临时副本，Electron 33.4.11 / ABI 130；native/main smoke | 通过；主工作区保持 ABI 127 |
+| 真实本地大文件 | 256 MiB 非稀疏临时文件，流式完整哈希中取消、恢复后重哈希 | 1/1 通过；未操作用户媒体 |
+| Schema v9→v10 | 活跃旧清理任务安全取消、释放 reservation、缺少 SHA 授权时不可恢复删除 | 通过 |
+| 真实 SMB/映射盘 | 当前主机无 DriveType 4 或 SMB mapping | 需要验证；正式发布前检查断线、rename、file identity 和恢复 |
+
+结论：本地功能验收为 `PASS_WITH_KNOWN_RISKS`，UI_REVIEW 3 为 PASS。任何未完成完整 SHA-256 和独立二次确认的永久重复删除路径仍是发布阻断；真实 SMB 证据缺口使本结果不等于正式 Windows Release PASS。
 
 ## 桌面手测记录模板
 

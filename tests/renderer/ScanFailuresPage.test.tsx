@@ -7,7 +7,8 @@ const folder: SourceFolder = { id: "folder-1", path: "D:\\Movies", recursive: tr
 const video: VideoRecord = {
   id: "video-1", sourceFolderId: folder.id, path: "D:\\Movies\\clip.mp4", directory: folder.path,
   filename: "clip.mp4", basename: "clip", extension: ".mp4", sizeBytes: 1024, durationMs: 5000,
-  width: 1920, height: 1080, format: "mp4", modifiedAt: "2026-01-01", importedAt: "2026-01-01", updatedAt: "2026-01-01",
+  width: 1920, height: 1080, format: "mp4", videoCodec: null, videoProfile: null, pixelFormat: null, audioCodec: null, codecProbeStatus: "ready",
+  modifiedAt: "2026-01-01", importedAt: "2026-01-01", updatedAt: "2026-01-01",
   isFavorite: false, isPendingDelete: false, isMissing: false, metadataStatus: "ready", thumbnailStatus: "ready", timelinePreviewStatus: "pending",
   coverCachePath: null, contentFingerprint: null, fingerprintStatus: "pending", fingerprintUpdatedAt: null, fingerprintError: null
 };
@@ -17,7 +18,7 @@ function item(kind: ScanFailureReviewItem["kind"]): ScanFailureReviewItem {
   return {
     kind,
     video: kind === "video" ? video : null,
-    failure: { id: `failure-${kind}`, sourceFolderId: folder.id, scanTaskId: "task", objectType: kind === "directory" ? "directory" : "file", objectPath, normalizedPath: objectPath.toLowerCase(), failureStage: "file-processing", errorCode: "EIO", errorSummary: "读取失败", firstFailedAt: "2026-01-01", lastFailedAt: "2026-01-02", retryCount: 2, status: "unresolved", resolvedAt: null }
+    failure: { id: `failure-${kind}`, sourceFolderId: folder.id, scanTaskId: "task", objectType: kind === "directory" ? "directory" : "file", objectPath, normalizedPath: objectPath.toLowerCase(), failureStage: "file-processing", errorCode: "EIO", errorSummary: kind === "video" ? "moov atom not found" : "network read failed: ETIMEDOUT", firstFailedAt: "2026-01-01", lastFailedAt: "2026-01-02", retryCount: 2, status: "unresolved", resolvedAt: null }
   };
 }
 
@@ -45,9 +46,24 @@ describe("ScanFailuresPage", () => {
     render(<ScanFailuresPage folders={[folder]} initialSourceFolderId={folder.id} refreshSequence={0} loadPage={loadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);
     expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
     expect(loadPage).toHaveBeenCalledWith(expect.objectContaining({ sourceFolderId: folder.id, kind: "all", page: 1, pageSize: 30 }));
-    expect(screen.getAllByTitle("永久删除文件")).toHaveLength(2);
+    expect(screen.getAllByTitle("永久删除文件")).toHaveLength(1);
     fireEvent.change(screen.getByLabelText("异常类型"), { target: { value: "directory" } });
     await waitFor(() => expect(loadPage).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "directory", page: 1 })));
+  });
+
+  it("selects only confirmed corrupt indexed videos and submits one background cleanup", async () => {
+    const onCleanup = vi.fn().mockResolvedValue({ action: "permanent-delete", successCount: 1, skippedCount: 0, failureCount: 0, reclaimedBytes: 1024, items: [] });
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onCleanup={onCleanup} onOpenLocation={vi.fn()} />);
+    await screen.findByText("clip.mp4");
+    expect(screen.getByText("确认损坏，可清理")).toBeInTheDocument();
+    expect(screen.getAllByText("访问异常，不可清理")).toHaveLength(1);
+    expect(screen.getByText("目录访问异常")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "全选当前页可清理项" }));
+    expect(screen.getByText("已选 1 个确认损坏视频")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /永久删除所选/ }));
+    fireEvent.click(screen.getByRole("button", { name: "确认后台永久删除" }));
+    await waitFor(() => expect(onCleanup).toHaveBeenCalledWith(["failure-video"], "permanent-delete"));
+    expect(await screen.findByText(/后台清理完成/)).toBeInTheDocument();
   });
 
   it("requires explicit confirmation before permanent deletion and refreshes afterwards", async () => {
