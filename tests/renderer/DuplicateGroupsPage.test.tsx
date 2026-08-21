@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DuplicateGroupsPage } from "../../src/renderer/components/DuplicateGroupsPage";
-import type { DuplicateGroup, VideoRecord } from "../../src/shared/videoTypes";
+import type { DuplicateGroup, DuplicateResolveResult, VideoRecord } from "../../src/shared/videoTypes";
 
 const video: VideoRecord = {
   id: "keep", sourceFolderId: "f1", path: "D:\\Movies\\clip.mp4", directory: "D:\\Movies", filename: "clip.mp4",
@@ -245,5 +245,95 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(layout.querySelector(".duplicate-task-list")).toBeInTheDocument();
     expect(layout.querySelector(".duplicate-task-detail")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "关闭任务中心" })).toBeVisible();
+  });
+
+  describe("per-file delete button", () => {
+    it("does not render the per-file delete button when onFastDelete is absent", () => {
+      render(<DuplicateGroupsPage {...baseProps()} />);
+      expect(screen.queryByRole("button", { name: "永久删除 clip.mp4" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "永久删除 clip-copy.mp4" })).not.toBeInTheDocument();
+    });
+
+    it("opens a confirmation dialog showing the file name and path when the trash icon is clicked", () => {
+      render(<DuplicateGroupsPage {...baseProps()} onFastDelete={vi.fn()} />);
+      fireEvent.click(screen.getByRole("button", { name: "永久删除 clip-copy.mp4" }));
+      const dialog = screen.getByRole("alertdialog", { name: "永久删除此文件？" });
+      expect(dialog).toHaveTextContent("clip-copy.mp4");
+      expect(dialog).toHaveTextContent("D:\\Backup\\clip.mp4");
+      expect(dialog).toHaveTextContent("4 KB");
+      expect(dialog).toHaveTextContent(/永久删除.*无法撤销/);
+    });
+
+    it("deletes the clicked non-keep file with a single-file plan when confirmed", async () => {
+      const onFastDelete = vi.fn().mockResolvedValue({
+        groupCount: 1, keepCount: 1, successCount: 1, failureCount: 0, reclaimedBytes: 4096, failures: []
+      });
+      render(<DuplicateGroupsPage {...baseProps()} onFastDelete={onFastDelete} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "永久删除 clip-copy.mp4" }));
+      fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
+
+      await waitFor(() => expect(onFastDelete).toHaveBeenCalledOnce());
+      expect(onFastDelete).toHaveBeenCalledWith({
+        groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }]
+      });
+      expect(screen.queryByRole("alertdialog", { name: "永久删除此文件？" })).not.toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "批量清理结果" })).toHaveTextContent(/成功删除 1 个文件/);
+    });
+
+    it("auto-selects another file as keep when deleting the current keep file", async () => {
+      const onFastDelete = vi.fn().mockResolvedValue({
+        groupCount: 1, keepCount: 1, successCount: 1, failureCount: 0, reclaimedBytes: 1024, failures: []
+      });
+      render(<DuplicateGroupsPage {...baseProps()} onFastDelete={onFastDelete} />);
+
+      // clip.mp4 (id "keep") is the current recommended keep; delete it
+      fireEvent.click(screen.getByRole("button", { name: "永久删除 clip.mp4" }));
+      fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
+
+      await waitFor(() => expect(onFastDelete).toHaveBeenCalledOnce());
+      expect(onFastDelete).toHaveBeenCalledWith({
+        groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }]
+      });
+    });
+
+    it("cancels the confirmation dialog without calling onFastDelete", () => {
+      const onFastDelete = vi.fn();
+      render(<DuplicateGroupsPage {...baseProps()} onFastDelete={onFastDelete} />);
+      fireEvent.click(screen.getByRole("button", { name: "永久删除 clip-copy.mp4" }));
+      fireEvent.click(screen.getByRole("button", { name: "取消" }));
+      expect(screen.queryByRole("alertdialog", { name: "永久删除此文件？" })).not.toBeInTheDocument();
+      expect(onFastDelete).not.toHaveBeenCalled();
+    });
+
+    it("does not render per-file delete buttons in a single-item group", () => {
+      const singleItemGroups: DuplicateGroup[] = [{
+        groupKey: "fp-solo", identityStatus: "size_duration_match", recommendedKeepVideoId: video.id,
+        reclaimableBytes: 0,
+        items: [{ video, isRecommendedToKeep: true, keepReason: "已收藏" }]
+      }];
+      render(<DuplicateGroupsPage {...baseProps()} groups={singleItemGroups} onFastDelete={vi.fn()} />);
+      expect(screen.queryByRole("button", { name: "永久删除 clip.mp4" })).not.toBeInTheDocument();
+    });
+
+    it("disables the per-file delete button while another action is pending", async () => {
+      const result: DuplicateResolveResult = {
+        groupCount: 1, keepCount: 1, successCount: 1, failureCount: 0, reclaimedBytes: 4096, failures: []
+      };
+      const onFastDelete = vi.fn(
+        () => new Promise<DuplicateResolveResult>((resolve) => setTimeout(() => resolve(result), 50))
+      );
+      render(<DuplicateGroupsPage {...baseProps()} onFastDelete={onFastDelete} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "永久删除 clip-copy.mp4" }));
+      fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
+
+      // While the promise is pending the other per-file delete button should be disabled
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "永久删除 clip.mp4" })).toBeDisabled();
+      });
+
+      await waitFor(() => expect(onFastDelete).toHaveBeenCalledOnce());
+    });
   });
 });

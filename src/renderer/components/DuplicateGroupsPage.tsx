@@ -112,6 +112,8 @@ export function DuplicateGroupsPage({
   const [directPreviewElapsed, setDirectPreviewElapsed] = useState(0);
   const [missingCheckPending, setMissingCheckPending] = useState(false);
   const [missingCheckMessage, setMissingCheckMessage] = useState<string | null>(null);
+  const [singleDeleteTarget, setSingleDeleteTarget] = useState<{ video: VideoRecord; groupKey: string } | null>(null);
+  const [singleDeletePending, setSingleDeletePending] = useState(false);
   const submitGuardRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -237,6 +239,60 @@ export function DuplicateGroupsPage({
       setActionError(toDuplicateActionMessage(cause));
     } finally {
       setMissingCheckPending(false);
+    }
+  };
+
+  const handleSingleDeleteRequest = (video: VideoRecord, groupKey: string) => {
+    setSingleDeleteTarget({ video, groupKey });
+  };
+
+  const handleSingleDeleteConfirm = async () => {
+    if (!onFastDelete || !singleDeleteTarget || singleDeletePending) return;
+    const { video, groupKey } = singleDeleteTarget;
+    const group = groups.find((g) => g.groupKey === groupKey);
+    if (!group) { setSingleDeleteTarget(null); return; }
+
+    // Determine which file to keep: if deleting the current keep, pick the
+    // first other file in the group. If there's no other file, we can't
+    // construct a valid plan (but a 2-file group shouldn't show a delete
+    // button on the only remaining peer).
+    const currentKeepId = manualKeepByGroup[groupKey] ?? group.recommendedKeepVideoId;
+    let keepVideoId = currentKeepId;
+    if (keepVideoId === video.id) {
+      const other = group.items.find((item) => item.video.id !== video.id);
+      if (!other) { setSingleDeleteTarget(null); return; }
+      keepVideoId = other.video.id;
+    }
+
+    const singlePlan: DuplicateResolvePlan = {
+      groups: [{
+        groupKey,
+        keepVideoId,
+        deleteVideoIds: [video.id]
+      }]
+    };
+
+    setSingleDeletePending(true);
+    setActionPending(true);
+    setActionError(null);
+    try {
+      const result = await onFastDelete(singlePlan);
+      setResolveResult(result);
+      // If the deleted file was manually selected as keep, clear that override.
+      if (manualKeepByGroup[groupKey] === video.id) {
+        setManualKeepByGroup((current) => {
+          const next = { ...current };
+          delete next[groupKey];
+          return next;
+        });
+      }
+      onRefresh?.();
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+    } finally {
+      setSingleDeletePending(false);
+      setActionPending(false);
+      setSingleDeleteTarget(null);
     }
   };
 
@@ -380,6 +436,8 @@ export function DuplicateGroupsPage({
             onOpen={onOpen}
             onViewDetails={onViewDetails}
             onRevealInFolder={onRevealInFolder}
+            onSingleDelete={onFastDelete ? handleSingleDeleteRequest : undefined}
+            actionPending={actionPending}
           />
         ))}
       </div>
@@ -405,6 +463,24 @@ export function DuplicateGroupsPage({
 
       {onLoadCleanupJobs && onLoadCleanupItems && onCancelCleanup && onResumeCleanup && onRetryCleanup && onClearCleanup && (
         <DuplicateCleanupTasksPanel open={taskCenterOpen} onClose={() => setTaskCenterOpen(false)} returnFocusRef={taskCenterOpenerRef} loadJobs={onLoadCleanupJobs} loadItems={onLoadCleanupItems} onConfirm={onConfirmCleanup} onCancel={onCancelCleanup} onResume={onResumeCleanup} onRetry={onRetryCleanup} onClear={onClearCleanup} onOpenItem={onOpenCleanupItem} refreshSequence={cleanupRefreshSequence} />
+      )}
+
+      {singleDeleteTarget && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !singleDeletePending) setSingleDeleteTarget(null); }}>
+          <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="single-delete-title">
+            <h3 id="single-delete-title">永久删除此文件？</h3>
+            <p><strong>{singleDeleteTarget.video.filename}</strong></p>
+            <p className="duplicate-path" title={singleDeleteTarget.video.path}>{singleDeleteTarget.video.path}</p>
+            <p>文件大小：{formatBytes(singleDeleteTarget.video.sizeBytes)}</p>
+            <p style={{ marginTop: 12, color: "var(--color-danger, #c0392b)" }}>此操作将从磁盘永久删除文件且无法撤销。</p>
+            <div className="dialog-actions">
+              <button type="button" onClick={() => setSingleDeleteTarget(null)} disabled={singleDeletePending}>取消</button>
+              <button className="danger" type="button" onClick={() => void handleSingleDeleteConfirm()} disabled={singleDeletePending}>
+                {singleDeletePending ? "正在删除..." : "永久删除"}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
 
       {staleItems && (
@@ -469,7 +545,9 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   onPreferDirectory,
   onOpen,
   onViewDetails,
-  onRevealInFolder
+  onRevealInFolder,
+  onSingleDelete,
+  actionPending
 }: {
   group: DuplicateGroup;
   index: number;
@@ -482,6 +560,8 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
+  onSingleDelete?(video: VideoRecord, groupKey: string): void;
+  actionPending?: boolean;
 }) {
   const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
 
@@ -537,6 +617,18 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
               <div className="duplicate-item-actions">
                 <button type="button" className={isKeeping ? "primary" : undefined} onClick={() => onSetKeep(group.groupKey, item.video.id)}>设为计划保留</button>
                 <button type="button" aria-label={`优先保留 ${item.video.directory} 及其所有子目录（来自 ${item.video.filename}）`} title="筛选包含此目录树文件的候选组，并优先计划保留目录树中的文件" onClick={() => onPreferDirectory(item.video.directory)}><FolderOpen size={16} />优先保留此目录</button>
+                {onSingleDelete && group.items.length > 1 && (
+                  <button
+                    type="button"
+                    className="danger-icon"
+                    aria-label={`永久删除 ${item.video.filename}`}
+                    title="永久删除此文件"
+                    disabled={actionPending}
+                    onClick={() => onSingleDelete(item.video, group.groupKey)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
                 <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
                 <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
                 <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>

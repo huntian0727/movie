@@ -323,6 +323,9 @@ button { color: inherit; }
 .duplicate-item-actions button:hover { color: #fff; background: #2d302d; }
 .duplicate-item-actions .primary { border-color: var(--workflow-accent); color: #eef8ff; background: #28485c; }
 .duplicate-item-actions .danger:hover { border-color: #b34739; color: #ff8b79; background: #392522; }
+.duplicate-item-actions .danger-icon { color: #8a8d87; }
+.duplicate-item-actions .danger-icon:hover { border-color: #b34739; color: #ff6b5a; background: #392522; }
+.duplicate-item-actions .danger-icon:disabled { opacity: 0.4; cursor: not-allowed; }
 .duplicate-failure-list { max-height: 220px; overflow: auto; padding: 10px 12px; border-radius: 6px; background: #141514; }
 .duplicate-failure-list p { margin: 0 0 8px; }
 .duplicate-failure-list p:last-child { margin-bottom: 0; }
