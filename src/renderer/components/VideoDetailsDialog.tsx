@@ -162,8 +162,9 @@ function formatMaybeValue(value: string, hasValue: boolean): string {
   return hasValue ? value : "未识别";
 }
 
-function formatStatus(status: "pending" | "ready" | "failed"): string {
+function formatStatus(status: "pending" | "ready" | "failed" | "deferred"): string {
   if (status === "ready") return "已完成";
   if (status === "failed") return "失败";
+  if (status === "deferred") return "待分析（播放时自动获取）";
   return "待生成";
 }

@@ -90,6 +90,48 @@ describe("PlaybackMetadataEnricher", () => {
     expect(reader).toHaveBeenCalledTimes(1);
     expect(repo.getVideo(videoId)).toMatchObject({ videoCodec: null, codecProbeStatus: "ready" });
   });
+
+  it("runs a full metadata probe for deferred cloud videos and marks both statuses ready", async () => {
+    const { repo, videoId } = deferredFixture();
+    const reader = vi.fn(async () => ({
+      durationMs: 5000,
+      width: 3840,
+      height: 2160,
+      format: "matroska",
+      videoCodec: "hevc",
+      videoProfile: "main 10",
+      pixelFormat: "yuv420p10le",
+      audioCodec: "aac"
+    }));
+    const enricher = new PlaybackMetadataEnricher(repo, reader);
+
+    await enricher.ensureCodecMetadata(videoId);
+
+    expect(reader).toHaveBeenCalledTimes(1);
+    expect(repo.getVideo(videoId)).toMatchObject({
+      durationMs: 5000,
+      width: 3840,
+      height: 2160,
+      format: "matroska",
+      videoCodec: "hevc",
+      codecProbeStatus: "ready",
+      metadataStatus: "ready"
+    });
+
+    // Second open should not probe again.
+    await enricher.ensureCodecMetadata(videoId);
+    expect(reader).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks deferred video metadata failed when full probe throws", async () => {
+    const { repo, videoId } = deferredFixture();
+    const reader = vi.fn(async () => { throw new Error("network timeout"); });
+    const enricher = new PlaybackMetadataEnricher(repo, reader);
+
+    await expect(enricher.ensureCodecMetadata(videoId)).resolves.toBeUndefined();
+    expect(repo.getVideo(videoId).metadataStatus).toBe("failed");
+    expect(repo.getVideo(videoId).codecProbeStatus).toBe("failed");
+  });
 });
 
 function fixture(): { repo: VideoRepository; videoId: string } {
@@ -111,6 +153,30 @@ function fixture(): { repo: VideoRepository; videoId: string } {
     format: "mp4",
     modifiedAt: "2026-08-01T00:00:00.000Z",
     metadataStatus: "ready"
+  });
+  return { repo, videoId: video.id };
+}
+
+function deferredFixture(): { repo: VideoRepository; videoId: string } {
+  tempDirectory = mkdtempSync(path.join(os.tmpdir(), "playback-deferred-"));
+  database = createDatabase(path.join(tempDirectory, "library.sqlite"));
+  const repo = new VideoRepository(database);
+  const folder = repo.addSourceFolder("X:\\Cloud", true);
+  const video = repo.upsertVideo({
+    sourceFolderId: folder.id,
+    path: "X:\\Cloud\\movie.mkv",
+    directory: "X:\\Cloud",
+    filename: "movie.mkv",
+    basename: "movie",
+    extension: ".mkv",
+    sizeBytes: 2_000_000_000,
+    durationMs: null,
+    width: null,
+    height: null,
+    format: null,
+    codecProbeStatus: "unprobed",
+    modifiedAt: "2026-08-20T00:00:00.000Z",
+    metadataStatus: "deferred"
   });
   return { repo, videoId: video.id };
 }

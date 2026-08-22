@@ -89,21 +89,18 @@ export async function readMetadata(
     }
   };
 
-  // For cloud sources, probe with tight args first; on any failure (spawn error,
-  // timeout, malformed JSON) retry once with ffprobe defaults. Local sources
-  // use a single attempt with defaults, preserving the prior behavior.
+  // For cloud sources, probe only with tight args. On any failure (spawn error,
+  // timeout, malformed JSON) the error propagates to the caller; we do NOT retry
+  // with default/unlimited args, because that would download potentially many
+  // megabytes over a network mount, consuming excessive cloud bandwidth.
+  // Local sources use a single attempt with defaults, preserving the prior behavior.
   let output: FfprobeOutput;
   if (profile === "cloud") {
     try {
       output = await probeOnce("cloud");
-    } catch (primaryError) {
-      if (isCancellation(primaryError)) throw primaryError;
-      try {
-        output = await probeOnce("local");
-      } catch (fallbackError) {
-        // Prefer reporting the primary failure; it is more diagnostic.
-        throw new Error(`Unable to read metadata for ${filePath}: ${toErrorMessage(primaryError)}`, { cause: primaryError });
-      }
+    } catch (error) {
+      if (isCancellation(error)) throw error;
+      throw new Error(`Unable to read metadata for ${filePath}: ${toErrorMessage(error)}`, { cause: error });
     }
   } else {
     try {

@@ -18,7 +18,7 @@ export function choosePlaybackRoute(video: PlaybackIdentity, preference: Playbac
     return CONTAINER_NATIVE_EXTENSIONS.has(extension) ? "native" : "mpv";
   }
 
-  if (video.metadataStatus === "pending") {
+  if (video.metadataStatus === "pending" || video.metadataStatus === "deferred") {
     return CONTAINER_NATIVE_EXTENSIONS.has(extension) ? "native" : "mpv";
   }
   if (video.metadataStatus !== "ready" || video.codecProbeStatus !== "ready") return "mpv";

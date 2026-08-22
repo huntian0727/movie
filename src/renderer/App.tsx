@@ -104,6 +104,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       setCacheLocation(settingsSnapshot.cacheLocation);
       setCacheStatus(settingsSnapshot.cacheStatus);
       setPlayHistory(nextPlayHistory);
+      setLibraryRefreshSequence((seq) => seq + 1);
     } catch (cause) {
       setError(toMessage(cause));
     } finally {
@@ -131,13 +132,12 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       await reload();
       return;
     }
-    setLibraryRefreshSequence(event.sequence);
+    // Main window: do not auto-reload video pages on background domain events.
+    // Navigation counts are refreshed after user-initiated actions (toggle
+    // favorite, toggle pending delete, manual refresh) instead.
     if (event.type === "library:rescanned") {
       setScanFailureRefreshSequence(event.sequence);
-      await reload();
-      return;
     }
-    setNavigation(await api.getLibraryNavigation());
   }, [api, isPlayerWindow, reload]);
 
   useEffect(() => {
@@ -150,25 +150,13 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   }, [api, handleDomainEvent, reload]);
 
   useEffect(() => {
-    const reloadOnFocus = () => void reload();
-    window.addEventListener("focus", reloadOnFocus);
-    return () => window.removeEventListener("focus", reloadOnFocus);
-  }, [reload]);
-
-  useEffect(() => {
     let disposed = false;
     const poll = async () => {
       try {
         const statuses = await api.listFolderScanStatuses();
         if (disposed) return;
-        const shouldReload = statuses.some((status) => {
-          const previous = previousScanStates.current.get(status.folderId);
-          return (previous === "queued" || previous === "scanning" || previous === "paused") &&
-            (status.state === "completed" || status.state === "completed-with-errors" || status.state === "offline" || status.state === "error");
-        });
         previousScanStates.current = new Map(statuses.map((status) => [status.folderId, status.state]));
         setScanStatuses((current) => areVisibleScanStatusesEqual(current, statuses) ? current : statuses);
-        if (shouldReload) void reload();
       } catch (cause) {
         if (!disposed) setError(toMessage(cause));
       }
@@ -177,31 +165,6 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     const timer = window.setInterval(() => void poll(), 1000);
     return () => { disposed = true; window.clearInterval(timer); };
   }, [api, reload]);
-
-  useEffect(() => {
-    if (!videos.some((video) => video.metadataStatus === "pending")) return;
-    let disposed = false;
-    let polling = false;
-    const refreshMetadata = async () => {
-      if (polling) return;
-      polling = true;
-      try {
-        const refreshedVideos = await api.listVideosByIds(videos.map((video) => video.id));
-        if (!disposed) {
-          setVideos(refreshedVideos.filter((video) => !video.isMissing));
-        }
-      } catch (cause) {
-        if (!disposed) setError(toMessage(cause));
-      } finally {
-        polling = false;
-      }
-    };
-    const timer = window.setInterval(() => void refreshMetadata(), 1500);
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-    };
-  }, [api, videos]);
 
   const addFolder = async () => {
     const folder = await api.addFolder();
@@ -232,6 +195,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     setNavigation(await api.getLibraryNavigation());
     setVideos((current) => current.map((item) => (item.id === video.id ? { ...item, isFavorite: favorite } : item)));
     setDirectoryPlaybackQueue((current) => current.map((item) => (item.id === video.id ? { ...item, isFavorite: favorite } : item)));
+    setLibraryRefreshSequence((seq) => seq + 1);
   };
 
   const togglePendingDelete = async (video: VideoRecord) => {
@@ -240,11 +204,13 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     setNavigation(await api.getLibraryNavigation());
     setVideos((current) => current.map((item) => (item.id === video.id ? { ...item, isPendingDelete: pendingDelete } : item)));
     setDirectoryPlaybackQueue((current) => current.map((item) => (item.id === video.id ? { ...item, isPendingDelete: pendingDelete } : item)));
+    setLibraryRefreshSequence((seq) => seq + 1);
   };
 
   const renameVideo = async (video: VideoRecord, baseName: string) => {
     const renamed = await api.renameVideo(video.id, baseName);
     setVideos((current) => current.map((item) => (item.id === video.id ? renamed : item)));
+    setLibraryRefreshSequence((seq) => seq + 1);
   };
 
   const deleteVideo = async (video: VideoRecord) => {

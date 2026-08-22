@@ -643,7 +643,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     const parsed = videoIdSchema.parse(payload);
     const video = repo.getVideo(parsed.videoId);
     if (video.isMissing) throw new Error("文件当前不可访问，无法重新分析");
-    if (video.metadataStatus === "failed") {
+    if (video.metadataStatus === "failed" || video.metadataStatus === "deferred") {
       repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
     }
     dependencies.metadataQueue.enqueue(video.id);

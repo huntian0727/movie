@@ -247,12 +247,6 @@ export function LibraryShell({
   }, [folderScope, onLoadVideoPage, page, pageSize, refreshSequence, search, selectedFolderPath, sortDirection, sortField, videoPageRefreshVersion, view]);
 
   useEffect(() => {
-    if (!onLoadVideoPage || !videoPage.videos.some((video) => video.metadataStatus === "pending")) return;
-    const timer = window.setInterval(() => setVideoPageRefreshVersion((current) => current + 1), 1500);
-    return () => window.clearInterval(timer);
-  }, [onLoadVideoPage, videoPage.videos]);
-
-  useEffect(() => {
     try {
       window.localStorage.setItem(GRID_CARD_WIDTH_STORAGE_KEY, String(gridCardWidth));
     } catch {

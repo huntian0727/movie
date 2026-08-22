@@ -69,7 +69,9 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
               <span className="duration-badge">
                 {video.metadataStatus === "pending"
                   ? "分析中"
-                  : video.metadataStatus === "failed"
+                  : video.metadataStatus === "deferred"
+                    ? "待分析"
+                    : video.metadataStatus === "failed"
                     ? "元数据失败"
                     : video.thumbnailStatus === "failed"
                       ? "预览失败"
@@ -111,10 +113,10 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
                     <RotateCw size={16} />
                   </button>
                 )}
-                {onRetryMetadata && video.metadataStatus === "failed" && (
+                {onRetryMetadata && (video.metadataStatus === "failed" || video.metadataStatus === "deferred") && (
                   <button
-                    aria-label={`重新分析 ${video.filename}`}
-                    title="重试读取视频时长、分辨率和格式"
+                    aria-label={`${video.metadataStatus === "deferred" ? "分析" : "重新分析"} ${video.filename}`}
+                    title={video.metadataStatus === "deferred" ? "立即读取视频时长、分辨率和格式" : "重试读取视频时长、分辨率和格式"}
                     onClick={() => void onRetryMetadata(video)}
                   >
                     <Film size={16} />

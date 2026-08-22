@@ -1191,7 +1191,7 @@ export class VideoRepository {
            AND path = @expectedPath
            AND size_bytes = @expectedSizeBytes
            AND modified_at = @expectedModifiedAt
-           AND metadata_status = 'pending'`
+           AND metadata_status IN ('pending', 'deferred')`
       )
       .run({
         videoId,
@@ -1261,7 +1261,7 @@ export class VideoRepository {
            AND path = @expectedPath
            AND size_bytes = @expectedSizeBytes
            AND modified_at = @expectedModifiedAt
-           AND metadata_status = 'pending'`
+           AND metadata_status IN ('pending', 'deferred')`
       )
       .run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, updatedAt: new Date().toISOString() });
     return result.changes > 0;
@@ -1276,7 +1276,31 @@ export class VideoRepository {
            AND path = @expectedPath
            AND size_bytes = @expectedSizeBytes
            AND modified_at = @expectedModifiedAt
-           AND metadata_status = 'failed'`
+           AND metadata_status IN ('failed', 'deferred')`
+      )
+      .run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, updatedAt: new Date().toISOString() });
+    return result.changes > 0;
+  }
+
+  markMetadataDeferred(videoId: string, expectedPath: string, expectedSizeBytes: number, expectedModifiedAt: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE videos
+         SET metadata_status = 'deferred',
+             codec_probe_status = 'unprobed',
+             duration_ms = NULL,
+             width = NULL,
+             height = NULL,
+             format = NULL,
+             video_codec = NULL,
+             video_profile = NULL,
+             pixel_format = NULL,
+             audio_codec = NULL,
+             updated_at = @updatedAt
+         WHERE id = @videoId
+           AND path = @expectedPath
+           AND size_bytes = @expectedSizeBytes
+           AND modified_at = @expectedModifiedAt`
       )
       .run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, updatedAt: new Date().toISOString() });
     return result.changes > 0;

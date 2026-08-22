@@ -781,7 +781,7 @@ function formatPlaylistDuration(video: VideoRecord, decodedDurationMs: number | 
   if (typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs > 0) {
     return formatDuration(durationMs);
   }
-  if (video.metadataStatus === "pending") return "分析中";
+  if (video.metadataStatus === "pending" || video.metadataStatus === "deferred") return "分析中";
   return "--:--";
 }
 

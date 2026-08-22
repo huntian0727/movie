@@ -119,44 +119,46 @@ describe("readMetadata", () => {
     expect(result.format).toBe("mp4");
   });
 
-  it("falls back to default probe args when cloud probe fails", async () => {
+  it("does not fall back to default probe args when cloud probe fails", async () => {
     const profiles: string[] = [];
-    const result = await readMetadata("X:\\cloud\\weird.mkv", {
-      ffprobePath: "ffprobe",
-      probeProfile: "cloud",
-      runProbe: async (_ffprobePath, _filePath, profile) => {
-        profiles.push(profile);
-        if (profile === "cloud") throw new Error("Invalid data found when processing");
-        return {
-          stdout: JSON.stringify({
-            format: { duration: "42.0", format_name: "matroska" },
-            streams: [{ codec_type: "video", codec_name: "hevc", width: 3840, height: 2160 }]
-          })
-        };
-      }
-    });
-    expect(profiles).toEqual(["cloud", "local"]);
-    expect(result.durationMs).toBe(42_000);
+    await expect(
+      readMetadata("X:\\cloud\\weird.mkv", {
+        ffprobePath: "ffprobe",
+        probeProfile: "cloud",
+        runProbe: async (_ffprobePath, _filePath, profile) => {
+          profiles.push(profile);
+          if (profile === "cloud") throw new Error("Invalid data found when processing");
+          return {
+            stdout: JSON.stringify({
+              format: { duration: "42.0", format_name: "matroska" },
+              streams: [{ codec_type: "video", codec_name: "hevc", width: 3840, height: 2160 }]
+            })
+          };
+        }
+      })
+    ).rejects.toThrow("Unable to read metadata for X:\\cloud\\weird.mkv: Invalid data found when processing");
+    expect(profiles).toEqual(["cloud"]);
   });
 
-  it("falls back to default probe args when cloud returns malformed json", async () => {
+  it("does not fall back when cloud returns malformed json", async () => {
     const profiles: string[] = [];
-    const result = await readMetadata("X:\\cloud\\truncated.mp4", {
-      ffprobePath: "ffprobe",
-      probeProfile: "cloud",
-      runProbe: async (_ffprobePath, _filePath, profile) => {
-        profiles.push(profile);
-        if (profile === "cloud") return { stdout: "{ truncated" };
-        return {
-          stdout: JSON.stringify({
-            format: { duration: "5.0", format_name: "mp4" },
-            streams: [{ codec_type: "video", codec_name: "h264", width: 1280, height: 720 }]
-          })
-        };
-      }
-    });
-    expect(profiles).toEqual(["cloud", "local"]);
-    expect(result.width).toBe(1280);
+    await expect(
+      readMetadata("X:\\cloud\\truncated.mp4", {
+        ffprobePath: "ffprobe",
+        probeProfile: "cloud",
+        runProbe: async (_ffprobePath, _filePath, profile) => {
+          profiles.push(profile);
+          if (profile === "cloud") return { stdout: "{ truncated" };
+          return {
+            stdout: JSON.stringify({
+              format: { duration: "5.0", format_name: "mp4" },
+              streams: [{ codec_type: "video", codec_name: "h264", width: 1280, height: 720 }]
+            })
+          };
+        }
+      })
+    ).rejects.toThrow("Unable to parse metadata for X:\\cloud\\truncated.mp4");
+    expect(profiles).toEqual(["cloud"]);
   });
 
   it("does not retry on local profile", async () => {

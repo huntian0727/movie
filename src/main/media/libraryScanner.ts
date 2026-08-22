@@ -214,10 +214,19 @@ export async function retryScanFailures(
       const video = repo.getVideoByPath(failure.objectPath);
       context.counters.retriedFailures += 1;
       if (video && !video.isMissing) {
-        if (video.metadataStatus === "failed") {
-          repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
+        if (context.cloudDirectorySource) {
+          // Cloud videos: reset failed metadata to deferred (probe on playback),
+          // resolve the scan failure, and do NOT enqueue for background probing.
+          if (video.metadataStatus === "failed") {
+            repo.markMetadataDeferred(video.id, video.path, video.sizeBytes, video.modifiedAt);
+          }
+          context.counters.resolvedFailures += safeResolveFailure(repo, failure.id);
+        } else {
+          if (video.metadataStatus === "failed") {
+            repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
+          }
+          dependencies.onMetadataPending(video.id);
         }
-        dependencies.onMetadataPending(video.id);
         continue;
       }
     }
@@ -296,8 +305,18 @@ export async function retryScanFailure(
   if (failure.failureStage === "metadata" && dependencies.onMetadataPending) {
     const video = repo.getVideoByPath(failure.objectPath);
     if (video && !video.isMissing) {
-      if (video.metadataStatus === "failed") repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
-      dependencies.onMetadataPending(video.id);
+      if (context.cloudDirectorySource) {
+        // Cloud videos: reset to deferred (probe on playback), resolve failure, do not enqueue.
+        if (video.metadataStatus === "failed") {
+          repo.markMetadataDeferred(video.id, video.path, video.sizeBytes, video.modifiedAt);
+        }
+        context.counters.resolvedFailures += safeResolveFailure(repo, failure.id);
+      } else {
+        if (video.metadataStatus === "failed") {
+          repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
+        }
+        dependencies.onMetadataPending(video.id);
+      }
       return finalizeScan(context, true);
     }
   }
@@ -428,7 +447,11 @@ async function processVideoFile(
       const stored = await upsertScannedVideo(context, existing, filePath, parsed, sizeBytes, modifiedAt);
       if (existing) context.counters.updatedVideos += 1;
       else context.counters.addedVideos += 1;
-      if (context.dependencies.onMetadataPending) context.dependencies.onMetadataPending(stored.id);
+      // Cloud videos use "deferred" status to avoid background ffprobe consuming
+      // bandwidth; metadata is probed lazily on playback or via manual retry.
+      if (!context.cloudDirectorySource && context.dependencies.onMetadataPending) {
+        context.dependencies.onMetadataPending(stored.id);
+      }
     }
     context.counters.resolvedFailures += safeResolveObjectStageFailures(
       context.repo,
@@ -455,6 +478,9 @@ async function upsertScannedVideo(
   modifiedAt: string
 ): Promise<VideoRecord> {
   if (context.dependencies.onMetadataPending) {
+    // Cloud videos are inserted with "deferred" status — no background ffprobe,
+    // saving network bandwidth. Metadata is probed lazily on playback or manual retry.
+    const metadataStatus = context.cloudDirectorySource ? "deferred" : "pending";
     return context.repo.upsertVideo({
       sourceFolderId: context.sourceFolder.id,
       path: filePath,
@@ -473,7 +499,7 @@ async function upsertScannedVideo(
       audioCodec: null,
       codecProbeStatus: "unprobed",
       modifiedAt,
-      metadataStatus: "pending"
+      metadataStatus
     });
   }
   const metadata = await (context.dependencies.readMetadata ?? readMetadata)(filePath);
@@ -500,6 +526,9 @@ async function upsertScannedVideo(
 
 function queuePendingMetadata(context: ScanContext, existing: VideoRecord): void {
   if (!context.dependencies.onMetadataPending) return;
+  // Cloud videos with "deferred" status are not enqueued for background probing.
+  // Metadata is probed lazily on playback or via manual user retry.
+  if (context.cloudDirectorySource && existing.metadataStatus === "deferred") return;
   if (existing.metadataStatus === "failed") {
     context.repo.markMetadataPending(existing.id, existing.path, existing.sizeBytes, existing.modifiedAt);
   }
