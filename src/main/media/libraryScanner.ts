@@ -305,18 +305,12 @@ export async function retryScanFailure(
   if (failure.failureStage === "metadata" && dependencies.onMetadataPending) {
     const video = repo.getVideoByPath(failure.objectPath);
     if (video && !video.isMissing) {
-      if (context.cloudDirectorySource) {
-        // Cloud videos: reset to deferred (probe on playback), resolve failure, do not enqueue.
-        if (video.metadataStatus === "failed") {
-          repo.markMetadataDeferred(video.id, video.path, video.sizeBytes, video.modifiedAt);
-        }
-        context.counters.resolvedFailures += safeResolveFailure(repo, failure.id);
-      } else {
-        if (video.metadataStatus === "failed") {
-          repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
-        }
-        dependencies.onMetadataPending(video.id);
+      // User explicitly requested retry: always enqueue for actual ffprobe,
+      // even for cloud videos (overrides deferred probing policy).
+      if (video.metadataStatus === "failed" || video.metadataStatus === "deferred") {
+        repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
       }
+      dependencies.onMetadataPending(video.id);
       return finalizeScan(context, true);
     }
   }
