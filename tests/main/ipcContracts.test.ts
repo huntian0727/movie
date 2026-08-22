@@ -28,6 +28,8 @@ describe("IPC_CHANNELS", () => {
       scanFailureReviewDelete: "scan-failure-review:delete",
       scanFailureReviewCleanup: "scan-failure-review:cleanup",
       scanFailureReviewOpen: "scan-failure-review:open",
+      scanFailureReviewBatchRetry: "scan-failure-review:batch-retry",
+      scanFailureReviewBatchDelete: "scan-failure-review:batch-delete",
       duplicateList: "duplicate:list",
       duplicatePreviewResolve: "duplicate:preview-resolve",
       duplicateFastDelete: "duplicate:fast-delete",

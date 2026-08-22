@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import type { ScanFailureCleanupAction, ScanFailureCleanupResult } from "../../shared/videoTypes.js";
-import { classifyScanFailureForCleanup } from "../../shared/scanFailureCleanup.js";
+import { classifyScanFailureForCleanup, isScanFailureBatchEligible } from "../../shared/scanFailureCleanup.js";
 import type { VideoRepository } from "../db/videoRepository.js";
 import { isManagedPathWithin } from "./pathNormalization.js";
 import { permanentlyDeleteFile } from "./fileOperations.js";
@@ -25,9 +25,6 @@ export async function deleteScanFailureFile(
   const failure = repo.getScanFailure(failureId);
   if (!failure || failure.status === "resolved") throw new Error("Scan failure is no longer available");
   if (failure.objectType !== "file") throw new Error("Directories cannot be deleted from scan failures");
-  if (classifyScanFailureForCleanup(failure).category !== "confirmed-corrupt") {
-    throw new Error("该异常不能证明文件已经损坏，请先重试或人工确认");
-  }
   const sourceFolder = repo.listSourceFolders().find((folder) => folder.id === failure.sourceFolderId);
   if (!sourceFolder) throw new Error("Source folder not found for scan failure");
   if (!isManagedPathWithin(failure.objectPath, sourceFolder.path)) {
@@ -64,8 +61,11 @@ export async function deleteScanFailureFile(
 export async function cleanupScanFailures(
   repo: VideoRepository,
   failureIds: string[],
-  action: ScanFailureCleanupAction,
-  dependencies: DeleteScanFailureFileDependencies = {}
+  action: ScanFailureCleanupAction | "retry",
+  dependencies: DeleteScanFailureFileDependencies & {
+    retryFailure?: (folder: unknown, failureId: string) => Promise<void>;
+    listSourceFolders?: () => Array<{ id: string; path: string }>;
+  } = {}
 ): Promise<ScanFailureCleanupResult> {
   const result: ScanFailureCleanupResult = {
     action,
@@ -78,10 +78,34 @@ export async function cleanupScanFailures(
 
   for (const failureId of [...new Set(failureIds)]) {
     const failure = repo.getScanFailure(failureId);
-    const classification = failure ? classifyScanFailureForCleanup(failure) : null;
-    if (!failure || failure.status === "resolved" || classification?.category !== "confirmed-corrupt") {
+    if (!failure || failure.status === "resolved") {
       result.skippedCount += 1;
-      result.items.push({ failureId, status: "skipped", message: "异常已解决或不属于确认损坏文件" });
+      result.items.push({ failureId, status: "skipped", message: "异常已解决" });
+      continue;
+    }
+
+    if (action === "retry") {
+      if (!dependencies.retryFailure || !dependencies.listSourceFolders) {
+        result.failureCount += 1;
+        result.items.push({ failureId, status: "failed", message: "重试功能未配置" });
+        continue;
+      }
+      try {
+        const folder = dependencies.listSourceFolders().find((candidate) => candidate.id === failure.sourceFolderId);
+        if (!folder) throw new Error("Source folder not found");
+        await dependencies.retryFailure(folder, failureId);
+        result.successCount += 1;
+        result.items.push({ failureId, status: "retried", message: "已重试" });
+      } catch (error) {
+        result.failureCount += 1;
+        result.items.push({ failureId, status: "failed", message: error instanceof Error ? error.message : String(error) });
+      }
+      continue;
+    }
+
+    if (!isScanFailureBatchEligible(failure)) {
+      result.skippedCount += 1;
+      result.items.push({ failureId, status: "skipped", message: "目录异常不能批量处理" });
       continue;
     }
 

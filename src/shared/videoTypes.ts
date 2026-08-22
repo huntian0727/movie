@@ -87,6 +87,7 @@ export interface ScanFailureSummary {
 
 export type ScanFailureReviewKind = "all" | "video" | "unindexed-file" | "directory";
 export type ScanFailureReviewPageSize = 30 | 50 | 100;
+export type ScanFailureErrorType = "network" | "permission" | "missing" | "corrupt" | "busy" | "io-error" | "unknown";
 
 export interface ScanFailureReviewItem {
   failure: ScanFailure;
@@ -99,6 +100,7 @@ export interface ScanFailureReviewQuery {
   kind: ScanFailureReviewKind;
   page: number;
   pageSize: ScanFailureReviewPageSize;
+  errorTypes?: string[];
 }
 
 export interface ScanFailureReviewPage {
@@ -113,23 +115,34 @@ export interface ScanFailureReviewPage {
     unindexedFile: number;
     directory: number;
   };
+  errorTypeCounts: Record<string, number>;
 }
 
 export type ScanFailureCleanupAction = "mark-pending-delete" | "permanent-delete";
 
 export interface ScanFailureCleanupItemResult {
   failureId: string;
-  status: "marked" | "deleted" | "skipped" | "failed";
+  status: "marked" | "deleted" | "skipped" | "failed" | "retried";
   message: string;
 }
 
 export interface ScanFailureCleanupResult {
-  action: ScanFailureCleanupAction;
+  action: ScanFailureCleanupAction | "retry";
   successCount: number;
   skippedCount: number;
   failureCount: number;
   reclaimedBytes: number;
   items: ScanFailureCleanupItemResult[];
+}
+
+export interface ScanFailureBatchActionResult {
+  action: "retry" | "delete";
+  totalCount: number;
+  successCount: number;
+  skippedCount: number;
+  failureCount: number;
+  reclaimedBytes: number;
+  items: Array<{ failureId: string; status: "retried" | "deleted" | "skipped" | "failed"; message: string }>;
 }
 
 export interface ScanCounters {
@@ -638,6 +651,8 @@ export const IPC_CHANNELS = {
   scanFailureReviewDelete: "scan-failure-review:delete",
   scanFailureReviewCleanup: "scan-failure-review:cleanup",
   scanFailureReviewOpen: "scan-failure-review:open",
+  scanFailureReviewBatchRetry: "scan-failure-review:batch-retry",
+  scanFailureReviewBatchDelete: "scan-failure-review:batch-delete",
   folderRemove: "folder:remove",
   folderRemovePreview: "folder:remove-preview",
   folderScanStatusList: "folder-scan-status:list",
@@ -717,6 +732,8 @@ export interface VideoManagerApi {
   deleteScanFailureFile(failureId: string): Promise<boolean>;
   cleanupScanFailures(failureIds: string[], action: ScanFailureCleanupAction): Promise<ScanFailureCleanupResult>;
   openScanFailureLocation(failureId: string): Promise<boolean>;
+  batchRetryScanFailures(failureIds: string[]): Promise<ScanFailureBatchActionResult>;
+  batchDeleteScanFailures(failureIds: string[]): Promise<ScanFailureBatchActionResult>;
   removeFolder(folderId: string): Promise<SourceFolderRemovalResult>;
   previewRemoveFolder(folderId: string): Promise<SourceFolderRemovalPreview>;
   listFolderScanStatuses(): Promise<FolderScanStatus[]>;

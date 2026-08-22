@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
-import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureBatchActionResult, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
@@ -43,7 +43,8 @@ interface LibraryShellProps {
   onLoadScanFailureReviewPage?(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
   onRetryScanFailure?(failureId: string): Promise<unknown>;
   onDeleteScanFailureFile?(failureId: string): Promise<unknown>;
-  onCleanupScanFailures?: VideoManagerApi["cleanupScanFailures"];
+  onBatchRetryScanFailures?(failureIds: string[]): Promise<ScanFailureBatchActionResult>;
+  onBatchDeleteScanFailures?(failureIds: string[]): Promise<ScanFailureBatchActionResult>;
   onOpenScanFailureLocation?(failureId: string): Promise<unknown>;
   onRefresh?(): void | Promise<void>;
   onOpen?(video: VideoRecord, queue: VideoRecord[]): void;
@@ -93,7 +94,8 @@ export function LibraryShell({
   onLoadScanFailureReviewPage,
   onRetryScanFailure,
   onDeleteScanFailureFile,
-  onCleanupScanFailures,
+  onBatchRetryScanFailures,
+  onBatchDeleteScanFailures,
   onOpenScanFailureLocation,
   onRefresh,
   onOpen,
@@ -805,7 +807,8 @@ export function LibraryShell({
                 loadPage={onLoadScanFailureReviewPage}
                 onRetry={onRetryScanFailure}
                 onDeleteFile={onDeleteScanFailureFile}
-                onCleanup={onCleanupScanFailures}
+                onBatchRetry={onBatchRetryScanFailures}
+                onBatchDelete={onBatchDeleteScanFailures}
                 onOpenLocation={onOpenScanFailureLocation}
                 onOpenVideo={(video) => openVideo(video, [video])}
                 onShowDetails={viewVideoDetails}

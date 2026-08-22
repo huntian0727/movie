@@ -31,6 +31,7 @@ import type {
 } from "../../shared/videoTypes.js";
 import type { DatabaseConnection } from "./database.js";
 import { isManagedPathWithin, normalizeManagedPath } from "../files/pathNormalization.js";
+import { classifyScanFailureForCleanup } from "../../shared/scanFailureCleanup.js";
 
 interface UpsertVideoInput {
   sourceFolderId: string;
@@ -546,21 +547,41 @@ export class VideoRepository {
       all: countRows.reduce((total, row) => total + row.count, 0)
     };
 
+    // Error type counts (across all kinds, for filter UI)
+    const allRows = this.db.prepare(`SELECT failures.* ${joinedFrom}`).all(params) as ScanFailureRow[];
+    const errorTypeCounts: Record<string, number> = {};
+    for (const row of allRows) {
+      const failure = mapScanFailure(row);
+      const category = classifyScanFailureForCleanup(failure).category;
+      errorTypeCounts[category] = (errorTypeCounts[category] ?? 0) + 1;
+    }
+
     const kindWhere = query.kind === "all" ? "" : ` AND ${kindExpression} = @kind`;
     if (query.kind !== "all") params.kind = query.kind;
-    const totalCount = query.kind === "all"
-      ? counts.all
-      : query.kind === "unindexed-file"
-        ? counts.unindexedFile
-        : counts[query.kind];
-    const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
-    const page = Math.min(Math.max(1, query.page), totalPages);
-    const rows = this.db.prepare(`
+
+    const allFilteredRows = this.db.prepare(`
       SELECT failures.*
       ${joinedFrom}${kindWhere}
       ORDER BY failures.last_failed_at DESC, failures.id ASC
-      LIMIT @limit OFFSET @offset
-    `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as ScanFailureRow[];
+    `).all(params) as ScanFailureRow[];
+
+    let filteredRows = allFilteredRows;
+    if (query.errorTypes && query.errorTypes.length > 0) {
+      const validTypes = new Set(["network", "permission", "missing", "corrupt", "busy", "io-error", "unknown"]);
+      const requested = new Set(query.errorTypes.filter((t) => validTypes.has(t)));
+      if (requested.size > 0) {
+        filteredRows = allFilteredRows.filter((row) => {
+          const failure = mapScanFailure(row);
+          return requested.has(classifyScanFailureForCleanup(failure).category);
+        });
+      }
+    }
+
+    const totalCount = filteredRows.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
+    const page = Math.min(Math.max(1, query.page), totalPages);
+    const offset = (page - 1) * query.pageSize;
+    const rows = filteredRows.slice(offset, offset + query.pageSize);
 
     return {
       items: rows.map((row) => {
@@ -576,7 +597,8 @@ export class VideoRepository {
       pageSize: query.pageSize,
       totalPages,
       totalCount,
-      counts
+      counts,
+      errorTypeCounts
     };
   }
 

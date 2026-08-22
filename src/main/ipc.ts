@@ -43,6 +43,8 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.scanFailureReviewRetry,
   IPC_CHANNELS.scanFailureReviewDelete,
   IPC_CHANNELS.scanFailureReviewCleanup,
+  IPC_CHANNELS.scanFailureReviewBatchRetry,
+  IPC_CHANNELS.scanFailureReviewBatchDelete,
   IPC_CHANNELS.folderRemove,
   IPC_CHANNELS.folderScanPause,
   IPC_CHANNELS.folderScanResume,
@@ -204,14 +206,18 @@ const settingsSchema = z.object({
 const diagnosticsOptionsSchema = z.object({ includeFullPaths: z.boolean() }).strict();
 const scanFailureIdSchema = z.object({ failureId: z.string().min(1) }).strict();
 const scanFailureCleanupSchema = z.object({
-  failureIds: z.array(z.string().min(1)).min(1).max(100),
+  failureIds: z.array(z.string().min(1)).min(1).max(10000),
   action: z.enum(["mark-pending-delete", "permanent-delete"])
 }).strict();
 const scanFailureReviewQuerySchema = z.object({
   sourceFolderId: z.string().min(1).optional(),
   kind: z.enum(["all", "video", "unindexed-file", "directory"]),
   page: z.number().int().min(1),
-  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
+  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)]),
+  errorTypes: z.array(z.string()).optional()
+}).strict();
+const scanFailureBatchSchema = z.object({
+  failureIds: z.array(z.string().min(1)).min(1).max(10000)
 }).strict();
 
 
@@ -481,6 +487,116 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
       if (errorMessage) throw new Error(errorMessage);
     }
     return true;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewBatchRetry, async (_event, payload) => {
+    const { failureIds } = scanFailureBatchSchema.parse(payload);
+    const result = {
+      action: "retry" as const,
+      totalCount: failureIds.length,
+      successCount: 0,
+      skippedCount: 0,
+      failureCount: 0,
+      reclaimedBytes: 0,
+      items: [] as Array<{ failureId: string; status: "retried" | "skipped" | "failed"; message: string }>
+    };
+    for (const failureId of [...new Set(failureIds)]) {
+      try {
+        const failure = repo.getScanFailure(failureId);
+        if (!failure || failure.status === "resolved") {
+          result.skippedCount += 1;
+          result.items.push({ failureId, status: "skipped", message: "异常已解决" });
+          continue;
+        }
+        const folder = repo.listSourceFolders().find((candidate) => candidate.id === failure.sourceFolderId);
+        if (!folder) {
+          result.failureCount += 1;
+          result.items.push({ failureId, status: "failed", message: "Source folder not found" });
+          continue;
+        }
+        await dependencies.scanManager.retryFailure(folder, failureId);
+        result.successCount += 1;
+        result.items.push({ failureId, status: "retried", message: "已重试" });
+      } catch (error) {
+        result.failureCount += 1;
+        result.items.push({ failureId, status: "failed", message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
+    return result;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewBatchDelete, async (_event, payload) => {
+    const { failureIds } = scanFailureBatchSchema.parse(payload);
+    const result = {
+      action: "delete" as const,
+      totalCount: failureIds.length,
+      successCount: 0,
+      skippedCount: 0,
+      failureCount: 0,
+      reclaimedBytes: 0,
+      items: [] as Array<{ failureId: string; status: "deleted" | "skipped" | "failed"; message: string }>
+    };
+    const linkedVideoIds: string[] = [];
+    for (const failureId of [...new Set(failureIds)]) {
+      try {
+        const failure = repo.getScanFailure(failureId);
+        if (!failure || failure.status === "resolved") {
+          result.skippedCount += 1;
+          result.items.push({ failureId, status: "skipped", message: "异常已解决" });
+          continue;
+        }
+        if (failure.objectType !== "file") {
+          result.skippedCount += 1;
+          result.items.push({ failureId, status: "skipped", message: "目录异常不能删除文件" });
+          continue;
+        }
+        const folder = repo.listSourceFolders().find((candidate) => candidate.id === failure.sourceFolderId);
+        if (!folder || !isManagedPathWithin(failure.objectPath, folder.path)) {
+          result.skippedCount += 1;
+          result.items.push({ failureId, status: "skipped", message: "路径不在源目录内" });
+          continue;
+        }
+        const video = repo.getVideoByPath(failure.objectPath);
+        let missing = false;
+        try {
+          const fileStat = await import("node:fs/promises").then((m) => m.stat(failure.objectPath));
+          if (!fileStat.isFile()) throw new Error("路径不是文件");
+          if (video && (fileStat.size !== video.sizeBytes || fileStat.mtime.toISOString() !== video.modifiedAt)) {
+            throw new Error("文件状态已变化，请先重新扫描");
+          }
+        } catch (error) {
+          if (typeof error === "object" && error && "code" in error && error.code === "ENOENT") {
+            missing = true;
+          } else {
+            throw error;
+          }
+        }
+        if (!missing && video) {
+          dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed([video.id]);
+        }
+        if (!missing) {
+          await permanentlyDeleteFile(failure.objectPath);
+        }
+        repo.resolveScanFailuresForObject(failure.sourceFolderId, failure.objectPath);
+        if (video) {
+          linkedVideoIds.push(video.id);
+          repo.removeVideo(video.id);
+        }
+        result.successCount += 1;
+        if (!missing) result.reclaimedBytes += video?.sizeBytes ?? 0;
+        result.items.push({ failureId, status: "deleted", message: missing ? "文件已不存在，记录已清理" : "已永久删除" });
+      } catch (error) {
+        result.failureCount += 1;
+        result.items.push({ failureId, status: "failed", message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (result.successCount > 0) dependencies.cacheManager.scheduleMaintenance(true);
+    dependencies.domainEvents.publish({
+      type: linkedVideoIds.length > 0 ? "video:removed" : "library:rescanned",
+      videoIds: linkedVideoIds
+    });
+    return result;
   });
 
   ipcMain.handle(IPC_CHANNELS.folderRemove, (_event, folderId: unknown) => {

@@ -28,14 +28,14 @@ function setup() {
   return { repo, source, sourcePath };
 }
 
-function record(repo: VideoRepository, sourceFolderId: string, objectPath: string, objectType: "file" | "directory" = "file", errorSummary = "network read failed") {
+function record(repo: VideoRepository, sourceFolderId: string, objectPath: string, objectType: "file" | "directory" = "file", errorSummary = "network read failed", errorCode = "EIO") {
   return repo.recordScanFailure({
     sourceFolderId,
     scanTaskId: "review-test",
     objectType,
     objectPath,
     failureStage: objectType === "directory" ? "directory-enumeration" : "file-processing",
-    errorCode: "EIO",
+    errorCode,
     errorSummary
   });
 }
@@ -82,6 +82,23 @@ describe("scan failure review", () => {
     await expect(deleteScanFailureFile(repo, outsideFailure.id)).rejects.toThrow("outside its source folder");
   });
 
+  it("batch retries unresolved failures and reports per-item status", async () => {
+    const { repo, source, sourcePath } = setup();
+    const targetPath = path.join(sourcePath, "retry.mp4");
+    writeFileSync(targetPath, "video");
+    const target = record(repo, source.id, targetPath);
+    const resolved = record(repo, source.id, path.join(sourcePath, "resolved.mp4"));
+    repo.resolveScanFailure(resolved.id);
+
+    const retryFailure = vi.fn().mockResolvedValue(undefined);
+    const listSourceFolders = () => [{ id: source.id, path: source.path }];
+    const result = await cleanupScanFailures(repo, [target.id, resolved.id], "retry", { retryFailure, listSourceFolders });
+    expect(result.successCount).toBe(1);
+    expect(result.skippedCount).toBe(1);
+    expect(result.items.find((item) => item.failureId === target.id)?.status).toBe("retried");
+    expect(result.items.find((item) => item.failureId === resolved.id)?.status).toBe("skipped");
+  });
+
   it("treats an already missing file as resolved without invoking deletion", async () => {
     const { repo, source, sourcePath } = setup();
     const failure = record(repo, source.id, path.join(sourcePath, "gone.mp4"), "file", "moov atom not found");
@@ -92,17 +109,25 @@ describe("scan failure review", () => {
     expect(repo.getScanFailure(failure.id)?.status).toBe("resolved");
   });
 
-  it("classifies only strong corruption signatures as eligible for cleanup", () => {
+  it("classifies failures into extended error types", () => {
     const { repo, source, sourcePath } = setup();
     const corrupt = record(repo, source.id, path.join(sourcePath, "corrupt.mp4"), "file", "moov atom not found");
     const offline = record(repo, source.id, path.join(sourcePath, "offline.mp4"), "file", "network read failed: ETIMEDOUT");
-    const unknown = record(repo, source.id, path.join(sourcePath, "unknown.mp4"), "file", "Command failed with exit code 1");
-    expect(classifyScanFailureForCleanup(corrupt).category).toBe("confirmed-corrupt");
-    expect(classifyScanFailureForCleanup(offline).category).toBe("transient");
-    expect(classifyScanFailureForCleanup(unknown).category).toBe("manual-review");
+    const unknown = record(repo, source.id, path.join(sourcePath, "unknown.mp4"), "file", "Command failed with exit code 1", "EXIT_1");
+    const missing = record(repo, source.id, path.join(sourcePath, "gone.mp4"), "file", "ENOENT: no such file or directory");
+    const permission = record(repo, source.id, path.join(sourcePath, "denied.mp4"), "file", "EACCES: permission denied");
+    const busy = record(repo, source.id, path.join(sourcePath, "locked.mp4"), "file", "EBUSY: resource busy or locked");
+    const ioError = record(repo, source.id, path.join(sourcePath, "ioerr.mp4"), "file", "EIO: i/o error");
+    expect(classifyScanFailureForCleanup(corrupt).category).toBe("corrupt");
+    expect(classifyScanFailureForCleanup(offline).category).toBe("network");
+    expect(classifyScanFailureForCleanup(unknown).category).toBe("unknown");
+    expect(classifyScanFailureForCleanup(missing).category).toBe("missing");
+    expect(classifyScanFailureForCleanup(permission).category).toBe("permission");
+    expect(classifyScanFailureForCleanup(busy).category).toBe("busy");
+    expect(classifyScanFailureForCleanup(ioError).category).toBe("io-error");
   });
 
-  it("batch marks confirmed corrupt videos but skips transient failures", async () => {
+  it("batch marks all file failures regardless of error type", async () => {
     const { repo, source, sourcePath } = setup();
     const corruptPath = path.join(sourcePath, "corrupt.mp4");
     const offlinePath = path.join(sourcePath, "offline.mp4");
@@ -112,9 +137,9 @@ describe("scan failure review", () => {
     const offline = record(repo, source.id, offlinePath, "file", "network read failed: ETIMEDOUT");
 
     const result = await cleanupScanFailures(repo, [corrupt.id, offline.id], "mark-pending-delete");
-    expect(result).toMatchObject({ successCount: 1, skippedCount: 1, failureCount: 0 });
+    expect(result).toMatchObject({ successCount: 2, skippedCount: 0, failureCount: 0 });
     expect(repo.getVideoByPath(corruptPath)?.isPendingDelete).toBe(true);
-    expect(repo.getVideoByPath(offlinePath)?.isPendingDelete).toBe(false);
+    expect(repo.getVideoByPath(offlinePath)?.isPendingDelete).toBe(true);
   });
 
   it("refuses permanent deletion when the indexed file version changed", async () => {

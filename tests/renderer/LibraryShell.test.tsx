@@ -766,7 +766,7 @@ describe("LibraryShell", () => {
   });
 
   it("opens the scan failure review from a folder warning with that source selected", async () => {
-    const loadReview = vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0, counts: { all: 0, video: 0, unindexedFile: 0, directory: 0 } });
+    const loadReview = vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 100, totalPages: 1, totalCount: 0, counts: { all: 0, video: 0, unindexedFile: 0, directory: 0 }, errorTypeCounts: {} });
     render(
       <LibraryShell
         videos={[video]}

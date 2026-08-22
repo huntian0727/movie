@@ -23,8 +23,9 @@ function item(kind: ScanFailureReviewItem["kind"]): ScanFailureReviewItem {
 }
 
 const page: ScanFailureReviewPage = {
-  items: [item("video"), item("unindexed-file"), item("directory")], page: 1, pageSize: 30, totalPages: 1, totalCount: 3,
-  counts: { all: 3, video: 1, unindexedFile: 1, directory: 1 }
+  items: [item("video"), item("unindexed-file"), item("directory")], page: 1, pageSize: 100, totalPages: 1, totalCount: 3,
+  counts: { all: 3, video: 1, unindexedFile: 1, directory: 1 },
+  errorTypeCounts: { corrupt: 1, network: 1, unknown: 1 }
 };
 
 describe("ScanFailuresPage", () => {
@@ -45,28 +46,51 @@ describe("ScanFailuresPage", () => {
     const loadPage = vi.fn().mockResolvedValue(page);
     render(<ScanFailuresPage folders={[folder]} initialSourceFolderId={folder.id} refreshSequence={0} loadPage={loadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);
     expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
-    expect(loadPage).toHaveBeenCalledWith(expect.objectContaining({ sourceFolderId: folder.id, kind: "all", page: 1, pageSize: 30 }));
-    expect(screen.getAllByTitle("永久删除文件")).toHaveLength(1);
+    expect(loadPage).toHaveBeenCalledWith(expect.objectContaining({ sourceFolderId: folder.id, kind: "all", page: 1, pageSize: 100 }));
+    expect(screen.getAllByTitle("永久删除文件")).toHaveLength(3);
     fireEvent.change(screen.getByLabelText("异常类型"), { target: { value: "directory" } });
     await waitFor(() => expect(loadPage).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "directory", page: 1 })));
   });
 
-  it("selects only confirmed corrupt indexed videos and submits one background cleanup", async () => {
-    const onCleanup = vi.fn().mockResolvedValue({ action: "permanent-delete", successCount: 1, skippedCount: 0, failureCount: 0, reclaimedBytes: 1024, items: [] });
-    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onCleanup={onCleanup} onOpenLocation={vi.fn()} />);
+  it("supports multi-select error type filtering", async () => {
+    const loadPage = vi.fn().mockResolvedValue(page);
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={loadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);
     await screen.findByText("clip.mp4");
-    expect(screen.getByText("确认损坏，可清理")).toBeInTheDocument();
-    expect(screen.getAllByText("访问异常，不可清理")).toHaveLength(1);
-    expect(screen.getByText("目录访问异常")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "全选当前页可清理项" }));
-    expect(screen.getByText("已选 1 个确认损坏视频")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /永久删除所选/ }));
-    fireEvent.click(screen.getByRole("button", { name: "确认后台永久删除" }));
-    await waitFor(() => expect(onCleanup).toHaveBeenCalledWith(["failure-video"], "permanent-delete"));
-    expect(await screen.findByText(/后台清理完成/)).toBeInTheDocument();
+    expect(screen.getByText("容器损坏（1）")).toBeInTheDocument();
+    expect(screen.getByText("网络异常（1）")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("容器损坏（1）"));
+    await waitFor(() => expect(loadPage).toHaveBeenLastCalledWith(expect.objectContaining({ errorTypes: ["corrupt"] })));
+    fireEvent.click(screen.getByText("网络异常（1）"));
+    await waitFor(() => expect(loadPage).toHaveBeenLastCalledWith(expect.objectContaining({ errorTypes: ["corrupt", "network"] })));
+    fireEvent.click(screen.getByText("清除筛选"));
+    await waitFor(() => expect(loadPage).toHaveBeenLastCalledWith(expect.objectContaining({ errorTypes: undefined })));
   });
 
-  it("requires explicit confirmation before permanent deletion and refreshes afterwards", async () => {
+  it("selects all eligible items on page and submits batch retry", async () => {
+    const onBatchRetry = vi.fn().mockResolvedValue({ action: "retry", totalCount: 2, successCount: 2, skippedCount: 0, failureCount: 0, reclaimedBytes: 0, items: [] });
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onBatchRetry={onBatchRetry} onOpenLocation={vi.fn()} />);
+    await screen.findByText("clip.mp4");
+    fireEvent.click(screen.getByRole("button", { name: "全选本页" }));
+    expect(screen.getByText(/已选 2 项/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /批量重试/ }));
+    fireEvent.click(screen.getByRole("button", { name: "确认批量重试" }));
+    await waitFor(() => expect(onBatchRetry).toHaveBeenCalledWith(["failure-video", "failure-unindexed-file"]));
+    expect(await screen.findByText(/批量重试完成/)).toBeInTheDocument();
+  });
+
+  it("selects all eligible items on page and submits batch delete", async () => {
+    const onBatchDelete = vi.fn().mockResolvedValue({ action: "delete", totalCount: 2, successCount: 2, skippedCount: 0, failureCount: 0, reclaimedBytes: 1024, items: [] });
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onBatchDelete={onBatchDelete} onOpenLocation={vi.fn()} />);
+    await screen.findByText("clip.mp4");
+    fireEvent.click(screen.getByRole("button", { name: "全选本页" }));
+    expect(screen.getByText(/已选 2 项/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /批量删除/ }));
+    fireEvent.click(screen.getByRole("button", { name: "确认批量永久删除" }));
+    await waitFor(() => expect(onBatchDelete).toHaveBeenCalledWith(["failure-video", "failure-unindexed-file"]));
+    expect(await screen.findByText(/批量删除完成/)).toBeInTheDocument();
+  });
+
+  it("requires explicit confirmation before single permanent deletion and refreshes afterwards", async () => {
     const loadPage = vi.fn().mockResolvedValue(page);
     const onDeleteFile = vi.fn().mockResolvedValue(true);
     render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={loadPage} onRetry={vi.fn()} onDeleteFile={onDeleteFile} onOpenLocation={vi.fn()} />);
