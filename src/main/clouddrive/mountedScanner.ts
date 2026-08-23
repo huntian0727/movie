@@ -84,6 +84,16 @@ export async function confirmMountedCloudDriveFileMissing(
   if (!config) return "not-cloud-drive";
   const client = getSharedClient(config);
   const mountPoints = config.manualMounts ?? await client.getMountPoints(isCancelled);
+  return confirmCloudDriveFileMissingFromListing(localFilePath, mountPoints, (remoteParent, cancelled) =>
+    client.getSubFiles(remoteParent, true, cancelled), isCancelled);
+}
+
+export async function confirmCloudDriveFileMissingFromListing(
+  localFilePath: string,
+  mountPoints: CloudDriveMountPoint[],
+  listParent: (remoteParent: string, isCancelled?: () => boolean) => AsyncIterable<{ name: string; fullPathName: string }>,
+  isCancelled?: () => boolean
+): Promise<CloudDriveMissingConfirmation> {
   const mapping = findMountMapping(localFilePath, mountPoints);
   if (!mapping) return "not-cloud-drive";
 
@@ -95,7 +105,7 @@ export async function confirmMountedCloudDriveFileMissing(
   }
   const remoteParent = joinRemotePath(mapping.mountPoint.sourceDir, relativeParent);
   const expectedName = mapping.pathApi.basename(normalizedFilePath).normalize("NFC").toLocaleLowerCase();
-  for await (const entry of client.getSubFiles(remoteParent, true, isCancelled)) {
+  for await (const entry of listParent(remoteParent, isCancelled)) {
     const entryName = entry.name || posixBasename(entry.fullPathName);
     if (!isSafeEntryName(entryName, mapping.pathApi)) {
       throw new Error(`CloudDrive returned an unsafe directory entry name for ${remoteParent}`);

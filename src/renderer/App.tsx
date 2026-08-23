@@ -415,6 +415,9 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       onRetryScanFailure={(failureId) => api.retryScanFailure(failureId)}
       onDeleteScanFailureFile={(failureId) => api.deleteScanFailureFile(failureId)}
       onCleanupScanFailures={(failureIds, action) => api.cleanupScanFailures(failureIds, action)}
+      onSubmitScanFailureBatch={(request) => api.submitScanFailureBatch(request)}
+      onGetScanFailureBatch={(jobId) => api.getScanFailureBatch(jobId)}
+      onCancelScanFailureBatch={(jobId) => api.cancelScanFailureBatch(jobId)}
       onOpenScanFailureLocation={(failureId) => api.openScanFailureLocation(failureId)}
       onRefresh={refresh}
       onToggleFavorite={toggleFavorite}

@@ -11,6 +11,7 @@ import type { VideoRepository } from "./db/videoRepository.js";
 import { confirmMountedCloudDriveFileMissing } from "./clouddrive/mountedScanner.js";
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
 import { cleanupScanFailures, deleteScanFailureFile } from "./files/scanFailureActions.js";
+import { ScanFailureBatchService } from "./files/scanFailureBatchService.js";
 import { isManagedPathWithin } from "./files/pathNormalization.js";
 import {
   buildDiagnosticPackage,
@@ -22,7 +23,7 @@ import type { DiagnosticEnvironment } from "./logging/types.js";
 import type { StructuredLogger } from "./logging/logger.js";
 import { buildCacheKey, getCoverPath, getCoverTimeSeconds } from "./media/cacheService.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
-import { previewDuplicateResolveSafely, resolveDuplicatePlanFast } from "./media/duplicateResolveSafety.js";
+import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
 import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
@@ -44,6 +45,8 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.scanFailureReviewRetry,
   IPC_CHANNELS.scanFailureReviewDelete,
   IPC_CHANNELS.scanFailureReviewCleanup,
+  IPC_CHANNELS.scanFailureBatchSubmit,
+  IPC_CHANNELS.scanFailureBatchCancel,
   IPC_CHANNELS.folderRemove,
   IPC_CHANNELS.folderScanPause,
   IPC_CHANNELS.folderScanResume,
@@ -154,7 +157,8 @@ const duplicateResolvePlanSchema = z
 const duplicateCleanupSubmitSchema = z.object({
   requestId: z.string().min(1).max(200),
   plan: duplicateResolvePlanSchema,
-  sourceView: z.string().max(100).optional()
+  sourceView: z.string().max(100).optional(),
+  autoDeleteAfterVerification: z.boolean().optional()
 }).strict();
 const duplicateCleanupConfirmSchema = z.object({
   jobId: z.string().uuid(),
@@ -207,6 +211,20 @@ const scanFailureIdSchema = z.object({ failureId: z.string().min(1) }).strict();
 const scanFailureCleanupSchema = z.object({
   failureIds: z.array(z.string().min(1)).min(1).max(100),
   action: z.enum(["mark-pending-delete", "permanent-delete", "remove-missing-record"])
+}).strict();
+const scanFailureBatchSubmitSchema = z.object({
+  operation: z.enum(["recheck-accessibility", "analyze-metadata", "permanent-delete", "remove-missing-record"]),
+  scope: z.discriminatedUnion("mode", [
+    z.object({ mode: z.literal("selected"), failureIds: z.array(z.string().min(1)).min(1).max(10_000) }).strict(),
+    z.object({
+      mode: z.literal("filtered"),
+      query: z.object({
+        sourceFolderId: z.string().min(1).optional(),
+        kind: z.enum(["all", "video", "unindexed-file", "directory"]),
+        cleanupCategory: z.enum(["all", "confirmed-corrupt", "missing", "transient", "manual-review"])
+      }).strict()
+    }).strict()
+  ])
 }).strict();
 const scanFailureReviewQuerySchema = z.object({
   sourceFolderId: z.string().min(1).optional(),
@@ -293,6 +311,21 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
   ipcLogger = dependencies.logger;
+  const scanFailureBatches = new ScanFailureBatchService(repo, {
+    analyzeFailure: async (failureId) => {
+      const failure = repo.getScanFailure(failureId);
+      if (!failure) throw new Error("Scan failure not found");
+      const folder = repo.listSourceFolders().find((candidate) => candidate.id === failure.sourceFolderId);
+      if (!folder) throw new Error("Source folder not found for scan failure");
+      await dependencies.scanManager.retryFailure(folder, failureId);
+    },
+    confirmRemoteMissing: (targetPath, isCancelled) => confirmMountedCloudDriveFileMissing(targetPath, process.env, isCancelled),
+    assertPermanentDeleteAllowed: (videoIds) => dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(videoIds),
+    onLibraryChanged: (removedVideoIds) => {
+      if (removedVideoIds.length > 0) dependencies.cacheManager.scheduleMaintenance(true);
+      dependencies.domainEvents.publish({ type: removedVideoIds.length > 0 ? "video:removed" : "library:rescanned", videoIds: removedVideoIds });
+    }
+  });
   ipcMain.handle(IPC_CHANNELS.libraryList, (_event, query) => {
     return repo.listVideos(libraryQuerySchema.parse(query));
   });
@@ -321,12 +354,8 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
 
   ipcMain.handle(IPC_CHANNELS.duplicateFastDelete, async (_event, payload) => {
-    const plan = duplicateResolvePlanSchema.parse(payload);
-    const deleteVideoIds = plan.groups.flatMap((group) => group.deleteVideoIds);
-    const result = await resolveDuplicatePlanFast(repo, plan);
-    dependencies.cacheManager.scheduleMaintenance(true);
-    publishRemovedVideos(repo, deleteVideoIds, dependencies.domainEvents);
-    return result;
+    duplicateResolvePlanSchema.parse(payload);
+    throw new Error("未完成完整 SHA-256 验证的快速永久删除已禁用；请使用一键验证并删除。");
   });
 
   ipcMain.handle(IPC_CHANNELS.duplicateCheckMissing, async (_event, payload) => {
@@ -472,6 +501,9 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     });
     return result;
   });
+  ipcMain.handle(IPC_CHANNELS.scanFailureBatchSubmit, (_event, payload) => scanFailureBatches.submit(scanFailureBatchSubmitSchema.parse(payload)));
+  ipcMain.handle(IPC_CHANNELS.scanFailureBatchGet, (_event, payload) => scanFailureBatches.get(z.object({ jobId: z.string().min(1) }).strict().parse(payload).jobId));
+  ipcMain.handle(IPC_CHANNELS.scanFailureBatchCancel, (_event, payload) => scanFailureBatches.cancel(z.object({ jobId: z.string().min(1) }).strict().parse(payload).jobId));
   ipcMain.handle(IPC_CHANNELS.scanFailureReviewOpen, async (_event, payload) => {
     const { failureId } = scanFailureIdSchema.parse(payload);
     const failure = repo.getScanFailure(failureId);

@@ -21,6 +21,8 @@
 .scan-failure-select input { width: 18px; height: 18px; accent-color: #e85d45; }
 .scan-failure-cleanup-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid #343734; border-radius: 10px; background: #151715; }
 .scan-failure-cleanup-bar > span { flex: 1 1 360px; color: #8b8f89; font-size: 12px; }
+.scan-failure-batch-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid #343734; border-radius: 10px; background: #151715; }
+.scan-failure-batch-status code { max-width: min(620px, 100%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scan-failure-classification { justify-self: start; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
 .scan-failure-classification.confirmed-corrupt { color: #ffb39f; background: #522b24; }
 .scan-failure-classification.transient { color: #f0b64d; background: #3e321d; }

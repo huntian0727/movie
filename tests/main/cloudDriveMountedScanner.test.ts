@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
-import { findMountMapping, type MountedCloudDriveDirectorySource } from "../../src/main/clouddrive/mountedScanner";
+import { confirmCloudDriveFileMissingFromListing, findMountMapping, type MountedCloudDriveDirectorySource } from "../../src/main/clouddrive/mountedScanner";
 import { scanSourceFolder } from "../../src/main/media/libraryScanner";
 
 const ROOT = "Z:\\Cloud 电影";
@@ -32,6 +32,27 @@ describe("CloudDrive mounted scanner", () => {
   it("does not match sibling or unmounted paths", () => {
     expect(findMountMapping("Z:\\CloudBackup", [mount("Z:\\Cloud", "/115")])).toBeNull();
     expect(findMountMapping("Z:\\Cloud", [{ ...mount("Z:", "/115"), isMounted: false }])).toBeNull();
+  });
+
+  it("confirms remote absence only after fully listing the mapped parent directory", async () => {
+    const calls: string[] = [];
+    const listParent = async function* (remoteParent: string) {
+      calls.push(remoteParent);
+      yield { name: "other.mp4", fullPathName: `${remoteParent}/other.mp4` };
+    };
+    await expect(confirmCloudDriveFileMissingFromListing(
+      "Z:\\Cloud 电影\\子目录\\gone.mp4",
+      [mount("Z:", "/115")],
+      listParent
+    )).resolves.toBe("missing");
+    expect(calls).toEqual(["/115/Cloud 电影/子目录"]);
+  });
+
+  it("treats a case-insensitive NFC filename match as present", async () => {
+    const listParent = async function* () {
+      yield { name: "CLIP.MP4", fullPathName: "/115/clip.mp4" };
+    };
+    await expect(confirmCloudDriveFileMissingFromListing("Z:\\clip.mp4", [mount("Z:", "/115")], listParent)).resolves.toBe("present");
   });
 
   it("uses CloudDrive size/writeTime without statting video files and keeps Windows paths", async () => {

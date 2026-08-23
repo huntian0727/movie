@@ -59,7 +59,7 @@ describe("ScanFailuresPage", () => {
     expect(screen.getAllByText("访问异常，不可清理")).toHaveLength(1);
     expect(screen.getByText("目录访问异常")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "全选当前页可清理项" }));
-    expect(screen.getByText("已选 1 个可处理项")).toBeInTheDocument();
+    expect(screen.getByText("已选 2 个可处理项")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /永久删除损坏项/ }));
     await waitFor(() => expect(onCleanup).toHaveBeenCalledWith(["failure-video"], "permanent-delete"));
     expect(await screen.findByText(/永久删除完成/)).toBeInTheDocument();
@@ -86,6 +86,23 @@ describe("ScanFailuresPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "清理失效记录" }));
     await waitFor(() => expect(onCleanup).toHaveBeenCalledWith([missing.failure.id], "remove-missing-record"));
     expect(screen.queryByTitle("永久删除文件")).not.toBeInTheDocument();
+  });
+
+  it("submits all filtered results as a backend batch instead of only visible ids", async () => {
+    const onSubmitBatch = vi.fn().mockResolvedValue({
+      id: "job-1", operation: "analyze-metadata", status: "completed", totalCount: 250,
+      processedCount: 250, successCount: 250, skippedCount: 0, failureCount: 0,
+      currentPath: null, message: "done", createdAt: "2026-01-01", completedAt: "2026-01-01"
+    });
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onSubmitBatch={onSubmitBatch} onOpenLocation={vi.fn()} />);
+    await screen.findByText("clip.mp4");
+    fireEvent.click(screen.getByRole("button", { name: "全选全部筛选结果" }));
+    fireEvent.click(screen.getByRole("button", { name: "分析元数据" }));
+
+    await waitFor(() => expect(onSubmitBatch).toHaveBeenCalledWith({
+      operation: "analyze-metadata",
+      scope: { mode: "filtered", query: { kind: "all", cleanupCategory: "all" } }
+    }));
   });
 
   it("runs a single-item retry and reports action failures", async () => {

@@ -44,6 +44,9 @@ interface LibraryShellProps {
   onRetryScanFailure?(failureId: string): Promise<unknown>;
   onDeleteScanFailureFile?(failureId: string): Promise<unknown>;
   onCleanupScanFailures?: VideoManagerApi["cleanupScanFailures"];
+  onSubmitScanFailureBatch?: VideoManagerApi["submitScanFailureBatch"];
+  onGetScanFailureBatch?: VideoManagerApi["getScanFailureBatch"];
+  onCancelScanFailureBatch?: VideoManagerApi["cancelScanFailureBatch"];
   onOpenScanFailureLocation?(failureId: string): Promise<unknown>;
   onRefresh?(): void | Promise<void>;
   onOpen?(video: VideoRecord, queue: VideoRecord[]): void;
@@ -94,6 +97,9 @@ export function LibraryShell({
   onRetryScanFailure,
   onDeleteScanFailureFile,
   onCleanupScanFailures,
+  onSubmitScanFailureBatch,
+  onGetScanFailureBatch,
+  onCancelScanFailureBatch,
   onOpenScanFailureLocation,
   onRefresh,
   onOpen,
@@ -812,6 +818,9 @@ export function LibraryShell({
                 onRetry={onRetryScanFailure}
                 onDeleteFile={onDeleteScanFailureFile}
                 onCleanup={onCleanupScanFailures}
+                onSubmitBatch={onSubmitScanFailureBatch}
+                onGetBatch={onGetScanFailureBatch}
+                onCancelBatch={onCancelScanFailureBatch}
                 onOpenLocation={onOpenScanFailureLocation}
                 onOpenVideo={(video) => openVideo(video, [video])}
                 onShowDetails={viewVideoDetails}
@@ -848,7 +857,7 @@ export function LibraryShell({
               return onPreviewDuplicateResolve(plan);
             }}
             onCheckMissing={duplicateCleanupApi?.checkDuplicateMissing}
-            onFastDelete={duplicateCleanupApi?.fastDeleteDuplicateCandidates}
+            onAutoDelete={duplicateCleanupApi ? (plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId: crypto.randomUUID(), plan, sourceView: "duplicates-one-click", autoDeleteAfterVerification: true }) : undefined}
             onResolve={async (plan) => {
               if (!onResolveDuplicateGroups) {
                 throw new Error("重复项清理能力未连接");

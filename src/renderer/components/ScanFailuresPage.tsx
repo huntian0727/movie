@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ExternalLink, FileQuestion, FolderOpen, Info, LoaderCircle, Play, RotateCw, Trash2 } from "lucide-react";
-import type { ScanFailureCleanupAction, ScanFailureCleanupResult, ScanFailureReviewKind, ScanFailureReviewPage, ScanFailureReviewPageSize, ScanFailureReviewQuery, SourceFolder, VideoRecord } from "../../shared/videoTypes";
+import type { ScanFailureBatchJob, ScanFailureBatchOperation, ScanFailureBatchSubmitRequest, ScanFailureCleanupAction, ScanFailureCleanupResult, ScanFailureReviewKind, ScanFailureReviewPage, ScanFailureReviewPageSize, ScanFailureReviewQuery, SourceFolder, VideoRecord } from "../../shared/videoTypes";
 import { classifyScanFailureForCleanup } from "../../shared/scanFailureCleanup";
 import { formatBytes, formatDuration } from "./formatters";
 
@@ -12,6 +12,9 @@ interface ScanFailuresPageProps {
   onRetry(failureId: string): Promise<unknown>;
   onDeleteFile(failureId: string): Promise<unknown>;
   onCleanup?(failureIds: string[], action: ScanFailureCleanupAction): Promise<ScanFailureCleanupResult>;
+  onSubmitBatch?(request: ScanFailureBatchSubmitRequest): Promise<ScanFailureBatchJob>;
+  onGetBatch?(jobId: string): Promise<ScanFailureBatchJob>;
+  onCancelBatch?(jobId: string): Promise<ScanFailureBatchJob>;
   onOpenLocation(failureId: string): Promise<unknown>;
   onOpenVideo?(video: VideoRecord): void;
   onShowDetails?(video: VideoRecord): void;
@@ -25,7 +28,7 @@ const EMPTY_PAGE: ScanFailureReviewPage = {
 };
 
 export function ScanFailuresPage({
-  folders, initialSourceFolderId, refreshSequence, loadPage, onRetry, onDeleteFile, onCleanup,
+  folders, initialSourceFolderId, refreshSequence, loadPage, onRetry, onDeleteFile, onCleanup, onSubmitBatch, onGetBatch, onCancelBatch,
   onOpenLocation, onOpenVideo, onShowDetails, onTogglePendingDelete, getCoverUrl
 }: ScanFailuresPageProps) {
   const [sourceFolderId, setSourceFolderId] = useState(initialSourceFolderId ?? "");
@@ -37,10 +40,12 @@ export function ScanFailuresPage({
   const [error, setError] = useState<string | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
   const [selectedFailureIds, setSelectedFailureIds] = useState<Set<string>>(() => new Set());
+  const [allFilteredSelected, setAllFilteredSelected] = useState(false);
   const [cleanupFilter, setCleanupFilter] = useState<"all" | "confirmed-corrupt" | "missing">("all");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [batchJob, setBatchJob] = useState<ScanFailureBatchJob | null>(null);
   const loadPageRef = useRef(loadPage);
   const previousQueryKeyRef = useRef<string | null>(null);
 
@@ -73,17 +78,35 @@ export function ScanFailuresPage({
 
   const selectedFolder = useMemo(() => folders.find((folder) => folder.id === sourceFolderId), [folders, sourceFolderId]);
   const visibleItems = useMemo(() => result.items.filter((item) => cleanupFilter === "all" || classifyScanFailureForCleanup(item.failure).category === cleanupFilter), [cleanupFilter, result.items]);
-  const selectableIds = useMemo(() => visibleItems.filter((item) => {
-    const category = classifyScanFailureForCleanup(item.failure).category;
-    return (category === "confirmed-corrupt" && Boolean(item.video)) || category === "missing";
-  }).map((item) => item.failure.id), [visibleItems]);
+  const selectableIds = useMemo(() => visibleItems.filter((item) => item.failure.objectType === "file").map((item) => item.failure.id), [visibleItems]);
   const selectedCorruptCount = result.items.filter((item) => selectedFailureIds.has(item.failure.id) && Boolean(item.video) && classifyScanFailureForCleanup(item.failure).category === "confirmed-corrupt").length;
   const selectedMissingCount = result.items.filter((item) => selectedFailureIds.has(item.failure.id) && classifyScanFailureForCleanup(item.failure).category === "missing").length;
+  const batchActive = Boolean(batchJob && ["queued", "running", "cancelling"].includes(batchJob.status));
 
   useEffect(() => {
     const availableIds = new Set(result.items.map((item) => item.failure.id));
     setSelectedFailureIds((current) => new Set([...current].filter((id) => availableIds.has(id))));
   }, [result.items]);
+
+  useEffect(() => {
+    setAllFilteredSelected(false);
+    setSelectedFailureIds(new Set());
+  }, [cleanupFilter, kind, sourceFolderId]);
+
+  useEffect(() => {
+    if (!batchJob || !onGetBatch || !["queued", "running", "cancelling"].includes(batchJob.status)) return;
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      void onGetBatch(batchJob.id).then((next) => {
+        if (cancelled) return;
+        setBatchJob(next);
+        if (!["queued", "running", "cancelling"].includes(next.status)) {
+          setRefreshVersion((current) => current + 1);
+        }
+      }).catch((cause) => { if (!cancelled) setError(toMessage(cause)); });
+    }, 500);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [batchJob?.id, batchJob?.status, onGetBatch]);
 
   async function runAction(failureId: string, action: () => Promise<unknown>) {
     setBusyIds((current) => new Set(current).add(failureId));
@@ -125,6 +148,22 @@ export function ScanFailuresPage({
     }
   }
 
+  async function startBatch(operation: ScanFailureBatchOperation) {
+    if (!onSubmitBatch) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const scope: ScanFailureBatchSubmitRequest["scope"] = allFilteredSelected
+        ? { mode: "filtered", query: { sourceFolderId: sourceFolderId || undefined, kind, cleanupCategory: cleanupFilter } }
+        : { mode: "selected", failureIds: [...selectedFailureIds] };
+      const job = await onSubmitBatch({ operation, scope });
+      setBatchJob(job);
+      setNotice(`批处理已启动，共 ${job.totalCount} 项。`);
+    } catch (cause) {
+      setError(toMessage(cause));
+    }
+  }
+
   return (
     <section className="scan-failure-page" aria-label="扫描异常">
       <div className="scan-failure-filters">
@@ -158,14 +197,24 @@ export function ScanFailuresPage({
       </div>
 
       <div className="scan-failure-cleanup-bar">
-        <strong>已选 {selectedFailureIds.size} 个可处理项</strong>
-        <button disabled={selectableIds.length === 0 || bulkBusy} onClick={() => setSelectedFailureIds(new Set(selectableIds))}>全选当前页可清理项</button>
-        <button disabled={selectedCorruptCount === 0 || bulkBusy || !onCleanup} onClick={() => void runBulkCleanup("mark-pending-delete")}>损坏项标记待删除</button>
-        <button className="danger-button" disabled={selectedCorruptCount === 0 || bulkBusy || !onCleanup} onClick={() => void runBulkCleanup("permanent-delete")}>{bulkBusy ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}永久删除损坏项</button>
-        <button disabled={selectedMissingCount === 0 || bulkBusy || !onCleanup} onClick={() => void runBulkCleanup("remove-missing-record")}>清理网盘失效记录</button>
-        {selectedFailureIds.size > 0 && <button disabled={bulkBusy} onClick={() => setSelectedFailureIds(new Set())}>取消选择</button>}
+        <strong>{allFilteredSelected ? "已选择全部筛选结果" : `已选 ${selectedFailureIds.size} 个可处理项`}</strong>
+        <button disabled={selectableIds.length === 0 || bulkBusy || batchActive} onClick={() => { setAllFilteredSelected(false); setSelectedFailureIds(new Set(selectableIds)); }}>全选当前页可清理项</button>
+        <button disabled={result.totalCount === 0 || !onSubmitBatch || batchActive} onClick={() => { setAllFilteredSelected(true); setSelectedFailureIds(new Set()); }}>全选全部筛选结果</button>
+        <button disabled={(!allFilteredSelected && selectedCorruptCount === 0) || bulkBusy || batchActive || (!allFilteredSelected && !onCleanup) || (allFilteredSelected && !onSubmitBatch)} onClick={() => void (allFilteredSelected ? startBatch("permanent-delete") : runBulkCleanup("permanent-delete"))}>{bulkBusy || batchActive ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}永久删除损坏项</button>
+        <button disabled={(!allFilteredSelected && selectedMissingCount === 0) || bulkBusy || batchActive || (!allFilteredSelected && !onCleanup) || (allFilteredSelected && !onSubmitBatch)} onClick={() => void (allFilteredSelected ? startBatch("remove-missing-record") : runBulkCleanup("remove-missing-record"))}>清理网盘失效记录</button>
+        <button disabled={(!allFilteredSelected && selectedFailureIds.size === 0) || !onSubmitBatch || batchActive} onClick={() => void startBatch("recheck-accessibility")}>复查可访问性</button>
+        <button disabled={(!allFilteredSelected && selectedFailureIds.size === 0) || !onSubmitBatch || batchActive} onClick={() => void startBatch("analyze-metadata")}>分析元数据</button>
+        {(selectedFailureIds.size > 0 || allFilteredSelected) && <button disabled={bulkBusy || batchActive} onClick={() => { setAllFilteredSelected(false); setSelectedFailureIds(new Set()); }}>取消选择</button>}
         <span>损坏项会永久删除原文件；网盘已删除项只清理本地记录，并在操作时在线强制刷新确认。超时、断线、权限异常不会清理。</span>
       </div>
+
+      {batchJob && <div className="scan-failure-batch-status" role="status">
+        <strong>{batchJob.status === "running" ? "批处理中" : batchJob.status === "cancelling" ? "正在取消" : batchJob.status === "cancelled" ? "已取消" : batchJob.status === "completed-with-errors" ? "批处理完成（有失败）" : "批处理完成"}</strong>
+        <span>{batchJob.processedCount} / {batchJob.totalCount} · 成功 {batchJob.successCount} · 跳过 {batchJob.skippedCount} · 失败 {batchJob.failureCount}</span>
+        {batchJob.currentPath && <code title={batchJob.currentPath}>{batchJob.currentPath}</code>}
+        {batchJob.message && <span>{batchJob.message}</span>}
+        {batchActive && <button disabled={!onCancelBatch || batchJob.status === "cancelling"} onClick={() => void onCancelBatch?.(batchJob.id).then(setBatchJob).catch((cause) => setError(toMessage(cause)))}>取消批处理</button>}
+      </div>}
 
       {selectedFolder && <p className="scan-failure-scope">当前仅查看：{selectedFolder.path}</p>}
       {error && <div className="error-banner">{error}</div>}
@@ -183,7 +232,7 @@ export function ScanFailuresPage({
           const busy = busyIds.has(failure.id);
           const coverUrl = video && getCoverUrl ? getCoverUrl(video) : null;
           const classification = classifyScanFailureForCleanup(failure);
-          const selectable = (Boolean(video) && classification.category === "confirmed-corrupt") || classification.category === "missing";
+          const selectable = failure.objectType === "file";
           return <article className={`scan-failure-card scan-failure-${classification.category}`} key={failure.id}>
             <label className="scan-failure-select" title={selectable ? "选择此可处理项" : classification.reason}>
               <input type="checkbox" disabled={!selectable || busy || bulkBusy} checked={selectedFailureIds.has(failure.id)} onChange={(event) => setSelectedFailureIds((current) => {

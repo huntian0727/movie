@@ -53,6 +53,22 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     service.stop();
   });
 
+  it("auto-deletes only after full SHA-256 verification when explicitly requested", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const deleteFile = vi.fn(async (filePath: string) => rm(filePath, { force: true }));
+    const service = createService(jobs, repo, { deleteFile, hashFile: async () => "a".repeat(64) });
+
+    const accepted = service.submit({ requestId: "verified-auto-delete", plan, autoDeleteAfterVerification: true });
+    const completed = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+
+    expect(completed).toMatchObject({ status: "completed", identicalItems: 1, successItems: 1 });
+    expect(deleteFile).toHaveBeenCalledOnce();
+    await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
+    service.stop();
+  });
+
   it("classifies same-metadata different content and gives it zero deletion authorization", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, false);

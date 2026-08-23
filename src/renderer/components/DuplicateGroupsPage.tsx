@@ -47,7 +47,7 @@ interface DuplicateGroupsPageProps {
   onPreviewResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onCheckMissing?(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
-  onFastDelete?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  onAutoDelete?(plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onSubmitCleanup?(requestId: string, plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onConfirmCleanup?(request: DuplicateCleanupConfirmRequest): Promise<DuplicateCleanupJob>;
   onLoadCleanupJobs?(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;
@@ -84,7 +84,7 @@ export function DuplicateGroupsPage({
   onPreviewResolve,
   onCheckMissing,
   onResolve,
-  onFastDelete,
+  onAutoDelete,
   onSubmitCleanup,
   onConfirmCleanup,
   onLoadCleanupJobs,
@@ -103,7 +103,6 @@ export function DuplicateGroupsPage({
   const [resolveResult, setResolveResult] = useState<DuplicateResolveResult | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
-  const [fastDeletePending, setFastDeletePending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [internalSizeSortDirection, setInternalSizeSortDirection] = useState<SortDirection>("desc");
   const [taskCenterOpen, setTaskCenterOpen] = useState(false);
@@ -176,20 +175,17 @@ export function DuplicateGroupsPage({
     setActionError("候选项不能直接删除；请先运行完整 SHA-256 验证。 ");
   };
 
-  const handleFastDelete = async () => {
-    if (!onFastDelete || actionPending || fastDeleteCount === 0) return;
+  const handleAutoDelete = async (autoPlan: DuplicateResolvePlan, label: string) => {
+    if (!onAutoDelete || actionPending) return;
     setActionPending(true);
-    setFastDeletePending(true);
     setActionError(null);
-    setResolveResult(null);
     try {
-      const result = await onFastDelete(plan);
-      setResolveResult(result);
-      onRefresh?.();
+      const accepted = await onAutoDelete(autoPlan);
+      setMissingCheckMessage(`${label}：已启动完整 SHA-256 验证任务；仅验证完全相同且删除前版本未变化的文件会自动永久删除。任务 ${accepted.jobId.slice(0, 8)}`);
+      setActiveTaskCount((current) => current + 1);
     } catch (cause) {
       setActionError(toDuplicateActionMessage(cause));
     } finally {
-      setFastDeletePending(false);
       setActionPending(false);
     }
   };
@@ -263,7 +259,7 @@ export function DuplicateGroupsPage({
       {missingCheckMessage && <div className="success-banner" role="status">{missingCheckMessage}</div>}
 
       <div className="duplicate-summary">
-        <p className="duplicate-size-warning">快速删除按数据库中缓存的文件大小和时长判断，不读取视频内容、不计算 SHA-256，也不再二次确认。点击“一键永久删除”后会立即删除当前页所有候选移除项；计划保留项不会删除。</p>
+        <p className="duplicate-size-warning">候选发现只使用缓存的大小和时长，不读取视频内容。点击删除后会先在后台完整计算保留文件和候选移除文件的 SHA-256；仅内容完全相同且删除前版本未变化的文件会自动永久删除。</p>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
           <span>大小＋时长匹配组</span>
@@ -317,8 +313,8 @@ export function DuplicateGroupsPage({
             {missingCheckPending ? `正在复查 ${previewFileCount} 个文件...` : "检查缺失文件"}
           </button>}
           {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
-          {onFastDelete && <button className="danger" type="button" disabled={actionPending || fastDeleteCount === 0} onClick={() => void handleFastDelete()}>
-            {fastDeletePending ? "正在永久删除..." : `一键永久删除候选移除项（${fastDeleteCount}）`}
+          {onAutoDelete && <button className="danger" type="button" disabled={actionPending || fastDeleteCount === 0} onClick={() => void handleAutoDelete(plan, "批量清理")}>
+            {actionPending ? "正在提交验证..." : `一键验证并删除候选移除项（${fastDeleteCount}）`}
           </button>}
           {onSubmitCleanup ? (
             <DuplicateCleanupButton
@@ -380,6 +376,14 @@ export function DuplicateGroupsPage({
             onOpen={onOpen}
             onViewDetails={onViewDetails}
             onRevealInFolder={onRevealInFolder}
+            onDeleteCandidate={(videoId) => {
+              const selectedKeep = manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
+              const keepVideoId = selectedKeep === videoId
+                ? group.items.find((item) => item.video.id !== videoId)?.video.id
+                : selectedKeep;
+              if (!keepVideoId) return;
+              void handleAutoDelete({ groups: [{ groupKey: group.groupKey, keepVideoId, deleteVideoIds: [videoId] }] }, "单项清理");
+            }}
           />
         ))}
       </div>
@@ -469,7 +473,8 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   onPreferDirectory,
   onOpen,
   onViewDetails,
-  onRevealInFolder
+  onRevealInFolder,
+  onDeleteCandidate
 }: {
   group: DuplicateGroup;
   index: number;
@@ -482,6 +487,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
+  onDeleteCandidate(videoId: string): void;
 }) {
   const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
 
@@ -540,6 +546,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
                 <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
                 <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
                 <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
+                <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} onClick={() => onDeleteCandidate(item.video.id)}><Trash2 size={16} /></button>
               </div>
             </article>
           );

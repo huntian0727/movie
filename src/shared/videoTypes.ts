@@ -132,6 +132,40 @@ export interface ScanFailureCleanupResult {
   items: ScanFailureCleanupItemResult[];
 }
 
+export type ScanFailureBatchOperation = "recheck-accessibility" | "analyze-metadata" | "permanent-delete" | "remove-missing-record";
+export type ScanFailureBatchJobStatus = "queued" | "running" | "cancelling" | "cancelled" | "completed" | "completed-with-errors";
+
+export type ScanFailureBatchScope =
+  | { mode: "selected"; failureIds: string[] }
+  | {
+      mode: "filtered";
+      query: {
+        sourceFolderId?: string;
+        kind: ScanFailureReviewKind;
+        cleanupCategory: "all" | "confirmed-corrupt" | "missing" | "transient" | "manual-review";
+      };
+    };
+
+export interface ScanFailureBatchSubmitRequest {
+  operation: ScanFailureBatchOperation;
+  scope: ScanFailureBatchScope;
+}
+
+export interface ScanFailureBatchJob {
+  id: string;
+  operation: ScanFailureBatchOperation;
+  status: ScanFailureBatchJobStatus;
+  totalCount: number;
+  processedCount: number;
+  successCount: number;
+  skippedCount: number;
+  failureCount: number;
+  currentPath: string | null;
+  message: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 export interface ScanCounters {
   totalFolders: number;
   currentFolderIndex: number;
@@ -351,6 +385,7 @@ export interface DuplicateCleanupSubmitRequest {
   requestId: string;
   plan: DuplicateResolvePlan;
   sourceView?: string;
+  autoDeleteAfterVerification?: boolean;
 }
 
 export interface DuplicateCleanupJob {
@@ -637,6 +672,9 @@ export const IPC_CHANNELS = {
   scanFailureReviewRetry: "scan-failure-review:retry",
   scanFailureReviewDelete: "scan-failure-review:delete",
   scanFailureReviewCleanup: "scan-failure-review:cleanup",
+  scanFailureBatchSubmit: "scan-failure-batch:submit",
+  scanFailureBatchGet: "scan-failure-batch:get",
+  scanFailureBatchCancel: "scan-failure-batch:cancel",
   scanFailureReviewOpen: "scan-failure-review:open",
   folderRemove: "folder:remove",
   folderRemovePreview: "folder:remove-preview",
@@ -716,6 +754,9 @@ export interface VideoManagerApi {
   retryScanFailure(failureId: string): Promise<boolean>;
   deleteScanFailureFile(failureId: string): Promise<boolean>;
   cleanupScanFailures(failureIds: string[], action: ScanFailureCleanupAction): Promise<ScanFailureCleanupResult>;
+  submitScanFailureBatch(request: ScanFailureBatchSubmitRequest): Promise<ScanFailureBatchJob>;
+  getScanFailureBatch(jobId: string): Promise<ScanFailureBatchJob>;
+  cancelScanFailureBatch(jobId: string): Promise<ScanFailureBatchJob>;
   openScanFailureLocation(failureId: string): Promise<boolean>;
   removeFolder(folderId: string): Promise<SourceFolderRemovalResult>;
   previewRemoveFolder(folderId: string): Promise<SourceFolderRemovalPreview>;

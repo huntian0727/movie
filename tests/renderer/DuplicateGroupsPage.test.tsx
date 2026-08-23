@@ -32,31 +32,29 @@ function taskCenterProps() {
 }
 
 describe("DuplicateGroupsPage staged safety flow", () => {
-  it("keeps candidate browsing metadata-only and explains immediate fast deletion", () => {
+  it("keeps candidate browsing metadata-only and explains verified one-click deletion", () => {
     const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
     expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument();
-    expect(screen.getByText(/快速删除按数据库/)).toHaveTextContent(/不计算 SHA-256，也不再二次确认/);
+    expect(screen.getByText(/候选发现只使用缓存/)).toHaveTextContent(/完整计算.*SHA-256/);
     expect(container).toHaveTextContent(/计划保留/);
     expect(container).toHaveTextContent(/候选移除/);
     expect(container).toHaveTextContent(/候选可释放空间/);
     expect(container.textContent).not.toMatch(/重复组|拟删除|待删除|预计可释放|待删文件/);
   });
 
-  it("fast-deletes every candidate removal item immediately without opening a confirmation", async () => {
-    const onFastDelete = vi.fn().mockResolvedValue({
-      groupCount: 1, keepCount: 1, successCount: 1, failureCount: 0, reclaimedBytes: 4096, failures: []
-    });
-    render(<DuplicateGroupsPage {...baseProps()} preferredDirectoryPath="D:\\Movies" onFastDelete={onFastDelete} />);
+  it("submits every candidate removal item for verified automatic deletion without a confirmation dialog", async () => {
+    const onAutoDelete = vi.fn().mockResolvedValue({ jobId: "job-1", requestId: "request-1", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
+    render(<DuplicateGroupsPage {...baseProps()} preferredDirectoryPath="D:\\Movies" onAutoDelete={onAutoDelete} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "一键永久删除候选移除项（1）" }));
+    fireEvent.click(screen.getByRole("button", { name: "一键验证并删除候选移除项（1）" }));
 
-    await waitFor(() => expect(onFastDelete).toHaveBeenCalledOnce());
-    expect(onFastDelete).toHaveBeenCalledWith({
+    await waitFor(() => expect(onAutoDelete).toHaveBeenCalledOnce());
+    expect(onAutoDelete).toHaveBeenCalledWith({
       groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }]
     });
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "批量清理结果" })).toHaveTextContent(/成功删除 1 个文件/);
+    expect(screen.getByText(/批量清理：已启动完整 SHA-256 验证任务/)).toBeInTheDocument();
   });
 
   it("starts only full verification after an explicit preflight and does not claim deletion", async () => {
@@ -100,9 +98,11 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
   });
 
-  it("does not expose the former single-item permanent-delete control", () => {
-    render(<DuplicateGroupsPage {...baseProps()} />);
-    expect(screen.queryByRole("button", { name: /手动删除/ })).not.toBeInTheDocument();
+  it("submits one candidate for verified automatic deletion", async () => {
+    const onAutoDelete = vi.fn().mockResolvedValue({ jobId: "job-2", requestId: "request-2", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
+    render(<DuplicateGroupsPage {...baseProps()} onAutoDelete={onAutoDelete} />);
+    fireEvent.click(screen.getByRole("button", { name: "验证并永久删除 clip-copy.mp4" }));
+    await waitFor(() => expect(onAutoDelete).toHaveBeenCalledWith({ groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }] }));
   });
 
   it("does not expose the retired direct resolve fallback", () => {

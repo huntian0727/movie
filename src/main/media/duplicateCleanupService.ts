@@ -37,6 +37,7 @@ export class DuplicateCleanupService {
   private currentJobId: string | null = null;
   private currentVerificationAbort: AbortController | null = null;
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly autoDeleteJobIds = new Set<string>();
   private readonly deleteFile: (filePath: string) => Promise<void>;
   private readonly hashFile: (filePath: string, signal?: AbortSignal) => Promise<string>;
   private readonly renameFile: (source: string, destination: string) => Promise<void>;
@@ -61,6 +62,7 @@ export class DuplicateCleanupService {
 
   submit(request: DuplicateCleanupSubmitRequest): DuplicateCleanupAccepted {
     const accepted = this.jobs.submit(request);
+    if (request.autoDeleteAfterVerification) this.autoDeleteJobIds.add(accepted.jobId);
     if (accepted.status === "queued") this.enqueue(accepted.jobId);
     return accepted;
   }
@@ -154,8 +156,12 @@ export class DuplicateCleanupService {
         this.publish(jobId);
       }
       if (!this.stopped) {
-        this.jobs.completeVerification(jobId);
+        const verifiedJob = this.jobs.completeVerification(jobId);
         this.publish(jobId, true);
+        if (this.autoDeleteJobIds.delete(jobId) && verifiedJob.verificationRevision && verifiedJob.identicalItems > 0) {
+          this.jobs.authorizeDeletion({ jobId, verificationRevision: verifiedJob.verificationRevision, confirmation: "DELETE" });
+          if (this.jobs.start(jobId)) await this.runDeletion(jobId);
+        }
       }
     } catch (error: unknown) {
       if (controller.signal.aborted || this.stopped || this.jobs.isCancelling(jobId) || isAbortError(error)) {

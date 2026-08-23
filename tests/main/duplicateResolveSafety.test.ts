@@ -215,18 +215,14 @@ describe("duplicate cleanup stale-file safety", () => {
     expect(await readFile(fixture.deleteVideo.path)).toHaveLength(16);
   });
 
-  it("fast-deletes every planned candidate without hashing or a confirmation step", async () => {
+  it("hard-fails the former fast-delete helper before any file mutation", async () => {
     const fixture = await createDuplicateFixture();
-    const deleteFile = vi.fn(async (filePath: string) => unlink(filePath));
-
-    const result = await resolveDuplicatePlanFast(fixture.repo, fixture.plan, { deleteFile });
-
-    expect(result).toMatchObject({ groupCount: 1, keepCount: 1, successCount: 1, failureCount: 0 });
-    expect(deleteFile).toHaveBeenCalledOnce();
-    expect(deleteFile).toHaveBeenCalledWith(fixture.deleteVideo.path);
+    const deleteFile = vi.fn();
+    await expect(resolveDuplicatePlanFast(fixture.repo, fixture.plan, { deleteFile })).rejects.toThrow(/full SHA-256 verification is permanently disabled/i);
+    expect(deleteFile).not.toHaveBeenCalled();
     expect(await readFile(fixture.keepVideo.path)).toHaveLength(16);
-    await expect(readFile(fixture.deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
-    expect(() => fixture.repo.getVideo(fixture.deleteVideo.id)).toThrow();
+    expect(await readFile(fixture.deleteVideo.path)).toHaveLength(16);
+    expect(fixture.repo.getVideo(fixture.deleteVideo.id)).toBeTruthy();
   });
 
   it("validates the complete keep/delete plan before fast deletion", async () => {
@@ -236,7 +232,7 @@ describe("duplicate cleanup stale-file safety", () => {
       groups: [{ ...fixture.plan.groups[0], deleteVideoIds: [fixture.keepVideo.id] }]
     };
 
-    await expect(resolveDuplicatePlanFast(fixture.repo, invalidPlan, { deleteFile })).rejects.toThrow(/cannot delete the kept video/);
+    await expect(resolveDuplicatePlanFast(fixture.repo, invalidPlan, { deleteFile })).rejects.toThrow(/full SHA-256 verification is permanently disabled/i);
     expect(deleteFile).not.toHaveBeenCalled();
     expect(await readFile(fixture.keepVideo.path)).toHaveLength(16);
     expect(await readFile(fixture.deleteVideo.path)).toHaveLength(16);
