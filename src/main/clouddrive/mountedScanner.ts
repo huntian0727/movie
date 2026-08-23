@@ -4,6 +4,7 @@ import { CloudDriveGrpcClient, type CloudDriveMountPoint } from "./grpcClient.js
 
 const DEFAULT_ENDPOINT = "http://127.0.0.1:19798";
 const DEFAULT_TIMEOUT_MS = 20_000;
+const MAX_VALIDATION_DIRECTORY_CONCURRENCY = 4;
 const EPOCH = new Date(0).toISOString();
 
 export interface CloudDriveScanFileInfo {
@@ -149,7 +150,7 @@ export async function confirmCloudDriveFilesMissingFromListing(
     groups.set(groupKey, group);
   }
 
-  for (const group of groups.values()) {
+  await forEachWithConcurrency([...groups.values()], MAX_VALIDATION_DIRECTORY_CONCURRENCY, async (group) => {
     throwIfCancelled(isCancelled);
     const remoteNames = new Set<string>();
     for await (const entry of listParent(group.remoteParent, isCancelled)) {
@@ -163,7 +164,7 @@ export async function confirmCloudDriveFilesMissingFromListing(
     for (const file of group.files) {
       results.set(file.localFilePath, remoteNames.has(file.expectedName) ? "present" : "missing");
     }
-  }
+  });
   return results;
 }
 
@@ -339,4 +340,15 @@ function throwIfCancelled(isCancelled?: () => boolean): void {
   const error = new Error("CloudDrive validation cancelled") as Error & { code: string };
   error.code = "ABORT_ERR";
   throw error;
+}
+
+async function forEachWithConcurrency<T>(items: readonly T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
+  let nextIndex = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      await worker(items[index]!);
+    }
+  }));
 }

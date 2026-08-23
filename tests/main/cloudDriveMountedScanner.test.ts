@@ -77,6 +77,27 @@ describe("CloudDrive mounted scanner", () => {
     ]);
   });
 
+  it("validates different remote parents with bounded parallel listings", async () => {
+    let activeListings = 0;
+    let maximumActiveListings = 0;
+    const calls: string[] = [];
+    const listParent = async function* (remoteParent: string) {
+      calls.push(remoteParent);
+      activeListings += 1;
+      maximumActiveListings = Math.max(maximumActiveListings, activeListings);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      activeListings -= 1;
+      if (false) yield { name: "unused", fullPathName: "unused" };
+    };
+    const paths = Array.from({ length: 8 }, (_, index) => `Z:\\Directory-${index}\\gone.mp4`);
+
+    const results = await confirmCloudDriveFilesMissingFromListing(paths, [mount("Z:", "/115")], listParent);
+
+    expect(calls).toHaveLength(8);
+    expect(maximumActiveListings).toBe(4);
+    expect([...results.values()]).toEqual(Array(8).fill("missing"));
+  });
+
   it("uses CloudDrive size/writeTime without statting video files and keeps Windows paths", async () => {
     const { repo, source } = createRepository();
     const statImpl = vi.fn(async () => { throw new Error("CloudDrive scan must not call fs.stat"); });

@@ -713,6 +713,43 @@ export class VideoRepository {
     })();
   }
 
+  updateScanFailureAccessibilityResults(results: ReadonlyArray<{
+    failureId: string;
+    accessible: boolean;
+    errorSummary: string;
+  }>): string[] {
+    const uniqueResults = [...new Map(results.map((result) => [result.failureId, result])).values()];
+    if (uniqueResults.length === 0) return [];
+    const failuresById = new Map(this.getScanFailures(uniqueResults.map((result) => result.failureId)).map((failure) => [failure.id, failure]));
+    const update = this.db.prepare(`
+      UPDATE scan_failures
+      SET error_code = ?, error_summary = ?, last_failed_at = ?, retry_count = retry_count + 1,
+          status = 'unresolved', resolved_at = NULL
+      WHERE id = ? AND status != 'resolved' AND object_type = 'file'
+    `);
+
+    return this.db.transaction(() => {
+      const now = new Date().toISOString();
+      const updatedFailureIds: string[] = [];
+      const affectedSourceFolderIds = new Set<string>();
+      for (const result of uniqueResults) {
+        const failure = failuresById.get(result.failureId);
+        if (!failure) continue;
+        const changes = update.run(
+          result.accessible ? "ACCESSIBLE" : "ENOENT",
+          result.errorSummary,
+          now,
+          result.failureId
+        ).changes;
+        if (changes === 0) continue;
+        updatedFailureIds.push(result.failureId);
+        affectedSourceFolderIds.add(failure.sourceFolderId);
+      }
+      for (const sourceFolderId of affectedSourceFolderIds) this.refreshSourceFolderFailureState(sourceFolderId);
+      return updatedFailureIds;
+    })();
+  }
+
   resolveScanFailuresForObjectStage(
     sourceFolderId: string,
     objectPath: string,

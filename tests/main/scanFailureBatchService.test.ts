@@ -40,16 +40,70 @@ describe("ScanFailureBatchService", () => {
     const { repo, source } = setup();
     const failure = record(repo, source.id, path.join(source.path, "accessible.mp4"), "network read failed: ETIMEDOUT");
     const analyzeFailure = vi.fn();
-    const confirmRemoteMissing = vi.fn().mockResolvedValue("present");
-    const service = createService(repo, { analyzeFailure, confirmRemoteMissing });
+    const confirmRemoteMissing = vi.fn();
+    const confirmRemoteMissingBatch = vi.fn(async (targetPaths: readonly string[]) => new Map(targetPaths.map((targetPath) => [targetPath, "present" as const])));
+    const service = createService(repo, { analyzeFailure, confirmRemoteMissing, confirmRemoteMissingBatch });
 
     const submitted = service.submit({ operation: "recheck-accessibility", scope: { mode: "selected", failureIds: [failure.id] } });
     const completed = await waitForCompletion(service, submitted.id);
 
     expect(completed).toMatchObject({ status: "completed", successCount: 1 });
-    expect(confirmRemoteMissing).toHaveBeenCalledOnce();
+    expect(confirmRemoteMissingBatch).toHaveBeenCalledOnce();
+    expect(confirmRemoteMissing).not.toHaveBeenCalled();
     expect(analyzeFailure).not.toHaveBeenCalled();
     expect(repo.getScanFailure(failure.id)).toMatchObject({ errorCode: "ACCESSIBLE", failureStage: "file-processing", status: "unresolved" });
+  });
+
+  it("rechecks every filtered CloudDrive failure with one grouped validation and one bulk update", async () => {
+    const { repo, source } = setup();
+    for (let index = 0; index < 135; index += 1) {
+      record(repo, source.id, path.join(source.path, `recheck-${index}.mp4`), "network read failed: ETIMEDOUT");
+    }
+    const confirmRemoteMissing = vi.fn();
+    const confirmRemoteMissingBatch = vi.fn(async (targetPaths: readonly string[]) =>
+      new Map(targetPaths.map((targetPath, index) => [targetPath, index % 2 === 0 ? "present" as const : "missing" as const]))
+    );
+    const service = createService(repo, { confirmRemoteMissing, confirmRemoteMissingBatch });
+
+    const submitted = service.submit({
+      operation: "recheck-accessibility",
+      scope: { mode: "filtered", query: { kind: "all", cleanupCategory: "all" } }
+    });
+    const completed = await waitForCompletion(service, submitted.id);
+
+    expect(completed).toMatchObject({ status: "completed", totalCount: 135, processedCount: 135, successCount: 135 });
+    expect(confirmRemoteMissingBatch).toHaveBeenCalledOnce();
+    expect(confirmRemoteMissingBatch.mock.calls[0]?.[0]).toHaveLength(135);
+    expect(confirmRemoteMissing).not.toHaveBeenCalled();
+    const failures = repo.listScanFailures(source.id);
+    expect(failures.filter((failure) => failure.errorCode === "ACCESSIBLE")).toHaveLength(68);
+    expect(failures.filter((failure) => failure.errorCode === "ENOENT")).toHaveLength(67);
+  });
+
+  it("does not write partial recheck results when grouped validation is cancelled", async () => {
+    const { repo, source } = setup();
+    const failures = [0, 1].map((index) => record(repo, source.id, path.join(source.path, `cancel-recheck-${index}.mp4`), "network read failed"));
+    let releaseValidation!: () => void;
+    const validationGate = new Promise<void>((resolve) => { releaseValidation = resolve; });
+    const confirmRemoteMissingBatch = vi.fn(async (_targetPaths: readonly string[], isCancelled: () => boolean) => {
+      await validationGate;
+      if (isCancelled()) {
+        const error = new Error("cancelled") as Error & { code: string };
+        error.code = "ABORT_ERR";
+        throw error;
+      }
+      return new Map<string, "present">();
+    });
+    const service = createService(repo, { confirmRemoteMissingBatch });
+
+    const submitted = service.submit({ operation: "recheck-accessibility", scope: { mode: "selected", failureIds: failures.map((failure) => failure.id) } });
+    await waitUntil(() => confirmRemoteMissingBatch.mock.calls.length === 1);
+    service.cancel(submitted.id);
+    releaseValidation();
+    const completed = await waitForCompletion(service, submitted.id);
+
+    expect(completed).toMatchObject({ status: "cancelled", successCount: 0, processedCount: 0 });
+    expect(failures.map((failure) => repo.getScanFailure(failure.id)?.errorCode)).toEqual(["EIO", "EIO"]);
   });
 
   it("cleans all filtered missing records with one grouped remote validation", async () => {
