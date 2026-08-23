@@ -27,6 +27,8 @@ export interface MountedCloudDriveDirectorySource {
   readDirectory(localDirectory: string, isCancelled?: () => boolean): Promise<CloudDriveDirectoryListing>;
 }
 
+export type CloudDriveMissingConfirmation = "missing" | "present" | "not-cloud-drive";
+
 interface CloudDriveEnvironmentConfig {
   endpoint: string;
   apiToken: string;
@@ -57,10 +59,8 @@ export async function tryCreateMountedCloudDriveDirectorySource(
   let mountPoints: CloudDriveMountPoint[];
   try {
     mountPoints = config.manualMounts ?? await client.getMountPoints(isCancelled);
-    if (!config.manualMounts) {
-      cachedMountPointsKey = sharedClientKey;
-      cachedMountPoints = mountPoints;
-    }
+    cachedMountPointsKey = sharedClientKey;
+    cachedMountPoints = mountPoints;
   } catch (error) {
     if (isCancelled?.()) throw error;
     if (cachedMountPointsKey !== sharedClientKey || cachedMountPoints.length === 0) return null;
@@ -69,6 +69,40 @@ export async function tryCreateMountedCloudDriveDirectorySource(
   const mapping = findMountMapping(sourceFolder.path, mountPoints);
   if (!mapping) return null;
   return createDirectorySource(client, mapping);
+}
+
+/**
+ * Confirms absence by force-refreshing and fully listing the remote parent.
+ * Errors and cancellation reject and must never be treated as proof of absence.
+ */
+export async function confirmMountedCloudDriveFileMissing(
+  localFilePath: string,
+  env: NodeJS.ProcessEnv = process.env,
+  isCancelled?: () => boolean
+): Promise<CloudDriveMissingConfirmation> {
+  const config = readEnvironmentConfig(env);
+  if (!config) return "not-cloud-drive";
+  const client = getSharedClient(config);
+  const mountPoints = config.manualMounts ?? await client.getMountPoints(isCancelled);
+  const mapping = findMountMapping(localFilePath, mountPoints);
+  if (!mapping) return "not-cloud-drive";
+
+  const normalizedFilePath = mapping.pathApi.resolve(localFilePath);
+  const localParent = mapping.pathApi.dirname(normalizedFilePath);
+  const relativeParent = mapping.pathApi.relative(mapping.localRoot, localParent);
+  if (relativeParent === ".." || relativeParent.startsWith(`..${mapping.pathApi.sep}`) || mapping.pathApi.isAbsolute(relativeParent)) {
+    return "not-cloud-drive";
+  }
+  const remoteParent = joinRemotePath(mapping.mountPoint.sourceDir, relativeParent);
+  const expectedName = mapping.pathApi.basename(normalizedFilePath).normalize("NFC").toLocaleLowerCase();
+  for await (const entry of client.getSubFiles(remoteParent, true, isCancelled)) {
+    const entryName = entry.name || posixBasename(entry.fullPathName);
+    if (!isSafeEntryName(entryName, mapping.pathApi)) {
+      throw new Error(`CloudDrive returned an unsafe directory entry name for ${remoteParent}`);
+    }
+    if (entryName.normalize("NFC").toLocaleLowerCase() === expectedName) return "present";
+  }
+  return "missing";
 }
 
 export function findMountMapping(localPath: string, mountPoints: CloudDriveMountPoint[]): MountMapping | null {
@@ -166,7 +200,7 @@ function parseManualMounts(raw: string | undefined): CloudDriveMountPoint[] | nu
 }
 
 function getSharedClient(config: CloudDriveEnvironmentConfig): CloudDriveGrpcClient {
-  const key = `${config.endpoint}\n${config.apiToken}\n${config.timeoutMs}`;
+  const key = `${config.endpoint}\n${config.apiToken}\n${config.timeoutMs}\n${JSON.stringify(config.manualMounts)}`;
   if (sharedClient && sharedClientKey === key) return sharedClient;
   sharedClient?.close();
   sharedClientKey = key;

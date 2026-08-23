@@ -66,13 +66,16 @@ describe("scan failure review", () => {
   it("permanently deletes only file failures inside their source and resolves the record", async () => {
     const { repo, source, sourcePath } = setup();
     const filePath = path.join(sourcePath, "broken.mp4");
+    const modifiedAt = new Date(0).toISOString();
+    const video = repo.upsertVideo({ sourceFolderId: source.id, path: filePath, directory: sourcePath, filename: "broken.mp4", basename: "broken", extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt });
     const failure = record(repo, source.id, filePath, "file", "moov atom not found; Invalid data found when processing input");
     const deleteImpl = vi.fn().mockResolvedValue(undefined);
 
     await expect(deleteScanFailureFile(repo, failure.id, {
-      statImpl: async () => ({ isFile: () => true }) as Stats,
-      deleteImpl
-    })).resolves.toEqual({ deleted: true, videoId: null });
+      statImpl: async () => ({ isFile: () => true, size: 10, mtime: new Date(0) }) as Stats,
+      deleteImpl,
+      assertPermanentDeleteAllowed: () => undefined
+    })).resolves.toEqual({ deleted: true, videoId: video.id });
     expect(deleteImpl).toHaveBeenCalledWith(filePath);
     expect(repo.getScanFailure(failure.id)?.status).toBe("resolved");
 
@@ -82,14 +85,61 @@ describe("scan failure review", () => {
     await expect(deleteScanFailureFile(repo, outsideFailure.id)).rejects.toThrow("outside its source folder");
   });
 
-  it("treats an already missing file as resolved without invoking deletion", async () => {
+  it("does not treat ENOENT as successful corrupt-file deletion", async () => {
     const { repo, source, sourcePath } = setup();
-    const failure = record(repo, source.id, path.join(sourcePath, "gone.mp4"), "file", "moov atom not found");
+    const filePath = path.join(sourcePath, "gone.mp4");
+    repo.upsertVideo({ sourceFolderId: source.id, path: filePath, directory: sourcePath, filename: "gone.mp4", basename: "gone", extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt: new Date(0).toISOString() });
+    const failure = record(repo, source.id, filePath, "file", "moov atom not found");
     const deleteImpl = vi.fn();
     const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
-    await expect(deleteScanFailureFile(repo, failure.id, { statImpl: async () => { throw missing; }, deleteImpl })).resolves.toEqual({ deleted: false, videoId: null });
+    await expect(deleteScanFailureFile(repo, failure.id, { statImpl: async () => { throw missing; }, deleteImpl })).rejects.toThrow("清理网盘失效记录");
     expect(deleteImpl).not.toHaveBeenCalled();
+    expect(repo.getScanFailure(failure.id)?.status).toBe("unresolved");
+  });
+
+  it("removes only local records after CloudDrive confirms the remote file is missing", async () => {
+    const { repo, source, sourcePath } = setup();
+    const filePath = path.join(sourcePath, "remote-gone.mp4");
+    const video = repo.upsertVideo({ sourceFolderId: source.id, path: filePath, directory: sourcePath, filename: "remote-gone.mp4", basename: "remote-gone", extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt: new Date(0).toISOString() });
+    const failure = record(repo, source.id, filePath, "file", "ENOENT: no such file or directory");
+    const deleteImpl = vi.fn();
+
+    const result = await cleanupScanFailures(repo, [failure.id], "remove-missing-record", {
+      deleteImpl,
+      confirmRemoteMissing: async () => "missing"
+    });
+
+    expect(result).toMatchObject({ successCount: 1, failureCount: 0, skippedCount: 0 });
+    expect(result.items[0].status).toBe("record-removed");
+    expect(deleteImpl).not.toHaveBeenCalled();
+    expect(repo.getVideoByPath(filePath)).toBeNull();
     expect(repo.getScanFailure(failure.id)?.status).toBe("resolved");
+  });
+
+  it.each(["present", "not-cloud-drive"] as const)("keeps records when remote missing confirmation returns %s", async (confirmation) => {
+    const { repo, source, sourcePath } = setup();
+    const filePath = path.join(sourcePath, `${confirmation}.mp4`);
+    const video = repo.upsertVideo({ sourceFolderId: source.id, path: filePath, directory: sourcePath, filename: `${confirmation}.mp4`, basename: confirmation, extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt: new Date(0).toISOString() });
+    const failure = record(repo, source.id, filePath, "file", "ENOENT");
+
+    const result = await cleanupScanFailures(repo, [failure.id], "remove-missing-record", {
+      confirmRemoteMissing: async () => confirmation
+    });
+
+    expect(result).toMatchObject({ successCount: 0, failureCount: 1, skippedCount: 0 });
+    expect(repo.getVideo(video.id)).toBeTruthy();
+    expect(repo.getScanFailure(failure.id)?.status).toBe("unresolved");
+  });
+
+  it("keeps records when remote missing confirmation fails", async () => {
+    const { repo, source, sourcePath } = setup();
+    const filePath = path.join(sourcePath, "offline.mp4");
+    const failure = record(repo, source.id, filePath, "file", "ENOENT");
+    const result = await cleanupScanFailures(repo, [failure.id], "remove-missing-record", {
+      confirmRemoteMissing: async () => { throw new Error("CloudDrive offline"); }
+    });
+    expect(result).toMatchObject({ successCount: 0, failureCount: 1 });
+    expect(repo.getScanFailure(failure.id)?.status).toBe("unresolved");
   });
 
   it("classifies only strong corruption signatures as eligible for cleanup", () => {

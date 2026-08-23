@@ -8,6 +8,7 @@ import { isValidShortcutBinding } from "../shared/shortcuts.js";
 import type { DatabaseConnection } from "./db/database.js";
 import type { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import type { VideoRepository } from "./db/videoRepository.js";
+import { confirmMountedCloudDriveFileMissing } from "./clouddrive/mountedScanner.js";
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
 import { cleanupScanFailures, deleteScanFailureFile } from "./files/scanFailureActions.js";
 import { isManagedPathWithin } from "./files/pathNormalization.js";
@@ -205,7 +206,7 @@ const diagnosticsOptionsSchema = z.object({ includeFullPaths: z.boolean() }).str
 const scanFailureIdSchema = z.object({ failureId: z.string().min(1) }).strict();
 const scanFailureCleanupSchema = z.object({
   failureIds: z.array(z.string().min(1)).min(1).max(100),
-  action: z.enum(["mark-pending-delete", "permanent-delete"])
+  action: z.enum(["mark-pending-delete", "permanent-delete", "remove-missing-record"])
 }).strict();
 const scanFailureReviewQuerySchema = z.object({
   sourceFolderId: z.string().min(1).optional(),
@@ -459,11 +460,14 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
       .filter((videoId): videoId is string => Boolean(videoId));
     if (parsed.action !== "permanent-delete") dependencies.duplicateCleanup.assertVideosAvailable(linkedVideoIds);
     const result = await cleanupScanFailures(repo, parsed.failureIds, parsed.action, {
-      assertPermanentDeleteAllowed: (videoIds) => dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(videoIds)
+      assertPermanentDeleteAllowed: (videoIds) => dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(videoIds),
+      confirmRemoteMissing: (targetPath) => confirmMountedCloudDriveFileMissing(targetPath)
     });
-    if (parsed.action === "permanent-delete" && result.successCount > 0) dependencies.cacheManager.scheduleMaintenance(true);
+    if ((parsed.action === "permanent-delete" || parsed.action === "remove-missing-record") && result.successCount > 0) {
+      dependencies.cacheManager.scheduleMaintenance(true);
+    }
     dependencies.domainEvents.publish({
-      type: parsed.action === "permanent-delete" ? "video:removed" : "video:updated",
+      type: parsed.action === "permanent-delete" || parsed.action === "remove-missing-record" ? "video:removed" : "video:updated",
       videoIds: linkedVideoIds
     });
     return result;

@@ -115,11 +115,11 @@ export interface ScanFailureReviewPage {
   };
 }
 
-export type ScanFailureCleanupAction = "mark-pending-delete" | "permanent-delete";
+export type ScanFailureCleanupAction = "mark-pending-delete" | "permanent-delete" | "remove-missing-record";
 
 export interface ScanFailureCleanupItemResult {
   failureId: string;
-  status: "marked" | "deleted" | "skipped" | "failed";
+  status: "marked" | "deleted" | "record-removed" | "skipped" | "failed";
   message: string;
 }
 
