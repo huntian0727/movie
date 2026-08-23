@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-08-23 - 扫描异常模块重构
+
+- 错误类型分类从 4 类扩展为 7 类：网络异常、权限异常、文件不存在、容器损坏、资源占用、I/O 错误、未知异常；每类有独立正则特征与中文标签。
+- 异常列表改为每页 100 条 + 虚拟滚动，支持“全选本页”“反选”，可一次性处理数千条异常，不再逐页操作。
+- 顶部新增多选错误类型筛选，实时显示每类未解决数量；后端 `listScanFailureReviewPage` 返回 `errorTypeCounts` 统计。
+- 新增批量重试：按所选类型逐个重试，单个失败不阻塞其余项（策略 A），结束后统一报告成功/跳过/失败；云端异常并发限制为 1，避免触发网盘限流。
+- 新增批量永久删除：所有文件类型均可批量处理，后台逐个执行安全检查（受管目录边界、文件存在性、大小/修改时间匹配、SHA-256 重复项守卫），任一检查失败自动跳过该项并继续。
+- 批量删除只需一次确认，删除后自动移除资料库记录并统计释放空间；单条删除仍保留确认弹窗。
+- 重试成功后异常立即从列表消失；导出报告支持 CSV / JSON。
+- 新增 IPC 通道 `scan-failure-review:batch-retry`、`scan-failure-review:batch-delete`；未修改数据库 schema。
+- 测试：scanFailureReview、ScanFailuresPage、LibraryShell、scanManager、videoRepository 等相关用例全部通过；提交 `3b47e07`。
+
+## 2026-08-23 - 扫描异常重试修复
+
+- 修复云端视频元数据失败时点击“重试”无实际效果的问题：之前 `retryScanFailure` 对云端视频只把 `metadata_status` 从 `failed` 重置为 `deferred` 并直接标记失败为已解决，没有真正运行 ffprobe。
+- 现在用户显式重试时始终将视频入队 MetadataQueue 执行实际 ffprobe（覆盖延迟探测策略），仍使用 cloud profile（500KB probesize / 1s analyzeduration）限制带宽。
+- `markMetadataPending` 接受 `deferred → pending` 的状态转换。
+- 提交 `77801db`。
+
+## 2026-08-22 - 云端延迟探测与页面自动刷新收敛
+
+- 新增 `deferred` 元数据状态：云端视频扫描时以 `deferred` 入库，阻止后台 MetadataQueue 通过网络批量跑 ffprobe；`PlaybackMetadataEnricher` 在实际播放时才用 cloud profile 执行完整探测，失败标记为 `failed`。
+- cloud profile 探测失败时不再回退到无限制参数（5MiB / 10s），避免大流量探测。
+- 用户可通过视频卡片上的胶片图标对 `deferred`/`failed` 视频手动触发分析。
+- 收敛收藏页、待删除页等分页视图的自动刷新：移除窗口聚焦重载、元数据轮询和域事件触发的整页重载，保留手动刷新按钮和用户操作后的即时反馈。
+- 提交 `792d467`。
+
+## 2026-08-22 - 重复项单文件删除
+
+- 重复候选页面每个文件卡片新增独立的永久删除按钮，无需进入批量流程即可清理单个文件。
+- 提交 `70e33f4`。
+
+## 2026-08-21 - CloudDrive2 网盘访问加速（批次 1–3）
+
+- 批次 1：ffprobe 收紧 cloud profile（-probesize 500k -analyzeduration 1M）；gRPC 客户端分层超时（firstByte + idle）、HTTP/2 PING keepalive（30s）、`CloseFileReader` RPC 主动释放服务端 EntryReader。
+- 批次 2：`PrefetchFileRanges` 播放预取——播放开始 HIGH 8MiB、seek HIGH、下一集 NORMAL 4MiB、缩略图 LOW；Range 请求触发 seek 预取，切集时预取当前文件头与下一集。
+- 批次 3：令牌桶限流器（115 网盘默认 4 QPS，可用 `LOCAL_VIDEO_MANAGER_CLOUDDRIVE_QPS` 覆盖），所有 RPC 自动过限流；CloudDriveFile 扩展 8 个字段解码；protobuf 编码工具补全。
+- 同步带入此前未提交的编解码感知播放路由、重复清理永久删除、数据库迁移 008–010（codec metadata / probe status / SHA-256 安全）及 AI 工作流系统。
+- 提交 `8004e06`。
+
 ## 2026-08-16 - Codec-aware Playback Routing
 
 - schema v8 为视频追加 nullable 的 video codec、profile、pixel format 与 audio codec，迁移不执行全库 FFprobe 或 metadata 重置。
