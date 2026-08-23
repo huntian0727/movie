@@ -2,7 +2,7 @@
 date: 2026-08-24
 branch: ai/scan-failure-selectall-speed
 type: fix
-status: partial
+status: completed
 ---
 
 # 扫描异常全筛选选择与网盘失效记录提速
@@ -25,7 +25,9 @@ status: partial
 - Node 22.23.1 针对性测试：PASS，3 个测试文件、21 项测试。
 - Node 22.23.1 全量 `vitest run`：PASS，48 个测试文件、495 项测试。
 - `npm run package:dir`（当前快捷方式目录）：BLOCKED，旧版进程仍锁定 `release/win-unpacked/d3dcompiler_47.dll`；不强制关闭用户程序，改用独立 0.1.1 交付目录。
-- 独立目录打包、快捷方式切换与桌面启动验证：PENDING。
+- 独立 Electron ABI 目录：Electron 33.4.11 / ABI 130 native smoke PASS。
+- Windows NSIS 0.1.1 打包：PASS；artifact 内容检查、packaged smoke、installer smoke 均 PASS。
+- 桌面快捷方式已切换到 `release/v0.1.1/win-unpacked/Local Video Manager.exe`；从该快捷方式实际启动并进入“扫描异常”，确认“全选全部筛选结果”入口存在，且选择后显示“已选择全部筛选结果（不限当前页）”。
 - 真实 CloudDrive2 + 115：NOT RUN；本轮不读取或搬运用户凭据。
 
 ## Risks and follow-up
