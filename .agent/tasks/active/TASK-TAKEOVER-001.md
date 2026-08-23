@@ -14,5 +14,5 @@
 - Out of Scope: CloudDrive 原生播放 URL、PushMessage 增量同步、CloudDrive 原生文件 RPC、签名正式 Release。
 - Acceptance: 离线/失败/取消不清理记录；远端缺失经在线父目录强制刷新确认；损坏删除只接受明确证据和版本复查；全筛选任务可进度/取消；批量重新检查不跑 ffprobe；本地/NAS 行为不回归。
 - Automated Tests: focused scan-failure/CloudDrive/IPC/renderer tests, typecheck, build, full Node release gate, Electron/package smoke in isolated ABI checkout.
-- Status: `IN_DEVELOPMENT`
-- Next Actor: Developer
+- Status: `COMPLETED`
+- Next Actor: User validation on the configured real CloudDrive2 + 115 mount

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-23 - 扫描异常分流与验证后自动删除
+
+- 扫描异常拆分为损坏文件永久删除和网盘失效记录清理；后者必须在线强制刷新并完整列举远端父目录，失败、离线或取消不修改记录。
+- 新增全筛选批处理、进度和取消，并拆分“复查可访问性”与“分析元数据”。
+- 重复项单文件和批量删除改为一键提交完整 SHA-256 验证；一致且删除前版本未变化才自动永久删除，旧的未验证快速删除路径已硬禁用。
+- Node 全量 492 项测试、生产构建、Electron native smoke、Windows artifact/packaged/installer smoke 均通过。
+
 ## 2026-08-16 - Codec-aware Playback Routing
 
 - schema v8 为视频追加 nullable 的 video codec、profile、pixel format 与 audio codec，迁移不执行全库 FFprobe 或 metadata 重置。
