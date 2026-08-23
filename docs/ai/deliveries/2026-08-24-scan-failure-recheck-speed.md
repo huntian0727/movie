@@ -2,7 +2,7 @@
 date: 2026-08-24
 branch: ai/scan-failure-recheck-speed
 type: fix
-status: partial
+status: completed
 ---
 
 # 扫描异常可访问性复查提速
@@ -25,8 +25,10 @@ status: partial
 - Node 22.23.1 针对性测试：PASS，2 个测试文件、17 项测试。
 - Node 22.23.1 全量测试：PASS，48 个测试文件、498 项测试。
 - `npm run build`：PASS。
-- Electron/Windows 打包与桌面快捷方式启动验证：PENDING。
-- 真实 CloudDrive2 + 115：NOT RUN；本轮不读取或搬运用户凭据。
+- Electron 33.4.11 / ABI 130 原生模块验证：PASS。
+- Windows NSIS 打包、产物内容检查、免安装程序冒烟、安装器安装/卸载冒烟：PASS。
+- 桌面快捷方式已指向 `release/v0.1.2/win-unpacked/Local Video Manager.exe`；通过该快捷方式实际启动后，扫描异常页面和“复查可访问性”入口验证：PASS。
+- 真实 CloudDrive2 + 115：NOT RUN；本轮不读取或搬运用户凭据，也未直接对 80,873 条真实异常发起批量复查。
 
 ## Risks and follow-up
 
