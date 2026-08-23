@@ -22,6 +22,7 @@ status: completed
 
 ## Verification
 
+- Implementation commits before final delivery sync: `9119487`, `a0bb28c`, `37849a8`.
 - `npm run typecheck`：PASS。
 - Node 22.23.1 全量 `vitest run`：PASS，48 个测试文件、492 项测试。
 - `npm run build`：PASS。
