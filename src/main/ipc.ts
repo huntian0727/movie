@@ -8,7 +8,7 @@ import { isValidShortcutBinding } from "../shared/shortcuts.js";
 import type { DatabaseConnection } from "./db/database.js";
 import type { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import type { VideoRepository } from "./db/videoRepository.js";
-import { confirmMountedCloudDriveFileMissing } from "./clouddrive/mountedScanner.js";
+import { confirmMountedCloudDriveFileMissing, confirmMountedCloudDriveFilesMissing } from "./clouddrive/mountedScanner.js";
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
 import { cleanupScanFailures, deleteScanFailureFile } from "./files/scanFailureActions.js";
 import { ScanFailureBatchService } from "./files/scanFailureBatchService.js";
@@ -320,6 +320,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
       await dependencies.scanManager.retryFailure(folder, failureId);
     },
     confirmRemoteMissing: (targetPath, isCancelled) => confirmMountedCloudDriveFileMissing(targetPath, process.env, isCancelled),
+    confirmRemoteMissingBatch: (targetPaths, isCancelled) => confirmMountedCloudDriveFilesMissing(targetPaths, process.env, isCancelled),
     assertPermanentDeleteAllowed: (videoIds) => dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(videoIds),
     onLibraryChanged: (removedVideoIds) => {
       if (removedVideoIds.length > 0) dependencies.cacheManager.scheduleMaintenance(true);

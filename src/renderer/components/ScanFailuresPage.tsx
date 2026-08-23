@@ -189,15 +189,15 @@ export function ScanFailuresPage({
         <label>清理筛选
           <select value={cleanupFilter} onChange={(event) => setCleanupFilter(event.target.value as "all" | "confirmed-corrupt" | "missing")}>
             <option value="all">全部异常</option>
-            <option value="confirmed-corrupt">仅确认损坏（当前页）</option>
-            <option value="missing">仅网盘已删除（当前页）</option>
+            <option value="confirmed-corrupt">仅确认损坏</option>
+            <option value="missing">仅网盘已删除</option>
           </select>
         </label>
         <button className="icon-button" title="刷新异常列表" onClick={() => setRefreshVersion((current) => current + 1)}><RotateCw size={18} /></button>
       </div>
 
       <div className="scan-failure-cleanup-bar">
-        <strong>{allFilteredSelected ? "已选择全部筛选结果" : `已选 ${selectedFailureIds.size} 个可处理项`}</strong>
+        <strong>{allFilteredSelected ? "已选择全部筛选结果（不限当前页）" : `已选 ${selectedFailureIds.size} 个可处理项`}</strong>
         <button disabled={selectableIds.length === 0 || bulkBusy || batchActive} onClick={() => { setAllFilteredSelected(false); setSelectedFailureIds(new Set(selectableIds)); }}>全选当前页可清理项</button>
         <button disabled={result.totalCount === 0 || !onSubmitBatch || batchActive} onClick={() => { setAllFilteredSelected(true); setSelectedFailureIds(new Set()); }}>全选全部筛选结果</button>
         <button disabled={(!allFilteredSelected && selectedCorruptCount === 0) || bulkBusy || batchActive || (!allFilteredSelected && !onCleanup) || (allFilteredSelected && !onSubmitBatch)} onClick={() => void (allFilteredSelected ? startBatch("permanent-delete") : runBulkCleanup("permanent-delete"))}>{bulkBusy || batchActive ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}永久删除损坏项</button>

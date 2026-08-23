@@ -506,6 +506,21 @@ export class VideoRepository {
     return row ? mapScanFailure(row) : null;
   }
 
+  getScanFailures(failureIds: readonly string[]): ScanFailure[] {
+    const uniqueIds = [...new Set(failureIds)];
+    const rows: ScanFailureRow[] = [];
+    for (let offset = 0; offset < uniqueIds.length; offset += 400) {
+      const chunk = uniqueIds.slice(offset, offset + 400);
+      const placeholders = chunk.map(() => "?").join(", ");
+      rows.push(...this.db.prepare(`SELECT * FROM scan_failures WHERE id IN (${placeholders})`).all(...chunk) as ScanFailureRow[]);
+    }
+    const failuresById = new Map(rows.map((row) => {
+      const failure = mapScanFailure(row);
+      return [failure.id, failure];
+    }));
+    return uniqueIds.map((id) => failuresById.get(id)).filter((failure): failure is ScanFailure => Boolean(failure));
+  }
+
   listScanFailures(sourceFolderId: string, includeResolved = false): ScanFailure[] {
     const rows = this.db.prepare(`
       SELECT * FROM scan_failures
@@ -610,6 +625,92 @@ export class VideoRepository {
       for (const failure of matchingFailures) this.refreshDirectoryFailureState(sourceFolderId, failure.objectPath, failure.objectType);
     }
     return result.changes;
+  }
+
+  /**
+   * Atomically removes records for files whose remote absence has already been
+   * confirmed. This avoids the per-item listScanFailures/refresh cycle, which
+   * becomes quadratic for large CloudDrive failure sets.
+   */
+  resolveConfirmedMissingScanFailures(failureIds: readonly string[]): {
+    cleanedFailureIds: string[];
+    removedVideoIds: string[];
+  } {
+    const uniqueIds = [...new Set(failureIds)];
+    if (uniqueIds.length === 0) return { cleanedFailureIds: [], removedVideoIds: [] };
+
+    const selectedFailures: Array<{
+      id: string;
+      source_folder_id: string;
+      object_path: string;
+      normalized_path: string;
+      object_type: ScanFailureObjectType;
+    }> = [];
+    for (let offset = 0; offset < uniqueIds.length; offset += 400) {
+      const chunk = uniqueIds.slice(offset, offset + 400);
+      const placeholders = chunk.map(() => "?").join(", ");
+      selectedFailures.push(...this.db.prepare(`
+        SELECT id, source_folder_id, object_path, normalized_path, object_type
+        FROM scan_failures
+        WHERE id IN (${placeholders}) AND status != 'resolved' AND object_type = 'file'
+      `).all(...chunk) as typeof selectedFailures);
+    }
+
+    const updateFailures = this.db.prepare(`
+      UPDATE scan_failures SET status = 'resolved', resolved_at = ?
+      WHERE source_folder_id = ? AND normalized_path = ? AND status != 'resolved'
+    `);
+    const findVideo = this.db.prepare("SELECT id FROM videos WHERE path = ? COLLATE NOCASE");
+    const deleteVideo = this.db.prepare("DELETE FROM videos WHERE id = ?");
+    const listUnresolved = this.db.prepare(`
+      SELECT object_path, object_type FROM scan_failures
+      WHERE source_folder_id = ? AND status != 'resolved'
+    `);
+    const updateDirectory = this.db.prepare(`
+      UPDATE directory_snapshots
+      SET has_unresolved_failure = ?, updated_at = ?
+      WHERE source_folder_id = ? AND normalized_path = ?
+    `);
+
+    return this.db.transaction(() => {
+      const now = new Date().toISOString();
+      const cleanedFailureIds: string[] = [];
+      const removedVideoIds: string[] = [];
+      const affectedDirectories = new Map<string, Set<string>>();
+      const processedObjects = new Set<string>();
+
+      for (const failure of selectedFailures) {
+        const objectKey = `${failure.source_folder_id}\n${failure.normalized_path}`;
+        if (processedObjects.has(objectKey)) {
+          cleanedFailureIds.push(failure.id);
+          continue;
+        }
+        processedObjects.add(objectKey);
+        if (updateFailures.run(now, failure.source_folder_id, failure.normalized_path).changes === 0) continue;
+        cleanedFailureIds.push(failure.id);
+        const video = findVideo.get(failure.object_path) as { id: string } | undefined;
+        if (video) {
+          deleteVideo.run(video.id);
+          removedVideoIds.push(video.id);
+        }
+        const directories = affectedDirectories.get(failure.source_folder_id) ?? new Set<string>();
+        directories.add(normalizeManagedPath(path.win32.dirname(failure.object_path)));
+        affectedDirectories.set(failure.source_folder_id, directories);
+      }
+
+      for (const [sourceFolderId, directories] of affectedDirectories) {
+        this.refreshSourceFolderFailureState(sourceFolderId);
+        const unresolvedDirectories = new Set(
+          (listUnresolved.all(sourceFolderId) as Array<{ object_path: string; object_type: ScanFailureObjectType }>).map((failure) =>
+            normalizeManagedPath(failure.object_type === "directory" ? failure.object_path : path.win32.dirname(failure.object_path))
+          )
+        );
+        for (const directory of directories) {
+          updateDirectory.run(unresolvedDirectories.has(directory) ? 1 : 0, now, sourceFolderId, directory);
+        }
+      }
+      return { cleanedFailureIds, removedVideoIds };
+    })();
   }
 
   resolveScanFailuresForObjectStage(

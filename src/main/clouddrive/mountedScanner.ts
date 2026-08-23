@@ -88,6 +88,85 @@ export async function confirmMountedCloudDriveFileMissing(
     client.getSubFiles(remoteParent, true, cancelled), isCancelled);
 }
 
+/**
+ * Confirms many mounted CloudDrive paths while listing each remote parent only
+ * once. The complete validation finishes before callers are allowed to mutate
+ * library records, so a failed or cancelled stream cannot become proof that a
+ * file is absent.
+ */
+export async function confirmMountedCloudDriveFilesMissing(
+  localFilePaths: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  isCancelled?: () => boolean
+): Promise<Map<string, CloudDriveMissingConfirmation>> {
+  const config = readEnvironmentConfig(env);
+  if (!config) return new Map(localFilePaths.map((filePath) => [filePath, "not-cloud-drive"]));
+  const client = getSharedClient(config);
+  const mountPoints = config.manualMounts ?? await client.getMountPoints(isCancelled);
+  return confirmCloudDriveFilesMissingFromListing(
+    localFilePaths,
+    mountPoints,
+    (remoteParent, cancelled) => client.getSubFiles(remoteParent, true, cancelled),
+    isCancelled
+  );
+}
+
+export async function confirmCloudDriveFilesMissingFromListing(
+  localFilePaths: readonly string[],
+  mountPoints: CloudDriveMountPoint[],
+  listParent: (remoteParent: string, isCancelled?: () => boolean) => AsyncIterable<{ name: string; fullPathName: string }>,
+  isCancelled?: () => boolean
+): Promise<Map<string, CloudDriveMissingConfirmation>> {
+  interface ParentGroup {
+    remoteParent: string;
+    pathApi: typeof path.win32 | typeof path.posix;
+    files: Array<{ localFilePath: string; expectedName: string }>;
+  }
+
+  const results = new Map<string, CloudDriveMissingConfirmation>();
+  const groups = new Map<string, ParentGroup>();
+  for (const localFilePath of [...new Set(localFilePaths)]) {
+    throwIfCancelled(isCancelled);
+    const mapping = findMountMapping(localFilePath, mountPoints);
+    if (!mapping) {
+      results.set(localFilePath, "not-cloud-drive");
+      continue;
+    }
+    const normalizedFilePath = mapping.pathApi.resolve(localFilePath);
+    const localParent = mapping.pathApi.dirname(normalizedFilePath);
+    const relativeParent = mapping.pathApi.relative(mapping.localRoot, localParent);
+    if (relativeParent === ".." || relativeParent.startsWith(`..${mapping.pathApi.sep}`) || mapping.pathApi.isAbsolute(relativeParent)) {
+      results.set(localFilePath, "not-cloud-drive");
+      continue;
+    }
+    const remoteParent = joinRemotePath(mapping.mountPoint.sourceDir, relativeParent);
+    const groupKey = `${mapping.pathApi === path.win32 ? "win32" : "posix"}\n${normalizeRemotePath(remoteParent)}`;
+    const group = groups.get(groupKey) ?? { remoteParent, pathApi: mapping.pathApi, files: [] };
+    group.files.push({
+      localFilePath,
+      expectedName: mapping.pathApi.basename(normalizedFilePath).normalize("NFC").toLocaleLowerCase()
+    });
+    groups.set(groupKey, group);
+  }
+
+  for (const group of groups.values()) {
+    throwIfCancelled(isCancelled);
+    const remoteNames = new Set<string>();
+    for await (const entry of listParent(group.remoteParent, isCancelled)) {
+      throwIfCancelled(isCancelled);
+      const entryName = entry.name || posixBasename(entry.fullPathName);
+      if (!isSafeEntryName(entryName, group.pathApi)) {
+        throw new Error(`CloudDrive returned an unsafe directory entry name for ${group.remoteParent}`);
+      }
+      remoteNames.add(entryName.normalize("NFC").toLocaleLowerCase());
+    }
+    for (const file of group.files) {
+      results.set(file.localFilePath, remoteNames.has(file.expectedName) ? "present" : "missing");
+    }
+  }
+  return results;
+}
+
 export async function confirmCloudDriveFileMissingFromListing(
   localFilePath: string,
   mountPoints: CloudDriveMountPoint[],
@@ -253,4 +332,11 @@ function posixBasename(value: string): string {
 
 function isSafeEntryName(value: string, pathApi: typeof path.win32 | typeof path.posix): boolean {
   return Boolean(value && value !== "." && value !== ".." && pathApi.basename(value) === value && !/[\\/]/.test(value));
+}
+
+function throwIfCancelled(isCancelled?: () => boolean): void {
+  if (!isCancelled?.()) return;
+  const error = new Error("CloudDrive validation cancelled") as Error & { code: string };
+  error.code = "ABORT_ERR";
+  throw error;
 }

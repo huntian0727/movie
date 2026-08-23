@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
-import { confirmCloudDriveFileMissingFromListing, findMountMapping, type MountedCloudDriveDirectorySource } from "../../src/main/clouddrive/mountedScanner";
+import { confirmCloudDriveFileMissingFromListing, confirmCloudDriveFilesMissingFromListing, findMountMapping, type MountedCloudDriveDirectorySource } from "../../src/main/clouddrive/mountedScanner";
 import { scanSourceFolder } from "../../src/main/media/libraryScanner";
 
 const ROOT = "Z:\\Cloud 电影";
@@ -53,6 +53,28 @@ describe("CloudDrive mounted scanner", () => {
       yield { name: "CLIP.MP4", fullPathName: "/115/clip.mp4" };
     };
     await expect(confirmCloudDriveFileMissingFromListing("Z:\\clip.mp4", [mount("Z:", "/115")], listParent)).resolves.toBe("present");
+  });
+
+  it("validates every file in the same remote directory with one complete listing", async () => {
+    const calls: string[] = [];
+    const listParent = async function* (remoteParent: string) {
+      calls.push(remoteParent);
+      yield { name: "keep.mp4", fullPathName: `${remoteParent}/keep.mp4` };
+      yield { name: "unrelated.mkv", fullPathName: `${remoteParent}/unrelated.mkv` };
+    };
+
+    const results = await confirmCloudDriveFilesMissingFromListing(
+      ["Z:\\Movies\\keep.mp4", "Z:\\Movies\\gone-1.mp4", "Z:\\Movies\\gone-2.mp4"],
+      [mount("Z:", "/115")],
+      listParent
+    );
+
+    expect(calls).toEqual(["/115/Movies"]);
+    expect([...results]).toEqual([
+      ["Z:\\Movies\\keep.mp4", "present"],
+      ["Z:\\Movies\\gone-1.mp4", "missing"],
+      ["Z:\\Movies\\gone-2.mp4", "missing"]
+    ]);
   });
 
   it("uses CloudDrive size/writeTime without statting video files and keeps Windows paths", async () => {

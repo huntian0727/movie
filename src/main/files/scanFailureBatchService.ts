@@ -11,10 +11,12 @@ import { classifyScanFailureForCleanup } from "../../shared/scanFailureCleanup.j
 import type { VideoRepository } from "../db/videoRepository.js";
 import type { CloudDriveMissingConfirmation } from "../clouddrive/mountedScanner.js";
 import { cleanupScanFailures } from "./scanFailureActions.js";
+import { isManagedPathWithin } from "./pathNormalization.js";
 
 interface ScanFailureBatchDependencies {
   analyzeFailure(failureId: string): Promise<void>;
   confirmRemoteMissing(targetPath: string, isCancelled: () => boolean): Promise<CloudDriveMissingConfirmation>;
+  confirmRemoteMissingBatch(targetPaths: readonly string[], isCancelled: () => boolean): Promise<Map<string, CloudDriveMissingConfirmation>>;
   assertPermanentDeleteAllowed(videoIds: string[]): void;
   onLibraryChanged(removedVideoIds: string[]): void;
 }
@@ -66,14 +68,19 @@ export class ScanFailureBatchService {
     const folders = this.repo.listSourceFolders().filter((folder) => folder.enabled && (!query.sourceFolderId || folder.id === query.sourceFolderId));
     const failures = folders.flatMap((folder) => this.repo.listScanFailures(folder.id));
     return failures.filter((failure) => {
-      if (reviewKind(this.repo, failure) !== query.kind && query.kind !== "all") return false;
+      if (query.kind !== "all" && reviewKind(this.repo, failure) !== query.kind) return false;
       if (query.cleanupCategory !== "all" && classifyScanFailureForCleanup(failure).category !== query.cleanupCategory) return false;
-      return isEligible(request.operation, failure, Boolean(this.repo.getVideoByPath(failure.objectPath)));
+      const hasVideo = request.operation === "permanent-delete" && Boolean(this.repo.getVideoByPath(failure.objectPath));
+      return isEligible(request.operation, failure, hasVideo);
     }).map((failure) => failure.id);
   }
 
   private async run(job: MutableJob, failureIds: string[]): Promise<void> {
     job.status = "running";
+    if (job.operation === "remove-missing-record") {
+      await this.removeMissingRecords(job, failureIds);
+      return;
+    }
     const removedVideoIds: string[] = [];
     for (const failureId of failureIds) {
       if (job.cancelRequested) break;
@@ -110,11 +117,75 @@ export class ScanFailureBatchService {
         job.processedCount += 1;
       }
     }
+    this.finish(job, removedVideoIds);
+  }
+
+  private async removeMissingRecords(job: MutableJob, failureIds: string[]): Promise<void> {
+    const candidates: ScanFailure[] = [];
+    const sourceFolders = new Map(this.repo.listSourceFolders().map((folder) => [folder.id, folder]));
+    const failuresById = new Map(this.repo.getScanFailures(failureIds).map((failure) => [failure.id, failure]));
+    for (const failureId of failureIds) {
+      const failure = failuresById.get(failureId);
+      const sourceFolder = failure ? sourceFolders.get(failure.sourceFolderId) : null;
+      if (!failure || failure.status === "resolved" || !isEligible("remove-missing-record", failure, false)) {
+        job.skippedCount += 1;
+        job.processedCount += 1;
+      } else if (!sourceFolder || !isManagedPathWithin(failure.objectPath, sourceFolder.path)) {
+        job.failureCount += 1;
+        job.processedCount += 1;
+      } else {
+        candidates.push(failure);
+      }
+    }
+
+    if (job.cancelRequested || candidates.length === 0) {
+      this.finish(job, []);
+      return;
+    }
+
+    job.currentPath = candidates[0]?.objectPath ?? null;
+    job.message = `正在按远端目录合并验证 ${candidates.length} 项；验证完成前不会清理记录`;
+    let confirmations: Map<string, CloudDriveMissingConfirmation>;
+    try {
+      confirmations = await this.dependencies.confirmRemoteMissingBatch(
+        candidates.map((failure) => failure.objectPath),
+        () => job.cancelRequested
+      );
+    } catch (error) {
+      if (!job.cancelRequested) {
+        job.failureCount += candidates.length;
+        job.processedCount += candidates.length;
+        job.message = error instanceof Error ? error.message : String(error);
+      }
+      this.finish(job, []);
+      return;
+    }
+
+    if (job.cancelRequested) {
+      this.finish(job, []);
+      return;
+    }
+
+    const confirmedMissingIds: string[] = [];
+    for (const failure of candidates) {
+      const confirmation = confirmations.get(failure.objectPath);
+      if (confirmation === "missing") confirmedMissingIds.push(failure.id);
+      else job.failureCount += 1;
+    }
+
+    const cleaned = this.repo.resolveConfirmedMissingScanFailures(confirmedMissingIds);
+    job.successCount += cleaned.cleanedFailureIds.length;
+    job.skippedCount += confirmedMissingIds.length - cleaned.cleanedFailureIds.length;
+    job.processedCount += candidates.length;
+    this.finish(job, cleaned.removedVideoIds);
+  }
+
+  private finish(job: MutableJob, removedVideoIds: string[]): void {
     job.currentPath = null;
     job.completedAt = new Date().toISOString();
     if (job.cancelRequested) {
       job.status = "cancelled";
-      job.message = `已取消，已处理 ${job.processedCount} / ${job.totalCount} 项`;
+      job.message = `已取消，已处理 ${job.processedCount} / ${job.totalCount} 项；未完成验证的记录没有清理`;
     } else {
       job.status = job.failureCount > 0 ? "completed-with-errors" : "completed";
       job.message = `已处理 ${job.processedCount} 项：成功 ${job.successCount}，跳过 ${job.skippedCount}，失败 ${job.failureCount}`;

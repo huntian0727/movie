@@ -52,6 +52,72 @@ describe("ScanFailureBatchService", () => {
     expect(repo.getScanFailure(failure.id)).toMatchObject({ errorCode: "ACCESSIBLE", failureStage: "file-processing", status: "unresolved" });
   });
 
+  it("cleans all filtered missing records with one grouped remote validation", async () => {
+    const { repo, source } = setup();
+    for (let index = 0; index < 135; index += 1) {
+      repo.recordScanFailure({
+        sourceFolderId: source.id,
+        scanTaskId: "batch-test",
+        objectType: "file",
+        objectPath: path.join(source.path, `missing-${index}.mp4`),
+        failureStage: "file-processing",
+        errorCode: "ENOENT",
+        errorSummary: "ENOENT: no such file or directory"
+      });
+    }
+    const confirmRemoteMissing = vi.fn();
+    const confirmRemoteMissingBatch = vi.fn(async (targetPaths: readonly string[]) =>
+      new Map(targetPaths.map((targetPath) => [targetPath, "missing" as const]))
+    );
+    const service = createService(repo, { confirmRemoteMissing, confirmRemoteMissingBatch });
+
+    const submitted = service.submit({
+      operation: "remove-missing-record",
+      scope: { mode: "filtered", query: { kind: "all", cleanupCategory: "missing" } }
+    });
+    const completed = await waitForCompletion(service, submitted.id);
+
+    expect(completed).toMatchObject({ status: "completed", totalCount: 135, processedCount: 135, successCount: 135 });
+    expect(confirmRemoteMissingBatch).toHaveBeenCalledOnce();
+    expect(confirmRemoteMissingBatch.mock.calls[0]?.[0]).toHaveLength(135);
+    expect(confirmRemoteMissing).not.toHaveBeenCalled();
+    expect(repo.listScanFailures(source.id)).toHaveLength(0);
+  });
+
+  it("does not clean any missing record when grouped validation is cancelled", async () => {
+    const { repo, source } = setup();
+    const failures = [0, 1].map((index) => repo.recordScanFailure({
+      sourceFolderId: source.id,
+      scanTaskId: "batch-test",
+      objectType: "file",
+      objectPath: path.join(source.path, `cancel-missing-${index}.mp4`),
+      failureStage: "file-processing",
+      errorCode: "ENOENT",
+      errorSummary: "ENOENT: no such file or directory"
+    }));
+    let releaseValidation!: () => void;
+    const validationGate = new Promise<void>((resolve) => { releaseValidation = resolve; });
+    const confirmRemoteMissingBatch = vi.fn(async (_targetPaths: readonly string[], isCancelled: () => boolean) => {
+      await validationGate;
+      if (isCancelled()) {
+        const error = new Error("cancelled") as Error & { code: string };
+        error.code = "ABORT_ERR";
+        throw error;
+      }
+      return new Map<string, "missing">();
+    });
+    const service = createService(repo, { confirmRemoteMissingBatch });
+
+    const submitted = service.submit({ operation: "remove-missing-record", scope: { mode: "selected", failureIds: failures.map((failure) => failure.id) } });
+    await waitUntil(() => confirmRemoteMissingBatch.mock.calls.length === 1);
+    service.cancel(submitted.id);
+    releaseValidation();
+    const completed = await waitForCompletion(service, submitted.id);
+
+    expect(completed).toMatchObject({ status: "cancelled", successCount: 0, processedCount: 0 });
+    expect(repo.listScanFailures(source.id)).toHaveLength(2);
+  });
+
   it("cancels between files and leaves remaining items untouched", async () => {
     const { repo, source } = setup();
     const failures = [0, 1, 2].map((index) => record(repo, source.id, path.join(source.path, `cancel-${index}.mp4`), "network read failed"));
@@ -87,10 +153,15 @@ function record(repo: VideoRepository, sourceFolderId: string, objectPath: strin
   });
 }
 
-function createService(repo: VideoRepository, overrides: { analyzeFailure?: (failureId: string) => Promise<void>; confirmRemoteMissing?: () => Promise<"missing" | "present" | "not-cloud-drive"> } = {}) {
+function createService(repo: VideoRepository, overrides: {
+  analyzeFailure?: (failureId: string) => Promise<void>;
+  confirmRemoteMissing?: () => Promise<"missing" | "present" | "not-cloud-drive">;
+  confirmRemoteMissingBatch?: (targetPaths: readonly string[], isCancelled: () => boolean) => Promise<Map<string, "missing" | "present" | "not-cloud-drive">>;
+} = {}) {
   return new ScanFailureBatchService(repo, {
     analyzeFailure: overrides.analyzeFailure ?? (async () => undefined),
     confirmRemoteMissing: overrides.confirmRemoteMissing ?? (async () => "present"),
+    confirmRemoteMissingBatch: overrides.confirmRemoteMissingBatch ?? (async (targetPaths) => new Map(targetPaths.map((targetPath) => [targetPath, "present"]))),
     assertPermanentDeleteAllowed: () => undefined,
     onLibraryChanged: () => undefined
   });

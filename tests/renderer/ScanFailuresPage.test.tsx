@@ -94,9 +94,10 @@ describe("ScanFailuresPage", () => {
       processedCount: 250, successCount: 250, skippedCount: 0, failureCount: 0,
       currentPath: null, message: "done", createdAt: "2026-01-01", completedAt: "2026-01-01"
     });
-    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onSubmitBatch={onSubmitBatch} onOpenLocation={vi.fn()} />);
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue({ ...page, totalCount: 80_730, totalPages: 2_691 })} onRetry={vi.fn()} onDeleteFile={vi.fn()} onSubmitBatch={onSubmitBatch} onOpenLocation={vi.fn()} />);
     await screen.findByText("clip.mp4");
     fireEvent.click(screen.getByRole("button", { name: "全选全部筛选结果" }));
+    expect(screen.getByText("已选择全部筛选结果（不限当前页）")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "分析元数据" }));
 
     await waitFor(() => expect(onSubmitBatch).toHaveBeenCalledWith({
