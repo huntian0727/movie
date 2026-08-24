@@ -22,6 +22,7 @@ import { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
 import { runPackagedSmoke } from "./packagedSmoke.js";
 import { configureSecurityLogger, configureWindowSecurity, installContentSecurityPolicy } from "./security.js";
 import { createSettingsStore } from "./settings/settingsStore.js";
+import { configureCloudDriveRuntime } from "./clouddrive/mountedScanner.js";
 
 // Renderer/webviews run without hardware acceleration so the app starts on
 // machines without a usable GPU (remote desktops, VMs, older GPUs). Without
@@ -128,6 +129,7 @@ app.whenReady().then(async () => {
   database = createDatabase(databasePath);
   const repo = new VideoRepository(database);
   const settings = await createSettingsStore();
+  configureCloudDriveRuntime(settings.get().cloudDrive, process.env);
   const userDataPath = app.getPath("userData");
   const cacheRoot = getMediaCacheRoot(userDataPath);
   try {

@@ -16,6 +16,12 @@ const defaultSettings: AppSettings = {
   seekStepSeconds: 10,
   coverFrameTimeSeconds: 5,
   playbackPreference: "auto",
+  cloudDrive: {
+    endpoint: "http://127.0.0.1:19798",
+    apiToken: "",
+    timeoutMs: 20_000,
+    mountMapJson: ""
+  },
   shortcuts: { ...DEFAULT_SHORTCUTS }
 };
 
@@ -291,6 +297,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
         cacheStatus={cacheStatus}
         onBack={() => setSettingsOpen(false)}
         onChange={async (next) => setSettings(await api.setSettings(next))}
+        onTestCloudDrive={() => api.testCloudDriveConnection()}
         onClearCache={async () => {
           const result = await api.clearCache();
           setCacheStatus(result.status);

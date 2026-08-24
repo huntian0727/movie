@@ -4,11 +4,17 @@ import { z } from "zod";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { IPC_CHANNELS, MAX_PLAYER_QUEUE_ITEMS, SORT_FIELDS } from "../shared/videoTypes.js";
+import type { CloudDriveLegacyBindingProgress } from "../shared/videoTypes.js";
 import { isValidShortcutBinding } from "../shared/shortcuts.js";
 import type { DatabaseConnection } from "./db/database.js";
 import type { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import type { VideoRepository } from "./db/videoRepository.js";
-import { confirmMountedCloudDriveFileMissing, confirmMountedCloudDriveFilesMissing } from "./clouddrive/mountedScanner.js";
+import {
+  configureCloudDriveRuntime,
+  confirmMountedCloudDriveFileMissing,
+  confirmMountedCloudDriveFilesMissing,
+  testConfiguredCloudDriveConnection
+} from "./clouddrive/mountedScanner.js";
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
 import { cleanupScanFailures, deleteScanFailureFile } from "./files/scanFailureActions.js";
 import { ScanFailureBatchService } from "./files/scanFailureBatchService.js";
@@ -40,6 +46,7 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.duplicateFastDelete,
   IPC_CHANNELS.duplicateCleanupConfirm,
   IPC_CHANNELS.duplicateCloudDriveBindLegacy,
+  IPC_CHANNELS.cloudDriveTest,
   IPC_CHANNELS.folderAdd,
   IPC_CHANNELS.folderScan,
   IPC_CHANNELS.folderScanAll,
@@ -207,6 +214,12 @@ const settingsSchema = z.object({
   seekStepSeconds: z.number().int().min(1).max(120),
   coverFrameTimeSeconds: z.union([z.literal(0), z.literal(3), z.literal(5), z.literal(10), z.literal(15)]),
   playbackPreference: z.enum(["auto", "native-first", "mpv-first"]),
+  cloudDrive: z.object({
+    endpoint: z.string().trim().url().refine((value) => value.startsWith("http://") || value.startsWith("https://"), "CloudDrive endpoint must use HTTP or HTTPS"),
+    apiToken: z.string().trim().max(16_384),
+    timeoutMs: z.number().int().min(1_000).max(120_000),
+    mountMapJson: z.string().trim().max(100_000)
+  }).strict(),
   shortcuts: shortcutSettingsSchema
 }).strict();
 const diagnosticsOptionsSchema = z.object({ includeFullPaths: z.boolean() }).strict();
@@ -320,6 +333,24 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
   ipcLogger = dependencies.logger;
   let legacyCloudDriveBindingInFlight: Promise<Awaited<ReturnType<typeof bindLegacyCloudDriveDuplicateCandidates>>> | null = null;
+  let legacyCloudDriveBindingAbortController: AbortController | null = null;
+  let legacyCloudDriveBindingStatus: CloudDriveLegacyBindingProgress = {
+    state: "idle",
+    totalDirectoryCount: 0,
+    processedDirectoryCount: 0,
+    scannedDirectoryCount: 0,
+    failedDirectoryCount: 0,
+    candidateFileCount: 0,
+    matchedFileCount: 0,
+    missingFileCount: 0,
+    sizeMismatchFileCount: 0,
+    ambiguousFileCount: 0,
+    currentConcurrency: 0,
+    elapsedMs: 0,
+    directoriesPerSecond: 0,
+    estimatedRemainingMs: null,
+    errorMessage: null
+  };
   const scanFailureBatches = new ScanFailureBatchService(repo, {
     analyzeFailure: async (failureId) => {
       const failure = repo.getScanFailure(failureId);
@@ -402,7 +433,38 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
   ipcMain.handle(IPC_CHANNELS.duplicateCloudDriveBindLegacy, async () => {
     if (!legacyCloudDriveBindingInFlight) {
-      legacyCloudDriveBindingInFlight = bindLegacyCloudDriveDuplicateCandidates(repo);
+      legacyCloudDriveBindingAbortController = new AbortController();
+      const abortController = legacyCloudDriveBindingAbortController;
+      legacyCloudDriveBindingStatus = {
+        ...legacyCloudDriveBindingStatus,
+        state: "running",
+        totalDirectoryCount: 0,
+        processedDirectoryCount: 0,
+        scannedDirectoryCount: 0,
+        failedDirectoryCount: 0,
+        candidateFileCount: 0,
+        matchedFileCount: 0,
+        missingFileCount: 0,
+        sizeMismatchFileCount: 0,
+        ambiguousFileCount: 0,
+        currentConcurrency: 16,
+        elapsedMs: 0,
+        directoriesPerSecond: 0,
+        estimatedRemainingMs: null,
+        errorMessage: null
+      };
+      legacyCloudDriveBindingInFlight = bindLegacyCloudDriveDuplicateCandidates(repo, {
+        isCancelled: () => abortController.signal.aborted,
+        onProgress: (progress) => { legacyCloudDriveBindingStatus = progress; }
+      }).catch((cause) => {
+        legacyCloudDriveBindingStatus = {
+          ...legacyCloudDriveBindingStatus,
+          state: abortController.signal.aborted ? "cancelled" : "failed",
+          estimatedRemainingMs: null,
+          errorMessage: abortController.signal.aborted ? null : toMessage(cause)
+        };
+        throw cause;
+      });
     }
     const activeBinding = legacyCloudDriveBindingInFlight;
     try {
@@ -412,9 +474,21 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
       }
       return result;
     } finally {
-      if (legacyCloudDriveBindingInFlight === activeBinding) legacyCloudDriveBindingInFlight = null;
+      if (legacyCloudDriveBindingInFlight === activeBinding) {
+        legacyCloudDriveBindingInFlight = null;
+        legacyCloudDriveBindingAbortController = null;
+      }
     }
   });
+  ipcMain.handle(IPC_CHANNELS.duplicateCloudDriveBindLegacyStatus, () => legacyCloudDriveBindingStatus);
+  ipcMain.handle(IPC_CHANNELS.duplicateCloudDriveBindLegacyCancel, () => {
+    if (legacyCloudDriveBindingStatus.state === "running" && legacyCloudDriveBindingAbortController) {
+      legacyCloudDriveBindingStatus = { ...legacyCloudDriveBindingStatus, state: "cancelling" };
+      legacyCloudDriveBindingAbortController.abort();
+    }
+    return legacyCloudDriveBindingStatus;
+  });
+  ipcMain.handle(IPC_CHANNELS.cloudDriveTest, async () => testConfiguredCloudDriveConnection());
   ipcMain.handle(IPC_CHANNELS.duplicatePreferredDirectoriesList, () => repo.listDuplicatePreferredDirectories());
   ipcMain.handle(IPC_CHANNELS.duplicatePreferredDirectorySave, (_event, directoryPath) =>
     repo.saveDuplicatePreferredDirectory(z.string().min(1).max(32767).parse(directoryPath))
@@ -820,6 +894,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.settingsSet, (_event, payload) => {
     const settings = dependencies.settings.set(settingsSchema.parse(payload));
+    configureCloudDriveRuntime(settings.cloudDrive, process.env);
     dependencies.domainEvents.publish({ type: "settings:changed", videoIds: [] });
     return settings;
   });

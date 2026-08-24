@@ -65,7 +65,7 @@ interface LibraryShellProps {
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "confirmDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">
-    & Partial<Pick<VideoManagerApi, "fastDeleteDuplicateCandidates" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
+    & Partial<Pick<VideoManagerApi, "fastDeleteDuplicateCandidates" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "getLegacyCloudDriveBindingStatus" | "cancelLegacyCloudDriveBinding" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -887,6 +887,8 @@ export function LibraryShell({
             }}
             onCheckMissing={duplicateCleanupApi?.checkDuplicateMissing}
             onBindLegacyCloudDrive={duplicateCleanupApi?.bindLegacyCloudDriveDuplicates}
+            onGetLegacyCloudDriveBindingStatus={duplicateCleanupApi?.getLegacyCloudDriveBindingStatus}
+            onCancelLegacyCloudDriveBinding={duplicateCleanupApi?.cancelLegacyCloudDriveBinding}
             onAutoDelete={duplicateCleanupApi ? (plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId: crypto.randomUUID(), plan, sourceView: "duplicates-one-click", autoDeleteAfterVerification: true }) : undefined}
             onAutoDeleteFiltered={duplicateCleanupApi?.submitFilteredDuplicateCleanup ? () => duplicateCleanupApi.submitFilteredDuplicateCleanup!({
               requestId: crypto.randomUUID(),

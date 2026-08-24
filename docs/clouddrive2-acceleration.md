@@ -6,7 +6,9 @@ SQLite 仍保存 `X:\Movies\movie.mkv` 一类 Windows 路径。CloudDrive2 返�
 
 ## 配置
 
-只在 Electron Main Process 启动环境中提供最小权限 API Token：
+正式桌面版在“设置 → CloudDrive API”中保存 API 地址、Token 和超时，并可立即执行连接测试。保存后扫描、扫描异常复查、旧资料库绑定和 API 删除会共用该配置，无需通过命令行启动应用。
+
+开发环境仍兼容环境变量：
 
 ```powershell
 $env:LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TOKEN = "<api-token>"
@@ -23,13 +25,22 @@ npm run dev:electron
 $env:LOCAL_VIDEO_MANAGER_CLOUDDRIVE_MOUNT_MAP = '[{"mountPoint":"X:\\","sourceDir":"/115"}]'
 ```
 
-Token、JWT 和授权 Header 不写入数据库、Renderer 或日志。配置错误会停止该次扫描；未配置 Token、初次自动探测不可用或目录不属于 CloudDrive2 挂载点时，扫描器保持原有本地路径。
+Token 保存在当前 Windows 用户的应用设置文件中，不写入视频数据库或诊断日志。设置页使用密码输入框展示 Token。连接、配置或挂载映射错误会明确阻止旧资料库绑定和 API 删除，不再以“成功 0 项”静默返回；普通本地目录扫描仍保持原有路径。
 
 ## 完整性与失败行为
 
 每个 CloudDrive2 目录只有在 `GetSubFiles` 流正常结束、HTTP 状态和 `grpc-status` 都成功后才交给快照和 missing 对账。流中途失败、超时、取消、半帧、重复或不安全条目均不会把部分结果当作完整目录。
 
 已经识别为 CloudDrive2 的扫描不会在列举中途切回本地挂载层。根目录失败会报告 `offline`；子目录失败会记录为未解决扫描异常并把对应快照标为不完整，其他完整目录仍可继续处理。用户取消会关闭活动 HTTP/2 请求并沿用现有协作式取消状态。
+
+## 旧资料库快速绑定
+
+从挂载盘扫描得到的旧重复候选没有 CloudDrive 远端文件 ID。快速绑定只按候选所在目录调用 `GetSubFiles`，用文件名与缓存大小回填远端身份，不读取视频内容。
+
+- 任务按 64 个目录分批，成功结果每批立即写入 SQLite；取消、关闭或失败后再次运行时，只查询尚未绑定的候选。
+- 并发从 16 开始，根据每批响应时间和错误自动在 8–32 之间调整；出现目录失败时立即降并发，快速稳定时逐步升并发。
+- 目录列举允许复用当前应用进程的 24 小时缓存，不为重复绑定强制刷新相同远端目录。
+- Renderer 每 500ms 查询一次内存状态，展示已处理目录、速度、并发、已匹配数量和预计剩余时间；取消会终止活动 HTTP/2 流，但已完成批次仍然保留。
 
 ## 当前边界
 

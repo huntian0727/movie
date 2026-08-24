@@ -12,6 +12,7 @@ const settings: AppSettings = {
   seekStepSeconds: 10,
   coverFrameTimeSeconds: 5,
   playbackPreference: "auto",
+  cloudDrive: { endpoint: "http://127.0.0.1:19798", apiToken: "", timeoutMs: 20_000, mountMapJson: "" },
   shortcuts: { ...DEFAULT_SHORTCUTS }
 };
 

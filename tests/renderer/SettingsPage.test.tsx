@@ -4,7 +4,7 @@ import { SettingsPage } from "../../src/renderer/components/SettingsPage";
 import type { AppSettings, MediaCacheStatus } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
-const settings: AppSettings = { defaultRecursiveScan: true, startupSync: true, autoPlayOnOpen: true, seekStepSeconds: 10, coverFrameTimeSeconds: 5, playbackPreference: "auto", shortcuts: { ...DEFAULT_SHORTCUTS } };
+const settings: AppSettings = { defaultRecursiveScan: true, startupSync: true, autoPlayOnOpen: true, seekStepSeconds: 10, coverFrameTimeSeconds: 5, playbackPreference: "auto", cloudDrive: { endpoint: "http://127.0.0.1:19798", apiToken: "test-token", timeoutMs: 20_000, mountMapJson: "" }, shortcuts: { ...DEFAULT_SHORTCUTS } };
 const cacheStatus: MediaCacheStatus = {
   totalBytes: 1536,
   coverBytes: 512,
@@ -72,6 +72,28 @@ describe("SettingsPage", () => {
     render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
     fireEvent.click(screen.getByLabelText("打开视频后自动播放"));
     expect(onChange).toHaveBeenCalledWith({ ...settings, autoPlayOnOpen: false });
+  });
+
+  it("persists CloudDrive configuration before testing the connection", async () => {
+    const onChange = vi.fn(async () => undefined);
+    const onTestCloudDrive = vi.fn(async () => ({
+      endpoint: "http://127.0.0.1:19798",
+      apiMountPointCount: 1,
+      effectiveMountPointCount: 1,
+      mountedMountPointCount: 1,
+      mountPoints: [{ mountPoint: "F:\\", sourceDir: "/115", name: "CloudDrive2", readOnly: false, isMounted: true }]
+    }));
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} onTestCloudDrive={onTestCloudDrive} />);
+
+    fireEvent.change(screen.getByLabelText("CloudDrive API Token"), { target: { value: "new-token" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存并测试连接" }));
+
+    await waitFor(() => expect(onTestCloudDrive).toHaveBeenCalledTimes(1));
+    expect(onChange).toHaveBeenCalledWith({
+      ...settings,
+      cloudDrive: { ...settings.cloudDrive, apiToken: "new-token" }
+    });
+    expect(screen.getByText(/连接成功：API 返回 1 个挂载点/)).toBeInTheDocument();
   });
 
   it("shows reclaimed space and cleanup failures returned by the main process", async () => {

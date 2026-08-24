@@ -354,7 +354,49 @@ export interface CloudDriveLegacyBindingResult {
   missingFileCount: number;
   sizeMismatchFileCount: number;
   ambiguousFileCount: number;
+  cancelled: boolean;
   errors: Array<{ path: string; message: string }>;
+}
+
+export type CloudDriveLegacyBindingState = "idle" | "running" | "cancelling" | "completed" | "cancelled" | "failed";
+
+export interface CloudDriveLegacyBindingProgress {
+  state: CloudDriveLegacyBindingState;
+  totalDirectoryCount: number;
+  processedDirectoryCount: number;
+  scannedDirectoryCount: number;
+  failedDirectoryCount: number;
+  candidateFileCount: number;
+  matchedFileCount: number;
+  missingFileCount: number;
+  sizeMismatchFileCount: number;
+  ambiguousFileCount: number;
+  currentConcurrency: number;
+  elapsedMs: number;
+  directoriesPerSecond: number;
+  estimatedRemainingMs: number | null;
+  errorMessage: string | null;
+}
+
+export interface CloudDriveConnectionSettings {
+  endpoint: string;
+  apiToken: string;
+  timeoutMs: number;
+  mountMapJson: string;
+}
+
+export interface CloudDriveConnectionTestResult {
+  endpoint: string;
+  apiMountPointCount: number;
+  effectiveMountPointCount: number;
+  mountedMountPointCount: number;
+  mountPoints: Array<{
+    mountPoint: string;
+    sourceDir: string;
+    name: string;
+    readOnly: boolean;
+    isMounted: boolean;
+  }>;
 }
 
 export interface DuplicateResolveFailure {
@@ -570,6 +612,7 @@ export interface AppSettings {
   seekStepSeconds: number;
   coverFrameTimeSeconds: 0 | 3 | 5 | 10 | 15;
   playbackPreference: PlaybackPreference;
+  cloudDrive: CloudDriveConnectionSettings;
   shortcuts: ShortcutSettings;
 }
 
@@ -729,6 +772,9 @@ export const IPC_CHANNELS = {
   duplicateCleanupSubmit: "duplicate-cleanup:submit",
   duplicateCleanupSubmitFiltered: "duplicate-cleanup:submit-filtered",
   duplicateCloudDriveBindLegacy: "duplicate-clouddrive:bind-legacy",
+  duplicateCloudDriveBindLegacyStatus: "duplicate-clouddrive:bind-legacy-status",
+  duplicateCloudDriveBindLegacyCancel: "duplicate-clouddrive:bind-legacy-cancel",
+  cloudDriveTest: "clouddrive:test",
   duplicatePreferredDirectoriesList: "duplicate-preferred-directories:list",
   duplicatePreferredDirectorySave: "duplicate-preferred-directory:save",
   duplicatePreferredDirectoryRemove: "duplicate-preferred-directory:remove",
@@ -782,6 +828,9 @@ export interface VideoManagerApi {
   submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
   submitFilteredDuplicateCleanup(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted>;
   bindLegacyCloudDriveDuplicates(): Promise<CloudDriveLegacyBindingResult>;
+  getLegacyCloudDriveBindingStatus(): Promise<CloudDriveLegacyBindingProgress>;
+  cancelLegacyCloudDriveBinding(): Promise<CloudDriveLegacyBindingProgress>;
+  testCloudDriveConnection(): Promise<CloudDriveConnectionTestResult>;
   listDuplicatePreferredDirectories(): Promise<DuplicatePreferredDirectory[]>;
   saveDuplicatePreferredDirectory(path: string): Promise<DuplicatePreferredDirectory>;
   removeDuplicatePreferredDirectory(id: string): Promise<boolean>;

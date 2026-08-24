@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { FolderOpen, Info, Link2, ListTodo, LoaderCircle, Play, Trash2 } from "lucide-react";
 import type {
+  CloudDriveLegacyBindingProgress,
   CloudDriveLegacyBindingResult,
   DuplicateGroup,
   DuplicateDirectoryOption,
@@ -51,6 +52,8 @@ interface DuplicateGroupsPageProps {
   onPreviewResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onCheckMissing?(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   onBindLegacyCloudDrive?(): Promise<CloudDriveLegacyBindingResult>;
+  onGetLegacyCloudDriveBindingStatus?(): Promise<CloudDriveLegacyBindingProgress>;
+  onCancelLegacyCloudDriveBinding?(): Promise<CloudDriveLegacyBindingProgress>;
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   onAutoDelete?(plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onAutoDeleteFiltered?(): Promise<DuplicateCleanupAccepted>;
@@ -92,6 +95,8 @@ export function DuplicateGroupsPage({
   onPreviewResolve,
   onCheckMissing,
   onBindLegacyCloudDrive,
+  onGetLegacyCloudDriveBindingStatus,
+  onCancelLegacyCloudDriveBinding,
   onResolve,
   onAutoDelete,
   onAutoDeleteFiltered,
@@ -122,6 +127,7 @@ export function DuplicateGroupsPage({
   const [missingCheckPending, setMissingCheckPending] = useState(false);
   const [missingCheckMessage, setMissingCheckMessage] = useState<string | null>(null);
   const [bindingPending, setBindingPending] = useState(false);
+  const [bindingProgress, setBindingProgress] = useState<CloudDriveLegacyBindingProgress | null>(null);
   const submitGuardRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -158,6 +164,35 @@ export function DuplicateGroupsPage({
     void onLoadCleanupJobs(1, 20).then((result) => setActiveTaskCount(result.activeCount)).catch(() => undefined);
   }, [onLoadCleanupJobs, cleanupRefreshSequence]);
 
+  useEffect(() => {
+    if (!onGetLegacyCloudDriveBindingStatus) return;
+    let active = true;
+    void onGetLegacyCloudDriveBindingStatus().then((progress) => {
+      if (!active) return;
+      setBindingProgress(progress);
+      setBindingPending(progress.state === "running" || progress.state === "cancelling");
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [onGetLegacyCloudDriveBindingStatus]);
+
+  useEffect(() => {
+    if (!bindingPending || !onGetLegacyCloudDriveBindingStatus) return;
+    let active = true;
+    const update = () => {
+      void onGetLegacyCloudDriveBindingStatus().then((progress) => {
+        if (!active) return;
+        setBindingProgress(progress);
+        if (progress.state !== "running" && progress.state !== "cancelling") setBindingPending(false);
+      }).catch(() => undefined);
+    };
+    update();
+    const timer = setInterval(update, 500);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [bindingPending, onGetLegacyCloudDriveBindingStatus]);
+
   const plan = useMemo<DuplicateResolvePlan>(
     () => {
       const resolutions = groups.map((group) => {
@@ -178,6 +213,11 @@ export function DuplicateGroupsPage({
     () => plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),
     [plan]
   );
+  const filteredDeleteDisabledReason = totalGroups === 0
+    ? "当前筛选条件下没有重复候选组。"
+    : totalReclaimableBytes === 0
+      ? "当前筛选结果没有已绑定 CloudDrive 远端身份且可删除的候选文件。请先在设置中配置并测试 CloudDrive API，然后运行“快速绑定旧资料库”。"
+      : null;
 
   const resetSelectionToRecommended = () => {
     const currentGroupKeys = new Set(groups.map((group) => group.groupKey));
@@ -227,7 +267,7 @@ export function DuplicateGroupsPage({
     try {
       const result = await onBindLegacyCloudDrive();
       const details = [
-        `已绑定 ${result.matchedFileCount} 个重复候选`,
+        result.cancelled ? `已取消，本次仍已保存 ${result.matchedFileCount} 个绑定结果` : `已绑定 ${result.matchedFileCount} 个重复候选`,
         `扫描 ${result.scannedDirectoryCount} 个远端目录`,
         result.missingFileCount > 0 ? `网盘中不存在 ${result.missingFileCount} 个` : "",
         result.sizeMismatchFileCount > 0 ? `大小已变化 ${result.sizeMismatchFileCount} 个` : "",
@@ -235,11 +275,21 @@ export function DuplicateGroupsPage({
         result.unmappedCandidateFileCount > 0 ? `无法映射 ${result.unmappedCandidateFileCount} 个` : ""
       ].filter(Boolean).join("；");
       setMissingCheckMessage(`${details}。未读取任何视频内容。`);
-      onRefresh?.();
+      if (result.matchedFileCount > 0) onRefresh?.();
     } catch (cause) {
       setActionError(toDuplicateActionMessage(cause));
     } finally {
       setBindingPending(false);
+    }
+  };
+
+  const handleCancelLegacyCloudDrive = async () => {
+    if (!onCancelLegacyCloudDriveBinding || !bindingPending) return;
+    try {
+      const progress = await onCancelLegacyCloudDriveBinding();
+      setBindingProgress(progress);
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
     }
   };
 
@@ -375,12 +425,23 @@ export function DuplicateGroupsPage({
             {missingCheckPending ? `正在复查 ${previewFileCount} 个文件...` : "检查缺失文件"}
           </button>}
           {onBindLegacyCloudDrive && <button type="button" className={bindingPending ? "is-pending" : undefined} disabled={bindingPending || actionPending} onClick={() => void handleBindLegacyCloudDrive()}>
-            {bindingPending ? <><LoaderCircle className="spin" size={16} /> 正在通过 API 快速绑定...</> : <><Link2 size={16} /> 快速绑定旧资料库</>}
+            {bindingPending ? <><LoaderCircle className="spin" size={16} /> API 快速绑定中...</> : <><Link2 size={16} /> 快速绑定旧资料库</>}
           </button>}
+          {bindingPending && onCancelLegacyCloudDriveBinding && <button type="button" onClick={() => void handleCancelLegacyCloudDrive()} disabled={bindingProgress?.state === "cancelling"}>
+            {bindingProgress?.state === "cancelling" ? "正在取消..." : "取消绑定"}
+          </button>}
+          {bindingPending && bindingProgress && (
+            <div className="cloud-binding-progress" aria-live="polite">
+              <progress max={Math.max(1, bindingProgress.totalDirectoryCount)} value={bindingProgress.processedDirectoryCount} />
+              <strong>{bindingProgress.processedDirectoryCount.toLocaleString()} / {bindingProgress.totalDirectoryCount.toLocaleString()} 个目录</strong>
+              <span>已绑定 {bindingProgress.matchedFileCount.toLocaleString()} 个 · {bindingProgress.directoriesPerSecond.toFixed(1)} 目录/秒 · 并发 {bindingProgress.currentConcurrency} · 预计剩余 {formatRemainingTime(bindingProgress.estimatedRemainingMs)}</span>
+            </div>
+          )}
           {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
-          {onAutoDeleteFiltered && <button className="danger" type="button" disabled={actionPending || totalGroups === 0 || totalReclaimableBytes === 0} onClick={() => void handleFilteredAutoDelete()}>
+          {onAutoDeleteFiltered && <button className="danger" type="button" title={filteredDeleteDisabledReason ?? "通过 CloudDrive API 删除全部筛选结果中的候选项"} aria-describedby={filteredDeleteDisabledReason ? "filtered-delete-disabled-reason" : undefined} disabled={actionPending || filteredDeleteDisabledReason !== null} onClick={() => void handleFilteredAutoDelete()}>
             {actionPending ? "正在创建删除任务..." : `批量删除全部筛选结果（${totalGroups} 组）`}
           </button>}
+          {onAutoDeleteFiltered && filteredDeleteDisabledReason && <p id="filtered-delete-disabled-reason" className="duplicate-delete-disabled-reason" role="status">批量删除暂不可用：{filteredDeleteDisabledReason}</p>}
           {!onAutoDeleteFiltered && onAutoDelete && <button className="danger" type="button" disabled={actionPending || fastDeleteCount === 0} onClick={() => void handleAutoDelete(plan, "批量清理")}>
             {actionPending ? "正在创建删除任务..." : `批量删除候选项（${fastDeleteCount}）`}
           </button>}
@@ -641,6 +702,16 @@ function changeTypeLabel(changeType: DuplicateResolveChangedItem["changeType"]):
   if (changeType === "mtime-changed") return "修改时间变化";
   if (changeType === "size-and-mtime-changed") return "大小和修改时间变化";
   return "文件无法访问";
+}
+
+function formatRemainingTime(milliseconds: number | null): string {
+  if (milliseconds === null || !Number.isFinite(milliseconds)) return "计算中";
+  const seconds = Math.max(0, Math.ceil(milliseconds / 1_000));
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) return `${minutes} 分钟`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} 小时 ${minutes % 60} 分钟`;
 }
 
 function toDuplicateActionMessage(cause: unknown): string {

@@ -195,6 +195,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
       missingFileCount: 0,
       sizeMismatchFileCount: 0,
       ambiguousFileCount: 0,
+      cancelled: false,
       errors: []
     });
     render(<DuplicateGroupsPage {...baseProps()} onRefresh={onRefresh} onBindLegacyCloudDrive={onBindLegacyCloudDrive} />);
@@ -205,6 +206,40 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("已绑定 2 个重复候选");
     expect(screen.getByRole("status")).toHaveTextContent("未读取任何视频内容");
     expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("shows live legacy-binding progress and allows cancellation", async () => {
+    const running = {
+      state: "running" as const,
+      totalDirectoryCount: 3208,
+      processedDirectoryCount: 640,
+      scannedDirectoryCount: 639,
+      failedDirectoryCount: 1,
+      candidateFileCount: 31559,
+      matchedFileCount: 6100,
+      missingFileCount: 20,
+      sizeMismatchFileCount: 2,
+      ambiguousFileCount: 0,
+      currentConcurrency: 24,
+      elapsedMs: 10_000,
+      directoriesPerSecond: 64,
+      estimatedRemainingMs: 40_125,
+      errorMessage: null
+    };
+    const onGetLegacyCloudDriveBindingStatus = vi.fn().mockResolvedValue(running);
+    const onCancelLegacyCloudDriveBinding = vi.fn().mockResolvedValue({ ...running, state: "cancelling" as const });
+
+    render(<DuplicateGroupsPage
+      {...baseProps()}
+      onBindLegacyCloudDrive={vi.fn()}
+      onGetLegacyCloudDriveBindingStatus={onGetLegacyCloudDriveBindingStatus}
+      onCancelLegacyCloudDriveBinding={onCancelLegacyCloudDriveBinding}
+    />);
+
+    expect(await screen.findByText("640 / 3,208 个目录")).toBeInTheDocument();
+    expect(screen.getByText(/64.0 目录\/秒 · 并发 24/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "取消绑定" }));
+    await waitFor(() => expect(onCancelLegacyCloudDriveBinding).toHaveBeenCalledOnce());
   });
 
   it("returns to all groups when a directory filter has no results", () => {

@@ -1,5 +1,9 @@
 import path from "node:path";
-import type { SourceFolder } from "../../shared/videoTypes.js";
+import type {
+  CloudDriveConnectionSettings,
+  CloudDriveConnectionTestResult,
+  SourceFolder
+} from "../../shared/videoTypes.js";
 import { CloudDriveGrpcClient, type CloudDriveMountPoint } from "./grpcClient.js";
 import type { CloudDriveFileOperationResult } from "./grpcClient.js";
 
@@ -76,6 +80,47 @@ let sharedClient: CloudDriveGrpcClient | null = null;
 let cachedMountPointsKey = "";
 let cachedMountPoints: CloudDriveMountPoint[] = [];
 const directoryListingCache = new Map<string, { expiresAt: number; listing: CloudDriveDirectoryListing }>();
+let runtimeEnvironment: NodeJS.ProcessEnv | null = null;
+
+export function configureCloudDriveRuntime(
+  settings: CloudDriveConnectionSettings,
+  fallbackEnvironment: NodeJS.ProcessEnv = process.env
+): void {
+  const savedToken = settings.apiToken.trim();
+  runtimeEnvironment = { ...fallbackEnvironment };
+  if (savedToken) {
+    runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TOKEN = savedToken;
+    runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_ENDPOINT = settings.endpoint.trim();
+    runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TIMEOUT_MS = String(settings.timeoutMs);
+    if (settings.mountMapJson.trim()) {
+      runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_MOUNT_MAP = settings.mountMapJson.trim();
+    } else {
+      delete runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_MOUNT_MAP;
+    }
+  }
+  resetCloudDriveCaches();
+}
+
+export async function testConfiguredCloudDriveConnection(): Promise<CloudDriveConnectionTestResult> {
+  const config = readEnvironmentConfig(process.env);
+  if (!config) throw new Error("尚未配置 CloudDrive API Token，请先在设置中填写并保存");
+  const client = getSharedClient(config);
+  const apiMountPoints = await client.getMountPoints();
+  const effectiveMountPoints = config.manualMounts ?? apiMountPoints;
+  return {
+    endpoint: config.endpoint,
+    apiMountPointCount: apiMountPoints.length,
+    effectiveMountPointCount: effectiveMountPoints.length,
+    mountedMountPointCount: effectiveMountPoints.filter((mountPoint) => mountPoint.isMounted).length,
+    mountPoints: effectiveMountPoints.map((mountPoint) => ({
+      mountPoint: mountPoint.mountPoint,
+      sourceDir: mountPoint.sourceDir,
+      name: mountPoint.name,
+      readOnly: mountPoint.readOnly,
+      isMounted: mountPoint.isMounted
+    }))
+  };
+}
 
 export async function tryCreateMountedCloudDriveDirectorySource(
   sourceFolder: SourceFolder,
@@ -95,7 +140,10 @@ export async function createMountedCloudDriveDirectorySources(
   throwOnUnavailable = false
 ): Promise<Map<string, MountedCloudDriveDirectorySource>> {
   const config = readEnvironmentConfig(env);
-  if (!config) return new Map();
+  if (!config) {
+    if (throwOnUnavailable) throw new Error("尚未配置 CloudDrive API Token，请先到设置页完成配置和连接测试");
+    return new Map();
+  }
   const client = getSharedClient(config);
   let mountPoints: CloudDriveMountPoint[];
   try {
@@ -313,12 +361,13 @@ function createDirectorySource(
 }
 
 function readEnvironmentConfig(env: NodeJS.ProcessEnv): CloudDriveEnvironmentConfig | null {
-  const apiToken = (env.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TOKEN ?? "").trim();
+  const effectiveEnvironment = env === process.env && runtimeEnvironment ? runtimeEnvironment : env;
+  const apiToken = (effectiveEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TOKEN ?? "").trim();
   if (!apiToken) return null;
-  const endpoint = (env.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_ENDPOINT ?? DEFAULT_ENDPOINT).trim();
-  const parsedTimeout = Number(env.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
+  const endpoint = (effectiveEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_ENDPOINT ?? DEFAULT_ENDPOINT).trim();
+  const parsedTimeout = Number(effectiveEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? Math.trunc(parsedTimeout) : DEFAULT_TIMEOUT_MS;
-  return { endpoint, apiToken, timeoutMs, manualMounts: parseManualMounts(env.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_MOUNT_MAP) };
+  return { endpoint, apiToken, timeoutMs, manualMounts: parseManualMounts(effectiveEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_MOUNT_MAP) };
 }
 
 function parseManualMounts(raw: string | undefined): CloudDriveMountPoint[] | null {
@@ -354,6 +403,15 @@ function getSharedClient(config: CloudDriveEnvironmentConfig): CloudDriveGrpcCli
   sharedClientKey = key;
   sharedClient = new CloudDriveGrpcClient({ endpoint: config.endpoint, apiToken: config.apiToken, timeoutMs: config.timeoutMs });
   return sharedClient;
+}
+
+function resetCloudDriveCaches(): void {
+  sharedClient?.close();
+  sharedClient = null;
+  sharedClientKey = "";
+  cachedMountPointsKey = "";
+  cachedMountPoints = [];
+  directoryListingCache.clear();
 }
 
 function choosePathApi(localPath: string, mountPoint: string): typeof path.win32 | typeof path.posix {

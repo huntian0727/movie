@@ -1,7 +1,8 @@
-import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ArrowLeft, Database, FileDown, FolderSearch, Keyboard, RotateCcw } from "lucide-react";
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { ArrowLeft, Cloud, Database, FileDown, FolderSearch, Keyboard, RotateCcw } from "lucide-react";
 import type {
   AppSettings,
+  CloudDriveConnectionTestResult,
   DiagnosticsExportResult,
   DiagnosticsPreview,
   MediaCacheCleanupResult,
@@ -22,6 +23,7 @@ interface SettingsPageProps {
   cacheStatus: MediaCacheStatus;
   onBack?(): void;
   onChange?(settings: AppSettings): void | Promise<void>;
+  onTestCloudDrive?(): Promise<CloudDriveConnectionTestResult>;
   onClearCache?(): MediaCacheCleanupResult | null | Promise<MediaCacheCleanupResult | null>;
   onPreviewDiagnostics?(includeFullPaths: boolean): Promise<DiagnosticsPreview>;
   onExportDiagnostics?(includeFullPaths: boolean): Promise<DiagnosticsExportResult>;
@@ -33,6 +35,7 @@ export function SettingsPage({
   cacheStatus,
   onBack,
   onChange,
+  onTestCloudDrive,
   onClearCache,
   onPreviewDiagnostics,
   onExportDiagnostics
@@ -45,7 +48,43 @@ export function SettingsPage({
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutActionId | null>(null);
   const [shortcutMessage, setShortcutMessage] = useState<string | null>(null);
+  const [cloudDriveDraft, setCloudDriveDraft] = useState({ ...settings.cloudDrive });
+  const [cloudDriveBusy, setCloudDriveBusy] = useState(false);
+  const [cloudDriveMessage, setCloudDriveMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  useEffect(() => setCloudDriveDraft({ ...settings.cloudDrive }), [settings.cloudDrive]);
   const update = (patch: Partial<AppSettings>) => void onChange?.({ ...settings, ...patch });
+  const validateCloudDriveDraft = () => {
+    const endpoint = new URL(cloudDriveDraft.endpoint);
+    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") throw new Error("API 地址必须使用 http:// 或 https://");
+    if (!cloudDriveDraft.apiToken.trim()) throw new Error("请填写 CloudDrive API Token");
+    if (cloudDriveDraft.mountMapJson.trim()) {
+      const mountMap = JSON.parse(cloudDriveDraft.mountMapJson) as unknown;
+      if (!Array.isArray(mountMap)) throw new Error("挂载映射必须是 JSON 数组");
+    }
+  };
+  const saveCloudDrive = async (showSuccess = true) => {
+    validateCloudDriveDraft();
+    await onChange?.({ ...settings, cloudDrive: { ...cloudDriveDraft } });
+    if (showSuccess) setCloudDriveMessage({ kind: "success", text: "CloudDrive API 配置已保存。" });
+  };
+  const testCloudDrive = async () => {
+    if (!onTestCloudDrive) return;
+    setCloudDriveBusy(true);
+    setCloudDriveMessage(null);
+    try {
+      await saveCloudDrive(false);
+      const result = await onTestCloudDrive();
+      const writableCount = result.mountPoints.filter((mountPoint) => mountPoint.isMounted && !mountPoint.readOnly).length;
+      setCloudDriveMessage({
+        kind: "success",
+        text: `连接成功：API 返回 ${result.apiMountPointCount} 个挂载点，当前使用 ${result.effectiveMountPointCount} 个，其中 ${result.mountedMountPointCount} 个已挂载、${writableCount} 个可写。`
+      });
+    } catch (cause) {
+      setCloudDriveMessage({ kind: "error", text: cause instanceof Error ? cause.message : String(cause) });
+    } finally {
+      setCloudDriveBusy(false);
+    }
+  };
   const saveShortcut = (actionId: ShortcutActionId, binding: string): boolean => {
     const definition = SHORTCUT_DEFINITIONS.find((item) => item.id === actionId);
     const conflict = SHORTCUT_DEFINITIONS.find((item) =>
@@ -119,6 +158,34 @@ export function SettingsPage({
         <section className="settings-section"><div className="section-title"><FolderSearch size={20} /><div><h2>资料库</h2><p>控制新文件夹和启动扫描行为</p></div></div>
           <label className="setting-row"><div><strong>默认递归扫描</strong><span>添加文件夹时扫描所有子文件夹</span></div><input aria-label="默认递归扫描" type="checkbox" checked={settings.defaultRecursiveScan} onChange={(event) => update({ defaultRecursiveScan: event.target.checked })} /></label>
           <label className="setting-row"><div><strong>启动时自动同步</strong><span>打开应用后检查已添加的文件夹</span></div><input aria-label="启动时自动同步" type="checkbox" checked={settings.startupSync} onChange={(event) => update({ startupSync: event.target.checked })} /></label>
+        </section>
+
+        <section className="settings-section">
+          <div className="section-title"><Cloud size={20} /><div><h2>CloudDrive API</h2><p>用于低带宽扫描、旧资料库绑定和批量远端删除</p></div></div>
+          <div className="clouddrive-settings-grid">
+            <label>
+              <span>API 地址</span>
+              <input aria-label="CloudDrive API 地址" value={cloudDriveDraft.endpoint} placeholder="http://127.0.0.1:19798" onChange={(event) => setCloudDriveDraft((current) => ({ ...current, endpoint: event.target.value }))} />
+            </label>
+            <label>
+              <span>API Token</span>
+              <input aria-label="CloudDrive API Token" type="password" autoComplete="off" value={cloudDriveDraft.apiToken} placeholder="填写 CloudDrive API Token" onChange={(event) => setCloudDriveDraft((current) => ({ ...current, apiToken: event.target.value }))} />
+            </label>
+            <label>
+              <span>请求超时（毫秒）</span>
+              <input aria-label="CloudDrive API 请求超时" type="number" min="1000" max="120000" step="1000" value={cloudDriveDraft.timeoutMs} onChange={(event) => setCloudDriveDraft((current) => ({ ...current, timeoutMs: Number(event.target.value) }))} />
+            </label>
+            <label className="clouddrive-mount-map">
+              <span>手动挂载映射（可选）</span>
+              <textarea aria-label="CloudDrive 手动挂载映射" rows={3} value={cloudDriveDraft.mountMapJson} placeholder={'留空则自动读取 CloudDrive 挂载点；示例：[{"mountPoint":"F:\\\\","sourceDir":"/115"}]'} onChange={(event) => setCloudDriveDraft((current) => ({ ...current, mountMapJson: event.target.value }))} />
+              <small>只有 API 自动返回的本地挂载路径不正确时才需要填写。支持多个映射。</small>
+            </label>
+          </div>
+          <div className="clouddrive-settings-actions">
+            <button className="secondary-button" disabled={cloudDriveBusy} onClick={() => void saveCloudDrive().catch((cause) => setCloudDriveMessage({ kind: "error", text: cause instanceof Error ? cause.message : String(cause) }))}>保存配置</button>
+            <button className="secondary-button" disabled={cloudDriveBusy || !onTestCloudDrive} onClick={() => void testCloudDrive()}>{cloudDriveBusy ? "正在连接..." : "保存并测试连接"}</button>
+          </div>
+          {cloudDriveMessage && <p className={cloudDriveMessage.kind === "success" ? "settings-success" : "settings-warning"} role="status">{cloudDriveMessage.text}</p>}
         </section>
 
         <section className="settings-section"><div className="section-title"><RotateCcw size={20} /><div><h2>播放</h2><p>调整播放器控制和格式选择</p></div></div>
