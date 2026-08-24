@@ -99,7 +99,7 @@ export function DuplicateCleanupTasksPanel(props: Props) {
         if (event.key === "Escape" && !busy && !confirmOpen) closeOuter();
         if (event.key === "Tab" && !confirmOpen) trapFocus(event, event.currentTarget);
       }}>
-        <header><div><h3 id="duplicate-task-title">候选文件安全任务</h3><p>完整验证和永久删除是两个独立阶段；关闭此窗口不会跳过确认。</p></div><button ref={closeButtonRef} type="button" aria-label="关闭任务中心" onClick={closeOuter}><X size={18} /></button></header>
+        <header><div><h3 id="duplicate-task-title">重复文件清理任务</h3><p>API快速任务不会读取视频内容；历史安全任务仍按原流程显示。</p></div><button ref={closeButtonRef} type="button" aria-label="关闭任务中心" onClick={closeOuter}><X size={18} /></button></header>
         <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{liveMessage}</p>
         {error && <div className="error-banner" role="alert">{error}</div>}
         {busy && <LoaderCircle className="spin" size={20} aria-label="处理中" />}
@@ -112,22 +112,23 @@ export function DuplicateCleanupTasksPanel(props: Props) {
                 <progress aria-label={`${phaseLabel(job)}进度`} max={Math.max(1, job.totalItems)} value={progressValue(job)} />
               </button>
             ))}
-            {jobs?.items.length === 0 && <p>暂无重复文件安全任务</p>}
+            {jobs?.items.length === 0 && <p>暂无重复文件清理任务</p>}
             {jobs && jobs.totalPages > 1 && <div className="pagination-bar"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button><span>{page}/{jobs.totalPages}</span><button disabled={page >= jobs.totalPages} onClick={() => setPage(page + 1)}>下一页</button></div>}
           </div>
           <div className="duplicate-task-detail">
-            {!selected ? <p>选择任务查看完整验证结果。</p> : <>
+            {!selected ? <p>选择任务查看执行结果。</p> : <>
               <h4>{phaseLabel(selected)}</h4>
-              <p>相同 {selected.identicalItems} · 不同 {selected.differentItems} · 无法验证 {selected.unverifiableItems}</p>
+              {selected.workflowVersion === 2 && <p>相同 {selected.identicalItems} · 不同 {selected.differentItems} · 无法验证 {selected.unverifiableItems}</p>}
+              {selected.workflowVersion === 3 && <p>计划 {selected.totalItems} · 成功 {selected.successItems} · 失败 {selected.failedItems} · 跳过 {selected.skippedItems}</p>}
               {selected.phase === "awaiting_confirmation" && <p role="status">只有“完整哈希相同”的文件可进入永久删除。其他结果不会删除。</p>}
               {selected.phase === "verification" && ["queued", "running", "cancelling"].includes(selected.status) && <p className="duplicate-task-safety-note">取消验证会等待当前读取安全停止；验证阶段不会删除任何文件。</p>}
               {selected.phase === "deletion" && ["queued", "running", "cancelling"].includes(selected.status) && <p className="duplicate-task-safety-note">停止剩余删除只阻止尚未开始的项目；已经完成的永久删除无法撤销。</p>}
-              {selected.status === "interrupted" && <p className="duplicate-task-safety-note">任务已中断或已恢复隔离文件；原删除授权已失效，继续前必须重新完整验证。</p>}
+              {selected.status === "interrupted" && <p className="duplicate-task-safety-note">任务已中断；可以从尚未完成的 API删除项继续。</p>}
               <div className="duplicate-task-actions">
                 {selected.phase === "awaiting_confirmation" && props.onConfirm && <button ref={confirmTriggerRef} className="delete-review-action" onClick={() => { setConfirmation(""); setConfirmOpen(true); }}>第二次确认永久删除</button>}
                 {["queued", "running", "interrupted"].includes(selected.status) && <button onClick={() => void act(() => props.onCancel(selected.id))}><PauseCircle size={16} />{selected.phase === "deletion" ? "停止剩余删除" : "取消验证"}</button>}
-                {selected.status === "interrupted" && <button onClick={() => void act(() => props.onResume(selected.id))}><PlayCircle size={16} />重新完整验证</button>}
-                {["completed_with_errors", "cancelled"].includes(selected.status) && selected.phase === "finished" && <button onClick={() => void act(() => props.onRetry(selected.id))}><RotateCcw size={16} />重新完整验证</button>}
+                {selected.status === "interrupted" && <button onClick={() => void act(() => props.onResume(selected.id))}><PlayCircle size={16} />{selected.workflowVersion === 3 ? "继续API删除" : "重新完整验证"}</button>}
+                {["completed_with_errors", "cancelled"].includes(selected.status) && selected.phase === "finished" && <button onClick={() => void act(() => props.onRetry(selected.id))}><RotateCcw size={16} />{selected.workflowVersion === 3 ? "重试失败项" : "重新完整验证"}</button>}
                 {["completed", "completed_with_errors", "cancelled"].includes(selected.status) && selected.phase !== "awaiting_confirmation" && <button onClick={() => void act(async () => { await props.onClear(selected.id); setSelected(null); setItems(null); })}><Trash2 size={16} />清除记录</button>}
               </div>
               <div className="duplicate-task-items">
@@ -160,6 +161,7 @@ function progressValue(job: DuplicateCleanupJob): number {
   return job.phase === "verification" || job.phase === "awaiting_confirmation" ? job.verificationProcessedItems : job.processedItems;
 }
 function phaseLabel(job: DuplicateCleanupJob): string {
+  if (job.workflowVersion === 3 && job.phase === "deletion") return job.status === "cancelling" ? "正在停止API删除" : "正在通过CloudDrive API删除";
   if (job.phase === "verification") return job.status === "interrupted" ? "验证已中断" : job.status === "cancelling" ? "正在取消验证" : "正在完整验证";
   if (job.phase === "awaiting_confirmation") return "验证完成，等待第二次确认";
   if (job.phase === "deletion") return job.status === "cancelling" ? "正在停止剩余删除" : "正在永久删除已授权项";
@@ -171,6 +173,10 @@ function verificationLabel(status: DuplicateCleanupItemPage["items"][number]["ve
 }
 function itemResultLabel(item: DuplicateCleanupItemPage["items"][number]): string {
   const code = item.outcomeCode ?? "";
+  if (code === "deleted-via-clouddrive-api") return "已通过CloudDrive API永久删除。";
+  if (code === "already-missing") return "远端文件已不存在，本地索引已清理。";
+  if (code === "provider-identity-changed") return "远端身份或缓存版本已变化，本次已跳过。";
+  if (code === "clouddrive-api-delete-failed") return item.message || "CloudDrive API删除失败，可重试。";
   if (item.status === "deleted" || code === "deleted") return "已永久删除。";
   if (["content-different", "unverifiable", "cancelled"].includes(code)) return verificationLabel(item.verificationStatus);
   if (code === "legacy-safety-blocked") {

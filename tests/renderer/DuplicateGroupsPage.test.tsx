@@ -36,7 +36,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
     expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument();
-    expect(screen.getByText(/候选发现只使用缓存/)).toHaveTextContent(/完整计算.*SHA-256/);
+    expect(screen.getByText(/候选发现只使用精确文件大小/)).toHaveTextContent(/不计算 SHA-256/);
     expect(container).toHaveTextContent(/计划保留/);
     expect(container).toHaveTextContent(/候选移除/);
     expect(container).toHaveTextContent(/候选可释放空间/);
@@ -47,14 +47,14 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     const onAutoDelete = vi.fn().mockResolvedValue({ jobId: "job-1", requestId: "request-1", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
     render(<DuplicateGroupsPage {...baseProps()} preferredDirectoryPath="D:\\Movies" onAutoDelete={onAutoDelete} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "一键验证并删除候选移除项（1）" }));
+    fireEvent.click(screen.getByRole("button", { name: "批量删除候选项（1）" }));
 
     await waitFor(() => expect(onAutoDelete).toHaveBeenCalledOnce());
     expect(onAutoDelete).toHaveBeenCalledWith({
       groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }]
     });
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.getByText(/批量清理：已启动完整 SHA-256 验证任务/)).toBeInTheDocument();
+    expect(screen.getByText(/批量清理：已启动 CloudDrive API批量删除任务/)).toBeInTheDocument();
   });
 
   it("starts only full verification after an explicit preflight and does not claim deletion", async () => {
@@ -225,11 +225,11 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     for (const closeBy of ["escape", "button", "backdrop"] as const) {
       opener.focus();
       fireEvent.click(opener);
-      const dialog = await screen.findByRole("dialog", { name: "候选文件安全任务" });
+      const dialog = await screen.findByRole("dialog", { name: "重复文件清理任务" });
       if (closeBy === "escape") fireEvent.keyDown(dialog, { key: "Escape" });
       else if (closeBy === "button") fireEvent.click(screen.getByRole("button", { name: "关闭任务中心" }));
       else fireEvent.mouseDown(container.querySelector(".task-center-backdrop")!);
-      await waitFor(() => expect(screen.queryByRole("dialog", { name: "候选文件安全任务" })).not.toBeInTheDocument());
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "重复文件清理任务" })).not.toBeInTheDocument());
       expect(opener).toHaveFocus();
     }
   });
@@ -238,7 +238,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
     const { container } = render(<DuplicateGroupsPage {...baseProps()} {...taskCenterProps()} />);
     fireEvent.click(screen.getByRole("button", { name: /后台任务 0/ }));
-    const dialog = await screen.findByRole("dialog", { name: "候选文件安全任务" });
+    const dialog = await screen.findByRole("dialog", { name: "重复文件清理任务" });
     expect(dialog).toHaveClass("duplicate-task-center");
     const layout = container.querySelector(".duplicate-task-layout")!;
     expect(layout.children).toHaveLength(2);

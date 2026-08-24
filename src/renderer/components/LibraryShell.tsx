@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
-import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
@@ -65,7 +65,7 @@ interface LibraryShellProps {
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "confirmDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">
-    & Partial<Pick<VideoManagerApi, "fastDeleteDuplicateCandidates">>;
+    & Partial<Pick<VideoManagerApi, "fastDeleteDuplicateCandidates" | "submitFilteredDuplicateCleanup" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -159,6 +159,7 @@ export function LibraryShell({
   const [duplicatePageSize, setDuplicatePageSize] = useState<DuplicatePageSize>(20);
   const [duplicateSortDirection, setDuplicateSortDirection] = useState<SortDirection>("desc");
   const [duplicatePreferredDirectoryPath, setDuplicatePreferredDirectoryPath] = useState("");
+  const [duplicatePreferredDirectories, setDuplicatePreferredDirectories] = useState<DuplicatePreferredDirectory[]>([]);
   const [duplicatePage, setDuplicatePage] = useState<DuplicateGroupPage>(() => createStaticDuplicatePage(duplicateGroups));
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
@@ -338,6 +339,15 @@ export function LibraryShell({
   }, [duplicateGroups, onLoadDuplicateGroups, view]);
 
   useEffect(() => {
+    if (view !== "duplicates" || !duplicateCleanupApi?.listDuplicatePreferredDirectories) return;
+    let disposed = false;
+    void duplicateCleanupApi.listDuplicatePreferredDirectories().then((directories) => {
+      if (!disposed) setDuplicatePreferredDirectories(directories);
+    }).catch(() => undefined);
+    return () => { disposed = true; };
+  }, [duplicateCleanupApi, view]);
+
+  useEffect(() => {
     if (view !== "duplicates") return;
     if (!onLoadDuplicateGroups) {
       setDuplicatePage(createStaticDuplicatePage(duplicateGroups));
@@ -352,7 +362,9 @@ export function LibraryShell({
       pageSize: duplicatePageSize,
       sortDirection: duplicateSortDirection
     };
-    if (duplicatePreferredDirectoryPath) {
+    if (duplicatePreferredDirectories.length > 0) {
+      query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
+    } else if (duplicatePreferredDirectoryPath) {
       query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
     }
     void onLoadDuplicateGroups(query).then((result) => {
@@ -366,7 +378,7 @@ export function LibraryShell({
     });
 
     return () => { disposed = true; };
-  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectoryPath, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
+  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
 
   const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
   const toolbarCount = view === "duplicates" ? duplicatePage.totalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
@@ -844,8 +856,25 @@ export function LibraryShell({
             onPageSize={(pageSize) => { setDuplicatePageSize(pageSize); setDuplicatePageNumber(1); }}
             onSizeSortDirection={(direction) => { setDuplicateSortDirection(direction); setDuplicatePageNumber(1); }}
             directoryOptions={duplicatePage.directoryOptions}
+            preferredDirectories={duplicatePreferredDirectories}
             preferredDirectoryPath={duplicatePreferredDirectoryPath || undefined}
-            onPreferredDirectoryPathChange={(path) => { setDuplicatePreferredDirectoryPath(path); setDuplicatePageNumber(1); }}
+            onPreferredDirectoryPathChange={async (path) => {
+              if (!path) return;
+              if (!duplicateCleanupApi?.saveDuplicatePreferredDirectory) {
+                setDuplicatePreferredDirectoryPath(path);
+                setDuplicatePageNumber(1);
+                return;
+              }
+              const saved = await duplicateCleanupApi.saveDuplicatePreferredDirectory(path);
+              setDuplicatePreferredDirectories((current) => [...current.filter((entry) => entry.id !== saved.id), saved]);
+              setDuplicatePreferredDirectoryPath("");
+              setDuplicatePageNumber(1);
+            }}
+            onRemovePreferredDirectory={duplicateCleanupApi?.removeDuplicatePreferredDirectory ? async (id) => {
+              await duplicateCleanupApi.removeDuplicatePreferredDirectory!(id);
+              setDuplicatePreferredDirectories((current) => current.filter((entry) => entry.id !== id));
+              setDuplicatePageNumber(1);
+            } : undefined}
             onOpen={openVideo}
             onViewDetails={viewVideoDetails}
             onRevealInFolder={onRevealInFolder}
@@ -858,6 +887,16 @@ export function LibraryShell({
             }}
             onCheckMissing={duplicateCleanupApi?.checkDuplicateMissing}
             onAutoDelete={duplicateCleanupApi ? (plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId: crypto.randomUUID(), plan, sourceView: "duplicates-one-click", autoDeleteAfterVerification: true }) : undefined}
+            onAutoDeleteFiltered={duplicateCleanupApi?.submitFilteredDuplicateCleanup ? () => duplicateCleanupApi.submitFilteredDuplicateCleanup!({
+              requestId: crypto.randomUUID(),
+              query: {
+                page: 1,
+                pageSize: duplicatePageSize,
+                sortDirection: duplicateSortDirection,
+                ...(duplicatePreferredDirectories.length > 0 ? { preferredDirectoryPaths: duplicatePreferredDirectories.map((directory) => directory.path) } : {})
+              },
+              sourceView: "duplicates-all-filtered"
+            }) : undefined}
             onResolve={async (plan) => {
               if (!onResolveDuplicateGroups) {
                 throw new Error("重复项清理能力未连接");
@@ -866,7 +905,6 @@ export function LibraryShell({
               setDuplicateRefreshVersion((current) => current + 1);
               return result;
             }}
-            onSubmitCleanup={duplicateCleanupApi ? (requestId, plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId, plan, sourceView: "duplicates" }) : undefined}
             onConfirmCleanup={duplicateCleanupApi?.confirmDuplicateCleanup}
             onLoadCleanupJobs={duplicateCleanupApi?.listDuplicateCleanupJobs}
             onLoadCleanupItems={duplicateCleanupApi?.listDuplicateCleanupItems}

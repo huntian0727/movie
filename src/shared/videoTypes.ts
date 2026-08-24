@@ -14,6 +14,8 @@ export type CacheStatus = "pending" | "ready" | "failed";
 export type FingerprintStatus = "pending" | "ready" | "failed";
 export type PlaybackPreference = "auto" | "native-first" | "mpv-first";
 export type PlaybackRoute = "native" | "mpv";
+export type MediaSourceType = "local" | "clouddrive";
+export type DurationSource = "unknown" | "local-probe" | "clouddrive-api" | "cached";
 
 export interface SourceFolder {
   id: string;
@@ -24,6 +26,18 @@ export interface SourceFolder {
   createdAt: string;
   updatedAt: string;
   scanError: string | null;
+  providerType?: MediaSourceType;
+  providerRootPath?: string | null;
+  providerName?: string | null;
+  providerReadOnly?: boolean;
+}
+
+export interface DuplicatePreferredDirectory {
+  id: string;
+  path: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SourceFolderRemovalResult {
@@ -231,12 +245,17 @@ export interface VideoRecord {
   fingerprintStatus: FingerprintStatus;
   fingerprintUpdatedAt: string | null;
   fingerprintError: string | null;
+  providerFileId?: string | null;
+  providerPath?: string | null;
+  durationSource?: DurationSource;
 }
 
 export interface DuplicateCandidate {
   video: VideoRecord;
   isRecommendedToKeep: boolean;
   keepReason: string | null;
+  isProtected?: boolean;
+  canAutoDelete?: boolean;
 }
 
 export type DuplicateIdentityStatus = "candidate" | "size_duration_match" | "file_versions_current" | "changed" | "failed" | "offline";
@@ -254,6 +273,7 @@ export interface DuplicateGroupPageQuery {
   pageSize: DuplicatePageSize;
   sortDirection: SortDirection;
   preferredDirectoryPath?: string;
+  preferredDirectoryPaths?: string[];
 }
 
 export interface DuplicateDirectoryOption {
@@ -386,6 +406,12 @@ export interface DuplicateCleanupSubmitRequest {
   plan: DuplicateResolvePlan;
   sourceView?: string;
   autoDeleteAfterVerification?: boolean;
+}
+
+export interface DuplicateCleanupFilteredSubmitRequest {
+  requestId: string;
+  query: DuplicateGroupPageQuery;
+  sourceView?: string;
 }
 
 export interface DuplicateCleanupJob {
@@ -686,6 +712,10 @@ export const IPC_CHANNELS = {
   duplicateFastDelete: "duplicate:fast-delete",
   duplicateCheckMissing: "duplicate:check-missing",
   duplicateCleanupSubmit: "duplicate-cleanup:submit",
+  duplicateCleanupSubmitFiltered: "duplicate-cleanup:submit-filtered",
+  duplicatePreferredDirectoriesList: "duplicate-preferred-directories:list",
+  duplicatePreferredDirectorySave: "duplicate-preferred-directory:save",
+  duplicatePreferredDirectoryRemove: "duplicate-preferred-directory:remove",
   duplicateCleanupConfirm: "duplicate-cleanup:confirm",
   duplicateCleanupJobs: "duplicate-cleanup:jobs",
   duplicateCleanupJob: "duplicate-cleanup:job",
@@ -734,6 +764,10 @@ export interface VideoManagerApi {
   fastDeleteDuplicateCandidates(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
+  submitFilteredDuplicateCleanup(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted>;
+  listDuplicatePreferredDirectories(): Promise<DuplicatePreferredDirectory[]>;
+  saveDuplicatePreferredDirectory(path: string): Promise<DuplicatePreferredDirectory>;
+  removeDuplicatePreferredDirectory(id: string): Promise<boolean>;
   confirmDuplicateCleanup(request: DuplicateCleanupConfirmRequest): Promise<DuplicateCleanupJob>;
   listDuplicateCleanupJobs(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;
   getDuplicateCleanupJob(jobId: string): Promise<DuplicateCleanupJob>;

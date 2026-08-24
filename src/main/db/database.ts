@@ -203,16 +203,18 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
       dbPath
     );
   }
-  requireTables(db, ["source_folders", "videos", "timeline_previews", "play_history", "directory_snapshots", "scan_failures", "scan_tasks", "duplicate_cleanup_jobs", "duplicate_cleanup_items", "duplicate_cleanup_reservations"]);
+  requireTables(db, ["source_folders", "videos", "timeline_previews", "play_history", "directory_snapshots", "scan_failures", "scan_tasks", "duplicate_cleanup_jobs", "duplicate_cleanup_items", "duplicate_cleanup_reservations", "duplicate_preferred_directories"]);
   requireColumns(db, "source_folders", [
-    "id", "path", "recursive", "enabled", "last_scanned_at", "created_at", "updated_at", "scan_error"
+    "id", "path", "recursive", "enabled", "last_scanned_at", "created_at", "updated_at", "scan_error",
+    "provider_type", "provider_root_path", "provider_name", "provider_read_only"
   ]);
   requireColumns(db, "videos", [
     "id", "source_folder_id", "path", "directory", "filename", "basename", "extension", "size_bytes",
     "duration_ms", "width", "height", "format", "modified_at", "imported_at", "updated_at", "is_favorite",
     "is_pending_delete", "is_missing", "metadata_status", "thumbnail_status", "timeline_preview_status",
     "cover_cache_path", "content_fingerprint", "fingerprint_status", "fingerprint_updated_at", "fingerprint_error",
-    "video_codec", "video_profile", "pixel_format", "audio_codec", "codec_probe_status"
+    "video_codec", "video_profile", "pixel_format", "audio_codec", "codec_probe_status",
+    "provider_file_id", "provider_path", "duration_source"
   ]);
   requireColumns(db, "timeline_previews", ["id", "video_id", "time_ms", "cache_path", "created_at"]);
   requireColumns(db, "play_history", ["video_id", "played_at", "position_ms"]);
@@ -235,9 +237,13 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
   requireColumns(db, "duplicate_cleanup_items", [
     "id", "job_id", "group_key", "keep_video_id", "delete_video_id", "status", "outcome_code",
     "verification_status", "verification_revision", "keep_sha256", "delete_sha256", "verified_at", "verification_error", "authorized_revision",
-    "keep_file_identity", "delete_file_identity", "staged_delete_path", "staged_at"
+    "keep_file_identity", "delete_file_identity", "staged_delete_path", "staged_at",
+    "delete_transport", "delete_provider_file_id", "delete_provider_path"
   ]);
   requireColumns(db, "duplicate_cleanup_reservations", ["id", "job_id", "video_id", "role", "released_at"]);
+  requireColumns(db, "duplicate_preferred_directories", [
+    "id", "path", "normalized_path", "enabled", "created_at", "updated_at"
+  ]);
   validateIntegrity(db);
 }
 

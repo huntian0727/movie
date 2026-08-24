@@ -299,7 +299,7 @@ describe("versioned database migrations", () => {
     legacy.close();
 
     const upgraded = createDatabase(dbPath);
-    expect(upgraded.pragma("user_version", { simple: true })).toBe(10);
+    expect(upgraded.pragma("user_version", { simple: true })).toBe(11);
     expect(upgraded.prepare("SELECT workflow_version, phase, status, authorized_revision FROM duplicate_cleanup_jobs WHERE id = 'legacy-job'").get())
       .toEqual({ workflow_version: 1, phase: "legacy_blocked", status: "cancelled", authorized_revision: null });
     expect(upgraded.prepare(`SELECT status, verification_status, keep_sha256, delete_sha256,

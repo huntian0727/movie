@@ -499,7 +499,7 @@ describe("VideoRepository", () => {
       totalGroups: 1,
       totalCandidateGroups: 1,
       totalCandidateFiles: 2,
-      totalReclaimableBytes: favorite.sizeBytes,
+      totalReclaimableBytes: 0,
       totalPages: 1
     });
     expect(groups[0]).toMatchObject({
@@ -670,6 +670,37 @@ describe("VideoRepository", () => {
     expect(page.groups[0]?.recommendedKeepVideoId).toBe(descendant.id);
     expect(page.groups[0]?.items.map((item) => item.video.id)).toEqual(expect.arrayContaining([descendant.id, outside.id]));
     expect(page.groups.some((group) => group.groupKey === "size-duration:9200:5000")).toBe(false);
+  });
+
+  it("protects multiple preferred directory trees and plans every filtered CloudDrive deletion", () => {
+    const { repo, folderId } = createRepo();
+    const firstProtected = createVideo(repo, folderId, {
+      path: "D:\\Movies\\Keep A\\Season 1\\a.mp4", directory: "D:\\Movies\\Keep A\\Season 1", filename: "a.mp4",
+      sizeBytes: 12_000, durationMs: 5001, providerFileId: "a", providerPath: "/115/Keep A/Season 1/a.mp4"
+    });
+    const secondProtected = createVideo(repo, folderId, {
+      path: "D:\\Movies\\Keep B\\b.mp4", directory: "D:\\Movies\\Keep B", filename: "b.mp4",
+      sizeBytes: 12_000, durationMs: 5499, providerFileId: "b", providerPath: "/115/Keep B/b.mp4"
+    });
+    const outside = createVideo(repo, folderId, {
+      path: "D:\\Movies\\Other\\copy.mp4", directory: "D:\\Movies\\Other", filename: "copy.mp4",
+      sizeBytes: 12_000, durationMs: 5200, providerFileId: "copy", providerPath: "/115/Other/copy.mp4"
+    });
+    const query = {
+      page: 1 as const,
+      pageSize: 20 as const,
+      sortDirection: "desc" as const,
+      preferredDirectoryPaths: ["D:\\Movies\\Keep A", "D:\\Movies\\Keep B"]
+    };
+
+    const page = repo.listDuplicateGroupsPage(query);
+    expect(page.groups).toHaveLength(1);
+    expect(page.groups[0]?.groupKey).toBe("size-duration:12000:5000");
+    expect(page.groups[0]?.items.filter((item) => item.isProtected).map((item) => item.video.id))
+      .toEqual(expect.arrayContaining([firstProtected.id, secondProtected.id]));
+    expect(repo.buildDuplicateResolvePlanForQuery(query)).toEqual({
+      groups: [{ groupKey: "size-duration:12000:5000", keepVideoId: expect.any(String), deleteVideoIds: [outside.id] }]
+    });
   });
 
   it("builds a duplicate resolve preview and rejects invalid plans", () => {

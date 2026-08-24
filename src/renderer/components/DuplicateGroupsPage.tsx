@@ -15,6 +15,7 @@ import type {
   DuplicateCleanupItemPage,
   DuplicateCleanupJob,
   DuplicateCleanupJobPage,
+  DuplicatePreferredDirectory,
   SortDirection,
   VideoRecord
 } from "../../shared/videoTypes";
@@ -36,10 +37,12 @@ interface DuplicateGroupsPageProps {
   sizeSortDirection?: SortDirection;
   directoryOptions?: DuplicateDirectoryOption[];
   preferredDirectoryPath?: string;
+  preferredDirectories?: DuplicatePreferredDirectory[];
   onPage?(page: number): void;
   onPageSize?(pageSize: DuplicatePageSize): void;
   onSizeSortDirection?(direction: SortDirection): void;
   onPreferredDirectoryPathChange?(path: string): void;
+  onRemovePreferredDirectory?(id: string): void | Promise<void>;
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
@@ -48,6 +51,7 @@ interface DuplicateGroupsPageProps {
   onCheckMissing?(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   onAutoDelete?(plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
+  onAutoDeleteFiltered?(): Promise<DuplicateCleanupAccepted>;
   onSubmitCleanup?(requestId: string, plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onConfirmCleanup?(request: DuplicateCleanupConfirmRequest): Promise<DuplicateCleanupJob>;
   onLoadCleanupJobs?(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;
@@ -73,10 +77,12 @@ export function DuplicateGroupsPage({
   sizeSortDirection: controlledSizeSortDirection,
   directoryOptions = [],
   preferredDirectoryPath,
+  preferredDirectories = [],
   onPage,
   onPageSize,
   onSizeSortDirection,
   onPreferredDirectoryPathChange,
+  onRemovePreferredDirectory,
   onOpen,
   onViewDetails,
   onRevealInFolder,
@@ -85,6 +91,7 @@ export function DuplicateGroupsPage({
   onCheckMissing,
   onResolve,
   onAutoDelete,
+  onAutoDeleteFiltered,
   onSubmitCleanup,
   onConfirmCleanup,
   onLoadCleanupJobs,
@@ -148,16 +155,19 @@ export function DuplicateGroupsPage({
   }, [onLoadCleanupJobs, cleanupRefreshSequence]);
 
   const plan = useMemo<DuplicateResolvePlan>(
-    () => ({
-      groups: groups.map((group) => {
+    () => {
+      const resolutions = groups.map((group) => {
         const keepVideoId = manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
         return {
           groupKey: group.groupKey,
           keepVideoId,
-          deleteVideoIds: group.items.map((item) => item.video.id).filter((videoId) => videoId !== keepVideoId)
+          deleteVideoIds: group.items
+            .filter((item) => item.video.id !== keepVideoId && !item.isProtected && item.canAutoDelete !== false)
+            .map((item) => item.video.id)
         };
-      })
-    }),
+      }).filter((resolution) => resolution.deleteVideoIds.length > 0);
+      return { groups: resolutions };
+    },
     [groups, manualKeepByGroup]
   );
   const fastDeleteCount = useMemo(
@@ -181,7 +191,22 @@ export function DuplicateGroupsPage({
     setActionError(null);
     try {
       const accepted = await onAutoDelete(autoPlan);
-      setMissingCheckMessage(`${label}：已启动完整 SHA-256 验证任务；仅验证完全相同且删除前版本未变化的文件会自动永久删除。任务 ${accepted.jobId.slice(0, 8)}`);
+      setMissingCheckMessage(`${label}：已启动 CloudDrive API批量删除任务，不读取视频内容。任务 ${accepted.jobId.slice(0, 8)}`);
+      setActiveTaskCount((current) => current + 1);
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  const handleFilteredAutoDelete = async () => {
+    if (!onAutoDeleteFiltered || actionPending) return;
+    setActionPending(true);
+    setActionError(null);
+    try {
+      const accepted = await onAutoDeleteFiltered();
+      setMissingCheckMessage(`已对全部筛选结果启动 CloudDrive API 批量删除任务。任务 ${accepted.jobId.slice(0, 8)}`);
       setActiveTaskCount((current) => current + 1);
     } catch (cause) {
       setActionError(toDuplicateActionMessage(cause));
@@ -259,7 +284,7 @@ export function DuplicateGroupsPage({
       {missingCheckMessage && <div className="success-banner" role="status">{missingCheckMessage}</div>}
 
       <div className="duplicate-summary">
-        <p className="duplicate-size-warning">候选发现只使用缓存的大小和时长，不读取视频内容。点击删除后会先在后台完整计算保留文件和候选移除文件的 SHA-256；仅内容完全相同且删除前版本未变化的文件会自动永久删除。</p>
+        <p className="duplicate-size-warning">候选发现只使用精确文件大小和整秒时长，不读取视频内容、不计算 SHA-256。批量删除只处理具有 CloudDrive 远端身份的候选项，并通过 API执行。</p>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
           <span>大小＋时长匹配组</span>
@@ -284,13 +309,22 @@ export function DuplicateGroupsPage({
                 ...option,
                 meta: `${option.groupCount} 个候选组 · 候选可释放空间 ${formatBytes(option.estimatedReclaimableBytes)}`
               }))}
-              value={preferredDirectoryPath}
-              placeholder="全部资料库（自动推荐）"
+              value={undefined}
+              placeholder="添加优先保留目录"
               ariaLabel="选择候选项计划保留目录（包含所有子目录）"
-              allowClear
               onChange={(path) => onPreferredDirectoryPathChange?.(path)}
             />
           </div>
+          {preferredDirectories.length > 0 && (
+            <div className="duplicate-directory-scope" role="list" aria-label="已启用的优先保留目录">
+              {preferredDirectories.map((directory) => (
+                <p role="listitem" key={directory.id}>
+                  <code title={directory.path}>{directory.path}</code>（含子目录）
+                  <button type="button" aria-label={`移除优先保留目录 ${directory.path}`} onClick={() => void onRemovePreferredDirectory?.(directory.id)}>移除</button>
+                </p>
+              ))}
+            </div>
+          )}
           {preferredDirectoryPath && (
             <div className="duplicate-directory-scope">
               <p role="status">正在优先保留 <code title={preferredDirectoryPath}>{preferredDirectoryPath}</code> 及其所有子目录，并查看包含该目录树文件的候选组。</p>
@@ -313,8 +347,11 @@ export function DuplicateGroupsPage({
             {missingCheckPending ? `正在复查 ${previewFileCount} 个文件...` : "检查缺失文件"}
           </button>}
           {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
-          {onAutoDelete && <button className="danger" type="button" disabled={actionPending || fastDeleteCount === 0} onClick={() => void handleAutoDelete(plan, "批量清理")}>
-            {actionPending ? "正在提交验证..." : `一键验证并删除候选移除项（${fastDeleteCount}）`}
+          {onAutoDeleteFiltered && <button className="danger" type="button" disabled={actionPending || totalGroups === 0 || totalReclaimableBytes === 0} onClick={() => void handleFilteredAutoDelete()}>
+            {actionPending ? "正在创建删除任务..." : `批量删除全部筛选结果（${totalGroups} 组）`}
+          </button>}
+          {!onAutoDeleteFiltered && onAutoDelete && <button className="danger" type="button" disabled={actionPending || fastDeleteCount === 0} onClick={() => void handleAutoDelete(plan, "批量清理")}>
+            {actionPending ? "正在创建删除任务..." : `批量删除候选项（${fastDeleteCount}）`}
           </button>}
           {onSubmitCleanup ? (
             <DuplicateCleanupButton

@@ -238,6 +238,9 @@ export class ScanManager {
         }
       });
       for (const videoId of pendingMetadataIds) this.metadataQueue?.enqueue(videoId, mode === "retry-failures");
+      // CloudDrive scans stay metadata-only until an exact-size collision makes duration useful.
+      // The repository query includes local files plus only those cloud collision candidates.
+      this.metadataQueue?.enqueuePending?.();
       if (mode === "retry-failures" && this.metadataQueue && pendingMetadataIds.size > 0) {
         this.setStatus(folder.id, {
           mode,

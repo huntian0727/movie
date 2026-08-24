@@ -14,6 +14,8 @@ import { buildFullContentHash } from "./contentFingerprint.js";
 import type { MediaCacheManager } from "./cacheManager.js";
 import type { MetadataQueue } from "./metadataQueue.js";
 import type { DomainEventBus } from "../playerWindow.js";
+import { deleteCloudDriveFiles } from "../clouddrive/mountedScanner.js";
+import type { CloudDriveFileOperationResult } from "../clouddrive/grpcClient.js";
 
 type Inspection =
   | { status: "current"; stats: Stats }
@@ -25,6 +27,11 @@ interface DuplicateCleanupServiceOptions {
   deleteFile?: (filePath: string) => Promise<void>;
   hashFile?: (filePath: string, signal?: AbortSignal) => Promise<string>;
   renameFile?: (source: string, destination: string) => Promise<void>;
+  deleteCloudFiles?: (
+    remotePaths: readonly string[],
+    permanently?: boolean,
+    isCancelled?: () => boolean
+  ) => Promise<CloudDriveFileOperationResult>;
 }
 
 interface FileIdentityEvidence { stable: string; version: string }
@@ -37,10 +44,11 @@ export class DuplicateCleanupService {
   private currentJobId: string | null = null;
   private currentVerificationAbort: AbortController | null = null;
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly autoDeleteJobIds = new Set<string>();
+  private readonly legacyAutoDeleteJobIds = new Set<string>();
   private readonly deleteFile: (filePath: string) => Promise<void>;
   private readonly hashFile: (filePath: string, signal?: AbortSignal) => Promise<string>;
   private readonly renameFile: (source: string, destination: string) => Promise<void>;
+  private readonly deleteCloudFiles: NonNullable<DuplicateCleanupServiceOptions["deleteCloudFiles"]>;
   private readonly recoveryPromise: Promise<void>;
 
   constructor(
@@ -54,15 +62,30 @@ export class DuplicateCleanupService {
     this.deleteFile = options.deleteFile ?? permanentlyDeleteFile;
     this.hashFile = options.hashFile ?? buildFullContentHash;
     this.renameFile = options.renameFile ?? rename;
+    this.deleteCloudFiles = options.deleteCloudFiles ?? ((remotePaths, permanently, isCancelled) =>
+      deleteCloudDriveFiles(remotePaths, permanently, process.env, isCancelled));
     this.jobs.interruptActiveJobs();
     this.recoveryPromise = this.recoverStagedFiles();
+    for (const jobId of this.jobs.recoverFastJobs()) this.enqueue(jobId);
   }
 
   preview(request: DuplicateCleanupSubmitRequest) { return this.jobs.preview(request); }
 
   submit(request: DuplicateCleanupSubmitRequest): DuplicateCleanupAccepted {
-    const accepted = this.jobs.submit(request);
-    if (request.autoDeleteAfterVerification) this.autoDeleteJobIds.add(accepted.jobId);
+    let accepted: DuplicateCleanupAccepted;
+    if (request.autoDeleteAfterVerification) {
+      try {
+        accepted = this.jobs.submitFast(request);
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("not managed by CloudDrive API")) throw error;
+        // Preserve the retired local-filesystem workflow for old persisted callers.
+        // The renderer no longer exposes it; current CloudDrive plans always use the API path above.
+        accepted = this.jobs.submit(request);
+        this.legacyAutoDeleteJobIds.add(accepted.jobId);
+      }
+    } else {
+      accepted = this.jobs.submit(request);
+    }
     if (accepted.status === "queued") this.enqueue(accepted.jobId);
     return accepted;
   }
@@ -129,7 +152,8 @@ export class DuplicateCleanupService {
         this.currentJobId = jobId;
         this.publish(jobId);
         const job = this.jobs.getJob(jobId);
-        if (job.phase === "verification") await this.runVerification(jobId, job.verificationRevision!);
+        if (job.workflowVersion === 3) await this.runFastDeletion(jobId);
+        else if (job.phase === "verification") await this.runVerification(jobId, job.verificationRevision!);
         else if (job.phase === "deletion") await this.runDeletion(jobId);
         this.currentJobId = null;
       }
@@ -158,7 +182,7 @@ export class DuplicateCleanupService {
       if (!this.stopped) {
         const verifiedJob = this.jobs.completeVerification(jobId);
         this.publish(jobId, true);
-        if (this.autoDeleteJobIds.delete(jobId) && verifiedJob.verificationRevision && verifiedJob.identicalItems > 0) {
+        if (this.legacyAutoDeleteJobIds.delete(jobId) && verifiedJob.verificationRevision && verifiedJob.identicalItems > 0) {
           this.jobs.authorizeDeletion({ jobId, verificationRevision: verifiedJob.verificationRevision, confirmation: "DELETE" });
           if (this.jobs.start(jobId)) await this.runDeletion(jobId);
         }
@@ -247,6 +271,87 @@ export class DuplicateCleanupService {
       if (finished.successItems > 0) this.cacheManager.scheduleMaintenance(true);
       this.publish(jobId, true);
     }
+  }
+
+  private async runFastDeletion(jobId: string): Promise<void> {
+    const items = this.jobs.listFastDeletionWorkItems(jobId);
+    const batches = Array.from({ length: Math.ceil(items.length / 100) }, (_, index) => items.slice(index * 100, index * 100 + 100));
+    let nextBatch = 0;
+    const worker = async () => {
+      while (!this.stopped && !this.jobs.isCancelling(jobId)) {
+        const batchIndex = nextBatch++;
+        if (batchIndex >= batches.length) return;
+        await this.processFastBatch(jobId, batches[batchIndex]!);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(8, batches.length) }, () => worker()));
+    if (!this.stopped) {
+      const finished = this.jobs.finishDeletion(jobId);
+      if (finished.successItems > 0) this.cacheManager.scheduleMaintenance(true);
+      this.publish(jobId, true);
+    }
+  }
+
+  private async processFastBatch(jobId: string, batch: DuplicateCleanupWorkItem[]): Promise<void> {
+      const currentItems: DuplicateCleanupWorkItem[] = [];
+      for (const item of batch) {
+        let current;
+        try {
+          current = this.videos.getVideo(item.delete_video_id);
+        } catch {
+          this.jobs.updateItem(item.id, "deleted", "already-missing", "The indexed target no longer exists.");
+          continue;
+        }
+        if (!item.delete_provider_file_id || !item.delete_provider_path ||
+            current.providerFileId !== item.delete_provider_file_id || current.providerPath !== item.delete_provider_path ||
+            current.sizeBytes !== item.expected_delete_size_bytes || current.modifiedAt !== item.expected_delete_modified_at) {
+          this.jobs.updateItem(item.id, "skipped", "provider-identity-changed",
+            "The cached CloudDrive identity or file version changed after the deletion plan was created.");
+          continue;
+        }
+        currentItems.push(item);
+      }
+      const claimed = new Set(this.jobs.claimFastDeletionItems(jobId, currentItems.map((item) => item.id)));
+      await this.deleteFastBatch(jobId, currentItems.filter((item) => claimed.has(item.id)));
+      this.jobs.progress(jobId);
+      this.publish(jobId);
+  }
+
+  private async deleteFastBatch(jobId: string, items: DuplicateCleanupWorkItem[]): Promise<void> {
+    if (items.length === 0) return;
+    let result: CloudDriveFileOperationResult;
+    try {
+      result = await this.deleteCloudFiles(items.map((item) => item.delete_provider_path!), true);
+    } catch (error: unknown) {
+      result = { success: false, errorMessage: toMessage(error), resultFilePaths: [] };
+    }
+    if (result.success) {
+      for (const item of items) {
+        this.videos.removeVideo(item.delete_video_id);
+        this.jobs.updateItem(item.id, "deleted", result.permanentlyDeleted === false
+          ? "moved-to-cloud-recycle-bin"
+          : "deleted-via-clouddrive-api", result.permanentlyDeleted === false
+          ? "CloudDrive does not expose permanent deletion; the file was moved to its recycle bin and freed space is not counted."
+          : null);
+        this.domainEvents.publish({ type: "video:removed", videoIds: [item.delete_video_id] });
+      }
+      return;
+    }
+    if (items.length > 1) {
+      const middle = Math.ceil(items.length / 2);
+      await this.deleteFastBatch(jobId, items.slice(0, middle));
+      await this.deleteFastBatch(jobId, items.slice(middle));
+      return;
+    }
+    const item = items[0]!;
+    if (/not[\s_-]*found|不存在|ENOENT/i.test(result.errorMessage)) {
+      this.videos.removeVideo(item.delete_video_id);
+      this.jobs.updateItem(item.id, "deleted", "already-missing", result.errorMessage || null);
+      this.domainEvents.publish({ type: "video:removed", videoIds: [item.delete_video_id] });
+      return;
+    }
+    this.jobs.updateItem(item.id, "failed", "clouddrive-api-delete-failed",
+      result.errorMessage || "CloudDrive API did not delete the remote file.");
   }
 
   private async processAuthorizedDelete(jobId: string, item: DuplicateCleanupWorkItem): Promise<void> {

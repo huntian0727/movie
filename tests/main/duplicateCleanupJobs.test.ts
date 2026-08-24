@@ -69,6 +69,29 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     service.stop();
   });
 
+  it("deletes CloudDrive candidates through the API without hashing file content", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    repo.setSourceFolderProvider(keepVideo.sourceFolderId, { type: "clouddrive", rootPath: "/115", name: "115" });
+    expect(repo.updateVideoProviderIdentityIfVersion(keepVideo.id, keepVideo.path, keepVideo.sizeBytes, keepVideo.modifiedAt,
+      { fileId: "remote-keep", path: "/115/keep.mp4" })).toBe(true);
+    expect(repo.updateVideoProviderIdentityIfVersion(deleteVideo.id, deleteVideo.path, deleteVideo.sizeBytes, deleteVideo.modifiedAt,
+      { fileId: "remote-delete", path: "/115/delete.mp4" })).toBe(true);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const hashFile = vi.fn();
+    const deleteCloudFiles = vi.fn().mockResolvedValue({ success: true, errorMessage: "", resultFilePaths: ["/115/delete.mp4"] });
+    const service = createService(jobs, repo, { hashFile, deleteCloudFiles });
+
+    const accepted = service.submit({ requestId: "cloud-fast-delete", plan, autoDeleteAfterVerification: true });
+    const completed = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+
+    expect(completed).toMatchObject({ workflowVersion: 3, status: "completed", successItems: 1 });
+    expect(deleteCloudFiles).toHaveBeenCalledWith(["/115/delete.mp4"], true);
+    expect(hashFile).not.toHaveBeenCalled();
+    expect(() => repo.getVideo(deleteVideo.id)).toThrow();
+    service.stop();
+  });
+
   it("classifies same-metadata different content and gives it zero deletion authorization", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, false);
@@ -587,6 +610,7 @@ function createService(jobs: DuplicateCleanupRepository, repo: VideoRepository, 
   deleteFile?: (filePath: string) => Promise<void>;
   hashFile?: (filePath: string, signal?: AbortSignal) => Promise<string>;
   renameFile?: (source: string, destination: string) => Promise<void>;
+  deleteCloudFiles?: (remotePaths: readonly string[], permanently?: boolean, isCancelled?: () => boolean) => Promise<{ success: boolean; errorMessage: string; resultFilePaths: string[] }>;
 } = {}) {
   return new DuplicateCleanupService(jobs, repo, { enqueue: vi.fn(() => true) } as never,
     { scheduleMaintenance: vi.fn() } as never, { publish: vi.fn() } as never, options);

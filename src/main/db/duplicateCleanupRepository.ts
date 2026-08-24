@@ -29,6 +29,9 @@ interface ItemRow {
   keep_file_identity: string | null; delete_file_identity: string | null;
   staged_delete_path: string | null; staged_at: string | null;
   verification_error: string | null; authorized_revision: string | null;
+  delete_transport: "local" | "clouddrive";
+  delete_provider_file_id: string | null;
+  delete_provider_path: string | null;
 }
 
 export type DuplicateCleanupWorkItem = ItemRow;
@@ -85,6 +88,65 @@ export class DuplicateCleanupRepository {
         for (const video of entry.deleteVideos) insertReservation.run(crypto.randomUUID(), jobId, video.id, "delete", now);
       }
       return { jobId, requestId: request.requestId, status: "queued" as const, totalGroups: entries.length, totalItems, plannedReclaimableBytes };
+    })();
+  }
+
+  submitFast(request: DuplicateCleanupSubmitRequest): DuplicateCleanupAccepted {
+    const existing = this.findByRequestId(request.requestId);
+    if (existing) return toAccepted(existing);
+    return this.db.transaction(() => {
+      const raced = this.findByRequestId(request.requestId);
+      if (raced) return toAccepted(raced);
+      const entries = this.videos.validateDuplicateResolvePlan(request.plan);
+      if (entries.length === 0) throw new Error("Duplicate cleanup plan has no deletable CloudDrive candidates.");
+      for (const entry of entries) {
+        for (const video of entry.deleteVideos) {
+          if (!video.providerFileId || !video.providerPath) {
+            throw new Error(`Duplicate cleanup target is not managed by CloudDrive API: ${video.filename}`);
+          }
+        }
+      }
+      const videoIds = entries.flatMap((entry) => [entry.keepVideo.id, ...entry.deleteVideos.map((video) => video.id)]);
+      this.assertVideosAvailable(videoIds);
+      const now = new Date().toISOString();
+      const jobId = crypto.randomUUID();
+      const totalItems = entries.reduce((total, entry) => total + entry.deleteVideos.length, 0);
+      const plannedReclaimableBytes = entries.reduce(
+        (total, entry) => total + entry.deleteVideos.reduce((sum, video) => sum + video.sizeBytes, 0),
+        0
+      );
+      this.db.prepare(`INSERT INTO duplicate_cleanup_jobs (
+        id, request_id, status, source_view, total_groups, total_items, planned_reclaimable_bytes,
+        created_at, updated_at, workflow_version, phase
+      ) VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, 3, 'deletion')`)
+        .run(jobId, request.requestId, request.sourceView ?? "duplicates-api-fast", entries.length,
+          totalItems, plannedReclaimableBytes, now, now);
+      const insertItem = this.db.prepare(`INSERT INTO duplicate_cleanup_items (
+        id, job_id, group_key, keep_video_id, delete_video_id, keep_path, delete_path, filename, directory,
+        expected_keep_size_bytes, expected_keep_modified_at, expected_delete_size_bytes, expected_delete_modified_at,
+        planned_reclaimable_bytes, status, created_at, updated_at, verification_status,
+        delete_transport, delete_provider_file_id, delete_provider_path
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, 'unverified', 'clouddrive', ?, ?)`);
+      for (const entry of entries) {
+        for (const video of entry.deleteVideos) {
+          insertItem.run(
+            crypto.randomUUID(), jobId, entry.groupKey, entry.keepVideo.id, video.id,
+            entry.keepVideo.path, video.path, video.filename, video.directory,
+            entry.keepVideo.sizeBytes, entry.keepVideo.modifiedAt, video.sizeBytes, video.modifiedAt,
+            video.sizeBytes, now, now, video.providerFileId, video.providerPath
+          );
+        }
+      }
+      const insertReservation = this.db.prepare(`INSERT INTO duplicate_cleanup_reservations
+        (id, job_id, video_id, role, created_at, released_at) VALUES (?, ?, ?, ?, ?, NULL)`);
+      for (const entry of entries) {
+        insertReservation.run(crypto.randomUUID(), jobId, entry.keepVideo.id, "keep", now);
+        for (const video of entry.deleteVideos) {
+          insertReservation.run(crypto.randomUUID(), jobId, video.id, "delete", now);
+        }
+      }
+      return { jobId, requestId: request.requestId, status: "queued" as const,
+        totalGroups: entries.length, totalItems, plannedReclaimableBytes };
     })();
   }
 
@@ -163,11 +225,59 @@ export class DuplicateCleanupRepository {
     })();
   }
 
+  recoverFastJobs(): string[] {
+    const now = new Date().toISOString();
+    return this.db.transaction(() => {
+      const rows = this.db.prepare(`SELECT id FROM duplicate_cleanup_jobs
+        WHERE workflow_version = 3 AND phase = 'deletion'
+          AND status IN ('queued','running','cancelling','interrupted')
+        ORDER BY created_at`).all() as Array<{ id: string }>;
+      for (const row of rows) {
+        this.db.prepare(`UPDATE duplicate_cleanup_items
+          SET status = CASE WHEN status = 'deleting' THEN 'pending' ELSE status END,
+              updated_at = ?
+          WHERE job_id = ? AND status <> 'deleted'`).run(now, row.id);
+        this.db.prepare(`UPDATE duplicate_cleanup_jobs
+          SET status = 'queued', updated_at = ?, error_summary = 'Continuing API deletion after application restart.'
+          WHERE id = ?`).run(now, row.id);
+      }
+      return rows.map((row) => row.id);
+    })();
+  }
+
   start(jobId: string): boolean {
     const now = new Date().toISOString();
     return this.db.prepare(`UPDATE duplicate_cleanup_jobs SET status = 'running', started_at = COALESCE(started_at, ?),
-      updated_at = ?, error_summary = NULL WHERE id = ? AND workflow_version = 2 AND phase IN ('verification','deletion') AND status = 'queued'`)
+      updated_at = ?, error_summary = NULL WHERE id = ? AND (
+        (workflow_version = 2 AND phase IN ('verification','deletion') AND status = 'queued') OR
+        (workflow_version = 3 AND phase = 'deletion' AND status IN ('queued','interrupted'))
+      )`)
       .run(now, now, jobId).changes > 0;
+  }
+
+  listFastDeletionWorkItems(jobId: string): DuplicateCleanupWorkItem[] {
+    const job = this.getJob(jobId);
+    if (job.workflowVersion !== 3 || job.phase !== "deletion" || job.status !== "running") return [];
+    return this.db.prepare(`SELECT * FROM duplicate_cleanup_items
+      WHERE job_id = ? AND status = 'pending' AND delete_transport = 'clouddrive'
+        AND delete_provider_file_id IS NOT NULL AND delete_provider_path IS NOT NULL
+      ORDER BY created_at`).all(jobId) as ItemRow[];
+  }
+
+  claimFastDeletionItems(jobId: string, itemIds: readonly string[]): string[] {
+    const claimed: string[] = [];
+    const update = this.db.prepare(`UPDATE duplicate_cleanup_items SET status = 'deleting', updated_at = ?
+      WHERE id = ? AND job_id = ? AND status = 'pending' AND delete_transport = 'clouddrive'
+        AND delete_provider_file_id IS NOT NULL AND delete_provider_path IS NOT NULL
+        AND EXISTS (SELECT 1 FROM duplicate_cleanup_jobs WHERE id = ? AND workflow_version = 3
+          AND phase = 'deletion' AND status = 'running')`);
+    const now = new Date().toISOString();
+    this.db.transaction(() => {
+      for (const itemId of itemIds) {
+        if (update.run(now, itemId, jobId, jobId).changes === 1) claimed.push(itemId);
+      }
+    })();
+    return claimed;
   }
 
   listVerificationItems(jobId: string): DuplicateCleanupWorkItem[] {
@@ -318,6 +428,18 @@ export class DuplicateCleanupRepository {
 
   requestCancel(jobId: string): DuplicateCleanupJob {
     const job = this.getJob(jobId);
+    if (job.workflowVersion === 3) {
+      if (!["queued", "running", "interrupted"].includes(job.status)) return job;
+      const now = new Date().toISOString();
+      this.db.transaction(() => {
+        this.db.prepare("UPDATE duplicate_cleanup_jobs SET status = 'cancelling', updated_at = ? WHERE id = ?")
+          .run(now, jobId);
+        this.db.prepare(`UPDATE duplicate_cleanup_items SET status = 'cancelled', outcome_code = 'delete-stop-requested',
+          message = 'User stopped remaining API deletions.', updated_at = ?
+          WHERE job_id = ? AND status = 'pending'`).run(now, jobId);
+      })();
+      return this.getJob(jobId);
+    }
     if (job.workflowVersion !== 2) return job;
     const now = new Date().toISOString();
     if (job.phase === "awaiting_confirmation") {
@@ -387,6 +509,7 @@ export class DuplicateCleanupRepository {
 
   resume(jobId: string): DuplicateCleanupJob {
     const job = this.getJob(jobId);
+    if (job.workflowVersion === 3) return this.restartFastDeletion(jobId, "interrupted");
     if (job.workflowVersion !== 2) throw new Error("Legacy cleanup tasks cannot be resumed; create a new verification task.");
     if (job.status !== "interrupted") throw new Error("Only interrupted tasks can be resumed.");
     return this.restartVerification(jobId);
@@ -394,6 +517,7 @@ export class DuplicateCleanupRepository {
 
   retry(jobId: string): DuplicateCleanupJob {
     const job = this.getJob(jobId);
+    if (job.workflowVersion === 3) return this.restartFastDeletion(jobId, "retry");
     if (job.workflowVersion !== 2) throw new Error("Legacy cleanup tasks cannot be retried; create a new verification task.");
     if (!["completed_with_errors", "cancelled"].includes(job.status) || job.phase !== "finished") throw new Error("This task has no retryable items.");
     return this.restartVerification(jobId);
@@ -437,6 +561,28 @@ export class DuplicateCleanupRepository {
     })();
   }
 
+  private restartFastDeletion(jobId: string, mode: "interrupted" | "retry"): DuplicateCleanupJob {
+    const job = this.getJob(jobId);
+    if (mode === "interrupted" && job.status !== "interrupted") {
+      throw new Error("Only interrupted API cleanup tasks can be resumed.");
+    }
+    if (mode === "retry" && !["completed_with_errors", "cancelled"].includes(job.status)) {
+      throw new Error("This API cleanup task has no retryable items.");
+    }
+    const now = new Date().toISOString();
+    return this.db.transaction(() => {
+      this.restoreReservations(jobId);
+      this.db.prepare(`UPDATE duplicate_cleanup_items
+        SET status = CASE WHEN status = 'deleted' THEN status ELSE 'pending' END,
+            outcome_code = CASE WHEN status = 'deleted' THEN outcome_code ELSE NULL END,
+            message = CASE WHEN status = 'deleted' THEN message ELSE NULL END,
+            updated_at = ? WHERE job_id = ?`).run(now, jobId);
+      this.db.prepare(`UPDATE duplicate_cleanup_jobs SET status = 'queued', phase = 'deletion',
+        completed_at = NULL, updated_at = ?, error_summary = NULL WHERE id = ?`).run(now, jobId);
+      return this.getJob(jobId);
+    })();
+  }
+
   private refreshVerificationCounts(jobId: string): void {
     const counts = this.db.prepare(`SELECT
       SUM(CASE WHEN verification_status IN ('verified-identical','content-different','unverifiable') THEN 1 ELSE 0 END) AS processed,
@@ -456,7 +602,7 @@ export class DuplicateCleanupRepository {
       SUM(CASE WHEN status = 'deleted' THEN 1 ELSE 0 END) AS succeeded,
       SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
       SUM(CASE WHEN status IN ('skipped','cancelled') THEN 1 ELSE 0 END) AS skipped,
-      COALESCE(SUM(CASE WHEN status = 'deleted' THEN planned_reclaimable_bytes ELSE 0 END), 0) AS reclaimed
+      COALESCE(SUM(CASE WHEN status = 'deleted' AND outcome_code NOT IN ('moved-to-cloud-recycle-bin','already-missing') THEN planned_reclaimable_bytes ELSE 0 END), 0) AS reclaimed
       FROM duplicate_cleanup_items WHERE job_id = ?`).get(jobId) as { succeeded: number | null; failed: number | null; skipped: number | null; reclaimed: number };
     return { succeeded: counts.succeeded ?? 0, failed: counts.failed ?? 0, skipped: counts.skipped ?? 0, reclaimed: counts.reclaimed };
   }

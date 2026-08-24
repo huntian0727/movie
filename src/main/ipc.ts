@@ -139,7 +139,8 @@ const duplicateGroupPageQuerySchema = z.object({
   page: z.number().int().min(1),
   pageSize: z.union([z.literal(10), z.literal(20), z.literal(50), z.literal(100), z.literal(200), z.literal(300), z.literal(500)]),
   sortDirection: z.enum(["asc", "desc"]),
-  preferredDirectoryPath: z.string().min(1).optional()
+  preferredDirectoryPath: z.string().min(1).optional(),
+  preferredDirectoryPaths: z.array(z.string().min(1)).max(100).optional()
 }).strict();
 const duplicateResolvePlanSchema = z
   .object({
@@ -211,6 +212,11 @@ const scanFailureIdSchema = z.object({ failureId: z.string().min(1) }).strict();
 const scanFailureCleanupSchema = z.object({
   failureIds: z.array(z.string().min(1)).min(1).max(100),
   action: z.enum(["mark-pending-delete", "permanent-delete", "remove-missing-record"])
+}).strict();
+const duplicateCleanupFilteredSubmitSchema = z.object({
+  requestId: z.string().min(1).max(200),
+  query: duplicateGroupPageQuerySchema,
+  sourceView: z.string().max(100).optional()
 }).strict();
 const scanFailureBatchSubmitSchema = z.object({
   operation: z.enum(["recheck-accessibility", "analyze-metadata", "permanent-delete", "remove-missing-record"]),
@@ -379,6 +385,24 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupSubmit, (_event, payload) =>
     dependencies.duplicateCleanup.submit(duplicateCleanupSubmitSchema.parse(payload))
+  );
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupSubmitFiltered, (_event, payload) => {
+    const parsed = duplicateCleanupFilteredSubmitSchema.parse(payload);
+    const plan = repo.buildDuplicateResolvePlanForQuery(parsed.query);
+    if (plan.groups.length === 0) throw new Error("当前筛选结果中没有可通过 CloudDrive API 删除的候选项");
+    return dependencies.duplicateCleanup.submit({
+      requestId: parsed.requestId,
+      plan,
+      sourceView: parsed.sourceView ?? "duplicates-filtered",
+      autoDeleteAfterVerification: true
+    });
+  });
+  ipcMain.handle(IPC_CHANNELS.duplicatePreferredDirectoriesList, () => repo.listDuplicatePreferredDirectories());
+  ipcMain.handle(IPC_CHANNELS.duplicatePreferredDirectorySave, (_event, directoryPath) =>
+    repo.saveDuplicatePreferredDirectory(z.string().min(1).max(32767).parse(directoryPath))
+  );
+  ipcMain.handle(IPC_CHANNELS.duplicatePreferredDirectoryRemove, (_event, id) =>
+    repo.removeDuplicatePreferredDirectory(z.string().uuid().parse(id))
   );
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupConfirm, (_event, payload) =>
     dependencies.duplicateCleanup.confirm(duplicateCleanupConfirmSchema.parse(payload))

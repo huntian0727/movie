@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import http2, { type Http2Server, type ServerHttp2Stream } from "node:http2";
+import http2, { type Http2Server, type IncomingHttpHeaders, type ServerHttp2Stream } from "node:http2";
 import { afterEach, describe, expect, it } from "vitest";
 import { CloudDriveGrpcClient, takeGrpcFrames } from "../../src/main/clouddrive/grpcClient";
 import { encodeStringField, encodeTag, encodeVarint } from "../../src/main/clouddrive/protobuf";
@@ -101,6 +101,31 @@ describe("CloudDrive gRPC client", () => {
     })();
     await expect(operation).rejects.toMatchObject({ code: "ABORT_ERR" });
   });
+
+  it("permanently deletes remote paths with the documented CloudDrive method", async () => {
+    let methodPath = "";
+    let requestPayload: Buffer = Buffer.alloc(0);
+    const endpoint = await startServer((stream, headers) => {
+      methodPath = String(headers[":path"] ?? "");
+      const chunks: Buffer[] = [];
+      stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      stream.on("end", () => {
+        requestPayload = takeGrpcFrames(Buffer.concat(chunks)).payloads[0] ?? Buffer.alloc(0);
+        respond(stream);
+        stream.end(grpcFrame(Buffer.concat([uintField(1, 1), encodeStringField(3, "/115/a.mp4"), encodeStringField(3, "/115/b.mp4")])));
+      });
+    });
+    const client = createClient(endpoint);
+
+    await expect(client.deleteFiles(["/115/a.mp4", "/115/b.mp4"], true)).resolves.toEqual({
+      success: true,
+      errorMessage: "",
+      resultFilePaths: ["/115/a.mp4", "/115/b.mp4"],
+      permanentlyDeleted: true
+    });
+    expect(methodPath).toBe("/clouddrive.CloudDriveFileSrv/DeleteFilesPermanently");
+    expect(requestPayload).toEqual(Buffer.concat([encodeStringField(1, "/115/a.mp4"), encodeStringField(1, "/115/b.mp4")]));
+  });
 });
 
 function createClient(endpoint: string, timeoutMs = 1_000): CloudDriveGrpcClient {
@@ -115,10 +140,10 @@ async function readAll(client: CloudDriveGrpcClient): Promise<void> {
   }
 }
 
-async function startServer(handler: (stream: ServerHttp2Stream) => void): Promise<string> {
+async function startServer(handler: (stream: ServerHttp2Stream, headers: IncomingHttpHeaders) => void): Promise<string> {
   const server = http2.createServer();
   servers.push(server);
-  server.on("stream", (stream) => handler(stream));
+  server.on("stream", (stream, headers) => handler(stream, headers));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("HTTP/2 test server did not bind a TCP port");

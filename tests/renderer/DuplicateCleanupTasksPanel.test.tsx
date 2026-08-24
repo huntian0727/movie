@@ -98,7 +98,7 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     renderPanel({ loadJobs: vi.fn().mockResolvedValue(jobPage([job({ phase: "deletion", status: "interrupted" })])) });
     await selectTask(/正在永久删除已授权项/);
     expect(screen.getByRole("button", { name: "重新完整验证" })).toBeInTheDocument();
-    expect(screen.getByText(/原删除授权已失效/)).toHaveTextContent(/重新完整验证/);
+    expect(screen.getByText(/任务已中断/)).toHaveTextContent(/API删除项继续/);
   });
 
   it("renders per-item tri-state evidence", async () => {
@@ -158,7 +158,7 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     fireEvent.click(await screen.findByRole("button", { name: /已完成/ }));
     fireEvent.click(screen.getByRole("button", { name: /清除记录/ }));
     await waitFor(() => expect(onClear).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111"));
-    expect(screen.getByText(/选择任务查看完整验证结果/)).toBeInTheDocument();
+    expect(screen.getByText(/选择任务查看执行结果/)).toBeInTheDocument();
   });
 
   it("reloads the task list and selected details when refreshSequence changes", async () => {

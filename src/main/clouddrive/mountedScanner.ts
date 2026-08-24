@@ -1,15 +1,19 @@
 import path from "node:path";
 import type { SourceFolder } from "../../shared/videoTypes.js";
 import { CloudDriveGrpcClient, type CloudDriveMountPoint } from "./grpcClient.js";
+import type { CloudDriveFileOperationResult } from "./grpcClient.js";
 
 const DEFAULT_ENDPOINT = "http://127.0.0.1:19798";
 const DEFAULT_TIMEOUT_MS = 20_000;
+const DIRECTORY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_VALIDATION_DIRECTORY_CONCURRENCY = 4;
 const EPOCH = new Date(0).toISOString();
 
 export interface CloudDriveScanFileInfo {
   sizeBytes: number;
   modifiedAt: string;
+  providerFileId?: string;
+  providerPath?: string;
 }
 
 export interface CloudDriveDirectoryEntry {
@@ -25,10 +29,33 @@ export interface CloudDriveDirectoryListing {
 }
 
 export interface MountedCloudDriveDirectorySource {
+  provider?: {
+    type: "clouddrive";
+    rootPath: string;
+    name: string;
+    readOnly: boolean;
+  };
   readDirectory(localDirectory: string, isCancelled?: () => boolean): Promise<CloudDriveDirectoryListing>;
 }
 
 export type CloudDriveMissingConfirmation = "missing" | "present" | "not-cloud-drive";
+
+export async function deleteCloudDriveFiles(
+  remotePaths: readonly string[],
+  permanently = true,
+  env: NodeJS.ProcessEnv = process.env,
+  isCancelled?: () => boolean
+): Promise<CloudDriveFileOperationResult> {
+  const config = readEnvironmentConfig(env);
+  if (!config) throw new Error("CloudDrive API token is not configured");
+  const client = getSharedClient(config);
+  try {
+    return await client.deleteFiles(remotePaths, permanently, isCancelled);
+  } catch (error) {
+    if (!permanently || !isPermanentDeleteUnsupported(error)) throw error;
+    return client.deleteFiles(remotePaths, false, isCancelled);
+  }
+}
 
 interface CloudDriveEnvironmentConfig {
   endpoint: string;
@@ -48,11 +75,13 @@ let sharedClientKey = "";
 let sharedClient: CloudDriveGrpcClient | null = null;
 let cachedMountPointsKey = "";
 let cachedMountPoints: CloudDriveMountPoint[] = [];
+const directoryListingCache = new Map<string, { expiresAt: number; listing: CloudDriveDirectoryListing }>();
 
 export async function tryCreateMountedCloudDriveDirectorySource(
   sourceFolder: SourceFolder,
   env: NodeJS.ProcessEnv = process.env,
-  isCancelled?: () => boolean
+  isCancelled?: () => boolean,
+  forceRefresh = false
 ): Promise<MountedCloudDriveDirectorySource | null> {
   const config = readEnvironmentConfig(env);
   if (!config) return null;
@@ -69,7 +98,7 @@ export async function tryCreateMountedCloudDriveDirectorySource(
   }
   const mapping = findMountMapping(sourceFolder.path, mountPoints);
   if (!mapping) return null;
-  return createDirectorySource(client, mapping);
+  return createDirectorySource(client, mapping, forceRefresh);
 }
 
 /**
@@ -213,13 +242,20 @@ export function findMountMapping(localPath: string, mountPoints: CloudDriveMount
 
 function createDirectorySource(
   client: CloudDriveGrpcClient,
-  mapping: MountMapping
+  mapping: MountMapping,
+  forceRefresh: boolean
 ): MountedCloudDriveDirectorySource {
   const sourceLocalRoot = mapping.pathApi.resolve(mapping.localRoot, ...remoteRelativeParts(
     mapping.mountPoint.sourceDir,
     mapping.remoteRoot
   ));
   return {
+    provider: {
+      type: "clouddrive",
+      rootPath: mapping.remoteRoot,
+      name: mapping.mountPoint.name || "CloudDrive",
+      readOnly: mapping.mountPoint.readOnly
+    },
     async readDirectory(localDirectory, isCancelled) {
       const normalizedDirectory = mapping.pathApi.resolve(localDirectory);
       const relative = mapping.pathApi.relative(sourceLocalRoot, normalizedDirectory);
@@ -227,6 +263,9 @@ function createDirectorySource(
         throw new Error("CloudDrive scanner refused a directory outside its source folder");
       }
       const remoteDirectory = joinRemotePath(mapping.remoteRoot, relative);
+      const cacheKey = `${sharedClientKey}\n${normalizeRemotePath(remoteDirectory)}`;
+      const cached = directoryListingCache.get(cacheKey);
+      if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.listing;
       const entries: CloudDriveDirectoryEntry[] = [];
       const entryNames = new Set<string>();
       let directoryMtime = EPOCH;
@@ -246,11 +285,18 @@ function createDirectorySource(
         entries.push({
           name: entryName,
           kind,
-          scanIdentity: `${kind}:${entry.sizeBytes}:${modifiedAt}`,
-          fileInfo: kind === "file" ? { sizeBytes: entry.sizeBytes, modifiedAt } : undefined
+          scanIdentity: `${kind}:${entry.id}:${entry.sizeBytes}:${modifiedAt}`,
+          fileInfo: kind === "file" ? {
+            sizeBytes: entry.sizeBytes,
+            modifiedAt,
+            providerFileId: entry.id,
+            providerPath: entry.fullPathName || joinRemotePath(remoteDirectory, entryName)
+          } : undefined
         });
       }
-      return { entries, directoryMtime };
+      const listing = { entries, directoryMtime };
+      directoryListingCache.set(cacheKey, { expiresAt: Date.now() + DIRECTORY_CACHE_TTL_MS, listing });
+      return listing;
     }
   };
 }
@@ -293,6 +339,7 @@ function getSharedClient(config: CloudDriveEnvironmentConfig): CloudDriveGrpcCli
   const key = `${config.endpoint}\n${config.apiToken}\n${config.timeoutMs}\n${JSON.stringify(config.manualMounts)}`;
   if (sharedClient && sharedClientKey === key) return sharedClient;
   sharedClient?.close();
+  directoryListingCache.clear();
   sharedClientKey = key;
   sharedClient = new CloudDriveGrpcClient({ endpoint: config.endpoint, apiToken: config.apiToken, timeoutMs: config.timeoutMs });
   return sharedClient;
@@ -333,6 +380,11 @@ function posixBasename(value: string): string {
 
 function isSafeEntryName(value: string, pathApi: typeof path.win32 | typeof path.posix): boolean {
   return Boolean(value && value !== "." && value !== ".." && pathApi.basename(value) === value && !/[\\/]/.test(value));
+}
+
+function isPermanentDeleteUnsupported(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /gRPC\s+12\b|UNIMPLEMENTED|not implemented|method not found/i.test(message);
 }
 
 function throwIfCancelled(isCancelled?: () => boolean): void {

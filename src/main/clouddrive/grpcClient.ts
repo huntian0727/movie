@@ -31,6 +31,13 @@ export interface CloudDriveFileEntry {
   createTime: string | null;
 }
 
+export interface CloudDriveFileOperationResult {
+  success: boolean;
+  errorMessage: string;
+  resultFilePaths: string[];
+  permanentlyDeleted?: boolean;
+}
+
 export class CloudDriveGrpcClient {
   private readonly origin: string;
   private readonly apiToken: string;
@@ -82,6 +89,23 @@ export class CloudDriveGrpcClient {
         else reply.skip(wireType);
       }
     }
+  }
+
+  async deleteFiles(
+    remotePaths: readonly string[],
+    permanently = true,
+    isCancelled?: () => boolean
+  ): Promise<CloudDriveFileOperationResult> {
+    const paths = [...new Set(remotePaths.map((value) => normalizeRemoteOperationPath(value)))];
+    if (paths.length === 0) throw new Error("CloudDrive delete requires at least one remote path");
+    const request = Buffer.concat(paths.map((remotePath) => encodeStringField(1, remotePath)));
+    const payloads: Buffer[] = [];
+    const method = permanently ? "DeleteFilesPermanently" : "DeleteFiles";
+    for await (const payload of this.serverStream(method, request, isCancelled)) payloads.push(payload);
+    if (payloads.length !== 1) {
+      throw new Error(`CloudDrive ${method} returned ${payloads.length} gRPC messages; expected 1`);
+    }
+    return { ...decodeFileOperationResult(payloads[0]), permanentlyDeleted: permanently };
   }
 
   close(): void {
@@ -221,6 +245,27 @@ function decodeCloudDriveFile(payload: Buffer): CloudDriveFileEntry {
   }
   result.isDirectory ||= result.fileType === 0;
   return result;
+}
+
+function decodeFileOperationResult(payload: Buffer): CloudDriveFileOperationResult {
+  const reader = new ProtoReader(payload);
+  const result: CloudDriveFileOperationResult = { success: false, errorMessage: "", resultFilePaths: [] };
+  while (!reader.done) {
+    const { fieldNumber, wireType } = reader.readTag();
+    if (fieldNumber === 1 && wireType === 0) result.success = reader.readBool();
+    else if (fieldNumber === 2 && wireType === 2) result.errorMessage = reader.readString();
+    else if (fieldNumber === 3 && wireType === 2) result.resultFilePaths.push(reader.readString());
+    else reader.skip(wireType);
+  }
+  return result;
+}
+
+function normalizeRemoteOperationPath(value: string): string {
+  const normalized = value.replace(/\\/g, "/").trim();
+  if (!normalized || !normalized.startsWith("/") || normalized.includes("\0")) {
+    throw new Error("CloudDrive file operation requires an absolute remote path");
+  }
+  return normalized;
 }
 
 function encodeGrpcFrame(payload: Buffer): Buffer {

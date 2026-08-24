@@ -50,7 +50,8 @@ export interface ScannerDependencies {
   mode?: ScanMode;
   cloudDirectorySource?(
     sourceFolder: SourceFolder,
-    isCancelled?: () => boolean
+    isCancelled?: () => boolean,
+    forceRefresh?: boolean
   ): Promise<MountedCloudDriveDirectorySource | null>;
 }
 
@@ -131,12 +132,16 @@ export async function scanSourceFolder(
   dependencies: ScannerDependencies = {}
 ): Promise<ScanResult> {
   const normalizedDependencies = { ...dependencies, mode: dependencies.mode ?? "current-folder" };
+  const cloudDirectorySource = await resolveCloudDirectorySource(sourceFolder, normalizedDependencies);
+  if (cloudDirectorySource?.provider) {
+    repo.setSourceFolderProvider?.(sourceFolder.id, cloudDirectorySource.provider);
+  }
   const context = createContext(
     repo,
     sourceFolder,
     normalizedDependencies,
     false,
-    await resolveCloudDirectorySource(sourceFolder, normalizedDependencies)
+    cloudDirectorySource
   );
   reportProgress(context, "discovering", sourceFolder.path);
   const rootReadable = await scanDirectoryTree(context, sourceFolder.path, null, true);
@@ -421,14 +426,26 @@ async function processVideoFile(
     const modifiedAt = "modifiedAt" in fileStat ? fileStat.modifiedAt : fileStat.mtime.toISOString();
     if (existing && existing.sizeBytes === sizeBytes && existing.modifiedAt === modifiedAt) {
       context.counters.skippedVideos += 1;
+      if ("providerFileId" in fileStat && fileStat.providerFileId && fileStat.providerPath) {
+        context.repo.updateVideoProviderIdentityIfVersion?.(
+          existing.id,
+          existing.path,
+          existing.sizeBytes,
+          existing.modifiedAt,
+          { fileId: fileStat.providerFileId, path: fileStat.providerPath }
+        );
+      }
       if (existing.isMissing) context.repo.markMissing(existing.id, false);
       queuePendingMetadata(context, existing);
     } else {
       const parsed = path.parse(filePath);
-      const stored = await upsertScannedVideo(context, existing, filePath, parsed, sizeBytes, modifiedAt);
+      const stored = await upsertScannedVideo(context, existing, filePath, parsed, sizeBytes, modifiedAt,
+        "providerFileId" in fileStat && fileStat.providerFileId && fileStat.providerPath ? fileStat : undefined);
       if (existing) context.counters.updatedVideos += 1;
       else context.counters.addedVideos += 1;
-      if (context.dependencies.onMetadataPending) context.dependencies.onMetadataPending(stored.id);
+      if (context.dependencies.onMetadataPending && !("providerFileId" in fileStat && fileStat.providerFileId)) {
+        context.dependencies.onMetadataPending(stored.id);
+      }
     }
     context.counters.resolvedFailures += safeResolveObjectStageFailures(
       context.repo,
@@ -452,7 +469,8 @@ async function upsertScannedVideo(
   filePath: string,
   parsed: path.ParsedPath,
   sizeBytes: number,
-  modifiedAt: string
+  modifiedAt: string,
+  providerInfo?: CloudDriveScanFileInfo
 ): Promise<VideoRecord> {
   if (context.dependencies.onMetadataPending) {
     return context.repo.upsertVideo({
@@ -473,7 +491,10 @@ async function upsertScannedVideo(
       audioCodec: null,
       codecProbeStatus: "unprobed",
       modifiedAt,
-      metadataStatus: "pending"
+      metadataStatus: "pending",
+      providerFileId: providerInfo?.providerFileId ?? null,
+      providerPath: providerInfo?.providerPath ?? null,
+      durationSource: "unknown"
     });
   }
   const metadata = await (context.dependencies.readMetadata ?? readMetadata)(filePath);
@@ -494,12 +515,16 @@ async function upsertScannedVideo(
     pixelFormat: metadata.pixelFormat ?? null,
     audioCodec: metadata.audioCodec ?? null,
     codecProbeStatus: "ready",
-    modifiedAt
+    modifiedAt,
+    providerFileId: providerInfo?.providerFileId ?? null,
+    providerPath: providerInfo?.providerPath ?? null,
+    durationSource: metadata.durationMs === null ? "unknown" : "local-probe"
   });
 }
 
 function queuePendingMetadata(context: ScanContext, existing: VideoRecord): void {
   if (!context.dependencies.onMetadataPending) return;
+  if (existing.providerFileId && existing.providerPath) return;
   if (existing.metadataStatus === "failed") {
     context.repo.markMetadataPending(existing.id, existing.path, existing.sizeBytes, existing.modifiedAt);
   }
@@ -704,8 +729,8 @@ async function resolveCloudDirectorySource(
   dependencies: ScannerDependencies
 ): Promise<MountedCloudDriveDirectorySource | null> {
   const source = dependencies.cloudDirectorySource
-    ? await dependencies.cloudDirectorySource(sourceFolder, dependencies.isCancelled)
-    : await tryCreateMountedCloudDriveDirectorySource(sourceFolder, process.env, dependencies.isCancelled);
+    ? await dependencies.cloudDirectorySource(sourceFolder, dependencies.isCancelled, dependencies.mode === "current-folder")
+    : await tryCreateMountedCloudDriveDirectorySource(sourceFolder, process.env, dependencies.isCancelled, dependencies.mode === "current-folder");
   throwIfCancelled(dependencies);
   return source;
 }
