@@ -72,6 +72,24 @@ interface SourceFolderRow {
   provider_read_only: number;
 }
 
+export interface CloudDriveBindingCandidateRecord {
+  videoId: string;
+  sourceFolderId: string;
+  path: string;
+  directory: string;
+  filename: string;
+  sizeBytes: number;
+}
+
+export interface CloudDriveIdentityUpdate {
+  videoId: string;
+  expectedPath: string;
+  expectedSizeBytes: number;
+  providerFileId: string;
+  providerPath: string;
+  providerModifiedAt: string;
+}
+
 interface VideoRow {
   id: string;
   source_folder_id: string;
@@ -540,6 +558,78 @@ export class VideoRepository {
       readOnly: provider.readOnly ? 1 : 0,
       updatedAt: new Date().toISOString()
     });
+  }
+
+  listUnboundDuplicateCandidates(): CloudDriveBindingCandidateRecord[] {
+    return this.db.prepare(`
+      WITH duplicate_identities AS (
+        SELECT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds
+        FROM videos
+        WHERE is_missing = 0
+          AND metadata_status = 'ready'
+          AND duration_ms IS NOT NULL
+          AND duration_ms > 0
+        GROUP BY size_bytes, duration_seconds
+        HAVING COUNT(*) >= 2
+      )
+      SELECT videos.id AS video_id, videos.source_folder_id, videos.path, videos.directory,
+             videos.filename, videos.size_bytes
+      FROM videos
+      JOIN duplicate_identities ON duplicate_identities.size_bytes = videos.size_bytes
+        AND duplicate_identities.duration_seconds = ((videos.duration_ms + 500) / 1000)
+      JOIN source_folders ON source_folders.id = videos.source_folder_id
+      WHERE videos.is_missing = 0
+        AND source_folders.enabled = 1
+        AND (videos.provider_file_id IS NULL OR videos.provider_path IS NULL)
+      ORDER BY videos.source_folder_id, videos.directory, videos.filename
+    `).all().map((row) => {
+      const value = row as {
+        video_id: string; source_folder_id: string; path: string; directory: string;
+        filename: string; size_bytes: number;
+      };
+      return {
+        videoId: value.video_id,
+        sourceFolderId: value.source_folder_id,
+        path: value.path,
+        directory: value.directory,
+        filename: value.filename,
+        sizeBytes: value.size_bytes
+      };
+    });
+  }
+
+  bindCloudDriveVideoIdentities(
+    folderId: string,
+    provider: { rootPath: string; name: string; readOnly: boolean },
+    updates: readonly CloudDriveIdentityUpdate[]
+  ): number {
+    return this.db.transaction(() => {
+      this.setSourceFolderProvider(folderId, {
+        type: "clouddrive",
+        rootPath: provider.rootPath,
+        name: provider.name,
+        readOnly: provider.readOnly
+      });
+      const statement = this.db.prepare(`
+        UPDATE videos
+        SET provider_file_id = @providerFileId,
+            provider_path = @providerPath,
+            modified_at = @providerModifiedAt,
+            updated_at = @updatedAt
+        WHERE id = @videoId
+          AND source_folder_id = @folderId
+          AND path = @expectedPath
+          AND size_bytes = @expectedSizeBytes
+          AND is_missing = 0
+          AND (provider_file_id IS NULL OR provider_path IS NULL)
+      `);
+      const updatedAt = new Date().toISOString();
+      let changes = 0;
+      for (const update of updates) {
+        changes += statement.run({ ...update, folderId, updatedAt }).changes;
+      }
+      return changes;
+    })();
   }
 
   listDuplicatePreferredDirectories(includeDisabled = false): DuplicatePreferredDirectory[] {

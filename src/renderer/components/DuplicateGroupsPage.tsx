@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { FolderOpen, Info, ListTodo, LoaderCircle, Play, Trash2 } from "lucide-react";
+import { FolderOpen, Info, Link2, ListTodo, LoaderCircle, Play, Trash2 } from "lucide-react";
 import type {
+  CloudDriveLegacyBindingResult,
   DuplicateGroup,
   DuplicateDirectoryOption,
   DuplicatePageSize,
@@ -49,6 +50,7 @@ interface DuplicateGroupsPageProps {
   onRefresh?(): void;
   onPreviewResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onCheckMissing?(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
+  onBindLegacyCloudDrive?(): Promise<CloudDriveLegacyBindingResult>;
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   onAutoDelete?(plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onAutoDeleteFiltered?(): Promise<DuplicateCleanupAccepted>;
@@ -89,6 +91,7 @@ export function DuplicateGroupsPage({
   onRefresh,
   onPreviewResolve,
   onCheckMissing,
+  onBindLegacyCloudDrive,
   onResolve,
   onAutoDelete,
   onAutoDeleteFiltered,
@@ -118,6 +121,7 @@ export function DuplicateGroupsPage({
   const [directPreviewElapsed, setDirectPreviewElapsed] = useState(0);
   const [missingCheckPending, setMissingCheckPending] = useState(false);
   const [missingCheckMessage, setMissingCheckMessage] = useState<string | null>(null);
+  const [bindingPending, setBindingPending] = useState(false);
   const submitGuardRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -212,6 +216,30 @@ export function DuplicateGroupsPage({
       setActionError(toDuplicateActionMessage(cause));
     } finally {
       setActionPending(false);
+    }
+  };
+
+  const handleBindLegacyCloudDrive = async () => {
+    if (!onBindLegacyCloudDrive || bindingPending || actionPending) return;
+    setBindingPending(true);
+    setActionError(null);
+    setMissingCheckMessage(null);
+    try {
+      const result = await onBindLegacyCloudDrive();
+      const details = [
+        `已绑定 ${result.matchedFileCount} 个重复候选`,
+        `扫描 ${result.scannedDirectoryCount} 个远端目录`,
+        result.missingFileCount > 0 ? `网盘中不存在 ${result.missingFileCount} 个` : "",
+        result.sizeMismatchFileCount > 0 ? `大小已变化 ${result.sizeMismatchFileCount} 个` : "",
+        result.failedDirectoryCount > 0 ? `目录失败 ${result.failedDirectoryCount} 个` : "",
+        result.unmappedCandidateFileCount > 0 ? `无法映射 ${result.unmappedCandidateFileCount} 个` : ""
+      ].filter(Boolean).join("；");
+      setMissingCheckMessage(`${details}。未读取任何视频内容。`);
+      onRefresh?.();
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+    } finally {
+      setBindingPending(false);
     }
   };
 
@@ -345,6 +373,9 @@ export function DuplicateGroupsPage({
           <button type="button" onClick={resetSelectionToRecommended}>按推荐选择保留项</button>
           {onCheckMissing && <button type="button" className={missingCheckPending ? "is-pending" : undefined} disabled={missingCheckPending || actionPending || groups.length === 0} onClick={() => void handleCheckMissing()}>
             {missingCheckPending ? `正在复查 ${previewFileCount} 个文件...` : "检查缺失文件"}
+          </button>}
+          {onBindLegacyCloudDrive && <button type="button" className={bindingPending ? "is-pending" : undefined} disabled={bindingPending || actionPending} onClick={() => void handleBindLegacyCloudDrive()}>
+            {bindingPending ? <><LoaderCircle className="spin" size={16} /> 正在通过 API 快速绑定...</> : <><Link2 size={16} /> 快速绑定旧资料库</>}
           </button>}
           {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
           {onAutoDeleteFiltered && <button className="danger" type="button" disabled={actionPending || totalGroups === 0 || totalReclaimableBytes === 0} onClick={() => void handleFilteredAutoDelete()}>

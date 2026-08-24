@@ -37,6 +37,7 @@ describe("IPC_CHANNELS", () => {
       duplicateCheckMissing: "duplicate:check-missing",
       duplicateCleanupSubmit: "duplicate-cleanup:submit",
       duplicateCleanupSubmitFiltered: "duplicate-cleanup:submit-filtered",
+      duplicateCloudDriveBindLegacy: "duplicate-clouddrive:bind-legacy",
       duplicatePreferredDirectoriesList: "duplicate-preferred-directories:list",
       duplicatePreferredDirectorySave: "duplicate-preferred-directory:save",
       duplicatePreferredDirectoryRemove: "duplicate-preferred-directory:remove",

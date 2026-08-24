@@ -181,6 +181,32 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
+  it("quickly binds legacy duplicate candidates through CloudDrive metadata only", async () => {
+    const onRefresh = vi.fn();
+    const onBindLegacyCloudDrive = vi.fn().mockResolvedValue({
+      sourceFolderCount: 1,
+      boundSourceFolderCount: 1,
+      unmappedSourceFolderCount: 0,
+      unmappedCandidateFileCount: 0,
+      scannedDirectoryCount: 1,
+      failedDirectoryCount: 0,
+      candidateFileCount: 2,
+      matchedFileCount: 2,
+      missingFileCount: 0,
+      sizeMismatchFileCount: 0,
+      ambiguousFileCount: 0,
+      errors: []
+    });
+    render(<DuplicateGroupsPage {...baseProps()} onRefresh={onRefresh} onBindLegacyCloudDrive={onBindLegacyCloudDrive} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /快速绑定旧资料库/ }));
+
+    await waitFor(() => expect(onBindLegacyCloudDrive).toHaveBeenCalledOnce());
+    expect(await screen.findByRole("status")).toHaveTextContent("已绑定 2 个重复候选");
+    expect(screen.getByRole("status")).toHaveTextContent("未读取任何视频内容");
+    expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
   it("returns to all groups when a directory filter has no results", () => {
     const onPreferredDirectoryPathChange = vi.fn();
     render(<DuplicateGroupsPage {...baseProps()} groups={[]} preferredDirectoryPath="D:\\None" onPreferredDirectoryPathChange={onPreferredDirectoryPathChange} />);

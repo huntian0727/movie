@@ -24,6 +24,7 @@ import type { StructuredLogger } from "./logging/logger.js";
 import { buildCacheKey, getCoverPath, getCoverTimeSeconds } from "./media/cacheService.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
 import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js";
+import { bindLegacyCloudDriveDuplicateCandidates } from "./media/cloudDriveLegacyBindingService.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
 import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
@@ -38,6 +39,7 @@ let ipcLogger: StructuredLogger | undefined;
 const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.duplicateFastDelete,
   IPC_CHANNELS.duplicateCleanupConfirm,
+  IPC_CHANNELS.duplicateCloudDriveBindLegacy,
   IPC_CHANNELS.folderAdd,
   IPC_CHANNELS.folderScan,
   IPC_CHANNELS.folderScanAll,
@@ -317,6 +319,7 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
   ipcLogger = dependencies.logger;
+  let legacyCloudDriveBindingInFlight: Promise<Awaited<ReturnType<typeof bindLegacyCloudDriveDuplicateCandidates>>> | null = null;
   const scanFailureBatches = new ScanFailureBatchService(repo, {
     analyzeFailure: async (failureId) => {
       const failure = repo.getScanFailure(failureId);
@@ -396,6 +399,21 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
       sourceView: parsed.sourceView ?? "duplicates-filtered",
       autoDeleteAfterVerification: true
     });
+  });
+  ipcMain.handle(IPC_CHANNELS.duplicateCloudDriveBindLegacy, async () => {
+    if (!legacyCloudDriveBindingInFlight) {
+      legacyCloudDriveBindingInFlight = bindLegacyCloudDriveDuplicateCandidates(repo);
+    }
+    const activeBinding = legacyCloudDriveBindingInFlight;
+    try {
+      const result = await activeBinding;
+      if (result.matchedFileCount > 0) {
+        dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
+      }
+      return result;
+    } finally {
+      if (legacyCloudDriveBindingInFlight === activeBinding) legacyCloudDriveBindingInFlight = null;
+    }
   });
   ipcMain.handle(IPC_CHANNELS.duplicatePreferredDirectoriesList, () => repo.listDuplicatePreferredDirectories());
   ipcMain.handle(IPC_CHANNELS.duplicatePreferredDirectorySave, (_event, directoryPath) =>

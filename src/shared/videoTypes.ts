@@ -342,6 +342,21 @@ export interface DuplicateMissingCheckResult {
   changedCount: number;
 }
 
+export interface CloudDriveLegacyBindingResult {
+  sourceFolderCount: number;
+  boundSourceFolderCount: number;
+  unmappedSourceFolderCount: number;
+  unmappedCandidateFileCount: number;
+  scannedDirectoryCount: number;
+  failedDirectoryCount: number;
+  candidateFileCount: number;
+  matchedFileCount: number;
+  missingFileCount: number;
+  sizeMismatchFileCount: number;
+  ambiguousFileCount: number;
+  errors: Array<{ path: string; message: string }>;
+}
+
 export interface DuplicateResolveFailure {
   groupKey: string;
   videoId: string;
@@ -713,6 +728,7 @@ export const IPC_CHANNELS = {
   duplicateCheckMissing: "duplicate:check-missing",
   duplicateCleanupSubmit: "duplicate-cleanup:submit",
   duplicateCleanupSubmitFiltered: "duplicate-cleanup:submit-filtered",
+  duplicateCloudDriveBindLegacy: "duplicate-clouddrive:bind-legacy",
   duplicatePreferredDirectoriesList: "duplicate-preferred-directories:list",
   duplicatePreferredDirectorySave: "duplicate-preferred-directory:save",
   duplicatePreferredDirectoryRemove: "duplicate-preferred-directory:remove",
@@ -765,6 +781,7 @@ export interface VideoManagerApi {
   checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
   submitFilteredDuplicateCleanup(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted>;
+  bindLegacyCloudDriveDuplicates(): Promise<CloudDriveLegacyBindingResult>;
   listDuplicatePreferredDirectories(): Promise<DuplicatePreferredDirectory[]>;
   saveDuplicatePreferredDirectory(path: string): Promise<DuplicatePreferredDirectory>;
   removeDuplicatePreferredDirectory(id: string): Promise<boolean>;

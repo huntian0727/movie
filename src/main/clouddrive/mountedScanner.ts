@@ -83,22 +83,33 @@ export async function tryCreateMountedCloudDriveDirectorySource(
   isCancelled?: () => boolean,
   forceRefresh = false
 ): Promise<MountedCloudDriveDirectorySource | null> {
+  const sources = await createMountedCloudDriveDirectorySources([sourceFolder], env, isCancelled, forceRefresh);
+  return sources.get(sourceFolder.id) ?? null;
+}
+
+export async function createMountedCloudDriveDirectorySources(
+  sourceFolders: readonly SourceFolder[],
+  env: NodeJS.ProcessEnv = process.env,
+  isCancelled?: () => boolean,
+  forceRefresh = false,
+  throwOnUnavailable = false
+): Promise<Map<string, MountedCloudDriveDirectorySource>> {
   const config = readEnvironmentConfig(env);
-  if (!config) return null;
+  if (!config) return new Map();
   const client = getSharedClient(config);
   let mountPoints: CloudDriveMountPoint[];
   try {
-    mountPoints = config.manualMounts ?? await client.getMountPoints(isCancelled);
-    cachedMountPointsKey = sharedClientKey;
-    cachedMountPoints = mountPoints;
+    mountPoints = await loadMountPoints(config, client, isCancelled);
   } catch (error) {
-    if (isCancelled?.()) throw error;
-    if (cachedMountPointsKey !== sharedClientKey || cachedMountPoints.length === 0) return null;
-    mountPoints = cachedMountPoints;
+    if (isCancelled?.() || throwOnUnavailable) throw error;
+    return new Map();
   }
-  const mapping = findMountMapping(sourceFolder.path, mountPoints);
-  if (!mapping) return null;
-  return createDirectorySource(client, mapping, forceRefresh);
+  const sources = new Map<string, MountedCloudDriveDirectorySource>();
+  for (const sourceFolder of sourceFolders) {
+    const mapping = findMountMapping(sourceFolder.path, mountPoints);
+    if (mapping) sources.set(sourceFolder.id, createDirectorySource(client, mapping, forceRefresh));
+  }
+  return sources;
 }
 
 /**
@@ -380,6 +391,24 @@ function posixBasename(value: string): string {
 
 function isSafeEntryName(value: string, pathApi: typeof path.win32 | typeof path.posix): boolean {
   return Boolean(value && value !== "." && value !== ".." && pathApi.basename(value) === value && !/[\\/]/.test(value));
+}
+
+async function loadMountPoints(
+  config: CloudDriveEnvironmentConfig,
+  client: CloudDriveGrpcClient,
+  isCancelled?: () => boolean
+): Promise<CloudDriveMountPoint[]> {
+  if (config.manualMounts) return config.manualMounts;
+  try {
+    const mountPoints = await client.getMountPoints(isCancelled);
+    cachedMountPointsKey = sharedClientKey;
+    cachedMountPoints = mountPoints;
+    return mountPoints;
+  } catch (error) {
+    if (isCancelled?.()) throw error;
+    if (cachedMountPointsKey !== sharedClientKey || cachedMountPoints.length === 0) throw error;
+    return cachedMountPoints;
+  }
 }
 
 function isPermanentDeleteUnsupported(error: unknown): boolean {
