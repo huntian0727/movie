@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
-import { confirmCloudDriveFileMissingFromListing, confirmCloudDriveFilesMissingFromListing, findMountMapping, type MountedCloudDriveDirectorySource } from "../../src/main/clouddrive/mountedScanner";
+import { confirmCloudDriveFileMissingFromListing, confirmCloudDriveFilesMissingFromListing, findMountMapping, resolveCloudDriveSourceSelection, type MountedCloudDriveDirectorySource } from "../../src/main/clouddrive/mountedScanner";
 import { scanSourceFolder } from "../../src/main/media/libraryScanner";
 
 const ROOT = "Z:\\Cloud 电影";
@@ -32,6 +32,34 @@ describe("CloudDrive mounted scanner", () => {
   it("does not match sibling or unmounted paths", () => {
     expect(findMountMapping("Z:\\CloudBackup", [mount("Z:\\Cloud", "/115")])).toBeNull();
     expect(findMountMapping("Z:\\Cloud", [{ ...mount("Z:", "/115"), isMounted: false }])).toBeNull();
+  });
+
+  it("resolves an API-selected remote folder to its mounted playback path", () => {
+    expect(resolveCloudDriveSourceSelection({
+      mountPoint: "Z:",
+      remotePath: "/115/电影/动作"
+    }, [mount("Z:", "/115")])).toMatchObject({
+      localPath: "Z:\\电影\\动作",
+      remotePath: "/115/电影/动作",
+      rootRemotePath: "/115"
+    });
+  });
+
+  it("uses the most specific remote root when one mount exposes nested sources", () => {
+    expect(resolveCloudDriveSourceSelection({
+      mountPoint: "Z:",
+      remotePath: "/115/团队/电影"
+    }, [mount("Z:", "/115"), mount("Z:", "/115/团队")])).toMatchObject({
+      localPath: "Z:\\电影",
+      rootRemotePath: "/115/团队"
+    });
+  });
+
+  it("rejects a remote folder outside the selected API source", () => {
+    expect(() => resolveCloudDriveSourceSelection({
+      mountPoint: "Z:",
+      remotePath: "/阿里云/电影"
+    }, [mount("Z:", "/115")])).toThrow("不属于");
   });
 
   it("confirms remote absence only after fully listing the mapped parent directory", async () => {
@@ -154,6 +182,19 @@ describe("CloudDrive mounted scanner", () => {
     expect(repo.getVideoByPath(`${ROOT}\\keep.mp4`)?.isMissing).toBe(false);
     expect(repo.getVideoByPath(`${ROOT}\\also-keep.mkv`)?.isMissing).toBe(false);
     expect(repo.getDirectorySnapshot(source.id, ROOT)?.isComplete).toBe(false);
+  });
+
+  it("never falls back to mounted filesystem scanning for an explicit API source", async () => {
+    const { repo, source } = createRepository();
+    repo.setSourceFolderProvider(source.id, { type: "clouddrive", rootPath: "/115/Cloud 电影" });
+    const apiSource = repo.listSourceFolders().find((folder) => folder.id === source.id)!;
+    const statImpl = vi.fn();
+
+    await expect(scanSourceFolder(repo, apiSource, {
+      cloudDirectorySource: async () => null,
+      statImpl
+    })).rejects.toThrow("已保留数据库中的原有文件索引");
+    expect(statImpl).not.toHaveBeenCalled();
   });
 
   it("handles an empty CloudDrive directory as a complete scan", async () => {

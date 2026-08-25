@@ -5,6 +5,7 @@
 - `playbackMetadataEnricher.ts`：只为历史 metadata ready 且 `codec_probe_status = unprobed`、并且真正准备播放的视频懒补全编码信息；同视频并发合并，成功写 `ready`（包括 codec 为空），失败写 `failed` 且普通播放不重试。播放器最多等待 2 秒，后台 probe 自行收尾并按文件版本更新。禁止把它改成启动时或迁移时的全库回填。
 - `metadataQueue.ts`：单并发后台 FFprobe 队列；按视频 id 去重，启动时恢复 `pending` 任务，并用路径/大小/修改时间防止慢任务覆盖新文件版本。FFprobe 失败写入持久 `scan_failures`，成功后只解决 metadata 阶段异常并通知侧栏刷新。
 - `libraryScanner.ts`：实现当前目录快照扫描和异常项重试。每个目录用 mtime、直属视频/子目录计数和排序摘要独立判断；父目录可跳过直属视频但永远不跳过子目录检查。只对完整枚举的直属目录做缺失对账，父目录明确删除子目录后才清理旧子树快照并软标缺失。
+- CloudDrive API 资料来源由远端目录选择器创建，同时保存挂载播放路径和 provider 根路径。扫描通过 `GetSubFiles` 获取路径、远端 ID、大小和修改时间并写入 SQLite；明确的 API 来源在服务离线时不得退回挂载盘遍历，也不得执行缺失对账。CloudDrive 视频先保持元数据待分析，仅当数据库出现同大小候选时才进入 FFprobe 时长队列。
 - `scanManager.ts`：三种模式的串行调度、同源互斥、任务状态/计数、暂停和协作式取消；全盘逐源复用当前目录扫描，不启用无界并发。
 - `cacheService.ts`：持久缓存位置、旧缓存安全迁移、缓存 key、FFmpeg 封面/时间轴帧生成，以及短视频封面截帧回退。
 - `cacheManager.ts`：缓存生成事务、近似 LRU/TTL/配额淘汰、清理 epoch、临时文件恢复、缓存状态统计和数据库引用失效通知。

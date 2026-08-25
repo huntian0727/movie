@@ -32,6 +32,36 @@ export interface SourceFolder {
   providerReadOnly?: boolean;
 }
 
+export interface CloudDriveBrowseRoot {
+  mountPoint: string;
+  remotePath: string;
+  name: string;
+  readOnly: boolean;
+}
+
+export interface CloudDriveBrowseDirectoryEntry {
+  name: string;
+  remotePath: string;
+}
+
+export interface CloudDriveBrowseDirectory {
+  mountPoint: string;
+  localPath: string;
+  remotePath: string;
+  rootRemotePath: string;
+  parentRemotePath: string | null;
+  name: string;
+  readOnly: boolean;
+  directories: CloudDriveBrowseDirectoryEntry[];
+  directFileCount: number;
+  directVideoCount: number;
+}
+
+export interface CloudDriveSourceSelection {
+  mountPoint: string;
+  remotePath: string;
+}
+
 export interface DuplicatePreferredDirectory {
   id: string;
   path: string;
@@ -747,6 +777,9 @@ export const IPC_CHANNELS = {
   videoListByIds: "video:list-by-ids",
   folderList: "folder:list",
   folderAdd: "folder:add",
+  cloudDriveFolderRoots: "clouddrive-folder:roots",
+  cloudDriveFolderBrowse: "clouddrive-folder:browse",
+  cloudDriveFolderAdd: "clouddrive-folder:add",
   folderScan: "folder:scan",
   folderScanAll: "folder:scan-all",
   folderScanFailuresRetry: "folder-scan-failures:retry",
@@ -845,6 +878,9 @@ export interface VideoManagerApi {
   openDuplicateCleanupItem(itemId: string): Promise<boolean>;
   listFolders(): Promise<SourceFolder[]>;
   addFolder(): Promise<SourceFolder | null>;
+  listCloudDriveFolderRoots(): Promise<CloudDriveBrowseRoot[]>;
+  browseCloudDriveFolder(selection: CloudDriveSourceSelection): Promise<CloudDriveBrowseDirectory>;
+  addCloudDriveFolder(selection: CloudDriveSourceSelection): Promise<SourceFolder>;
   scanFolder(folderId: string): Promise<boolean>;
   scanAllFolders(): Promise<boolean>;
   retryScanFailures(folderId: string): Promise<boolean>;

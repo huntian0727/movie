@@ -8,7 +8,7 @@
 
 ## Schema 版本历史
 
-数据库使用 SQLite 原生 `PRAGMA user_version`，当前最新版为 10。
+数据库使用 SQLite 原生 `PRAGMA user_version`，当前最新版为 11。
 
 | 版本 | 内容 |
 | --- | --- |
@@ -22,6 +22,7 @@
 | 8 | 播放路由使用的 nullable codec/profile/pixel format/audio codec 字段 |
 | 9 | `codec_probe_status`，区分未探测、成功和失败；已有 codec 的 v8 记录迁移为 ready |
 | 10 | 重复清理 workflow phase、完整 SHA-256、强文件身份、授权 revision 和可恢复同目录隔离状态；旧活动任务安全失效 |
+| 11 | CloudDrive 资料来源与远端文件身份、API 删除传输信息、时长来源和重复项优先目录 |
 
 旧版本曾没有版本号。首次接管时只接受能明确对应 v1–v4 的表/列组合，再自动升级到 v10；部分指纹列、缺少核心表、未知业务表或高于当前版本的数据库都会停止启动，不会被盲目修改。v6 只为“旧 `scan_error` 非空且没有活动 `scan_failures`”的目录补一条根目录异常，不清空原摘要、不覆盖已有异常，重复执行不会重复插入。v8 只追加 nullable codec 列；v9 只追加带默认值的 probe 状态，并按已有 `video_codec` 做 SQLite 内回填。v10 不读取媒体内容，旧的 queued/running/cancelling/interrupted 重复清理任务会安全取消、释放 reservation，并因缺少完整 SHA-256 授权而不能恢复删除。
 

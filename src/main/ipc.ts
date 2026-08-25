@@ -11,8 +11,11 @@ import type { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository
 import type { VideoRepository } from "./db/videoRepository.js";
 import {
   configureCloudDriveRuntime,
+  browseConfiguredCloudDriveFolder,
   confirmMountedCloudDriveFileMissing,
   confirmMountedCloudDriveFilesMissing,
+  listConfiguredCloudDriveFolderRoots,
+  resolveConfiguredCloudDriveFolder,
   testConfiguredCloudDriveConnection
 } from "./clouddrive/mountedScanner.js";
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
@@ -47,6 +50,8 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.duplicateCleanupConfirm,
   IPC_CHANNELS.duplicateCloudDriveBindLegacy,
   IPC_CHANNELS.cloudDriveTest,
+  IPC_CHANNELS.cloudDriveFolderBrowse,
+  IPC_CHANNELS.cloudDriveFolderAdd,
   IPC_CHANNELS.folderAdd,
   IPC_CHANNELS.folderScan,
   IPC_CHANNELS.folderScanAll,
@@ -139,6 +144,10 @@ const libraryPageQuerySchema = z.object({
 }).strict();
 
 const videoIdSchema = z.object({ videoId: z.string().min(1) }).strict();
+const cloudDriveSourceSelectionSchema = z.object({
+  mountPoint: z.string().min(1).max(32767),
+  remotePath: z.string().min(1).max(32767)
+}).strict();
 const videoIdsSchema = z.array(z.string().min(1)).min(1).max(500);
 const playerSessionSchema = videoIdSchema.extend({
   queueIds: z.array(z.string().min(1)).min(1).max(MAX_PLAYER_QUEUE_ITEMS)
@@ -521,6 +530,20 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
 
   ipcMain.handle(IPC_CHANNELS.folderList, () => repo.listSourceFolders());
+
+  ipcMain.handle(IPC_CHANNELS.cloudDriveFolderRoots, () => listConfiguredCloudDriveFolderRoots());
+  ipcMain.handle(IPC_CHANNELS.cloudDriveFolderBrowse, (_event, selection) =>
+    browseConfiguredCloudDriveFolder(cloudDriveSourceSelectionSchema.parse(selection))
+  );
+  ipcMain.handle(IPC_CHANNELS.cloudDriveFolderAdd, async (_event, selection) => {
+    const resolved = await resolveConfiguredCloudDriveFolder(cloudDriveSourceSelectionSchema.parse(selection));
+    const folder = repo.addCloudDriveSourceFolder({
+      ...resolved,
+      recursive: dependencies.settings.get().defaultRecursiveScan
+    });
+    dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
+    return folder;
+  });
 
   ipcMain.handle(IPC_CHANNELS.folderAdd, async () => {
     const result = await dialog.showOpenDialog({

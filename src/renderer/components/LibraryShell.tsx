@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
+import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, Cloud, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
 import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
@@ -33,6 +33,7 @@ interface LibraryShellProps {
   scanFailureRefreshSequence?: number;
   shortcuts?: ShortcutSettings;
   onAddFolder?(): void | Promise<void>;
+  onAddCloudDriveFolder?(): void | Promise<void>;
   onRemoveFolder?(folder: SourceFolder): void | Promise<void>;
   onPauseFolderScan?(folder: SourceFolder): void | Promise<unknown>;
   onResumeFolderScan?(folder: SourceFolder): void | Promise<unknown>;
@@ -86,6 +87,7 @@ export function LibraryShell({
   scanFailureRefreshSequence = 0,
   shortcuts = DEFAULT_SHORTCUTS,
   onAddFolder,
+  onAddCloudDriveFolder,
   onRemoveFolder,
   onPauseFolderScan,
   onResumeFolderScan,
@@ -650,6 +652,7 @@ export function LibraryShell({
         </nav>
         <div className="sidebar-heading">
           <span>文件夹 <small>{directoryEntries.length}</small></span>
+          <button aria-label="通过 API 添加网盘目录" title="通过 CloudDrive API 添加网盘目录" onClick={() => void onAddCloudDriveFolder?.()}><Cloud size={17} /></button>
           <button aria-label="添加文件夹" title="添加文件夹" onClick={() => void onAddFolder?.()}><FolderPlus size={17} /></button>
         </div>
         <label className="folder-search">

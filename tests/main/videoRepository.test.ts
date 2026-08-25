@@ -402,6 +402,28 @@ describe("VideoRepository", () => {
     expect(repo.getSourceFolderByPath("d:\\movies").id).toBe(first.id);
   });
 
+  it("adds a CloudDrive API folder with mounted and remote identities", () => {
+    db = createDatabase(path.join(tempDir, "library.sqlite"));
+    const repo = new VideoRepository(db);
+
+    const folder = repo.addCloudDriveSourceFolder({
+      localPath: "Z:\\电影\\动作",
+      remotePath: "/115/电影/动作",
+      name: "115 网盘",
+      readOnly: false,
+      recursive: true
+    });
+
+    expect(folder).toMatchObject({
+      path: "Z:\\电影\\动作",
+      recursive: true,
+      providerType: "clouddrive",
+      providerRootPath: "/115/电影/动作",
+      providerName: "115 网盘",
+      providerReadOnly: false
+    });
+  });
+
   it("updates source folder scan state", () => {
     const { repo, folderId } = createRepo();
 

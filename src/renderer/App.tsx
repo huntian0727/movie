@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppSettings, DomainEvent, DuplicateResolvePlan, FolderScanStatus, LibraryNavigationSnapshot, MediaCacheStatus, PlayerSessionSnapshot, PlayHistoryEntry, SourceFolder, VideoRecord, WindowSyncSnapshot } from "../shared/videoTypes";
 import { getVideoManagerApi, type DesktopVideoManagerApi } from "./api/client";
 import { LibraryShell } from "./components/LibraryShell";
+import { CloudDriveFolderDialog } from "./components/CloudDriveFolderDialog";
 import { PlayerPage } from "./components/PlayerPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { choosePlaybackRoute } from "../shared/playbackRouting";
@@ -73,6 +74,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const [playbackQueue, setPlaybackQueue] = useState<string[]>([]);
   const [directoryPlaybackQueue, setDirectoryPlaybackQueue] = useState<VideoRecord[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [cloudDriveFolderOpen, setCloudDriveFolderOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [cacheLocation, setCacheLocation] = useState("");
   const [cacheStatus, setCacheStatus] = useState<MediaCacheStatus>(emptyCacheStatus);
@@ -398,6 +400,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   }
 
   return (
+    <>
     <LibraryShell
       videos={videos}
       folders={folders}
@@ -410,6 +413,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       loading={loading}
       error={error}
       onAddFolder={addFolder}
+      onAddCloudDriveFolder={() => setCloudDriveFolderOpen(true)}
       onRemoveFolder={removeFolder}
       onPreviewRemoveFolder={(folder) => api.previewRemoveFolder(folder.id)}
       onPauseFolderScan={(folder) => api.pauseFolderScan(folder.id)}
@@ -461,6 +465,17 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       getCoverUrl={getCoverUrl}
       onOpenSettings={() => setSettingsOpen(true)}
     />
+    {cloudDriveFolderOpen && <CloudDriveFolderDialog
+      listRoots={api.listCloudDriveFolderRoots}
+      browse={api.browseCloudDriveFolder}
+      add={api.addCloudDriveFolder}
+      onClose={() => setCloudDriveFolderOpen(false)}
+      onAdded={async (folder) => {
+        await reload();
+        void api.scanFolder(folder.id).then(() => reload()).catch((cause) => setError(toMessage(cause)));
+      }}
+    />}
+    </>
   );
 }
 

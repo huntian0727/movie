@@ -1,9 +1,13 @@
 import path from "node:path";
 import type {
+  CloudDriveBrowseDirectory,
+  CloudDriveBrowseRoot,
   CloudDriveConnectionSettings,
   CloudDriveConnectionTestResult,
+  CloudDriveSourceSelection,
   SourceFolder
 } from "../../shared/videoTypes.js";
+import { isVideoExtension } from "../../shared/videoTypes.js";
 import { CloudDriveGrpcClient, type CloudDriveMountPoint } from "./grpcClient.js";
 import type { CloudDriveFileOperationResult } from "./grpcClient.js";
 
@@ -120,6 +124,124 @@ export async function testConfiguredCloudDriveConnection(): Promise<CloudDriveCo
       isMounted: mountPoint.isMounted
     }))
   };
+}
+
+export async function listConfiguredCloudDriveFolderRoots(
+  env: NodeJS.ProcessEnv = process.env,
+  isCancelled?: () => boolean
+): Promise<CloudDriveBrowseRoot[]> {
+  const config = readEnvironmentConfig(env);
+  if (!config) throw new Error("尚未配置 CloudDrive API Token，请先在设置中填写并保存");
+  const client = getSharedClient(config);
+  const mountPoints = await loadMountPoints(config, client, isCancelled);
+  return mountPoints
+    .filter((mountPoint) => mountPoint.isMounted && mountPoint.mountPoint && mountPoint.sourceDir)
+    .map((mountPoint) => ({
+      mountPoint: mountPoint.mountPoint,
+      remotePath: normalizeRemotePath(mountPoint.sourceDir),
+      name: mountPoint.name || "CloudDrive",
+      readOnly: mountPoint.readOnly
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, "zh-CN") || left.remotePath.localeCompare(right.remotePath));
+}
+
+export async function browseConfiguredCloudDriveFolder(
+  selection: CloudDriveSourceSelection,
+  env: NodeJS.ProcessEnv = process.env,
+  isCancelled?: () => boolean
+): Promise<CloudDriveBrowseDirectory> {
+  const config = readEnvironmentConfig(env);
+  if (!config) throw new Error("尚未配置 CloudDrive API Token，请先在设置中填写并保存");
+  const client = getSharedClient(config);
+  const mountPoints = await loadMountPoints(config, client, isCancelled);
+  const resolved = resolveCloudDriveSourceSelection(selection, mountPoints);
+  const directories: CloudDriveBrowseDirectory["directories"] = [];
+  let directFileCount = 0;
+  let directVideoCount = 0;
+  for await (const entry of client.getSubFiles(resolved.remotePath, false, isCancelled)) {
+    throwIfCancelled(isCancelled);
+    const entryName = entry.name || posixBasename(entry.fullPathName);
+    if (!isSafeEntryName(entryName, resolved.pathApi)) {
+      throw new Error(`CloudDrive returned an unsafe directory entry name for ${resolved.remotePath}`);
+    }
+    if (entry.isDirectory) {
+      directories.push({ name: entryName, remotePath: joinRemotePath(resolved.remotePath, entryName) });
+    } else if (entry.fileType === 1) {
+      directFileCount += 1;
+      if (isVideoExtension(entryName)) directVideoCount += 1;
+    }
+  }
+  directories.sort((left, right) => left.name.localeCompare(right.name, "zh-CN", { numeric: true }));
+  const parentRemotePath = resolved.remotePath === resolved.rootRemotePath
+    ? null
+    : path.posix.dirname(resolved.remotePath);
+  return {
+    mountPoint: resolved.mountPoint.mountPoint,
+    localPath: resolved.localPath,
+    remotePath: resolved.remotePath,
+    rootRemotePath: resolved.rootRemotePath,
+    parentRemotePath,
+    name: resolved.mountPoint.name || "CloudDrive",
+    readOnly: resolved.mountPoint.readOnly,
+    directories,
+    directFileCount,
+    directVideoCount
+  };
+}
+
+export async function resolveConfiguredCloudDriveFolder(
+  selection: CloudDriveSourceSelection,
+  env: NodeJS.ProcessEnv = process.env,
+  isCancelled?: () => boolean
+): Promise<{ localPath: string; remotePath: string; name: string; readOnly: boolean }> {
+  const config = readEnvironmentConfig(env);
+  if (!config) throw new Error("尚未配置 CloudDrive API Token，请先在设置中填写并保存");
+  const client = getSharedClient(config);
+  const mountPoints = await loadMountPoints(config, client, isCancelled);
+  const resolved = resolveCloudDriveSourceSelection(selection, mountPoints);
+  return {
+    localPath: resolved.localPath,
+    remotePath: resolved.remotePath,
+    name: resolved.mountPoint.name || "CloudDrive",
+    readOnly: resolved.mountPoint.readOnly
+  };
+}
+
+export function resolveCloudDriveSourceSelection(
+  selection: CloudDriveSourceSelection,
+  mountPoints: readonly CloudDriveMountPoint[]
+): {
+  mountPoint: CloudDriveMountPoint;
+  localPath: string;
+  remotePath: string;
+  rootRemotePath: string;
+  pathApi: typeof path.win32 | typeof path.posix;
+} {
+  const requestedMount = selection.mountPoint.trim();
+  const remotePath = normalizeRemotePath(selection.remotePath);
+  const matchingMounts = mountPoints
+    .filter((candidate) =>
+      candidate.isMounted && candidate.mountPoint && candidate.sourceDir &&
+      normalizeMountPointIdentity(candidate.mountPoint) === normalizeMountPointIdentity(requestedMount)
+    )
+    .map((mountPoint) => ({ mountPoint, rootRemotePath: normalizeRemotePath(mountPoint.sourceDir) }))
+    .filter(({ rootRemotePath }) => isRemotePathWithin(remotePath, rootRemotePath))
+    .sort((left, right) => right.rootRemotePath.length - left.rootRemotePath.length);
+  const selectedMount = matchingMounts[0];
+  if (!selectedMount) {
+    const mountExists = mountPoints.some((candidate) =>
+      candidate.isMounted && candidate.mountPoint &&
+      normalizeMountPointIdentity(candidate.mountPoint) === normalizeMountPointIdentity(requestedMount)
+    );
+    if (mountExists) throw new Error("所选远端目录不属于该 CloudDrive 挂载点");
+    throw new Error("所选 CloudDrive 挂载点已离线或不存在，请刷新后重试");
+  }
+  const { mountPoint, rootRemotePath } = selectedMount;
+  const relative = path.posix.relative(rootRemotePath, remotePath);
+  const pathApi = choosePathApi(mountPoint.mountPoint, mountPoint.mountPoint);
+  const localRoot = normalizeLocalRoot(mountPoint.mountPoint, pathApi);
+  const localPath = pathApi.resolve(localRoot, ...relative.split("/").filter(Boolean));
+  return { mountPoint, localPath, remotePath, rootRemotePath, pathApi };
 }
 
 export async function tryCreateMountedCloudDriveDirectorySource(
@@ -425,6 +547,16 @@ function looksLikeWindowsPath(value: string): boolean {
 function normalizeLocalRoot(value: string, pathApi: typeof path.win32 | typeof path.posix): string {
   if (pathApi === path.win32 && /^[a-zA-Z]:$/.test(value)) return `${value}\\`;
   return pathApi.resolve(value);
+}
+
+function normalizeMountPointIdentity(value: string): string {
+  const pathApi = choosePathApi(value, value);
+  return normalizeLocalRoot(value, pathApi).replace(/[\\/]+$/, "").toLocaleLowerCase();
+}
+
+function isRemotePathWithin(targetPath: string, rootPath: string): boolean {
+  const relative = path.posix.relative(rootPath, targetPath);
+  return relative !== ".." && !relative.startsWith("../") && !path.posix.isAbsolute(relative);
 }
 
 function joinRemotePath(root: string, relative: string): string {

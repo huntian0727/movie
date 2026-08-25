@@ -280,6 +280,26 @@ export class VideoRepository {
     return folder;
   }
 
+  addCloudDriveSourceFolder(input: {
+    localPath: string;
+    remotePath: string;
+    name: string;
+    readOnly: boolean;
+    recursive: boolean;
+  }): SourceFolder {
+    const transaction = this.db.transaction(() => {
+      const folder = this.addSourceFolder(input.localPath, input.recursive);
+      this.setSourceFolderProvider(folder.id, {
+        type: "clouddrive",
+        rootPath: input.remotePath,
+        name: input.name,
+        readOnly: input.readOnly
+      });
+      return this.getSourceFolderByPath(input.localPath);
+    });
+    return transaction();
+  }
+
   getSourceFolderByPath(folderPath: string): SourceFolder {
     const row = this.db.prepare("SELECT * FROM source_folders WHERE path = ?").get(folderPath) as SourceFolderRow | undefined;
 

@@ -732,6 +732,9 @@ async function resolveCloudDirectorySource(
     ? await dependencies.cloudDirectorySource(sourceFolder, dependencies.isCancelled, dependencies.mode === "current-folder")
     : await tryCreateMountedCloudDriveDirectorySource(sourceFolder, process.env, dependencies.isCancelled, dependencies.mode === "current-folder");
   throwIfCancelled(dependencies);
+  if (sourceFolder.providerType === "clouddrive" && !source) {
+    throw new Error("CloudDrive API 资料来源当前不可用；已保留数据库中的原有文件索引，未执行缺失对账");
+  }
   return source;
 }
 
