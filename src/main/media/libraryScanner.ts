@@ -15,6 +15,7 @@ import { isVideoExtension } from "../../shared/videoTypes.js";
 import { isManagedPathWithin, normalizeManagedPath } from "../files/pathNormalization.js";
 import {
   tryCreateMountedCloudDriveDirectorySource,
+  type CloudDriveDirectoryListing,
   type CloudDriveScanFileInfo,
   type MountedCloudDriveDirectorySource
 } from "../clouddrive/mountedScanner.js";
@@ -53,10 +54,12 @@ export interface ScannerDependencies {
     isCancelled?: () => boolean,
     forceRefresh?: boolean
   ): Promise<MountedCloudDriveDirectorySource | null>;
+  cloudDirectoryConcurrency?: number;
 }
 
 const FILE_STAT_TIMEOUT_MS = 15_000;
 const DIRECTORY_ENTRY_TIMEOUT_MS = 30_000;
+const DEFAULT_CLOUD_DIRECTORY_CONCURRENCY = 16;
 const SKIPPED_SUFFIXES = [".crdownload", ".part", ".tmp"];
 
 export class ScanCancelledError extends Error {
@@ -82,7 +85,13 @@ interface ScanContext {
   lastFailure: { objectType: "file" | "directory"; objectPath: string; message: string } | null;
   missingDirectoryParentReads: Map<string, Promise<DirectoryEntry[]>>;
   cloudDirectorySource: MountedCloudDriveDirectorySource | null;
+  cloudDirectoryLimiter: AsyncWorkLimiter | null;
+  cloudDirectoryPrefetches: Map<string, Promise<SettledCloudDirectoryListing>>;
 }
+
+type SettledCloudDirectoryListing =
+  | { ok: true; listing: CloudDriveDirectoryListing }
+  | { ok: false; error: unknown };
 
 interface DirectoryEntry {
   name: string;
@@ -360,6 +369,7 @@ async function scanDirectoryTree(
     : [];
   const directVideoPaths = directVideos.map((entry) => path.join(directoryPath, entry.name));
   const directChildPaths = directChildren.map((entry) => path.join(directoryPath, entry.name));
+  prefetchCloudDirectories(context, directChildPaths);
   context.totalFiles += directVideos.length;
   context.discoveredFilePaths.push(...directVideoPaths);
 
@@ -378,28 +388,61 @@ async function scanDirectoryTree(
   } else {
     context.counters.changedDirectories += 1;
     let directFailures = 0;
-    for (const entry of directVideos) {
-      const filePath = path.join(directoryPath, entry.name);
+    const canBatchCloudDirectory = Boolean(
+      context.cloudDirectorySource
+      && context.dependencies.onMetadataPending
+      && directVideos.every((entry) => entry.fileInfo?.providerFileId && entry.fileInfo.providerPath)
+    );
+    if (canBatchCloudDirectory) {
       await context.dependencies.waitIfPaused?.();
       throwIfCancelled(context.dependencies);
-      reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
-      if (!await processVideoFile(context, filePath, entry.fileInfo)) directFailures += 1;
-      context.processedFiles += 1;
-      reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
+      context.repo.runInTransaction(() => {
+        for (const entry of directVideos) {
+          const filePath = path.join(directoryPath, entry.name);
+          throwIfCancelled(context.dependencies);
+          reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
+          if (!processCloudVideoFile(context, filePath, entry.fileInfo!)) directFailures += 1;
+          context.processedFiles += 1;
+          reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
+        }
+        context.counters.missingVideos += safeReconcileDirectory(context.repo, context.sourceFolder.id, directoryPath, directVideoPaths);
+        safeUpsertSnapshot(context.repo, {
+          sourceFolderId: context.sourceFolder.id,
+          directoryPath,
+          parentDirectoryPath,
+          directoryMtime,
+          directVideoCount: directVideos.length,
+          directChildCount: directChildren.length,
+          directEntryDigest: digest,
+          isComplete: true,
+          hasUnresolvedFailure: directFailures > 0,
+          successful: directFailures === 0
+        });
+      });
+    } else {
+      for (const entry of directVideos) {
+        const filePath = path.join(directoryPath, entry.name);
+        await context.dependencies.waitIfPaused?.();
+        throwIfCancelled(context.dependencies);
+        reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
+        if (!await processVideoFile(context, filePath, entry.fileInfo)) directFailures += 1;
+        context.processedFiles += 1;
+        reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
+      }
+      context.counters.missingVideos += safeReconcileDirectory(context.repo, context.sourceFolder.id, directoryPath, directVideoPaths);
+      safeUpsertSnapshot(context.repo, {
+        sourceFolderId: context.sourceFolder.id,
+        directoryPath,
+        parentDirectoryPath,
+        directoryMtime,
+        directVideoCount: directVideos.length,
+        directChildCount: directChildren.length,
+        directEntryDigest: digest,
+        isComplete: true,
+        hasUnresolvedFailure: directFailures > 0,
+        successful: directFailures === 0
+      });
     }
-    context.counters.missingVideos += safeReconcileDirectory(context.repo, context.sourceFolder.id, directoryPath, directVideoPaths);
-    safeUpsertSnapshot(context.repo, {
-      sourceFolderId: context.sourceFolder.id,
-      directoryPath,
-      parentDirectoryPath,
-      directoryMtime,
-      directVideoCount: directVideos.length,
-      directChildCount: directChildren.length,
-      directEntryDigest: digest,
-      isComplete: true,
-      hasUnresolvedFailure: directFailures > 0,
-      successful: directFailures === 0
-    });
   }
 
   for (const childPath of directChildPaths) await scanDirectoryTree(context, childPath, directoryPath, false);
@@ -522,6 +565,72 @@ async function upsertScannedVideo(
   });
 }
 
+function processCloudVideoFile(
+  context: ScanContext,
+  filePath: string,
+  fileInfo: CloudDriveScanFileInfo
+): boolean {
+  context.counters.processedVideos += 1;
+  if (context.incrementRetry) context.counters.retriedFailures += 1;
+  try {
+    const existing = context.repo.getVideoByPath(filePath);
+    if (existing && existing.sizeBytes === fileInfo.sizeBytes && existing.modifiedAt === fileInfo.modifiedAt) {
+      context.counters.skippedVideos += 1;
+      if (fileInfo.providerFileId && fileInfo.providerPath) {
+        context.repo.updateVideoProviderIdentityIfVersion?.(
+          existing.id,
+          existing.path,
+          existing.sizeBytes,
+          existing.modifiedAt,
+          { fileId: fileInfo.providerFileId, path: fileInfo.providerPath }
+        );
+      }
+      if (existing.isMissing) context.repo.markMissing(existing.id, false);
+      queuePendingMetadata(context, existing);
+    } else {
+      const parsed = path.parse(filePath);
+      context.repo.upsertVideo({
+        sourceFolderId: context.sourceFolder.id,
+        path: filePath,
+        directory: parsed.dir,
+        filename: parsed.base,
+        basename: parsed.name,
+        extension: parsed.ext.toLowerCase(),
+        sizeBytes: fileInfo.sizeBytes,
+        durationMs: null,
+        width: null,
+        height: null,
+        format: null,
+        videoCodec: null,
+        videoProfile: null,
+        pixelFormat: null,
+        audioCodec: null,
+        codecProbeStatus: "unprobed",
+        modifiedAt: fileInfo.modifiedAt,
+        metadataStatus: "pending",
+        providerFileId: fileInfo.providerFileId ?? null,
+        providerPath: fileInfo.providerPath ?? null,
+        durationSource: "unknown"
+      });
+      if (existing) context.counters.updatedVideos += 1;
+      else context.counters.addedVideos += 1;
+    }
+    context.counters.resolvedFailures += safeResolveObjectStageFailures(
+      context.repo,
+      context.sourceFolder.id,
+      filePath,
+      "file",
+      "file-processing"
+    );
+    return true;
+  } catch (error) {
+    context.fileFailureCount += 1;
+    context.counters.fileFailures += 1;
+    safeRecordFailure(context, "file", filePath, "file-processing", error);
+    return false;
+  }
+}
+
 function queuePendingMetadata(context: ScanContext, existing: VideoRecord): void {
   if (!context.dependencies.onMetadataPending) return;
   if (existing.providerFileId && existing.providerPath) return;
@@ -617,7 +726,14 @@ async function readDirectEntries(directory: string, dependencies: FileDiscoveryD
 
 async function readScannedDirectory(context: ScanContext, directoryPath: string): Promise<ScannedDirectory> {
   if (context.cloudDirectorySource) {
-    const listing = await context.cloudDirectorySource.readDirectory(directoryPath, context.dependencies.isCancelled);
+    const key = normalizeManagedPath(directoryPath);
+    const prefetched = context.cloudDirectoryPrefetches.get(key);
+    if (prefetched) context.cloudDirectoryPrefetches.delete(key);
+    const settled = prefetched
+      ? await prefetched
+      : await readCloudDirectorySettled(context, directoryPath);
+    if (!settled.ok) throw settled.error;
+    const listing = settled.listing;
     return {
       directoryMtime: listing.directoryMtime,
       entries: listing.entries.map((entry) => ({
@@ -720,8 +836,63 @@ function createContext(
     incrementRetry,
     lastFailure: null,
     missingDirectoryParentReads: new Map(),
-    cloudDirectorySource
+    cloudDirectorySource,
+    cloudDirectoryLimiter: cloudDirectorySource
+      ? new AsyncWorkLimiter(normalizeCloudDirectoryConcurrency(dependencies.cloudDirectoryConcurrency))
+      : null,
+    cloudDirectoryPrefetches: new Map()
   };
+}
+
+function normalizeCloudDirectoryConcurrency(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_CLOUD_DIRECTORY_CONCURRENCY;
+  if (!Number.isInteger(value) || value < 1) throw new Error("CloudDrive directory concurrency must be a positive integer");
+  return Math.min(value, 64);
+}
+
+class AsyncWorkLimiter {
+  private active = 0;
+  private readonly waiters: Array<() => void> = [];
+
+  constructor(private readonly concurrency: number) {}
+
+  async run<T>(work: () => Promise<T>): Promise<T> {
+    if (this.active >= this.concurrency) {
+      await new Promise<void>((resolve) => this.waiters.push(resolve));
+    }
+    this.active += 1;
+    try {
+      return await work();
+    } finally {
+      this.active -= 1;
+      this.waiters.shift()?.();
+    }
+  }
+}
+
+function prefetchCloudDirectories(context: ScanContext, directoryPaths: readonly string[]): void {
+  if (!context.cloudDirectorySource || !context.cloudDirectoryLimiter) return;
+  for (const directoryPath of directoryPaths) {
+    const key = normalizeManagedPath(directoryPath);
+    if (!context.cloudDirectoryPrefetches.has(key)) {
+      context.cloudDirectoryPrefetches.set(key, readCloudDirectorySettled(context, directoryPath));
+    }
+  }
+}
+
+async function readCloudDirectorySettled(
+  context: ScanContext,
+  directoryPath: string
+): Promise<SettledCloudDirectoryListing> {
+  try {
+    const listing = await context.cloudDirectoryLimiter!.run(async () => {
+      throwIfCancelled(context.dependencies);
+      return context.cloudDirectorySource!.readDirectory(directoryPath, context.dependencies.isCancelled);
+    });
+    return { ok: true, listing };
+  } catch (error) {
+    return { ok: false, error };
+  }
 }
 
 async function resolveCloudDirectorySource(

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { access, mkdir, opendir, readFile, rename, rm, stat, unlink, utimes } from "node:fs/promises";
 import path from "node:path";
 import type { StructuredLogger } from "../logging/logger.js";
+import { ImageGenerationQueue, ImageRequestCancelledError, type ImageRequestOptions } from "./imageGenerationQueue.js";
 
 export interface MediaCacheLimits {
   totalBytes: number;
@@ -75,14 +76,17 @@ export class CacheGenerationSupersededError extends Error {
   }
 }
 
+export class ImageCacheMissError extends Error {
+  constructor() { super("Image is not cached"); this.name = "ImageCacheMissError"; }
+}
+
 export class MediaCacheManager {
   readonly root: string;
   readonly limits: MediaCacheLimits;
   private readonly dependencies: MediaCacheManagerDependencies;
-  private readonly pendingGenerations = new Map<string, Promise<void>>();
   private readonly activePaths = new Map<string, number>();
   private readonly lastTouches = new Map<string, number>();
-  private generationQueue: Promise<void> = Promise.resolve();
+  private readonly generationQueue = new ImageGenerationQueue(2);
   private clearing: Promise<MediaCacheCleanupResult> | null = null;
   private maintenance: Promise<MediaCacheCleanupResult> | null = null;
   private epoch = 0;
@@ -114,13 +118,15 @@ export class MediaCacheManager {
 
   async getOrCreateImage(
     outputPath: string,
-    generate: (temporaryPath: string) => Promise<void>
+    generate: (temporaryPath: string, signal: AbortSignal) => Promise<void>,
+    options: ImageRequestOptions = {}
   ): Promise<Buffer> {
     await this.waitForClear();
     this.assertOwnedCachePath(outputPath);
     this.acquire(outputPath);
     try {
-      await this.ensureCachedImage(outputPath, generate);
+      await this.ensureCachedImage(outputPath, generate, options);
+      if (options.signal?.aborted) throw new ImageRequestCancelledError();
       const body = await readFile(outputPath);
       await this.markAccessed(outputPath);
       return body;
@@ -154,7 +160,7 @@ export class MediaCacheManager {
     this.epoch += 1;
     const operation = (async () => {
       await maintenanceAtStart?.catch(() => undefined);
-      await this.generationQueue.catch(() => undefined);
+      await this.generationQueue.whenIdle();
       await this.waitForActivePaths();
       const entries = await this.collectEntries();
       const failures: MediaCacheCleanupResult["failures"] = [];
@@ -230,7 +236,6 @@ export class MediaCacheManager {
   stop(): void {
     this.stopping = true;
     this.epoch += 1;
-    this.generationQueue = this.generationQueue.catch(() => undefined);
   }
 
   private async performMaintenance(
@@ -295,41 +300,32 @@ export class MediaCacheManager {
 
   private async ensureCachedImage(
     outputPath: string,
-    generate: (temporaryPath: string) => Promise<void>
+    generate: (temporaryPath: string, signal: AbortSignal) => Promise<void>,
+    options: ImageRequestOptions
   ): Promise<void> {
+    if (options.signal?.aborted) throw new ImageRequestCancelledError();
     if (await exists(outputPath)) return;
-    const pending = this.pendingGenerations.get(outputPath);
-    if (pending) return pending;
+    if (options.cachedOnly) throw new ImageCacheMissError();
     const requestedEpoch = this.epoch;
-    const task = this.enqueueGeneration(async () => {
+    await this.generationQueue.run(outputPath, async (signal) => {
       if (this.stopping || requestedEpoch !== this.epoch) throw new CacheGenerationSupersededError();
+      if (await exists(outputPath)) return;
       await mkdir(path.dirname(outputPath), { recursive: true });
       const temporaryPath = buildTemporaryImagePath(outputPath, requestedEpoch);
       try {
-        await generate(temporaryPath);
+        await generate(temporaryPath, signal);
         const temporaryStat = await stat(temporaryPath);
         if (!temporaryStat.isFile() || temporaryStat.size <= 0) {
           throw new Error("Generated cache image is empty");
         }
         if (this.stopping || requestedEpoch !== this.epoch) throw new CacheGenerationSupersededError();
+        if (signal.aborted) throw new ImageRequestCancelledError();
         await publishAtomically(temporaryPath, outputPath);
         this.recordCreated(outputPath, temporaryStat.size);
       } finally {
         await rm(temporaryPath, { force: true }).catch(() => undefined);
       }
-    });
-    this.pendingGenerations.set(outputPath, task);
-    try {
-      await task;
-    } finally {
-      this.pendingGenerations.delete(outputPath);
-    }
-  }
-
-  private enqueueGeneration(task: () => Promise<void>): Promise<void> {
-    const run = this.generationQueue.then(task, task);
-    this.generationQueue = run.catch(() => undefined);
-    return run;
+    }, options);
   }
 
   private addExpiredCandidates(

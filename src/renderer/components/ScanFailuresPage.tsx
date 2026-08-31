@@ -3,6 +3,7 @@ import { AlertTriangle, ExternalLink, FileQuestion, FolderOpen, Info, LoaderCirc
 import type { ScanFailureBatchJob, ScanFailureBatchOperation, ScanFailureBatchSubmitRequest, ScanFailureCleanupAction, ScanFailureCleanupResult, ScanFailureReviewKind, ScanFailureReviewPage, ScanFailureReviewPageSize, ScanFailureReviewQuery, SourceFolder, VideoRecord } from "../../shared/videoTypes";
 import { classifyScanFailureForCleanup } from "../../shared/scanFailureCleanup";
 import { formatBytes, formatDuration } from "./formatters";
+import { PreviewImage } from "./PreviewImage";
 
 interface ScanFailuresPageProps {
   folders: SourceFolder[];
@@ -242,7 +243,7 @@ export function ScanFailuresPage({
               })} />
             </label>
             <div className="scan-failure-preview">
-              {coverUrl ? <img src={coverUrl} alt="" /> : itemKind === "directory" ? <FolderOpen size={38} /> : <FileQuestion size={38} />}
+              {coverUrl ? <PreviewImage src={coverUrl} cachedOnly /> : itemKind === "directory" ? <FolderOpen size={38} /> : <FileQuestion size={38} />}
               <span>{itemKind === "video" ? "已入库视频" : itemKind === "directory" ? "目录" : "未入库文件"}</span>
             </div>
             <div className="scan-failure-body">

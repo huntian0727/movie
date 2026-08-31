@@ -161,6 +161,7 @@ export function LibraryShell({
   const [duplicatePageSize, setDuplicatePageSize] = useState<DuplicatePageSize>(20);
   const [duplicateSortDirection, setDuplicateSortDirection] = useState<SortDirection>("desc");
   const [duplicatePreferredDirectoryPath, setDuplicatePreferredDirectoryPath] = useState("");
+  const [duplicateFilterDirectoryPath, setDuplicateFilterDirectoryPath] = useState("");
   const [duplicatePreferredDirectories, setDuplicatePreferredDirectories] = useState<DuplicatePreferredDirectory[]>([]);
   const [duplicatePage, setDuplicatePage] = useState<DuplicateGroupPage>(() => createStaticDuplicatePage(duplicateGroups));
   const [duplicateLoading, setDuplicateLoading] = useState(false);
@@ -364,11 +365,9 @@ export function LibraryShell({
       pageSize: duplicatePageSize,
       sortDirection: duplicateSortDirection
     };
-    if (duplicatePreferredDirectories.length > 0) {
-      query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
-    } else if (duplicatePreferredDirectoryPath) {
-      query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
-    }
+    if (duplicatePreferredDirectories.length > 0) query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
+    else if (duplicatePreferredDirectoryPath) query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
+    if (duplicateFilterDirectoryPath) query.filterDirectoryPath = duplicateFilterDirectoryPath;
     void onLoadDuplicateGroups(query).then((result) => {
       if (disposed) return;
       setDuplicatePage(result);
@@ -380,10 +379,10 @@ export function LibraryShell({
     });
 
     return () => { disposed = true; };
-  }, [duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
+  }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
 
   const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
-  const toolbarCount = view === "duplicates" ? duplicatePage.totalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
+  const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
   const totalPages = onLoadVideoPage ? videoPage.totalPages : Math.max(1, Math.ceil(visibleVideos.length / pageSize));
   const currentPage = onLoadVideoPage ? videoPage.page : Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * pageSize;
@@ -440,9 +439,11 @@ export function LibraryShell({
     setActionError(null);
     setDeleteTarget(video);
   };
-  const regenerateCover = (video: VideoRecord) => void runAction(() => onRegenerateCover?.(video)).then((changed) => {
-    if (changed && onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
-  });
+  const regenerateCover = async (video: VideoRecord) => {
+    const changed = await runAction(() => onRegenerateCover?.(video));
+    if (!changed) throw new Error("预览重置失败");
+    if (onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
+  };
   const retryMetadata = (video: VideoRecord) => void runAction(() => onRetryMetadata?.(video)).then((changed) => {
     if (changed && onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
   });
@@ -647,7 +648,7 @@ export function LibraryShell({
             <AlertTriangle size={18} /><span>扫描异常</span><em>{navigation?.scanFailureCount ?? 0}</em>
           </button>
           <button aria-label="查看重复项" className={view === "duplicates" ? "active" : undefined} onClick={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}>
-            <CopyMinus size={18} /><span>重复项</span><em>{duplicatePage.totalGroups}</em>
+                <CopyMinus size={18} /><span>重复项</span><em>{duplicatePage.overallTotalGroups}</em>
           </button>
         </nav>
         <div className="sidebar-heading">
@@ -726,8 +727,16 @@ export function LibraryShell({
                 >
                   <Folder size={18} />
                   <span className="folder-entry-label">
-                    <span className="folder-entry-name">{folderName(entry.path)}</span>
-                    <small title={scanStatus?.currentPath ?? scanStatus?.message ?? entry.path}>
+                    <span className="folder-entry-title">
+                      <span className="folder-entry-name">{folderName(entry.path)}</span>
+                      {entry.sourceFolder?.providerType === "clouddrive" && (
+                        <span
+                          className="folder-provider-badge"
+                          title={`CloudDrive API 来源：${entry.sourceFolder.providerRootPath ?? entry.path}`}
+                        >API</span>
+                      )}
+                    </span>
+                    <small title={folderEntryTitle(entry, scanStatus)}>
                       {folderEntryMeta(entry, scanStatus, Boolean(folderQuery.trim()))}
                     </small>
                   </span>
@@ -851,28 +860,34 @@ export function LibraryShell({
             pageSize={duplicatePage.pageSize}
             totalPages={duplicatePage.totalPages}
             totalGroups={duplicatePage.totalGroups}
+            overallTotalGroups={duplicatePage.overallTotalGroups}
             totalCandidateGroups={duplicatePage.totalCandidateGroups}
             totalCandidateFiles={duplicatePage.totalCandidateFiles}
             totalReclaimableBytes={duplicatePage.totalReclaimableBytes}
+            totalDeletableFiles={duplicatePage.totalDeletableFiles}
+            totalUnboundDeletionCandidateFiles={duplicatePage.totalUnboundDeletionCandidateFiles}
             sizeSortDirection={duplicateSortDirection}
             onPage={setDuplicatePageNumber}
             onPageSize={(pageSize) => { setDuplicatePageSize(pageSize); setDuplicatePageNumber(1); }}
             onSizeSortDirection={(direction) => { setDuplicateSortDirection(direction); setDuplicatePageNumber(1); }}
             directoryOptions={duplicatePage.directoryOptions}
             preferredDirectories={duplicatePreferredDirectories}
-            preferredDirectoryPath={duplicatePreferredDirectoryPath || undefined}
+            filterDirectoryPath={duplicateFilterDirectoryPath || undefined}
             onPreferredDirectoryPathChange={async (path) => {
               if (!path) return;
               if (!duplicateCleanupApi?.saveDuplicatePreferredDirectory) {
                 setDuplicatePreferredDirectoryPath(path);
+                setDuplicateFilterDirectoryPath(path);
                 setDuplicatePageNumber(1);
                 return;
               }
               const saved = await duplicateCleanupApi.saveDuplicatePreferredDirectory(path);
               setDuplicatePreferredDirectories((current) => [...current.filter((entry) => entry.id !== saved.id), saved]);
               setDuplicatePreferredDirectoryPath("");
+              setDuplicateFilterDirectoryPath(path);
               setDuplicatePageNumber(1);
             }}
+            onClearDirectoryFilter={() => { setDuplicateFilterDirectoryPath(""); setDuplicatePageNumber(1); }}
             onRemovePreferredDirectory={duplicateCleanupApi?.removeDuplicatePreferredDirectory ? async (id) => {
               await duplicateCleanupApi.removeDuplicatePreferredDirectory!(id);
               setDuplicatePreferredDirectories((current) => current.filter((entry) => entry.id !== id));
@@ -899,7 +914,8 @@ export function LibraryShell({
                 page: 1,
                 pageSize: duplicatePageSize,
                 sortDirection: duplicateSortDirection,
-                ...(duplicatePreferredDirectories.length > 0 ? { preferredDirectoryPaths: duplicatePreferredDirectories.map((directory) => directory.path) } : {})
+                ...(duplicatePreferredDirectories.length > 0 ? { preferredDirectoryPaths: duplicatePreferredDirectories.map((directory) => directory.path) } : {}),
+                ...(duplicateFilterDirectoryPath ? { filterDirectoryPath: duplicateFilterDirectoryPath } : {})
               },
               sourceView: "duplicates-all-filtered"
             }) : undefined}
@@ -1243,9 +1259,33 @@ function folderName(folderPath: string): string {
 
 function folderEntryMeta(entry: DirectoryEntry, scanStatus: FolderScanStatus | undefined, isSearchResult: boolean): string {
   if (isSearchResult) return entry.path;
+  if (scanStatus && scanStatus.state !== "completed") return formatScanStatus(scanStatus);
+  if (entry.sourceFolder?.providerType === "clouddrive") return formatCloudDriveSourceMeta(entry.sourceFolder);
   if (scanStatus) return formatScanStatus(scanStatus);
   if (entry.sourceFolder) return "已添加目录";
   return entry.parentPath ?? entry.path;
+}
+
+function folderEntryTitle(entry: DirectoryEntry, scanStatus: FolderScanStatus | undefined): string {
+  if (scanStatus?.currentPath) return scanStatus.currentPath;
+  if (scanStatus?.message) return scanStatus.message;
+  const folder = entry.sourceFolder;
+  if (folder?.providerType === "clouddrive") {
+    return `${formatCloudDriveSourceMeta(folder)}\n远端路径：${folder.providerRootPath ?? "未知"}\n本地播放路径：${folder.path}`;
+  }
+  return entry.path;
+}
+
+function formatCloudDriveSourceMeta(folder: SourceFolder): string {
+  const videoCount = folder.videoCount ?? 0;
+  const identityCount = folder.providerIdentityCount ?? 0;
+  const candidateCount = folder.duplicateSizeCandidateCount ?? 0;
+  const durationReadyCount = folder.duplicateDurationReadyCount ?? 0;
+  const identityMeta = identityCount === videoCount ? `${videoCount.toLocaleString("zh-CN")} 项已绑定` : `${identityCount.toLocaleString("zh-CN")}/${videoCount.toLocaleString("zh-CN")} 项已绑定`;
+  const durationMeta = candidateCount > 0
+    ? `候选时长 ${durationReadyCount.toLocaleString("zh-CN")}/${candidateCount.toLocaleString("zh-CN")}`
+    : "暂无同大小候选";
+  return `API · ${identityMeta} · ${durationMeta}`;
 }
 
 function getFolderWarning(
@@ -1509,9 +1549,12 @@ function createStaticDuplicatePage(groups: DuplicateGroup[]): DuplicateGroupPage
     pageSize: 20,
     totalPages: 1,
     totalGroups: groups.length,
+    overallTotalGroups: groups.length,
     totalCandidateGroups: groups.length,
     totalCandidateFiles: groups.reduce((total, group) => total + group.items.length, 0),
     totalReclaimableBytes: groups.reduce((total, group) => total + group.reclaimableBytes, 0),
+    totalDeletableFiles: groups.reduce((total, group) => total + group.items.filter((item) => !item.isRecommendedToKeep && item.canAutoDelete !== false).length, 0),
+    totalUnboundDeletionCandidateFiles: groups.reduce((total, group) => total + Math.max(0, group.items.filter((item) => item.canAutoDelete === false).length - 1), 0),
     directoryOptions: []
   };
 }

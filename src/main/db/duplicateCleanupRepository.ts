@@ -158,6 +158,18 @@ export class DuplicateCleanupRepository {
     if (rows.length > 0) throw new Error("Selected videos are reserved by a duplicate verification or deletion task.");
   }
 
+  assertSourceFolderVideosAvailable(sourceFolderId: string): void {
+    const row = this.db.prepare(`
+      SELECT 1
+      FROM duplicate_cleanup_reservations reservations
+      JOIN videos ON videos.id = reservations.video_id
+      WHERE reservations.released_at IS NULL
+        AND videos.source_folder_id = ?
+      LIMIT 1
+    `).get(sourceFolderId);
+    if (row) throw new Error("Selected videos are reserved by a duplicate verification or deletion task.");
+  }
+
   assertGenericPermanentDeleteAllowed(videoIds: string[]): void {
     this.assertVideosAvailable(videoIds);
     const ids = [...new Set(videoIds)];

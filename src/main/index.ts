@@ -157,7 +157,7 @@ app.whenReady().then(async () => {
   metadataQueue = new MetadataQueue(
     repo,
     undefined,
-    1,
+    3,
     logger,
     (videoId) => domainEvents.publish({ type: "video:updated", videoIds: [videoId] }),
     () => domainEvents.publish({ type: "source-folder:updated", videoIds: [] })

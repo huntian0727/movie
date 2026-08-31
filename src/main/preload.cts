@@ -65,6 +65,8 @@ const channels: typeof SharedIpcChannels = {
   videoBatchMove: "video:batch-move",
   videoForget: "video:forget",
   videoRegenerateCover: "video:regenerate-cover",
+  previewImageLoad: "preview-image:load",
+  previewImageCancel: "preview-image:cancel",
   videoRetryMetadata: "video:retry-metadata",
   videoOpenPlayer: "video:open-player",
   videoPlayExternal: "video:play-external",
@@ -144,6 +146,8 @@ const mainApi: VideoManagerApi = {
   moveVideos: (videoIds, targetDirectory, addTargetToLibrary) => ipcRenderer.invoke(channels.videoBatchMove, { videoIds, targetDirectory, addTargetToLibrary }),
   forgetVideo: (videoId: string) => ipcRenderer.invoke(channels.videoForget, { videoId }),
   regenerateCover: (videoId: string) => ipcRenderer.invoke(channels.videoRegenerateCover, { videoId }),
+  loadPreviewImage: (request: import("../shared/videoTypes.js").PreviewImageRequest) => ipcRenderer.invoke(channels.previewImageLoad, request),
+  cancelPreviewImage: (requestId: string) => ipcRenderer.invoke(channels.previewImageCancel, requestId),
   retryMetadata: (videoId: string) => ipcRenderer.invoke(channels.videoRetryMetadata, { videoId }),
   openPlayer: (videoId: string, queueIds: string[]) => ipcRenderer.invoke(channels.videoOpenPlayer, { videoId, queueIds }),
   playExternalVideo: (videoId: string) => ipcRenderer.invoke(channels.videoPlayExternal, { videoId }),
@@ -165,6 +169,8 @@ const mainApi: VideoManagerApi = {
 };
 
 const playerApi = {
+  loadPreviewImage: mainApi.loadPreviewImage,
+  cancelPreviewImage: mainApi.cancelPreviewImage,
   listVideoPage: mainApi.listVideoPage,
   getLibraryNavigation: mainApi.getLibraryNavigation,
   listMissingVideos: mainApi.listMissingVideos,

@@ -55,6 +55,32 @@ describe("MetadataQueue", () => {
     expect(queue.getStatus()).toEqual({ queued: 0, active: 0 });
   });
 
+  it("uses a lightweight duration-only probe for CloudDrive duplicate candidates", async () => {
+    const video = {
+      ...createVideo("v-cloud", "Z:\\Cloud\\candidate.mp4"),
+      providerFileId: "remote-1",
+      providerPath: "/115/candidate.mp4"
+    };
+    const repo = createRepo(new Map([[video.id, video]]));
+    const fullReader = vi.fn(async () => ({ durationMs: 5000, width: 1920, height: 1080, format: "mp4" }));
+    const durationReader = vi.fn(async () => 4321);
+    const queue = new MetadataQueue(repo.value, fullReader, 1, undefined, undefined, undefined, durationReader);
+
+    queue.enqueue(video.id);
+    await queue.whenIdle();
+
+    expect(durationReader).toHaveBeenCalledWith(video.path);
+    expect(fullReader).not.toHaveBeenCalled();
+    expect(repo.markDurationReady).toHaveBeenCalledWith(
+      video.id,
+      video.path,
+      video.sizeBytes,
+      video.modifiedAt,
+      4321
+    );
+    expect(repo.markMetadataReady).not.toHaveBeenCalled();
+  });
+
   it("marks a matching pending record failed when FFprobe rejects", async () => {
     const video = createVideo("v1", "Z:\\Cloud\\broken.mp4");
     const repo = createRepo(new Map([[video.id, video]]));
@@ -291,6 +317,7 @@ describe("MetadataQueue", () => {
 
 function createRepo(videos: Map<string, VideoRecord>) {
   const markMetadataReady = vi.fn(() => true);
+  const markDurationReady = vi.fn(() => true);
   const markMetadataFailed = vi.fn(() => true);
   const listVideosPendingMetadata = vi.fn(() => [] as VideoRecord[]);
   const recordScanFailure = vi.fn();
@@ -307,6 +334,7 @@ function createRepo(videos: Map<string, VideoRecord>) {
       return video;
     },
     markMetadataReady,
+    markDurationReady,
     markMetadataFailed,
     recordScanFailure,
     resolveScanFailuresForObject,
@@ -314,7 +342,7 @@ function createRepo(videos: Map<string, VideoRecord>) {
     markMissing,
     listVideosPendingMetadata
   } as unknown as VideoRepository;
-  return { value, markMetadataReady, markMetadataFailed, recordScanFailure, resolveScanFailuresForObject, resolveScanFailuresForObjectStage, markMissing, listVideosPendingMetadata };
+  return { value, markMetadataReady, markDurationReady, markMetadataFailed, recordScanFailure, resolveScanFailuresForObject, resolveScanFailuresForObjectStage, markMissing, listVideosPendingMetadata };
 }
 
 function createVideo(id: string, filePath: string): VideoRecord {

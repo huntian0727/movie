@@ -7,6 +7,7 @@ import { execa } from "execa";
 import { resolvePackagedExecutablePath } from "./packagedExecutable.js";
 
 interface CacheGenerationDependencies {
+  signal?: AbortSignal;
   ffmpegPath?: string;
   ensureDir?: (directoryPath: string) => Promise<void>;
   runFfmpeg?: (ffmpegPath: string, args: string[]) => Promise<void>;
@@ -126,7 +127,7 @@ async function generateImage(
   }
 
   const ensureDir = dependencies.ensureDir ?? ensureDirectory;
-  const runFfmpeg = dependencies.runFfmpeg ?? executeFfmpeg;
+  const runFfmpeg = dependencies.runFfmpeg ?? ((executable: string, args: string[]) => executeFfmpeg(executable, args, dependencies.signal));
 
   try {
     await ensureDir(path.dirname(outputPath));
@@ -167,8 +168,8 @@ async function pathExists(candidatePath: string): Promise<boolean> {
   }
 }
 
-async function executeFfmpeg(ffmpegPath: string, args: string[]): Promise<void> {
-  await execa(ffmpegPath, args);
+async function executeFfmpeg(ffmpegPath: string, args: string[], signal?: AbortSignal): Promise<void> {
+  await execa(ffmpegPath, args, { cancelSignal: signal, timeout: 30_000, windowsHide: true });
 }
 
 function normalizeCacheIdentityPath(filePath: string): string {

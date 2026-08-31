@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AppSettings, MediaCacheStatus, VideoManagerApi } from "../../src/shared/videoTypes";
+import type { AppSettings, MediaCacheStatus, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 import { App, DesktopApp } from "../../src/renderer/App";
 import type { DesktopVideoManagerApi } from "../../src/renderer/api/client";
@@ -52,6 +52,18 @@ describe("desktop-only renderer runtime", () => {
     await waitFor(() => expect(api.listVideoPage).toHaveBeenCalled());
     expect(screen.queryByText("映匣仅支持 Windows 桌面应用运行")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "所有视频" })).toBeInTheDocument();
+  });
+
+  it("requests a cover for an API video whose metadata is still pending", async () => {
+    const api = createDesktopApi();
+    const video = {
+      id: "pending-api-video", filename: "sample.mp4", basename: "sample", path: "F:\\sample.mp4", directory: "F:\\",
+      extension: ".mp4", sizeBytes: 1024, durationMs: null, width: null, height: null,
+      metadataStatus: "pending", thumbnailStatus: "pending", updatedAt: "2026-09-01", isMissing: false
+    } as VideoRecord;
+    vi.mocked(api.listVideoPage).mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 });
+    const { container } = render(<DesktopApp api={api} />);
+    await waitFor(() => expect(container.querySelector(".video-cover img")).toHaveAttribute("src", expect.stringContaining("local-video://cover/pending-api-video")));
   });
 });
 

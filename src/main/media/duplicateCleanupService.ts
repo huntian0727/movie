@@ -127,6 +127,10 @@ export class DuplicateCleanupService {
 
   assertVideosAvailable(videoIds: string[]): void { this.jobs.assertVideosAvailable(videoIds); }
 
+  assertSourceFolderVideosAvailable(sourceFolderId: string): void {
+    this.jobs.assertSourceFolderVideosAvailable(sourceFolderId);
+  }
+
   stop(): void {
     this.stopped = true;
     this.currentVerificationAbort?.abort();

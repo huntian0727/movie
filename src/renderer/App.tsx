@@ -87,9 +87,9 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const previousScanStates = useRef(new Map<string, FolderScanStatus["state"]>());
   const isPlayerWindow = api.windowMode === "player";
   const recentVideoIds = useMemo(() => playHistory.map((entry) => entry.videoId), [playHistory]);
-  const getCoverUrl = useCallback((video: VideoRecord) => video.metadataStatus === "ready"
-    ? `local-video://cover/${encodeURIComponent(video.id)}?v=${encodeURIComponent(`${video.updatedAt}-${settings.coverFrameTimeSeconds}`)}`
-    : null, [settings.coverFrameTimeSeconds]);
+  const getCoverUrl = useCallback((video: VideoRecord) =>
+    `local-video://cover/${encodeURIComponent(video.id)}?v=${encodeURIComponent(`${video.updatedAt}-${settings.coverFrameTimeSeconds}`)}`,
+  [settings.coverFrameTimeSeconds]);
 
   const reload = useCallback(async (providedSnapshot?: WindowSyncSnapshot) => {
     setLoading(true);

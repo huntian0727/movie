@@ -72,6 +72,13 @@ interface SourceFolderRow {
   provider_read_only: number;
 }
 
+interface SourceFolderStatsRow {
+  video_count: number;
+  provider_identity_count: number;
+  duplicate_size_candidate_count: number;
+  duplicate_duration_ready_count: number;
+}
+
 export interface CloudDriveBindingCandidateRecord {
   videoId: string;
   sourceFolderId: string;
@@ -150,10 +157,19 @@ interface DuplicateStatsRow {
   total_groups: number;
   total_candidate_files: number;
   total_reclaimable_bytes?: number;
+  total_deletable_files?: number;
+  total_unbound_deletion_candidate_files?: number;
 }
 
 interface CountRow {
   count: number;
+}
+
+interface SourceFolderRemovalPlan {
+  fallbackFolder: SourceFolder | null;
+  removedVideoCount: number;
+  retainedVideoCount: number;
+  reassignedVideoCount: number;
 }
 
 interface DirectorySnapshotRow {
@@ -255,6 +271,10 @@ const SORT_COLUMNS: Record<SortField, string> = {
 export class VideoRepository {
   constructor(private readonly db: DatabaseConnection) {}
 
+  runInTransaction<T>(operation: () => T): T {
+    return this.db.transaction(operation)();
+  }
+
   addSourceFolder(folderPath: string, recursive: boolean): SourceFolder {
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
@@ -312,67 +332,99 @@ export class VideoRepository {
 
   listSourceFolders(): SourceFolder[] {
     const rows = this.db.prepare("SELECT * FROM source_folders ORDER BY path ASC").all() as SourceFolderRow[];
-    return rows.map(mapSourceFolder);
+    return rows.map((row) => mapSourceFolder(row));
+  }
+
+  listSourceFoldersWithStats(): SourceFolder[] {
+    const rows = this.db.prepare("SELECT * FROM source_folders ORDER BY path ASC").all() as SourceFolderRow[];
+    const readStats = this.db.prepare(`
+      SELECT
+        COUNT(*) AS video_count,
+        COALESCE(SUM(CASE
+          WHEN videos.provider_file_id IS NOT NULL AND videos.provider_path IS NOT NULL THEN 1
+          ELSE 0
+        END), 0) AS provider_identity_count,
+        COALESCE(SUM(CASE
+          WHEN videos.is_missing = 0 AND EXISTS (
+            SELECT 1 FROM videos peer
+            WHERE peer.id <> videos.id
+              AND peer.is_missing = 0
+              AND peer.size_bytes = videos.size_bytes
+          ) THEN 1 ELSE 0
+        END), 0) AS duplicate_size_candidate_count,
+        COALESCE(SUM(CASE
+          WHEN videos.is_missing = 0
+            AND videos.metadata_status = 'ready'
+            AND videos.duration_ms IS NOT NULL
+            AND videos.duration_ms > 0
+            AND EXISTS (
+              SELECT 1 FROM videos peer
+              WHERE peer.id <> videos.id
+                AND peer.is_missing = 0
+                AND peer.size_bytes = videos.size_bytes
+            )
+          THEN 1 ELSE 0
+        END), 0) AS duplicate_duration_ready_count
+      FROM videos
+      WHERE videos.source_folder_id = ?
+    `);
+    return rows.map((row) => mapSourceFolder(row, readStats.get(row.id) as SourceFolderStatsRow));
   }
 
   removeSourceFolder(folderId: string): SourceFolderRemovalResult {
     const transaction = this.db.transaction(() => {
-      const folders = this.listSourceFolders();
-      const removedFolder = folders.find((folder) => folder.id === folderId);
-      if (!removedFolder) {
-        throw new Error(`Source folder not found: ${folderId}`);
-      }
-
-      const remainingFolders = folders.filter((folder) => folder.id !== folderId);
-      const videos = (this.db.prepare("SELECT * FROM videos ORDER BY path ASC").all() as VideoRow[]).map(mapVideo);
-      let removedVideoCount = 0;
-      let retainedVideoCount = 0;
-      let reassignedVideoCount = 0;
-      const now = new Date().toISOString();
-
-      for (const video of videos) {
-        const nextFolder = findMostSpecificSourceFolder(video.path, video.directory, remainingFolders);
-        if (!nextFolder) {
-          this.db.prepare("DELETE FROM videos WHERE id = ?").run(video.id);
-          removedVideoCount += 1;
-          continue;
-        }
-
-        if (folderCoversVideo(removedFolder, video.path, video.directory)) {
-          retainedVideoCount += 1;
-        }
-        if (video.sourceFolderId !== nextFolder.id) {
-          this.db.prepare("UPDATE videos SET source_folder_id = ?, updated_at = ? WHERE id = ?").run(nextFolder.id, now, video.id);
-          reassignedVideoCount += 1;
-        }
+      const plan = this.buildSourceFolderRemovalPlan(folderId);
+      if (plan.fallbackFolder && plan.reassignedVideoCount > 0) {
+        this.db
+          .prepare("UPDATE videos SET source_folder_id = ?, updated_at = ? WHERE source_folder_id = ?")
+          .run(plan.fallbackFolder.id, new Date().toISOString(), folderId);
       }
 
       this.db.prepare("DELETE FROM source_folders WHERE id = ?").run(folderId);
-      return { removedVideoCount, retainedVideoCount, reassignedVideoCount };
+      return {
+        removedVideoCount: plan.removedVideoCount,
+        retainedVideoCount: plan.retainedVideoCount,
+        reassignedVideoCount: plan.reassignedVideoCount
+      };
     });
 
     return transaction();
   }
 
   previewRemoveSourceFolder(folderId: string): SourceFolderRemovalPreview {
+    const plan = this.buildSourceFolderRemovalPlan(folderId);
+    return { removedVideoCount: plan.removedVideoCount, retainedVideoCount: plan.retainedVideoCount };
+  }
+
+  private buildSourceFolderRemovalPlan(folderId: string): SourceFolderRemovalPlan {
     const folders = this.listSourceFolders();
     const removedFolder = folders.find((folder) => folder.id === folderId);
     if (!removedFolder) throw new Error(`Source folder not found: ${folderId}`);
+
     const remainingFolders = folders.filter((folder) => folder.id !== folderId);
-    const videos = (this.db.prepare("SELECT * FROM videos ORDER BY path ASC").all() as VideoRow[]).map(mapVideo);
-    let removedVideoCount = 0;
-    let retainedVideoCount = 0;
+    const fallbackFolder = remainingFolders
+      .filter((folder) => sourceFolderCoversSourceRoot(folder, removedFolder))
+      .sort((left, right) => normalizeManagedPath(right.path).length - normalizeManagedPath(left.path).length)[0] ?? null;
+    const affectedVideoCount = (this.db
+      .prepare("SELECT COUNT(*) AS count FROM videos WHERE source_folder_id = ?")
+      .get(folderId) as CountRow).count;
+    const descendantFolderIds = removedFolder.recursive
+      ? remainingFolders
+        .filter((folder) => isStrictSourceFolderDescendant(folder, removedFolder))
+        .map((folder) => folder.id)
+      : [];
+    const retainedDescendantCount = descendantFolderIds.length === 0
+      ? 0
+      : (this.db
+        .prepare(`SELECT COUNT(*) AS count FROM videos WHERE source_folder_id IN (${descendantFolderIds.map(() => "?").join(", ")})`)
+        .get(...descendantFolderIds) as CountRow).count;
 
-    for (const video of videos) {
-      const nextFolder = findMostSpecificSourceFolder(video.path, video.directory, remainingFolders);
-      if (!nextFolder) {
-        removedVideoCount += 1;
-      } else if (folderCoversVideo(removedFolder, video.path, video.directory)) {
-        retainedVideoCount += 1;
-      }
-    }
-
-    return { removedVideoCount, retainedVideoCount };
+    return {
+      fallbackFolder,
+      removedVideoCount: fallbackFolder ? 0 : affectedVideoCount,
+      retainedVideoCount: retainedDescendantCount + (fallbackFolder ? affectedVideoCount : 0),
+      reassignedVideoCount: fallbackFolder ? affectedVideoCount : 0
+    };
   }
 
   updateSourceFolderScanState(folderId: string, lastScannedAt: string, scanError: string | null): void {
@@ -1602,6 +1654,36 @@ export class VideoRepository {
     return result.changes > 0;
   }
 
+  markDurationReady(
+    videoId: string,
+    expectedPath: string,
+    expectedSizeBytes: number,
+    expectedModifiedAt: string,
+    durationMs: number
+  ): boolean {
+    const result = this.db.prepare(`
+      UPDATE videos
+      SET duration_ms = @durationMs,
+          duration_source = 'local-probe',
+          metadata_status = 'ready',
+          codec_probe_status = 'unprobed',
+          updated_at = @updatedAt
+      WHERE id = @videoId
+        AND path = @expectedPath
+        AND size_bytes = @expectedSizeBytes
+        AND modified_at = @expectedModifiedAt
+        AND metadata_status = 'pending'
+    `).run({
+      videoId,
+      expectedPath,
+      expectedSizeBytes,
+      expectedModifiedAt,
+      durationMs,
+      updatedAt: new Date().toISOString()
+    });
+    return result.changes > 0;
+  }
+
   updateCodecMetadataIfVersion(
     videoId: string,
     expectedPath: string,
@@ -1686,8 +1768,13 @@ export class VideoRepository {
       return `(directory = @preferredDirectoryPath${index} COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix${index} ESCAPE '!' COLLATE NOCASE)`;
     });
     const preferredTreeClause = preferredTreeClauses.length > 0 ? `(${preferredTreeClauses.join(" OR ")})` : null;
-    if (preferredTreeClause) {
-      scopedSizeWhere.push(preferredTreeClause);
+    const filterDirectoryPath = query.filterDirectoryPath;
+    let filterTreeClause: string | null = null;
+    if (filterDirectoryPath) {
+      scopedSizeParams.filterDirectoryPath = filterDirectoryPath;
+      scopedSizeParams.filterDirectoryPrefix = `${escapeLikePattern(trimTrailingSeparators(filterDirectoryPath))}\\%`;
+      filterTreeClause = `(directory = @filterDirectoryPath COLLATE NOCASE OR directory LIKE @filterDirectoryPrefix ESCAPE '!' COLLATE NOCASE)`;
+      scopedSizeWhere.push(filterTreeClause);
     }
     const scopedSizesQuery = `SELECT DISTINCT size_bytes FROM videos WHERE ${scopedSizeWhere.join(" AND ")}`;
     const candidateSizesQuery = `
@@ -1713,18 +1800,25 @@ export class VideoRepository {
       "duration_ms IS NOT NULL",
       "duration_ms > 0"
     ];
-    if (preferredTreeClause) {
-      scopedIdentityWhere.push(preferredTreeClause);
+    if (filterTreeClause) {
+      scopedIdentityWhere.push(filterTreeClause);
     }
     const scopedIdentitiesQuery = `SELECT DISTINCT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds FROM videos WHERE ${scopedIdentityWhere.join(" AND ")}`;
-    const cloudItemExpression = "provider_file_id IS NOT NULL AND provider_path IS NOT NULL";
+    const cloudItemExpression = "provider_file_id IS NOT NULL AND provider_file_id != '' AND provider_path IS NOT NULL AND provider_path != ''";
     const deletableCountExpression = preferredTreeClause
-      ? `SUM(CASE WHEN ${cloudItemExpression} AND NOT ${preferredTreeClause} THEN 1 ELSE 0 END)`
+      ? `SUM(CASE WHEN ${cloudItemExpression} THEN 1 ELSE 0 END)
+          - CASE WHEN SUM(CASE WHEN NOT (${cloudItemExpression}) AND ${preferredTreeClause} THEN 1 ELSE 0 END) > 0 THEN 0 ELSE 1 END`
       : `SUM(CASE WHEN ${cloudItemExpression} THEN 1 ELSE 0 END)
           - CASE WHEN SUM(CASE WHEN ${cloudItemExpression} THEN 1 ELSE 0 END) = COUNT(*) THEN 1 ELSE 0 END`;
+    const unboundDeletionCandidateCountExpression = preferredTreeClause
+      ? `SUM(CASE WHEN NOT (${cloudItemExpression}) THEN 1 ELSE 0 END)
+          - CASE WHEN SUM(CASE WHEN NOT (${cloudItemExpression}) AND ${preferredTreeClause} THEN 1 ELSE 0 END) > 0 THEN 1 ELSE 0 END`
+      : `MAX(SUM(CASE WHEN NOT (${cloudItemExpression}) THEN 1 ELSE 0 END) - 1, 0)`;
     const duplicateGroupsQuery = `
       SELECT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds,
-             COUNT(*) AS file_count, ${deletableCountExpression} AS deletable_count
+             COUNT(*) AS file_count,
+             ${deletableCountExpression} AS deletable_count,
+             ${unboundDeletionCandidateCountExpression} AS unbound_deletion_candidate_count
       FROM videos
       WHERE is_missing = 0
         AND metadata_status = 'ready'
@@ -1746,10 +1840,34 @@ export class VideoRepository {
         `SELECT
            COUNT(*) AS total_groups,
            COALESCE(SUM(file_count), 0) AS total_candidate_files,
-           COALESCE(SUM(deletable_count * size_bytes), 0) AS total_reclaimable_bytes
+           COALESCE(SUM(deletable_count * size_bytes), 0) AS total_reclaimable_bytes,
+           COALESCE(SUM(deletable_count), 0) AS total_deletable_files,
+           COALESCE(SUM(unbound_deletion_candidate_count), 0) AS total_unbound_deletion_candidate_files
          FROM (${duplicateGroupsQuery})`
       )
       .get(scopedSizeParams) as DuplicateStatsRow;
+    const overallTotalGroups = filterTreeClause
+      ? (this.db.prepare(`
+          SELECT COUNT(*) AS total_groups
+          FROM (
+            SELECT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds
+            FROM videos
+            WHERE is_missing = 0
+              AND metadata_status = 'ready'
+              AND duration_ms IS NOT NULL
+              AND duration_ms > 0
+              AND NOT EXISTS (
+                SELECT 1 FROM duplicate_cleanup_reservations active_reservation
+                JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
+                WHERE active_reservation.released_at IS NULL
+                  AND reserved_video.size_bytes = videos.size_bytes
+                  AND ((reserved_video.duration_ms + 500) / 1000) = ((videos.duration_ms + 500) / 1000)
+              )
+            GROUP BY size_bytes, duration_seconds
+            HAVING COUNT(*) >= 2
+          )
+        `).get() as { total_groups: number }).total_groups
+      : verifiedStats.total_groups;
     const totalPages = Math.max(1, Math.ceil(verifiedStats.total_groups / query.pageSize));
     const page = Math.min(Math.max(1, query.page), totalPages);
     const direction = query.sortDirection === "asc" ? "ASC" : "DESC";
@@ -1771,9 +1889,12 @@ export class VideoRepository {
       pageSize: query.pageSize,
       totalPages,
       totalGroups: verifiedStats.total_groups,
+      overallTotalGroups,
       totalCandidateGroups: candidateStats.total_groups,
       totalCandidateFiles: candidateStats.total_candidate_files,
       totalReclaimableBytes: verifiedStats.total_reclaimable_bytes ?? 0,
+      totalDeletableFiles: verifiedStats.total_deletable_files ?? 0,
+      totalUnboundDeletionCandidateFiles: verifiedStats.total_unbound_deletion_candidate_files ?? 0,
       directoryOptions: this.listDuplicateDirectoryOptions()
     };
   }
@@ -1781,12 +1902,14 @@ export class VideoRepository {
   buildDuplicateResolvePlanForQuery(query: DuplicateGroupPageQuery): DuplicateResolvePlan {
     const preferredDirectoryPaths = normalizePreferredDirectoryPaths(query);
     const params: Record<string, unknown> = {};
-    const preferredClauses = preferredDirectoryPaths.map((directoryPath, index) => {
-      params[`preferredDirectoryPath${index}`] = directoryPath;
-      params[`preferredDirectoryPrefix${index}`] = `${escapeLikePattern(trimTrailingSeparators(directoryPath))}\\%`;
-      return `(directory = @preferredDirectoryPath${index} COLLATE NOCASE OR directory LIKE @preferredDirectoryPrefix${index} ESCAPE '!' COLLATE NOCASE)`;
-    });
-    const preferredScope = preferredClauses.length > 0 ? `AND (${preferredClauses.join(" OR ")})` : "";
+    const filterDirectoryPath = query.filterDirectoryPath;
+    const filterScope = filterDirectoryPath
+      ? `AND (directory = @filterDirectoryPath COLLATE NOCASE OR directory LIKE @filterDirectoryPrefix ESCAPE '!' COLLATE NOCASE)`
+      : "";
+    if (filterDirectoryPath) {
+      params.filterDirectoryPath = filterDirectoryPath;
+      params.filterDirectoryPrefix = `${escapeLikePattern(trimTrailingSeparators(filterDirectoryPath))}\\%`;
+    }
     const rows = this.db.prepare(`
       WITH scoped_identities AS (
         SELECT DISTINCT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds
@@ -1795,7 +1918,7 @@ export class VideoRepository {
           AND metadata_status = 'ready'
           AND duration_ms IS NOT NULL
           AND duration_ms > 0
-          ${preferredScope}
+          ${filterScope}
       ), duplicate_identities AS (
         SELECT videos.size_bytes, ((videos.duration_ms + 500) / 1000) AS duration_seconds
         FROM videos
@@ -1831,7 +1954,7 @@ export class VideoRepository {
       if (currentVideos.length < 2) return;
       const group = buildDuplicateGroupFromVideos(currentKey, currentVideos, preferredDirectoryPaths);
       const deleteVideoIds = group.items
-        .filter((item) => item.video.id !== group.recommendedKeepVideoId && !item.isProtected && item.canAutoDelete)
+        .filter((item) => item.video.id !== group.recommendedKeepVideoId && item.canAutoDelete)
         .map((item) => item.video.id);
       if (deleteVideoIds.length > 0) {
         resolutions.push({ groupKey: group.groupKey, keepVideoId: group.recommendedKeepVideoId, deleteVideoIds });
@@ -2100,9 +2223,11 @@ export class VideoRepository {
 
     const videos = rows.map(mapVideo);
     const preferredDirectoryVideos = videos.filter((video) => isVideoInAnyDirectoryTree(video.directory, preferredDirectoryPaths));
+    const preferredLocalKeepCandidates = preferredDirectoryVideos.filter((video) => !video.providerFileId || !video.providerPath);
     const localKeepCandidates = videos.filter((video) => !video.providerFileId || !video.providerPath);
-    const keepCandidates = preferredDirectoryVideos.length > 0
-      ? preferredDirectoryVideos
+    const keepCandidates = preferredLocalKeepCandidates.length > 0
+      ? preferredLocalKeepCandidates
+      : preferredDirectoryVideos.length > 0 ? preferredDirectoryVideos
       : localKeepCandidates.length > 0 ? localKeepCandidates : videos;
     const recommendedKeep = [...keepCandidates].sort(compareDuplicateKeepCandidates)[0];
     const keepReason = preferredDirectoryVideos.length > 0
@@ -2113,16 +2238,12 @@ export class VideoRepository {
       groupKey,
       identityStatus: "size_duration_match",
       recommendedKeepVideoId: recommendedKeep.id,
-      reclaimableBytes: preferredDirectoryVideos.length > 0
-        ? videos.filter((video) => video.providerFileId && video.providerPath && !isVideoInAnyDirectoryTree(video.directory, preferredDirectoryPaths))
-          .reduce((total, video) => total + video.sizeBytes, 0)
-        : videos.filter((video) => video.providerFileId && video.providerPath && video.id !== recommendedKeep.id)
-          .reduce((total, video) => total + video.sizeBytes, 0),
+      reclaimableBytes: videos.filter((video) => video.providerFileId && video.providerPath && video.id !== recommendedKeep.id)
+        .reduce((total, video) => total + video.sizeBytes, 0),
       items: videos.map((video) => ({
         video,
         isRecommendedToKeep: video.id === recommendedKeep.id,
         keepReason: video.id === recommendedKeep.id ? keepReason : null,
-        isProtected: isVideoInAnyDirectoryTree(video.directory, preferredDirectoryPaths),
         canAutoDelete: Boolean(video.providerFileId && video.providerPath)
       }))
     };
@@ -2177,7 +2298,7 @@ export class VideoRepository {
   }
 }
 
-function mapSourceFolder(row: SourceFolderRow): SourceFolder {
+function mapSourceFolder(row: SourceFolderRow, stats?: SourceFolderStatsRow): SourceFolder {
   return {
     id: row.id,
     path: row.path,
@@ -2190,7 +2311,11 @@ function mapSourceFolder(row: SourceFolderRow): SourceFolder {
     providerType: row.provider_type,
     providerRootPath: row.provider_root_path,
     providerName: row.provider_name,
-    providerReadOnly: Boolean(row.provider_read_only)
+    providerReadOnly: Boolean(row.provider_read_only),
+    videoCount: stats?.video_count,
+    providerIdentityCount: stats?.provider_identity_count,
+    duplicateSizeCandidateCount: stats?.duplicate_size_candidate_count,
+    duplicateDurationReadyCount: stats?.duplicate_duration_ready_count
   };
 }
 
@@ -2325,9 +2450,11 @@ function buildDuplicateGroupFromVideos(
   preferredDirectoryPaths: readonly string[]
 ): DuplicateGroup {
   const preferredDirectoryVideos = videos.filter((video) => isVideoInAnyDirectoryTree(video.directory, preferredDirectoryPaths));
+  const preferredLocalKeepCandidates = preferredDirectoryVideos.filter((video) => !video.providerFileId || !video.providerPath);
   const localKeepCandidates = videos.filter((video) => !video.providerFileId || !video.providerPath);
-  const keepCandidates = preferredDirectoryVideos.length > 0
-    ? preferredDirectoryVideos
+  const keepCandidates = preferredLocalKeepCandidates.length > 0
+    ? preferredLocalKeepCandidates
+    : preferredDirectoryVideos.length > 0 ? preferredDirectoryVideos
     : localKeepCandidates.length > 0 ? localKeepCandidates : videos;
   const recommendedKeep = [...keepCandidates].sort(compareDuplicateKeepCandidates)[0];
   const keepReason = preferredDirectoryVideos.length > 0
@@ -2338,14 +2465,12 @@ function buildDuplicateGroupFromVideos(
     identityStatus: "size_duration_match",
     recommendedKeepVideoId: recommendedKeep.id,
     reclaimableBytes: videos
-      .filter((video) => video.providerFileId && video.providerPath && video.id !== recommendedKeep.id
-        && !isVideoInAnyDirectoryTree(video.directory, preferredDirectoryPaths))
+      .filter((video) => video.providerFileId && video.providerPath && video.id !== recommendedKeep.id)
       .reduce((total, video) => total + video.sizeBytes, 0),
     items: videos.map((video) => ({
       video,
       isRecommendedToKeep: video.id === recommendedKeep.id,
       keepReason: video.id === recommendedKeep.id ? keepReason : null,
-      isProtected: isVideoInAnyDirectoryTree(video.directory, preferredDirectoryPaths),
       canAutoDelete: Boolean(video.providerFileId && video.providerPath)
     }))
   };
@@ -2378,6 +2503,17 @@ function folderCoversVideo(folder: SourceFolder, filePath: string, directory: st
     return videoPath.startsWith(`${folderPath}\\`);
   }
   return normalizeManagedPath(directory) === folderPath;
+}
+
+function sourceFolderCoversSourceRoot(folder: SourceFolder, sourceRoot: SourceFolder): boolean {
+  if (folder.recursive) return isManagedPathWithin(sourceRoot.path, folder.path);
+  return !sourceRoot.recursive && normalizeManagedPath(folder.path) === normalizeManagedPath(sourceRoot.path);
+}
+
+function isStrictSourceFolderDescendant(folder: SourceFolder, parent: SourceFolder): boolean {
+  const folderPath = normalizeManagedPath(folder.path);
+  const parentPath = normalizeManagedPath(parent.path);
+  return folderPath !== parentPath && isManagedPathWithin(folder.path, parent.path);
 }
 
 function compareDuplicateKeepCandidates(left: VideoRecord, right: VideoRecord): number {

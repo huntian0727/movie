@@ -33,17 +33,21 @@ interface DuplicateGroupsPageProps {
   pageSize?: DuplicatePageSize;
   totalPages?: number;
   totalGroups?: number;
+  overallTotalGroups?: number;
   totalCandidateGroups?: number;
   totalCandidateFiles?: number;
   totalReclaimableBytes?: number;
+  totalDeletableFiles?: number;
+  totalUnboundDeletionCandidateFiles?: number;
   sizeSortDirection?: SortDirection;
   directoryOptions?: DuplicateDirectoryOption[];
-  preferredDirectoryPath?: string;
+  filterDirectoryPath?: string;
   preferredDirectories?: DuplicatePreferredDirectory[];
   onPage?(page: number): void;
   onPageSize?(pageSize: DuplicatePageSize): void;
   onSizeSortDirection?(direction: SortDirection): void;
   onPreferredDirectoryPathChange?(path: string): void;
+  onClearDirectoryFilter?(): void;
   onRemovePreferredDirectory?(id: string): void | Promise<void>;
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
   onViewDetails(video: VideoRecord): void;
@@ -76,17 +80,21 @@ export function DuplicateGroupsPage({
   pageSize = 20,
   totalPages = 1,
   totalGroups = groups.length,
+  overallTotalGroups = totalGroups,
   totalCandidateGroups = totalGroups,
   totalCandidateFiles = groups.reduce((total, group) => total + group.items.length, 0),
   totalReclaimableBytes = groups.reduce((total, group) => total + group.reclaimableBytes, 0),
+  totalDeletableFiles = groups.reduce((total, group) => total + group.items.filter((item) => !item.isRecommendedToKeep && item.canAutoDelete !== false).length, 0),
+  totalUnboundDeletionCandidateFiles = groups.reduce((total, group) => total + Math.max(0, group.items.filter((item) => item.canAutoDelete === false).length - 1), 0),
   sizeSortDirection: controlledSizeSortDirection,
   directoryOptions = [],
-  preferredDirectoryPath,
+  filterDirectoryPath,
   preferredDirectories = [],
   onPage,
   onPageSize,
   onSizeSortDirection,
   onPreferredDirectoryPathChange,
+  onClearDirectoryFilter,
   onRemovePreferredDirectory,
   onOpen,
   onViewDetails,
@@ -201,7 +209,7 @@ export function DuplicateGroupsPage({
           groupKey: group.groupKey,
           keepVideoId,
           deleteVideoIds: group.items
-            .filter((item) => item.video.id !== keepVideoId && !item.isProtected && item.canAutoDelete !== false)
+            .filter((item) => item.video.id !== keepVideoId && item.canAutoDelete !== false)
             .map((item) => item.video.id)
         };
       }).filter((resolution) => resolution.deleteVideoIds.length > 0);
@@ -215,9 +223,12 @@ export function DuplicateGroupsPage({
   );
   const filteredDeleteDisabledReason = totalGroups === 0
     ? "当前筛选条件下没有重复候选组。"
-    : totalReclaimableBytes === 0
-      ? "当前筛选结果没有已绑定 CloudDrive 远端身份且可删除的候选文件。请先在设置中配置并测试 CloudDrive API，然后运行“快速绑定旧资料库”。"
-      : null;
+    : totalDeletableFiles > 0
+      ? null
+      : totalUnboundDeletionCandidateFiles > 0
+        ? `当前筛选结果有 ${totalUnboundDeletionCandidateFiles.toLocaleString()} 个候选文件缺少 CloudDrive 远端身份，无法通过 API 删除。`
+        : "当前筛选结果没有可通过 CloudDrive API 删除的候选文件。";
+  const showLegacyBinding = Boolean(onBindLegacyCloudDrive) && (totalUnboundDeletionCandidateFiles > 0 || bindingPending);
 
   const resetSelectionToRecommended = () => {
     const currentGroupKeys = new Set(groups.map((group) => group.groupKey));
@@ -342,12 +353,51 @@ export function DuplicateGroupsPage({
   if (groups.length === 0) {
     return (
       <section className="duplicate-page">
-        {onLoadCleanupJobs && <div className="duplicate-empty-task-action"><button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button></div>}
+        <div className="duplicate-summary">
+          <p className="duplicate-size-warning">候选发现只使用精确文件大小和整秒时长，不读取视频内容、不计算 SHA-256。</p>
+          <div className="duplicate-summary-card">
+            <strong>{overallTotalGroups}</strong>
+            <span>资料库全部重复组</span>
+          </div>
+          <div className="duplicate-summary-card">
+            <strong>{totalGroups}</strong>
+            <span>当前显示</span>
+          </div>
+          <div className="duplicate-summary-actions">
+            <div className="duplicate-sort duplicate-directory-filter">
+              <span>优先保留目录（不限制显示范围）</span>
+              <DirectoryPicker
+                directoryOptions={directoryOptions.map((option) => ({ ...option, meta: `${option.groupCount} 个候选组 · 候选可释放空间 ${formatBytes(option.estimatedReclaimableBytes)}` }))}
+                value={undefined}
+                placeholder="添加优先保留目录"
+                ariaLabel="选择候选项计划保留目录（包含所有子目录）"
+                onChange={(path) => onPreferredDirectoryPathChange?.(path)}
+              />
+            </div>
+            {preferredDirectories.map((directory) => {
+              const hasMatches = directoryOptions.some((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(directory.path));
+              return (
+                <p className="duplicate-directory-scope" key={directory.id}>
+                  <code title={directory.path}>{directory.path}</code>（含子目录）
+                  {!hasMatches && <span className="duplicate-directory-no-match">当前无匹配</span>}
+                  <button type="button" aria-label={`移除优先保留目录 ${directory.path}`} onClick={() => void onRemovePreferredDirectory?.(directory.id)}>移除</button>
+                </p>
+              );
+            })}
+            {filterDirectoryPath && (
+              <div className="duplicate-directory-scope">
+                <p role="status">当前只查看 <code title={filterDirectoryPath}>{filterDirectoryPath}</code> 及其子目录涉及的重复项。</p>
+                <button type="button" className="empty-state-action" onClick={onClearDirectoryFilter}>显示全部 {overallTotalGroups} 组</button>
+              </div>
+            )}
+            {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
+          </div>
+        </div>
         <div className="empty-state duplicate-empty-state">
           <div><Trash2 size={36} /></div>
-          <h3>{totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}</h3>
-          <p>{loading ? "正在整理候选项..." : totalCandidateGroups > 0 ? "这些同大小文件的缓存时长不同或尚未读取成功。候选项页面不会为了判断而主动读取网盘文件。" : "扫描完成后，这里会显示文件大小和缓存时长完全相同的候选项。"}</p>
-          {preferredDirectoryPath && <button type="button" className="empty-state-action" onClick={() => onPreferredDirectoryPathChange?.("")}>返回全部候选项</button>}
+          <h3>{filterDirectoryPath && overallTotalGroups > 0 ? "该目录当前没有重复项" : totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}</h3>
+          <p>{loading ? "正在整理候选项..." : filterDirectoryPath && overallTotalGroups > 0 ? `优先保留规则仍然有效，但不会隐藏资料库中其他 ${overallTotalGroups} 组重复项。` : totalCandidateGroups > 0 ? "这些同大小文件的缓存时长不同或尚未读取成功。" : "扫描完成后，这里会显示文件大小和缓存时长相同的候选项。"}</p>
+          {filterDirectoryPath && overallTotalGroups > 0 && <button type="button" className="empty-state-action" onClick={onClearDirectoryFilter}>显示全部 {overallTotalGroups} 组重复项</button>}
         </div>
         {onLoadCleanupJobs && onLoadCleanupItems && onCancelCleanup && onResumeCleanup && onRetryCleanup && onClearCleanup && (
           <DuplicateCleanupTasksPanel open={taskCenterOpen} onClose={() => setTaskCenterOpen(false)} returnFocusRef={taskCenterOpenerRef} loadJobs={onLoadCleanupJobs} loadItems={onLoadCleanupItems} onConfirm={onConfirmCleanup} onCancel={onCancelCleanup} onResume={onResumeCleanup} onRetry={onRetryCleanup} onClear={onClearCleanup} onOpenItem={onOpenCleanupItem} refreshSequence={cleanupRefreshSequence} />
@@ -365,8 +415,9 @@ export function DuplicateGroupsPage({
         <p className="duplicate-size-warning">候选发现只使用精确文件大小和整秒时长，不读取视频内容、不计算 SHA-256。批量删除只处理具有 CloudDrive 远端身份的候选项，并通过 API执行。</p>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
-          <span>大小＋时长匹配组</span>
+          <span>{filterDirectoryPath ? "当前显示" : "大小＋时长匹配组"}</span>
         </div>
+        {filterDirectoryPath && <div className="duplicate-summary-card"><strong>{overallTotalGroups}</strong><span>资料库全部重复组</span></div>}
         <div className="duplicate-summary-card">
           <strong>{totalCandidateGroups}</strong>
           <span>同大小候选组</span>
@@ -381,7 +432,7 @@ export function DuplicateGroupsPage({
         </div>
         <div className="duplicate-summary-actions">
           <div className="duplicate-sort duplicate-directory-filter">
-            <span>优先保留目录（包含所有子目录）</span>
+            <span>优先保留目录（不限制显示范围）</span>
             <DirectoryPicker
               directoryOptions={directoryOptions.map((option) => ({
                 ...option,
@@ -398,15 +449,16 @@ export function DuplicateGroupsPage({
               {preferredDirectories.map((directory) => (
                 <p role="listitem" key={directory.id}>
                   <code title={directory.path}>{directory.path}</code>（含子目录）
+                  {!directoryOptions.some((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(directory.path)) && <span className="duplicate-directory-no-match">当前无匹配</span>}
                   <button type="button" aria-label={`移除优先保留目录 ${directory.path}`} onClick={() => void onRemovePreferredDirectory?.(directory.id)}>移除</button>
                 </p>
               ))}
             </div>
           )}
-          {preferredDirectoryPath && (
+          {filterDirectoryPath && (
             <div className="duplicate-directory-scope">
-              <p role="status">正在优先保留 <code title={preferredDirectoryPath}>{preferredDirectoryPath}</code> 及其所有子目录，并查看包含该目录树文件的候选组。</p>
-              <button type="button" onClick={() => onPreferredDirectoryPathChange?.("")}>清除优先目录</button>
+              <p role="status">当前只查看 <code title={filterDirectoryPath}>{filterDirectoryPath}</code> 及其所有子目录涉及的重复项。优先保留规则与此筛选独立。</p>
+              <button type="button" onClick={onClearDirectoryFilter}>显示全部 {overallTotalGroups} 组</button>
             </div>
           )}
           <label className="duplicate-sort">
@@ -424,7 +476,7 @@ export function DuplicateGroupsPage({
           {onCheckMissing && <button type="button" className={missingCheckPending ? "is-pending" : undefined} disabled={missingCheckPending || actionPending || groups.length === 0} onClick={() => void handleCheckMissing()}>
             {missingCheckPending ? `正在复查 ${previewFileCount} 个文件...` : "检查缺失文件"}
           </button>}
-          {onBindLegacyCloudDrive && <button type="button" className={bindingPending ? "is-pending" : undefined} disabled={bindingPending || actionPending} onClick={() => void handleBindLegacyCloudDrive()}>
+          {showLegacyBinding && <button type="button" className={bindingPending ? "is-pending" : undefined} disabled={bindingPending || actionPending} onClick={() => void handleBindLegacyCloudDrive()}>
             {bindingPending ? <><LoaderCircle className="spin" size={16} /> API 快速绑定中...</> : <><Link2 size={16} /> 快速绑定旧资料库</>}
           </button>}
           {bindingPending && onCancelLegacyCloudDriveBinding && <button type="button" onClick={() => void handleCancelLegacyCloudDrive()} disabled={bindingProgress?.state === "cancelling"}>
@@ -476,7 +528,7 @@ export function DuplicateGroupsPage({
                   <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-confirm-title">
                     <h3 id="duplicate-confirm-title">确认批量删除重复文件</h3>
                     <p>本次只处理当前第 {page} 页：将保留 {preview.keepCount} 个文件，计划删除 {preview.deleteCount} 个文件，预计释放 {formatBytes(preview.reclaimableBytes)}。未读取或比较视频内容。</p>
-                    {preferredDirectoryPath && <p>每个候选组会优先计划保留"{preferredDirectoryPath}"范围内的 1 个文件；同组其他目录的文件仍是候选移除项。</p>}
+                    {preferredDirectories.length > 0 && <p>每个候选组会优先从已保存的优先目录中选择 1 个文件保留；同组其他文件仍是候选移除项。</p>}
                     <p>文件将从磁盘永久删除且无法撤销，请确认保留项选择无误。</p>
                     <div className="dialog-actions">
                       <button type="button" onClick={() => setConfirmOpen(false)} disabled={actionPending}>取消</button>
@@ -629,10 +681,14 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   );
 
   const groupVideos = useMemo(() => sortedItems.map((item) => item.video), [sortedItems]);
-  const candidateRemovalCount = group.items.length - 1;
-  const reclaimableBytes = useMemo(() =>
-    group.items.filter((item) => item.video.id !== keepVideoId).reduce((total, item) => total + item.video.sizeBytes, 0),
+  const candidateRemovalItems = useMemo(
+    () => group.items.filter((item) => item.video.id !== keepVideoId && item.canAutoDelete !== false),
     [group.items, keepVideoId]
+  );
+  const candidateRemovalCount = candidateRemovalItems.length;
+  const reclaimableBytes = useMemo(() =>
+    candidateRemovalItems.reduce((total, item) => total + item.video.sizeBytes, 0),
+    [candidateRemovalItems]
   );
 
   return (
@@ -651,8 +707,8 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
               <div className="duplicate-item-main">
                 <div className="duplicate-item-heading">
                   <strong>{item.video.filename}</strong>
-                  <span className={isKeeping ? "duplicate-badge keep" : "duplicate-badge delete"}>
-                    {isKeeping ? "计划保留" : "候选移除"}
+                  <span className={isKeeping ? "duplicate-badge keep" : item.canAutoDelete === false ? "duplicate-badge" : "duplicate-badge delete"}>
+                    {isKeeping ? "计划保留" : item.canAutoDelete === false ? "缺少远端身份" : "候选移除"}
                   </span>
                   {item.isRecommendedToKeep && <span className="duplicate-badge recommend">推荐计划保留</span>}
                 </div>
@@ -675,7 +731,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
                 <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
                 <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
                 <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
-                <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} onClick={() => onDeleteCandidate(item.video.id)}><Trash2 size={16} /></button>
+                <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} disabled={item.canAutoDelete === false} onClick={() => onDeleteCandidate(item.video.id)}><Trash2 size={16} /></button>
               </div>
             </article>
           );
@@ -694,6 +750,10 @@ function planVideoIds(groups: DuplicateGroup[], selectedKeepByGroup: Record<stri
 
 function largestVideoSize(group: DuplicateGroup): number {
   return group.items.reduce((largest, item) => Math.max(largest, item.video.sizeBytes), 0);
+}
+
+function normalizeDirectoryForComparison(directoryPath: string): string {
+  return directoryPath.replace(/\//g, "\\").replace(/\\+$/, "").toLocaleLowerCase();
 }
 
 function changeTypeLabel(changeType: DuplicateResolveChangedItem["changeType"]): string {

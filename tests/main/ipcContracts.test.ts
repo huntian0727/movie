@@ -68,6 +68,8 @@ describe("IPC_CHANNELS", () => {
       videoDelete: "video:delete",
       videoForget: "video:forget",
       videoRegenerateCover: "video:regenerate-cover",
+      previewImageLoad: "preview-image:load",
+      previewImageCancel: "preview-image:cancel",
       videoRetryMetadata: "video:retry-metadata",
       videoOpenPlayer: "video:open-player",
       videoPlayExternal: "video:play-external",

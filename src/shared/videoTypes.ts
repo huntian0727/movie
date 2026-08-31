@@ -30,6 +30,10 @@ export interface SourceFolder {
   providerRootPath?: string | null;
   providerName?: string | null;
   providerReadOnly?: boolean;
+  videoCount?: number;
+  providerIdentityCount?: number;
+  duplicateSizeCandidateCount?: number;
+  duplicateDurationReadyCount?: number;
 }
 
 export interface CloudDriveBrowseRoot {
@@ -284,7 +288,6 @@ export interface DuplicateCandidate {
   video: VideoRecord;
   isRecommendedToKeep: boolean;
   keepReason: string | null;
-  isProtected?: boolean;
   canAutoDelete?: boolean;
 }
 
@@ -298,12 +301,20 @@ export interface DuplicateGroup {
   reclaimableBytes: number;
 }
 
+export interface PreviewImageRequest {
+  requestId: string;
+  url: string;
+  cachedOnly: boolean;
+  priority: 0 | 1 | 2;
+}
+
 export interface DuplicateGroupPageQuery {
   page: number;
   pageSize: DuplicatePageSize;
   sortDirection: SortDirection;
   preferredDirectoryPath?: string;
   preferredDirectoryPaths?: string[];
+  filterDirectoryPath?: string;
 }
 
 export interface DuplicateDirectoryOption {
@@ -318,9 +329,12 @@ export interface DuplicateGroupPage {
   pageSize: DuplicatePageSize;
   totalPages: number;
   totalGroups: number;
+  overallTotalGroups: number;
   totalCandidateGroups: number;
   totalCandidateFiles: number;
   totalReclaimableBytes: number;
+  totalDeletableFiles: number;
+  totalUnboundDeletionCandidateFiles: number;
   directoryOptions: DuplicateDirectoryOption[];
 }
 
@@ -832,6 +846,8 @@ export const IPC_CHANNELS = {
   videoBatchMove: "video:batch-move",
   videoForget: "video:forget",
   videoRegenerateCover: "video:regenerate-cover",
+  previewImageLoad: "preview-image:load",
+  previewImageCancel: "preview-image:cancel",
   videoRetryMetadata: "video:retry-metadata",
   videoOpenPlayer: "video:open-player",
   videoPlayExternal: "video:play-external",
@@ -911,6 +927,8 @@ export interface VideoManagerApi {
   moveVideos(videoIds: string[], targetDirectory: string, addTargetToLibrary: boolean): Promise<BatchMoveResult>;
   forgetVideo(videoId: string): Promise<boolean>;
   regenerateCover(videoId: string): Promise<VideoRecord>;
+  loadPreviewImage(request: PreviewImageRequest): Promise<Uint8Array | null>;
+  cancelPreviewImage(requestId: string): Promise<void>;
   retryMetadata(videoId: string): Promise<VideoRecord>;
   openPlayer(videoId: string, queueIds: string[]): Promise<boolean>;
   playExternalVideo(videoId: string): Promise<boolean>;

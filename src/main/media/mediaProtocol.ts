@@ -5,10 +5,34 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import type { VideoRepository } from "../db/videoRepository.js";
 import { buildCacheKey, generateCover, generateTimelineFrame, getCoverPath, getCoverTimeSeconds, getTimelineFramePath } from "./cacheService.js";
-import { CacheGenerationSupersededError, type MediaCacheManager } from "./cacheManager.js";
+import { CacheGenerationSupersededError, ImageCacheMissError, type MediaCacheManager } from "./cacheManager.js";
+import { ImageRequestCancelledError, type ImageRequestOptions } from "./imageGenerationQueue.js";
 import { getTimelinePreviewFromUrl, getVideoIdFromCoverUrl, getVideoIdFromMediaUrl, MEDIA_SCHEME } from "./mediaUrl.js";
 
 export { MEDIA_SCHEME } from "./mediaUrl.js";
+
+export async function loadPreviewImage(
+  repo: VideoRepository, cacheManager: MediaCacheManager, url: string,
+  coverTimeSeconds: number, options: ImageRequestOptions = {}
+): Promise<Uint8Array | null> {
+  const parsed = new URL(url);
+  const preview = parsed.hostname === "preview" ? getTimelinePreviewFromUrl(url) : null;
+  const videoId = preview?.videoId ?? getVideoIdFromCoverUrl(url);
+  const video = repo.getVideo(videoId);
+  const cacheKey = buildCacheKey(video.path, video.sizeBytes, video.modifiedAt);
+  const readOptions = { ...options, cachedOnly: options.cachedOnly || video.isMissing };
+  try {
+    if (preview) {
+      const framePath = getTimelineFramePath(cacheManager.root, cacheKey, preview.timeMs);
+      return await ensureTimelineFrame(cacheManager, repo, video.id, video.path, framePath, preview.timeMs, readOptions);
+    }
+    const time = getCoverTimeSeconds(coverTimeSeconds, video.durationMs);
+    return await ensureCover(cacheManager, repo, video.id, video.path, getCoverPath(cacheManager.root, cacheKey, time), time, readOptions);
+  } catch (error) {
+    if (error instanceof ImageCacheMissError || error instanceof ImageRequestCancelledError || options.signal?.aborted) return null;
+    throw error;
+  }
+}
 
 const imageResponseHeaders = {
   "Cache-Control": "no-store"
@@ -29,23 +53,12 @@ export function registerMediaProtocol(
         return createVideoResponse(video.path, getRequestHeader(request, "range"));
       }
 
-      if (parsed.hostname === "preview") {
-        const { videoId, timeMs } = getTimelinePreviewFromUrl(request.url);
-        const video = repo.getVideo(videoId);
-        const cacheKey = buildCacheKey(video.path, video.sizeBytes, video.modifiedAt);
-        const framePath = getTimelineFramePath(cacheManager.root, cacheKey, timeMs);
-        const body = await ensureTimelineFrame(cacheManager, repo, video.id, video.path, framePath, timeMs);
-        return createImageResponse(body);
-      }
-
-      if (parsed.hostname === "cover") {
-        const videoId = getVideoIdFromCoverUrl(request.url);
-        const video = repo.getVideo(videoId);
-        const cacheKey = buildCacheKey(video.path, video.sizeBytes, video.modifiedAt);
-        const timeSeconds = getCoverTimeSeconds(getCoverFrameTimeSeconds(), video.durationMs);
-        const coverPath = getCoverPath(cacheManager.root, cacheKey, timeSeconds);
-        const body = await ensureCover(cacheManager, repo, video.id, video.path, coverPath, timeSeconds);
-        return createImageResponse(body);
+      if (parsed.hostname === "preview" || parsed.hostname === "cover") {
+        const body = await loadPreviewImage(repo, cacheManager, request.url, getCoverFrameTimeSeconds(), {
+          signal: request.signal, priority: parsed.hostname === "preview" ? 2 : 1,
+          cachedOnly: parsed.searchParams.get("cachedOnly") === "1"
+        });
+        return body ? createImageResponse(body) : new Response(null, { status: 404 });
       }
 
       throw new Error("Invalid media URL");
@@ -62,17 +75,18 @@ async function ensureTimelineFrame(
   videoId: string,
   inputPath: string,
   outputPath: string,
-  timeMs: number
+  timeMs: number,
+  options: ImageRequestOptions = {}
 ): Promise<Buffer> {
   try {
     const body = await cacheManager.getOrCreateImage(
       outputPath,
-      (temporaryPath) => generateTimelineFrame(inputPath, temporaryPath, timeMs)
+      (temporaryPath, signal) => generateTimelineFrame(inputPath, temporaryPath, timeMs, { signal }), options
     );
     repo.markTimelinePreviewReady(videoId, timeMs, outputPath);
     return body;
   } catch (error) {
-    if (!(error instanceof CacheGenerationSupersededError)) repo.markTimelinePreviewFailed(videoId);
+    if (!isIgnoredImageError(error, options)) repo.markTimelinePreviewFailed(videoId);
     throw error;
   }
 }
@@ -83,23 +97,27 @@ async function ensureCover(
   videoId: string,
   inputPath: string,
   outputPath: string,
-  timeSeconds: number
+  timeSeconds: number,
+  options: ImageRequestOptions = {}
 ): Promise<Buffer> {
   try {
     const body = await cacheManager.getOrCreateImage(
       outputPath,
-      (temporaryPath) => generateCover(inputPath, temporaryPath, timeSeconds)
+      (temporaryPath, signal) => generateCover(inputPath, temporaryPath, timeSeconds, { signal }), options
     );
     repo.markThumbnailReady(videoId, outputPath);
     return body;
   } catch (error) {
-    if (error instanceof CacheGenerationSupersededError) repo.markThumbnailPending(videoId);
-    else repo.markThumbnailFailed(videoId);
+    if (!isIgnoredImageError(error, options)) repo.markThumbnailFailed(videoId);
     throw error;
   }
 }
 
-function createImageResponse(body: Buffer): Response {
+function isIgnoredImageError(error: unknown, options: ImageRequestOptions): boolean {
+  return Boolean(options.signal?.aborted) || error instanceof CacheGenerationSupersededError || error instanceof ImageRequestCancelledError || error instanceof ImageCacheMissError;
+}
+
+function createImageResponse(body: Uint8Array): Response {
   return new Response(new Uint8Array(body), {
     headers: {
       ...imageResponseHeaders,

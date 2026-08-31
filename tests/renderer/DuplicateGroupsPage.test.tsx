@@ -18,6 +18,10 @@ const groups: DuplicateGroup[] = [{
   reclaimableBytes: duplicateVideo.sizeBytes,
   items: [{ video, isRecommendedToKeep: true, keepReason: "已收藏" }, { video: duplicateVideo, isRecommendedToKeep: false, keepReason: null }]
 }];
+const preferredDirectory = {
+  id: "preferred-1", path: "D:\\Movies", enabled: true,
+  createdAt: "2026-07-09T00:00:00.000Z", updatedAt: "2026-07-09T00:00:00.000Z"
+};
 
 function baseProps() {
   return { groups, onOpen: vi.fn(), onViewDetails: vi.fn() };
@@ -45,7 +49,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
 
   it("submits every candidate removal item for verified automatic deletion without a confirmation dialog", async () => {
     const onAutoDelete = vi.fn().mockResolvedValue({ jobId: "job-1", requestId: "request-1", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
-    render(<DuplicateGroupsPage {...baseProps()} preferredDirectoryPath="D:\\Movies" onAutoDelete={onAutoDelete} />);
+    render(<DuplicateGroupsPage {...baseProps()} preferredDirectories={[preferredDirectory]} onAutoDelete={onAutoDelete} />);
 
     fireEvent.click(screen.getByRole("button", { name: "批量删除候选项（1）" }));
 
@@ -148,14 +152,14 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(screen.queryByLabelText("候选项目录范围")).not.toBeInTheDocument();
   });
 
-  it("shows the full recursive preferred path and clears it directly", () => {
-    const onPreferredDirectoryPathChange = vi.fn();
-    render(<DuplicateGroupsPage {...baseProps()} preferredDirectoryPath={"D:\\Movies\\Archive"} onPreferredDirectoryPathChange={onPreferredDirectoryPathChange} />);
+  it("shows the active directory filter separately and clears it directly", () => {
+    const onClearDirectoryFilter = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} filterDirectoryPath={"D:\\Movies\\Archive"} overallTotalGroups={41} onClearDirectoryFilter={onClearDirectoryFilter} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("D:\\Movies\\Archive");
     expect(screen.getByRole("status")).toHaveTextContent("所有子目录");
-    fireEvent.click(screen.getByRole("button", { name: "清除优先目录" }));
-    expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("");
+    fireEvent.click(screen.getByRole("button", { name: "显示全部 41 组" }));
+    expect(onClearDirectoryFilter).toHaveBeenCalledOnce();
   });
 
   it("preserves an explicit per-group keep choice when directory recommendations reload", async () => {
@@ -163,7 +167,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     const { rerender } = render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
     fireEvent.click(screen.getAllByRole("button", { name: "设为计划保留" })[1]);
 
-    rerender(<DuplicateGroupsPage {...baseProps()} groups={[{ ...groups[0], recommendedKeepVideoId: "delete", items: [...groups[0].items] }]} preferredDirectoryPath="D:\\Backup" onSubmitCleanup={onSubmitCleanup} />);
+    rerender(<DuplicateGroupsPage {...baseProps()} groups={[{ ...groups[0], recommendedKeepVideoId: "delete", items: [...groups[0].items] }]} preferredDirectories={[{ ...preferredDirectory, path: "D:\\Backup" }]} onSubmitCleanup={onSubmitCleanup} />);
     fireEvent.click(screen.getByRole("button", { name: "验证当前页" }));
     fireEvent.click(screen.getByRole("button", { name: "开始完整验证" }));
 
@@ -198,7 +202,8 @@ describe("DuplicateGroupsPage staged safety flow", () => {
       cancelled: false,
       errors: []
     });
-    render(<DuplicateGroupsPage {...baseProps()} onRefresh={onRefresh} onBindLegacyCloudDrive={onBindLegacyCloudDrive} />);
+    render(<DuplicateGroupsPage {...baseProps()} totalDeletableFiles={0} totalUnboundDeletionCandidateFiles={1}
+      onRefresh={onRefresh} onBindLegacyCloudDrive={onBindLegacyCloudDrive} />);
 
     fireEvent.click(screen.getByRole("button", { name: /快速绑定旧资料库/ }));
 
@@ -206,6 +211,24 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("已绑定 2 个重复候选");
     expect(screen.getByRole("status")).toHaveTextContent("未读取任何视频内容");
     expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("keeps same-directory API duplicates deletable when that directory is preferred", () => {
+    render(<DuplicateGroupsPage {...baseProps()} preferredDirectories={[preferredDirectory]}
+      totalReclaimableBytes={4096} totalDeletableFiles={1}
+      totalUnboundDeletionCandidateFiles={0} onAutoDeleteFiltered={vi.fn()} onBindLegacyCloudDrive={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: /快速绑定旧资料库/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /批量删除全部筛选结果/ })).toBeEnabled();
+    expect(screen.queryByText(/批量删除暂不可用/)).not.toBeInTheDocument();
+  });
+
+  it("keeps filtered deletion enabled when the backend reports deletable API files", () => {
+    render(<DuplicateGroupsPage {...baseProps()} totalReclaimableBytes={0} totalDeletableFiles={1}
+      totalUnboundDeletionCandidateFiles={0} onAutoDeleteFiltered={vi.fn()} onBindLegacyCloudDrive={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: /批量删除全部筛选结果/ })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /快速绑定旧资料库/ })).not.toBeInTheDocument();
   });
 
   it("shows live legacy-binding progress and allows cancellation", async () => {
@@ -243,10 +266,20 @@ describe("DuplicateGroupsPage staged safety flow", () => {
   });
 
   it("returns to all groups when a directory filter has no results", () => {
-    const onPreferredDirectoryPathChange = vi.fn();
-    render(<DuplicateGroupsPage {...baseProps()} groups={[]} preferredDirectoryPath="D:\\None" onPreferredDirectoryPathChange={onPreferredDirectoryPathChange} />);
-    fireEvent.click(screen.getByRole("button", { name: "返回全部候选项" }));
-    expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("");
+    const onClearDirectoryFilter = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} groups={[]} totalGroups={0} overallTotalGroups={2035} filterDirectoryPath="D:\\None" onClearDirectoryFilter={onClearDirectoryFilter} />);
+    fireEvent.click(screen.getByRole("button", { name: "显示全部 2035 组重复项" }));
+    expect(onClearDirectoryFilter).toHaveBeenCalledOnce();
+  });
+
+  it("keeps preferred-directory management visible in an empty result state", () => {
+    const onRemovePreferredDirectory = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} groups={[]} totalGroups={0} overallTotalGroups={2035}
+      preferredDirectories={[preferredDirectory]} onRemovePreferredDirectory={onRemovePreferredDirectory} />);
+
+    expect(screen.getByText("当前无匹配")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "移除优先保留目录 D:\\Movies" }));
+    expect(onRemovePreferredDirectory).toHaveBeenCalledWith("preferred-1");
   });
 
   it("does not offer verification when there are no candidate groups", () => {

@@ -1,10 +1,11 @@
 import type { VideoRepository } from "../db/videoRepository.js";
 import type { StructuredLogger } from "../logging/logger.js";
-import { readMetadata, type MediaMetadata } from "./metadataService.js";
+import { readDuration, readMetadata, type MediaMetadata } from "./metadataService.js";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 
 type MetadataReader = (filePath: string) => Promise<MediaMetadata>;
+type DurationReader = (filePath: string) => Promise<number | null>;
 
 export interface MetadataQueueStatus {
   queued: number;
@@ -22,6 +23,7 @@ export class MetadataQueue {
   private pendingBatchSize = 1000;
   private readonly idleWaiters = new Set<() => void>();
   private readonly videoWaiters = new Map<string, Set<() => void>>();
+  private readonly sourceFolderProgress = new Map<string, { completed: number; lastNotified: number }>();
 
   constructor(
     private readonly repo: VideoRepository,
@@ -29,7 +31,8 @@ export class MetadataQueue {
     private readonly concurrency = 1,
     private readonly logger?: StructuredLogger,
     private readonly onVideoUpdated?: (videoId: string) => void,
-    private readonly onSourceFolderUpdated?: (sourceFolderId: string) => void
+    private readonly onSourceFolderUpdated?: (sourceFolderId: string) => void,
+    private readonly durationReader: DurationReader = readDuration
   ) {
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("Metadata queue concurrency must be at least 1");
   }
@@ -108,7 +111,10 @@ export class MetadataQueue {
         this.pump();
         if (this.active === 0 && this.waiting.length === 0) {
           const restored = this.resumePendingBatches && !this.stopped ? this.loadPendingBatch() : 0;
-          if (restored === 0) this.resolveIdleWaiters();
+          if (restored === 0) {
+            this.flushSourceFolderProgress();
+            this.resolveIdleWaiters();
+          }
         }
       });
     }
@@ -145,11 +151,23 @@ export class MetadataQueue {
     if (video.isMissing || video.metadataStatus !== "pending") return;
 
     try {
+      if (video.providerFileId && video.providerPath) {
+        const durationMs = await this.durationReader(video.path);
+        if (this.stopped) return;
+        if (durationMs !== null) {
+          if (this.repo.markDurationReady(video.id, video.path, video.sizeBytes, video.modifiedAt, durationMs)) {
+            this.repo.resolveScanFailuresForObjectStage?.(video.sourceFolderId, video.path, "file", "metadata");
+            this.recordSourceFolderProgress(video.sourceFolderId);
+            this.onVideoUpdated?.(video.id);
+          }
+          return;
+        }
+      }
       const metadata = await this.metadataReader(video.path);
       if (this.stopped) return;
       if (this.repo.markMetadataReady(video.id, video.path, video.sizeBytes, video.modifiedAt, metadata)) {
-        const resolved = this.repo.resolveScanFailuresForObjectStage?.(video.sourceFolderId, video.path, "file", "metadata") ?? 0;
-        if (resolved > 0) this.onSourceFolderUpdated?.(video.sourceFolderId);
+        this.repo.resolveScanFailuresForObjectStage?.(video.sourceFolderId, video.path, "file", "metadata");
+        this.recordSourceFolderProgress(video.sourceFolderId);
         this.onVideoUpdated?.(video.id);
       }
     } catch (error) {
@@ -231,6 +249,23 @@ export class MetadataQueue {
   private resolveIdleWaiters(): void {
     for (const resolve of this.idleWaiters) resolve();
     this.idleWaiters.clear();
+  }
+
+  private recordSourceFolderProgress(sourceFolderId: string): void {
+    const current = this.sourceFolderProgress.get(sourceFolderId) ?? { completed: 0, lastNotified: 0 };
+    current.completed += 1;
+    if (current.completed === 1 || current.completed - current.lastNotified >= 25) {
+      this.onSourceFolderUpdated?.(sourceFolderId);
+      current.lastNotified = current.completed;
+    }
+    this.sourceFolderProgress.set(sourceFolderId, current);
+  }
+
+  private flushSourceFolderProgress(): void {
+    for (const [sourceFolderId, progress] of this.sourceFolderProgress) {
+      if (progress.completed !== progress.lastNotified) this.onSourceFolderUpdated?.(sourceFolderId);
+    }
+    this.sourceFolderProgress.clear();
   }
 }
 

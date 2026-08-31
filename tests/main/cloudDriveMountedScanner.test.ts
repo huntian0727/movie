@@ -146,6 +146,63 @@ describe("CloudDrive mounted scanner", () => {
     expect(repo.getVideoByPath(`${ROOT}\\子目录\\第二部.mkv`)).toMatchObject({ sizeBytes: 456, modifiedAt: MODIFIED });
   });
 
+  it("prefetches remote child directories with bounded concurrency", async () => {
+    const { repo, source } = createRepository();
+    const childCount = 32;
+    let active = 0;
+    let maximumActive = 0;
+    const calls: string[] = [];
+    const cloud: MountedCloudDriveDirectorySource = {
+      readDirectory: async (directoryPath) => {
+        calls.push(directoryPath);
+        if (directoryPath === ROOT) {
+          return listing(Array.from({ length: childCount }, (_, index) => directory(`Child-${index}`, MODIFIED)));
+        }
+        active += 1;
+        maximumActive = Math.max(maximumActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        active -= 1;
+        return listing([]);
+      }
+    };
+
+    const startedAt = performance.now();
+    const result = await scanSourceFolder(repo, source, {
+      cloudDirectorySource: async () => cloud,
+      cloudDirectoryConcurrency: 16
+    });
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(result).toMatchObject({ state: "completed", failureCount: 0 });
+    expect(calls).toHaveLength(childCount + 1);
+    expect(maximumActive).toBe(16);
+    expect(elapsedMs).toBeLessThan(350);
+  });
+
+  it("commits API file imports once per directory instead of once per video", async () => {
+    const { repo, source } = createRepository();
+    const transaction = vi.spyOn(repo, "runInTransaction");
+    const readMetadata = vi.fn();
+    const cloud = directorySource({
+      [ROOT]: [providerFile("one.mp4", 100, MODIFIED), providerFile("two.mp4", 200, MODIFIED)]
+    });
+
+    const result = await scanSourceFolder(repo, source, {
+      cloudDirectorySource: async () => cloud,
+      onMetadataPending: vi.fn(),
+      readMetadata
+    });
+
+    expect(result).toMatchObject({ state: "completed", totalFiles: 2, failureCount: 0 });
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(readMetadata).not.toHaveBeenCalled();
+    expect(repo.getVideoByPath(`${ROOT}\\one.mp4`)).toMatchObject({
+      metadataStatus: "pending",
+      providerFileId: "id-one.mp4",
+      providerPath: "/remote/one.mp4"
+    });
+  });
+
   it("includes cloud metadata in snapshot identity so same-name changes are processed", async () => {
     const { repo, source } = createRepository();
     let size = 100;
@@ -222,6 +279,15 @@ function mount(mountPoint: string, sourceDir: string) {
 
 function file(name: string, sizeBytes: number, modifiedAt: string) {
   return { name, kind: "file" as const, scanIdentity: `file:${sizeBytes}:${modifiedAt}`, fileInfo: { sizeBytes, modifiedAt } };
+}
+
+function providerFile(name: string, sizeBytes: number, modifiedAt: string) {
+  return {
+    name,
+    kind: "file" as const,
+    scanIdentity: `file:${sizeBytes}:${modifiedAt}`,
+    fileInfo: { sizeBytes, modifiedAt, providerFileId: `id-${name}`, providerPath: `/remote/${name}` }
+  };
 }
 
 function directory(name: string, modifiedAt: string) {

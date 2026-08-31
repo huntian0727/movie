@@ -41,6 +41,11 @@ interface MetadataReaderDependencies {
   runProbe?: (ffprobePath: string, filePath: string) => Promise<ProbeResult>;
 }
 
+interface DurationReaderDependencies {
+  ffprobePath?: string;
+  runProbe?: (ffprobePath: string, filePath: string) => Promise<ProbeResult>;
+}
+
 const require = createRequire(import.meta.url);
 const ffprobeStatic = require("ffprobe-static") as FfprobeStaticModule;
 
@@ -70,6 +75,28 @@ export async function readMetadata(
     return parseFfprobeOutput(JSON.parse(stdout) as FfprobeOutput);
   } catch (error) {
     throw new Error(`Unable to parse metadata for ${filePath}: ${toErrorMessage(error)}`, { cause: error });
+  }
+}
+
+/** Reads only container duration, avoiding stream analysis for mounted cloud files. */
+export async function readDuration(
+  filePath: string,
+  dependencies: DurationReaderDependencies = {}
+): Promise<number | null> {
+  let ffprobePath: string;
+  try {
+    ffprobePath = resolveFfprobePath(dependencies.ffprobePath);
+  } catch (error) {
+    throw new Error(`Unable to read duration for ${filePath}: ${toErrorMessage(error)}`, { cause: error });
+  }
+
+  try {
+    const { stdout } = await (dependencies.runProbe ?? executeDurationProbe)(ffprobePath, filePath);
+    const output = JSON.parse(stdout) as Pick<FfprobeOutput, "format">;
+    const seconds = output.format?.duration ? Number(output.format.duration) : Number.NaN;
+    return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds * 1000) : null;
+  } catch (error) {
+    throw new Error(`Unable to read duration for ${filePath}: ${toErrorMessage(error)}`, { cause: error });
   }
 }
 
@@ -107,6 +134,14 @@ function resolveFfprobePath(ffprobePathOverride?: string): string {
 
 async function executeProbe(ffprobePath: string, filePath: string): Promise<ProbeResult> {
   return execa(ffprobePath, ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", filePath], { timeout: 60_000 });
+}
+
+async function executeDurationProbe(ffprobePath: string, filePath: string): Promise<ProbeResult> {
+  return execa(
+    ffprobePath,
+    ["-v", "error", "-show_entries", "format=duration", "-of", "json", filePath],
+    { timeout: 30_000 }
+  );
 }
 
 function toErrorMessage(error: unknown): string {

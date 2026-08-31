@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CacheGenerationSupersededError,
+  ImageCacheMissError,
   MediaCacheManager
 } from "../../src/main/media/cacheManager";
 
@@ -26,6 +27,17 @@ afterEach(async () => {
 }, 30_000);
 
 describe("MediaCacheManager", () => {
+  it("serves cache-only requests without ever scheduling a missing image", async () => {
+    const root = await createRoot();
+    const outputPath = path.join(root, "covers", `${"9".repeat(32)}-5s.jpg`);
+    const manager = new MediaCacheManager(root, generousLimits);
+    const generate = vi.fn();
+    await expect(manager.getOrCreateImage(outputPath, generate, { cachedOnly: true })).rejects.toBeInstanceOf(ImageCacheMissError);
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    await writeFile(outputPath, "cached");
+    expect((await manager.getOrCreateImage(outputPath, generate, { cachedOnly: true })).toString()).toBe("cached");
+    expect(generate).not.toHaveBeenCalled();
+  });
   it("evicts the least-recently-used entries when category or total quotas are exceeded", async () => {
     const root = await createRoot();
     const covers = path.join(root, "covers");

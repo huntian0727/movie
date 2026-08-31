@@ -424,6 +424,53 @@ describe("VideoRepository", () => {
     });
   });
 
+  it("reports CloudDrive identity and targeted duration coverage per source folder", () => {
+    db = createDatabase(path.join(tempDir, "library.sqlite"));
+    const repo = new VideoRepository(db);
+    const folder = repo.addCloudDriveSourceFolder({
+      localPath: "Z:\\Cloud",
+      remotePath: "/115/Cloud",
+      name: "115",
+      readOnly: false,
+      recursive: true
+    });
+    createVideo(repo, folder.id, {
+      path: "Z:\\Cloud\\ready.mp4",
+      directory: "Z:\\Cloud",
+      filename: "ready.mp4",
+      basename: "ready",
+      sizeBytes: 2048,
+      providerFileId: "remote-ready",
+      providerPath: "/115/Cloud/ready.mp4"
+    });
+    const pending = createVideo(repo, folder.id, {
+      path: "Z:\\Cloud\\pending.mp4",
+      directory: "Z:\\Cloud",
+      filename: "pending.mp4",
+      basename: "pending",
+      sizeBytes: 2048,
+      durationMs: null,
+      metadataStatus: "pending",
+      providerFileId: "remote-pending",
+      providerPath: "/115/Cloud/pending.mp4"
+    });
+
+    expect(repo.listSourceFoldersWithStats()[0]).toMatchObject({
+      videoCount: 2,
+      providerIdentityCount: 2,
+      duplicateSizeCandidateCount: 2,
+      duplicateDurationReadyCount: 1
+    });
+    expect(repo.markDurationReady(pending.id, pending.path, pending.sizeBytes, pending.modifiedAt, 6789)).toBe(true);
+    expect(repo.getVideo(pending.id)).toMatchObject({
+      durationMs: 6789,
+      durationSource: "local-probe",
+      metadataStatus: "ready",
+      codecProbeStatus: "unprobed"
+    });
+    expect(repo.listSourceFoldersWithStats()[0]?.duplicateDurationReadyCount).toBe(2);
+  });
+
   it("updates source folder scan state", () => {
     const { repo, folderId } = createRepo();
 
@@ -591,7 +638,7 @@ describe("VideoRepository", () => {
     expect(secondPage.groups.map((group) => group.groupKey)).toEqual(["size-duration:1000:5000"]);
   });
 
-  it("filters duplicate groups by a preferred directory while retaining complete groups and preferring its file", () => {
+  it("filters duplicate groups explicitly while retaining complete groups and preferring its file", () => {
     const { repo, folderId } = createRepo();
     const selected = createVideo(repo, folderId, {
       path: "D:\\Movies\\Series\\keep.mp4",
@@ -634,10 +681,11 @@ describe("VideoRepository", () => {
       page: 1,
       pageSize: 20,
       sortDirection: "desc",
-      preferredDirectoryPath: "D:\\Movies\\Series"
+      preferredDirectoryPath: "D:\\Movies\\Series",
+      filterDirectoryPath: "D:\\Movies\\Series"
     });
 
-    expect(page).toMatchObject({ totalGroups: 1, totalCandidateFiles: 2 });
+    expect(page).toMatchObject({ totalGroups: 1, overallTotalGroups: 2, totalCandidateFiles: 2 });
     expect(page.groups[0]?.items.map((item) => item.video.id)).toEqual(expect.arrayContaining([selected.id, outside.id]));
     expect(page.groups[0]).toMatchObject({ recommendedKeepVideoId: selected.id });
     expect(page.groups[0]?.items.find((item) => item.video.id === selected.id)?.keepReason).toContain("选中目录优先");
@@ -647,6 +695,15 @@ describe("VideoRepository", () => {
       expect.objectContaining({ path: "E:\\Backup", groupCount: 2, estimatedReclaimableBytes: 16000 })
     ]));
     expect(page.directoryOptions.some((option) => option.path === "D:\\Movies\\Solo")).toBe(false);
+
+    const unfiltered = repo.listDuplicateGroupsPage({
+      page: 1,
+      pageSize: 20,
+      sortDirection: "desc",
+      preferredDirectoryPath: "D:\\Movies\\Series"
+    });
+    expect(unfiltered.totalGroups).toBe(2);
+    expect(unfiltered.groups.find((group) => group.groupKey === "size-duration:9000:5000")?.recommendedKeepVideoId).toBe(selected.id);
   });
 
   it("recursively matches descendants without matching a sibling path prefix", () => {
@@ -685,7 +742,8 @@ describe("VideoRepository", () => {
       page: 1,
       pageSize: 20,
       sortDirection: "desc",
-      preferredDirectoryPath: "D:\\Movies\\Series"
+      preferredDirectoryPath: "D:\\Movies\\Series",
+      filterDirectoryPath: "D:\\Movies\\Series"
     });
 
     expect(page.totalGroups).toBe(1);
@@ -694,7 +752,7 @@ describe("VideoRepository", () => {
     expect(page.groups.some((group) => group.groupKey === "size-duration:9200:5000")).toBe(false);
   });
 
-  it("protects multiple preferred directory trees and plans every filtered CloudDrive deletion", () => {
+  it("prioritizes multiple preferred directory trees and still plans other CloudDrive duplicates", () => {
     const { repo, folderId } = createRepo();
     const firstProtected = createVideo(repo, folderId, {
       path: "D:\\Movies\\Keep A\\Season 1\\a.mp4", directory: "D:\\Movies\\Keep A\\Season 1", filename: "a.mp4",
@@ -718,10 +776,21 @@ describe("VideoRepository", () => {
     const page = repo.listDuplicateGroupsPage(query);
     expect(page.groups).toHaveLength(1);
     expect(page.groups[0]?.groupKey).toBe("size-duration:12000:5000");
-    expect(page.groups[0]?.items.filter((item) => item.isProtected).map((item) => item.video.id))
-      .toEqual(expect.arrayContaining([firstProtected.id, secondProtected.id]));
     expect(repo.buildDuplicateResolvePlanForQuery(query)).toEqual({
-      groups: [{ groupKey: "size-duration:12000:5000", keepVideoId: expect.any(String), deleteVideoIds: [outside.id] }]
+      groups: [{ groupKey: "size-duration:12000:5000", keepVideoId: expect.any(String), deleteVideoIds: expect.arrayContaining([outside.id]) }]
+    });
+
+    const fullyProtectedPage = repo.listDuplicateGroupsPage({
+      page: 1,
+      pageSize: 20,
+      sortDirection: "desc",
+      preferredDirectoryPath: "D:\\Movies"
+    });
+    expect(fullyProtectedPage).toMatchObject({
+      totalGroups: 1,
+      totalDeletableFiles: 2,
+      totalUnboundDeletionCandidateFiles: 0,
+      totalReclaimableBytes: 24_000
     });
   });
 
@@ -806,6 +875,10 @@ describe("VideoRepository", () => {
     const child = repo.addSourceFolder("D:\\Movies", true);
 
     expect(repo.getVideo(kept.id).sourceFolderId).toBe(child.id);
+    expect(repo.previewRemoveSourceFolder(parent.id)).toEqual({
+      removedVideoCount: 1,
+      retainedVideoCount: 1
+    });
     expect(repo.removeSourceFolder(parent.id)).toEqual({
       removedVideoCount: 1,
       retainedVideoCount: 1,
@@ -813,6 +886,37 @@ describe("VideoRepository", () => {
     });
     expect(repo.getVideo(kept.id).sourceFolderId).toBe(child.id);
     expect(repo.listVideos({ view: "all", search: "", sortField: "filename", sortDirection: "asc", includeMissing: true }).map((item) => item.filename)).toEqual(["keep.mp4"]);
+  });
+
+  it("bulk reassigns child-source videos to a remaining recursive parent", () => {
+    db = createDatabase(path.join(tempDir, "library.sqlite"));
+    const repo = new VideoRepository(db);
+    const parent = repo.addSourceFolder("D:\\", true);
+    const child = repo.addSourceFolder("D:\\Movies", true);
+    const first = createVideo(repo, child.id, {
+      path: "D:\\Movies\\first.mp4",
+      directory: "D:\\Movies",
+      filename: "first.mp4",
+      basename: "first"
+    });
+    const second = createVideo(repo, child.id, {
+      path: "D:\\Movies\\second.mp4",
+      directory: "D:\\Movies",
+      filename: "second.mp4",
+      basename: "second"
+    });
+
+    expect(repo.previewRemoveSourceFolder(child.id)).toEqual({
+      removedVideoCount: 0,
+      retainedVideoCount: 2
+    });
+    expect(repo.removeSourceFolder(child.id)).toEqual({
+      removedVideoCount: 0,
+      retainedVideoCount: 2,
+      reassignedVideoCount: 2
+    });
+    expect(repo.getVideo(first.id).sourceFolderId).toBe(parent.id);
+    expect(repo.getVideo(second.id).sourceFolderId).toBe(parent.id);
   });
 
   it("persists directory snapshots with normalized path identity", () => {

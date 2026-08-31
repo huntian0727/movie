@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFfprobeOutput, readMetadata } from "../../src/main/media/metadataService";
+import { parseFfprobeOutput, readDuration, readMetadata } from "../../src/main/media/metadataService";
 
 describe("parseFfprobeOutput", () => {
   it("extracts duration, dimensions, and format", () => {
@@ -98,5 +98,21 @@ describe("readMetadata", () => {
         })
       })
     ).rejects.toThrow("Unable to parse metadata for C:\\videos\\bad-json.mp4");
+  });
+});
+
+describe("readDuration", () => {
+  it("uses the lightweight container-duration result", async () => {
+    await expect(readDuration("Z:\\Cloud\\clip.mp4", {
+      ffprobePath: "ffprobe",
+      runProbe: async () => ({ stdout: JSON.stringify({ format: { duration: "123.456" } }) })
+    })).resolves.toBe(123456);
+  });
+
+  it("returns null when the container has no usable duration", async () => {
+    await expect(readDuration("Z:\\Cloud\\clip.ts", {
+      ffprobePath: "ffprobe",
+      runProbe: async () => ({ stdout: JSON.stringify({ format: {} }) })
+    })).resolves.toBeNull();
   });
 });

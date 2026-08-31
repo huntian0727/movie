@@ -3,6 +3,7 @@ import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, Heart, Info, L
 import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoRecord } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, formatShortcutBinding, matchesShortcut } from "../../shared/shortcuts";
 import { formatBytes, formatDuration } from "./formatters";
+import { PreviewImage } from "./PreviewImage";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 
 const FULLSCREEN_CONTROLS_HIDE_DELAY_MS = 2200;
@@ -628,7 +629,7 @@ export function PlayerPage({
                   }}
                 >
                   <span className="player-playlist-cover">
-                    {coverUrl ? <img src={coverUrl} alt="" loading="lazy" /> : <Play size={22} fill="currentColor" />}
+                    {coverUrl ? <PreviewImage src={coverUrl} priority={0} /> : <Play size={22} fill="currentColor" />}
                     <em>{formatPlaylistDuration(item, decodedDurationMs)}</em>
                   </span>
                   <span className="player-playlist-meta">
@@ -686,9 +687,9 @@ export function PlayerPage({
           {hoverTime !== null && (
             <div className="progress-preview" style={{ left: `${(hoverTime / progressMax) * 100}%` }}>
               {showHoverPreviewImage && (
-                <img
+                <PreviewImage
                   src={hoverPreviewUrl}
-                  alt=""
+                  eager priority={2} delayMs={180}
                   style={{ "--preview-aspect-ratio": previewAspectRatio } as React.CSSProperties}
                   onError={() => {
                     setFailedPreviewUrls((current) => new Set(current).add(hoverPreviewUrl));

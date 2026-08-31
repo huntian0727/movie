@@ -1,5 +1,5 @@
 import { BrowserWindow, app, net, protocol } from "electron";
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -44,8 +44,13 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
   if (context.phase === "create") {
     const fixtureDirectory = path.join(context.userDataPath, "packaged-smoke-fixture");
     await mkdir(fixtureDirectory, { recursive: true });
-    const fixtureBytes = Buffer.from("packaged-smoke-video-fixture");
-    await writeFile(path.join(fixtureDirectory, "sample.mp4"), fixtureBytes);
+    const fixturePath = path.join(fixtureDirectory, "sample.mp4");
+    const fixtureFfmpeg = require("ffmpeg-static") as string | null;
+    if (!fixtureFfmpeg) throw new Error("ffmpeg-static is unavailable");
+    await execa(resolvePackagedExecutablePath(fixtureFfmpeg), [
+      "-y", "-f", "lavfi", "-i", "color=c=blue:s=160x90:r=1", "-t", "6", "-c:v", "mpeg4", fixturePath
+    ], { timeout: 10_000, windowsHide: true });
+    const fixtureBytes = await readFile(fixturePath);
 
     context.metadataQueue.pause();
     const folder = context.repo.addSourceFolder(fixtureDirectory, false);
@@ -69,6 +74,7 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
       protocolResponse.status === 206 &&
       Buffer.from(await protocolResponse.arrayBuffer()).equals(fixtureBytes.subarray(0, 8));
     Object.assign(checks, await verifyPackagedRendererSecurity(context.currentDir));
+    Object.assign(checks, await verifyPackagedPreview(context.currentDir, videos[0].id));
 
     const ffmpegPath = require("ffmpeg-static") as string | null;
     const ffprobePath = (require("ffprobe-static") as StaticBinaryModule).path;
@@ -108,6 +114,39 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
     JSON.stringify({ ok: true, phase: context.phase, checks, electron: process.versions.electron }, null, 2),
     "utf8"
   );
+}
+
+async function verifyPackagedPreview(currentDir: string, videoId: string): Promise<Record<string, boolean>> {
+  const entryPath = path.join(currentDir, "../../dist-renderer/index.html");
+  const entryUrl = pathToFileURL(entryPath).href;
+  const window = new BrowserWindow({ show: false, webPreferences: {
+    contextIsolation: true, nodeIntegration: false, sandbox: true,
+    preload: path.join(currentDir, "preload.cjs"),
+    additionalArguments: ["--video-manager-window-role=main", `--video-manager-entry-url=${encodeURIComponent(entryUrl)}`]
+  } });
+  configureWindowSecurity(window, { role: "main", entryUrl });
+  try {
+    await window.loadFile(entryPath);
+    return await window.webContents.executeJavaScript(`(async () => {
+      const id = ${JSON.stringify(videoId)};
+      const url = 'local-video://cover/' + encodeURIComponent(id);
+      const request = (cachedOnly) => window.videoManager.loadPreviewImage({requestId: crypto.randomUUID(), url, cachedOnly, priority: 2});
+      const before = await window.videoManager.listVideosByIds([id]);
+      const bytes = await request(false);
+      const img = new Image();
+      const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], {type:'image/jpeg'}));
+      try { img.src = blobUrl; await img.decode(); } finally { URL.revokeObjectURL(blobUrl); }
+      const cached = await request(true);
+      await window.videoManager.regenerateCover(id);
+      const regenerated = await request(false);
+      return {
+        previewGeneratedBeforeMetadata: before[0].metadataStatus === 'pending' && bytes?.length > 0,
+        previewDecodedInRenderer: img.naturalWidth > 0,
+        previewCacheHit: cached?.length > 0,
+        previewRegenerated: regenerated?.length > 0
+      };
+    })()`);
+  } finally { window.destroy(); }
 }
 
 async function verifyPackagedRendererSecurity(currentDir: string): Promise<Record<string, boolean>> {

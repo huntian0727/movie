@@ -462,6 +462,28 @@ describe("LibraryShell", () => {
     expect(container.querySelector(".video-cover img")).not.toBeNull();
   });
 
+  it("retries a failed preview explicitly even when its URL stays unchanged", async () => {
+    const onRegenerateCover = vi.fn().mockResolvedValue(undefined);
+    const getCoverUrl = () => "local-video://cover/v1?v=unchanged";
+    const { container } = render(<LibraryShell videos={[{ ...video, metadataStatus: "pending" }]} getCoverUrl={getCoverUrl} onRegenerateCover={onRegenerateCover} />);
+    fireEvent.error(container.querySelector(".video-cover img")!);
+    expect(screen.getByText("预览加载失败，可点击重新生成重试")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新生成 clip.mp4 的预览" }));
+    await waitFor(() => expect(container.querySelector(".video-cover img")).not.toBeNull());
+    expect(onRegenerateCover).toHaveBeenCalledOnce();
+  });
+
+  it("shows preview reset errors and permits another attempt", async () => {
+    const onRegenerateCover = vi.fn().mockRejectedValue(new Error("read error"));
+    render(<LibraryShell videos={[video]} onRegenerateCover={onRegenerateCover} />);
+    const retry = screen.getByRole("button", { name: "重新生成 clip.mp4 的预览" });
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.getByText("预览加载失败，可点击重新生成重试")).toBeInTheDocument());
+    expect(retry).not.toBeDisabled();
+    fireEvent.click(retry);
+    await waitFor(() => expect(onRegenerateCover).toHaveBeenCalledTimes(2));
+  });
+
   it("uses each video's aspect ratio for the cover container", () => {
     const portraitVideo = {
       ...video,
@@ -556,6 +578,7 @@ describe("LibraryShell", () => {
       pageSize: 20,
       totalPages: 3,
       totalGroups: 41,
+      overallTotalGroups: 41,
       totalCandidateGroups: 45,
       totalCandidateFiles: 90,
       totalReclaimableBytes: 4096,
@@ -586,7 +609,8 @@ describe("LibraryShell", () => {
       page: 1,
       pageSize: 20,
       sortDirection: "asc",
-      preferredDirectoryPath: "D:\\Movies"
+      preferredDirectoryPath: "D:\\Movies",
+      filterDirectoryPath: "D:\\Movies"
     }));
 
     fireEvent.click(screen.getByRole("button", { name: "下一页" }));
@@ -594,14 +618,16 @@ describe("LibraryShell", () => {
       page: 2,
       pageSize: 20,
       sortDirection: "asc",
-      preferredDirectoryPath: "D:\\Movies"
+      preferredDirectoryPath: "D:\\Movies",
+      filterDirectoryPath: "D:\\Movies"
     }));
     fireEvent.click(screen.getByRole("button", { name: "优先保留 D:\\Movies\\Drama 及其所有子目录（来自 episode-01.mp4）" }));
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
       page: 1,
       pageSize: 20,
       sortDirection: "asc",
-      preferredDirectoryPath: "D:\\Movies\\Drama"
+      preferredDirectoryPath: "D:\\Movies\\Drama",
+      filterDirectoryPath: "D:\\Movies\\Drama"
     }));
   });
 
@@ -855,5 +881,26 @@ describe("LibraryShell", () => {
     rerender(<LibraryShell videos={[]} folders={[folder]} refreshSequence={8} onLoadVideoPage={onLoadVideoPage} />);
 
     await waitFor(() => expect(onLoadVideoPage).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows CloudDrive API identity and targeted duration coverage on source folders", () => {
+    render(
+      <LibraryShell
+        videos={[]}
+        folders={[{
+          ...folder,
+          providerType: "clouddrive",
+          providerRootPath: "/115/Movies",
+          providerName: "115",
+          videoCount: 17016,
+          providerIdentityCount: 17016,
+          duplicateSizeCandidateCount: 3639,
+          duplicateDurationReadyCount: 320
+        }]}
+      />
+    );
+
+    expect(screen.getByText("API")).toBeInTheDocument();
+    expect(screen.getByText("API · 17,016 项已绑定 · 候选时长 320/3,639")).toBeInTheDocument();
   });
 });

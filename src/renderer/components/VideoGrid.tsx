@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BookmarkX, Film, FolderOpen, FolderSearch, Heart, Info, Pencil, Play, RotateCw, Trash2 } from "lucide-react";
 import type { VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDuration } from "./formatters";
+import { PreviewImage } from "./PreviewImage";
 
 interface VideoGridProps {
   videos: VideoRecord[];
@@ -24,6 +25,27 @@ interface VideoGridProps {
 
 export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggleFavorite, onTogglePendingDelete, onRename, onDelete, onRegenerateCover, onRetryMetadata, onRevealInFolder, onShowDirectory, cardWidth, selectionMode = false, selectedIds, onToggleSelection }: VideoGridProps) {
   const [failedCoverUrls, setFailedCoverUrls] = useState<Set<string>>(() => new Set());
+  const [explicitPreviewIds, setExplicitPreviewIds] = useState<Set<string>>(() => new Set());
+  const [previewAttempts, setPreviewAttempts] = useState<Record<string, number>>({});
+  const [previewStates, setPreviewStates] = useState<Record<string, "loading" | "ready" | "failed">>({});
+  const [resettingIds, setResettingIds] = useState<Set<string>>(() => new Set());
+
+  const retryPreview = async (video: VideoRecord, url: string | null) => {
+    if (!onRegenerateCover || resettingIds.has(video.id)) return;
+    setResettingIds((current) => new Set(current).add(video.id));
+    setPreviewStates((current) => ({ ...current, [video.id]: "loading" }));
+    try {
+      await onRegenerateCover(video);
+      setExplicitPreviewIds((current) => new Set(current).add(video.id));
+      setFailedCoverUrls((current) => { const next = new Set(current); if (url) next.delete(url); return next; });
+      // Explicit retry must work even if the database timestamp / URL is unchanged.
+      setPreviewAttempts((current) => ({ ...current, [video.id]: (current[video.id] ?? 0) + 1 }));
+    } catch {
+      setPreviewStates((current) => ({ ...current, [video.id]: "failed" }));
+    } finally {
+      setResettingIds((current) => { const next = new Set(current); next.delete(video.id); return next; });
+    }
+  };
 
   return (
     <div
@@ -54,13 +76,15 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
               }}
             >
               {coverUrl ? (
-                <img
+                <PreviewImage
+                  key={`${video.id}:${previewAttempts[video.id] ?? 0}`}
                   src={coverUrl}
-                  alt=""
-                  loading="lazy"
+                  priority={explicitPreviewIds.has(video.id) ? 2 : 1}
                   onError={() => {
+                    setPreviewStates((current) => ({ ...current, [video.id]: "failed" }));
                     setFailedCoverUrls((current) => new Set(current).add(coverUrl));
                   }}
+                  onStateChange={(state) => setPreviewStates((current) => current[video.id] === state ? current : { ...current, [video.id]: state })}
                 />
               ) : (
                 <Film size={42} strokeWidth={1.4} aria-hidden="true" />
@@ -107,7 +131,7 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
                   <Trash2 size={16} />
                 </button>
                 {onRegenerateCover && (
-                  <button aria-label={`重新生成 ${video.filename} 的预览`} title="重新生成预览" onClick={() => void onRegenerateCover(video)}>
+                  <button aria-label={`重新生成 ${video.filename} 的预览`} title="重新生成预览" disabled={resettingIds.has(video.id)} onClick={() => void retryPreview(video, requestedCoverUrl)}>
                     <RotateCw size={16} />
                   </button>
                 )}
@@ -131,6 +155,8 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
                   </button>
                 )}
               </div>
+              {previewStates[video.id] === "loading" && <p role="status">预览排队或生成中…</p>}
+              {previewStates[video.id] === "failed" && <p role="status">预览加载失败，可点击重新生成重试</p>}
             </div>
           </article>
         );

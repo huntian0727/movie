@@ -31,6 +31,7 @@ import {
 import type { DiagnosticEnvironment } from "./logging/types.js";
 import type { StructuredLogger } from "./logging/logger.js";
 import { buildCacheKey, getCoverPath, getCoverTimeSeconds } from "./media/cacheService.js";
+import { loadPreviewImage } from "./media/mediaProtocol.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
 import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js";
 import { bindLegacyCloudDriveDuplicateCandidates } from "./media/cloudDriveLegacyBindingService.js";
@@ -158,7 +159,8 @@ const duplicateGroupPageQuerySchema = z.object({
   pageSize: z.union([z.literal(10), z.literal(20), z.literal(50), z.literal(100), z.literal(200), z.literal(300), z.literal(500)]),
   sortDirection: z.enum(["asc", "desc"]),
   preferredDirectoryPath: z.string().min(1).optional(),
-  preferredDirectoryPaths: z.array(z.string().min(1)).max(100).optional()
+  preferredDirectoryPaths: z.array(z.string().min(1)).max(100).optional(),
+  filterDirectoryPath: z.string().min(1).optional()
 }).strict();
 const duplicateResolvePlanSchema = z
   .object({
@@ -341,6 +343,40 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
   ipcLogger = dependencies.logger;
+  const imageRequests = new Map<number, Map<string, AbortController>>();
+  const observedImageOwners = new Set<number>();
+  const imageRequestSchema = z.object({
+    requestId: z.string().uuid(), url: z.string().max(4096), cachedOnly: z.boolean(),
+    priority: z.union([z.literal(0), z.literal(1), z.literal(2)])
+  }).strict();
+  ipcMain.handle(IPC_CHANNELS.previewImageLoad, async (event, request: unknown) => {
+    const parsed = imageRequestSchema.parse(request);
+    const owner = event.sender.id;
+    if (!observedImageOwners.has(owner)) {
+      observedImageOwners.add(owner);
+      const cancelOwner = () => {
+        for (const controller of imageRequests.get(owner)?.values() ?? []) controller.abort();
+        imageRequests.delete(owner);
+      };
+      event.sender.on("did-start-navigation", cancelOwner);
+      event.sender.once("destroyed", () => { cancelOwner(); observedImageOwners.delete(owner); });
+    }
+    const requests = imageRequests.get(owner) ?? new Map<string, AbortController>();
+    if (requests.size >= 256 || requests.has(parsed.requestId)) throw new Error("Too many or duplicate image requests");
+    imageRequests.set(owner, requests);
+    const controller = new AbortController();
+    requests.set(parsed.requestId, controller);
+    try {
+      return await loadPreviewImage(repo, dependencies.cacheManager, parsed.url, dependencies.settings.get().coverFrameTimeSeconds,
+        { signal: controller.signal, priority: parsed.priority, cachedOnly: parsed.cachedOnly });
+    } finally {
+      requests.delete(parsed.requestId);
+    }
+  });
+  ipcMain.handle(IPC_CHANNELS.previewImageCancel, (event, requestId: unknown) => {
+    const id = z.string().uuid().parse(requestId);
+    imageRequests.get(event.sender.id)?.get(id)?.abort();
+  });
   let legacyCloudDriveBindingInFlight: Promise<Awaited<ReturnType<typeof bindLegacyCloudDriveDuplicateCandidates>>> | null = null;
   let legacyCloudDriveBindingAbortController: AbortController | null = null;
   let legacyCloudDriveBindingStatus: CloudDriveLegacyBindingProgress = {
@@ -529,7 +565,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return true;
   });
 
-  ipcMain.handle(IPC_CHANNELS.folderList, () => repo.listSourceFolders());
+  ipcMain.handle(IPC_CHANNELS.folderList, () => repo.listSourceFoldersWithStats());
 
   ipcMain.handle(IPC_CHANNELS.cloudDriveFolderRoots, () => listConfiguredCloudDriveFolderRoots());
   ipcMain.handle(IPC_CHANNELS.cloudDriveFolderBrowse, (_event, selection) =>
@@ -661,7 +697,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.folderRemove, (_event, folderId: unknown) => {
     const parsedFolderId = z.string().min(1).parse(folderId);
-    dependencies.duplicateCleanup.assertVideosAvailable(repo.listVideosBySourceFolder(parsedFolderId).map((video) => video.id));
+    dependencies.duplicateCleanup.assertSourceFolderVideosAvailable(parsedFolderId);
     dependencies.scanManager.forget(parsedFolderId);
     const result = repo.removeSourceFolder(parsedFolderId);
     dependencies.cacheManager.scheduleMaintenance(true);
