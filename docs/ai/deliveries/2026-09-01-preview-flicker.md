@@ -31,9 +31,11 @@ status: completed
 - `npm run test:electron-smoke` / `npm run verify:artifact`: PASS。
 - `npm run test:packaged-smoke`: PASS，`previewStableAcrossPagePolling=true`；真实页面观察 5 秒，图片节点和 src 均未替换。此前首次生成、缓存读取和显式重新生成检查仍通过。安全 smoke 的未授权 IPC 拒绝日志为预期结果。
 - 静默安装 0.1.9: PASS（退出码 0）。通过 computer-use 从正式桌面快捷方式启动的窗口验证所有视频页和测试目录封面显示。
+- 测试目录停留后再次截图，封面持续显示、未回退到排队占位；验证结束后已返回所有视频页。
 - 桌面正式入口目标为 `C:\Users\test\AppData\Local\Programs\Local Video Manager\Local Video Manager.exe`。Dev 入口为当前重建的 `release/win-unpacked/Local Video Manager.exe`。两个包版本均 0.1.9，app.asar SHA-256 均为 `aa1fee4cdfd978d5359ccddac5b42c17f079b5556019b1f84aa9c5334e0e770b`。
 - app.asar 本轮生成时间为本地 2026-09-01 01:51:56；最后提交仅补充交付记录，程序文件属于当前分支本轮构建。
 - 自动交付使用 `-SkipChecks` 的依据：同一工作区本轮完整执行了上列 lint/typecheck、npm test、build、Electron smoke 与 packaged smoke，避免重复切换原生 SQLite 的 Node/Electron ABI；未跳过失败门禁。
+- 应用代码提交为 `8f7a460`。首次自动交付在 fetch origin main 时遇到 Connection reset，尚未推送；后续只读远程检查恢复正常，补录此结果后重新运行自动交付脚本。最终同步与备份标签以脚本输出为准。
 - 无独立 test:e2e 脚本；真实打包运行回归由 packaged smoke 覆盖。
 
 ## Risks and follow-up
