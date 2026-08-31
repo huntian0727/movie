@@ -119,7 +119,7 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
 async function verifyPackagedPreview(currentDir: string, videoId: string): Promise<Record<string, boolean>> {
   const entryPath = path.join(currentDir, "../../dist-renderer/index.html");
   const entryUrl = pathToFileURL(entryPath).href;
-  const window = new BrowserWindow({ show: false, webPreferences: {
+  const window = new BrowserWindow({ show: true, webPreferences: {
     contextIsolation: true, nodeIntegration: false, sandbox: true,
     preload: path.join(currentDir, "preload.cjs"),
     additionalArguments: ["--video-manager-window-role=main", `--video-manager-entry-url=${encodeURIComponent(entryUrl)}`]
@@ -139,11 +139,30 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
       const cached = await request(true);
       await window.videoManager.regenerateCover(id);
       const regenerated = await request(false);
+      const visibleCover = await new Promise((resolve, reject) => {
+        const deadline = Date.now() + 5000;
+        const poll = () => {
+          const cover = document.querySelector('.video-cover img[data-preview-state="ready"]');
+          if (cover?.complete && cover.naturalWidth > 0) return resolve(cover);
+          if (Date.now() >= deadline) return reject(new Error('Visible preview did not become ready'));
+          setTimeout(poll, 50);
+        };
+        poll();
+      });
+      const visibleSource = visibleCover.src;
+      let sourceChanges = 0;
+      const observer = new MutationObserver((records) => { sourceChanges += records.filter(r => r.attributeName === 'src').length; });
+      observer.observe(visibleCover, {attributes: true, attributeFilter: ['src']});
+      // Pending metadata causes a real 1.5-second page poll. Watch at least three cycles.
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      observer.disconnect();
+      const afterPolling = document.querySelector('.video-cover img');
       return {
         previewGeneratedBeforeMetadata: before[0].metadataStatus === 'pending' && bytes?.length > 0,
         previewDecodedInRenderer: img.naturalWidth > 0,
         previewCacheHit: cached?.length > 0,
-        previewRegenerated: regenerated?.length > 0
+        previewRegenerated: regenerated?.length > 0,
+        previewStableAcrossPagePolling: afterPolling === visibleCover && afterPolling.src === visibleSource && sourceChanges === 0
       };
     })()`);
   } finally { window.destroy(); }

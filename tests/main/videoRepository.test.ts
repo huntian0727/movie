@@ -48,6 +48,22 @@ function createVideo(repo: VideoRepository, folderId: string, overrides: Partial
 }
 
 describe("VideoRepository", () => {
+  it("does not rewrite video timestamps on cover and timeline cache hits", () => {
+    const { repo, folderId } = createRepo();
+    const video = createVideo(repo, folderId);
+    repo.markThumbnailReady(video.id, "C:\\cache\\cover.jpg");
+    const ready = repo.getVideo(video.id);
+    repo.markThumbnailReady(video.id, "C:\\cache\\cover.jpg");
+    expect(db!.prepare("SELECT changes() AS count").get()).toEqual({ count: 0 });
+    expect(repo.getVideo(video.id).updatedAt).toBe(ready.updatedAt);
+    repo.markThumbnailReady(video.id, "C:\\cache\\other.jpg");
+    expect(db!.prepare("SELECT changes() AS count").get()).toEqual({ count: 1 });
+    repo.markTimelinePreviewReady(video.id, 5000, "C:\\cache\\timeline.jpg");
+    const before = db!.prepare("SELECT total_changes() AS count").get();
+    repo.markTimelinePreviewReady(video.id, 5000, "C:\\cache\\timeline.jpg");
+    expect(db!.prepare("SELECT total_changes() AS count").get()).toEqual(before);
+  });
+
   it("creates a source folder and stores a video record", () => {
     const { repo, folderId } = createRepo();
     createVideo(repo, folderId);

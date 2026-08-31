@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { execa } from "execa";
 import { resolvePackagedExecutablePath } from "./packagedExecutable.js";
+export { getCoverTimeSeconds } from "../../shared/previewIdentity.js";
 
 interface CacheGenerationDependencies {
   signal?: AbortSignal;
@@ -60,17 +61,6 @@ export function buildCacheKey(filePath: string, sizeBytes: number, modifiedAt: s
 
 export function getCoverPath(cacheRoot: string, cacheKey: string, timeSeconds = 5): string {
   return path.join(cacheRoot, "covers", `${cacheKey}-${normalizeCoverTimeSeconds(timeSeconds)}s.jpg`);
-}
-
-/**
- * Prevents a requested cover frame from seeking past short clips. A zero-second
- * setting remains zero; otherwise clips shorter than the requested offset use
- * their midpoint, which is generally more useful than a final black frame.
- */
-export function getCoverTimeSeconds(preferredTimeSeconds: number, durationMs: number | null): number {
-  const preferred = normalizeCoverTimeSeconds(preferredTimeSeconds);
-  if (preferred === 0 || !durationMs || durationMs <= 0 || durationMs > preferred * 1000) return preferred;
-  return Number((durationMs / 2000).toFixed(3));
 }
 
 export function getTimelineFramePath(cacheRoot: string, cacheKey: string, timeMs: number): string {

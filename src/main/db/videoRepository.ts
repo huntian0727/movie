@@ -2048,8 +2048,8 @@ export class VideoRepository {
 
   markThumbnailReady(videoId: string, coverCachePath: string): void {
     this.db
-      .prepare("UPDATE videos SET thumbnail_status = 'ready', cover_cache_path = ?, updated_at = ? WHERE id = ?")
-      .run(coverCachePath, new Date().toISOString(), videoId);
+      .prepare("UPDATE videos SET thumbnail_status = 'ready', cover_cache_path = ?, updated_at = ? WHERE id = ? AND (thumbnail_status <> 'ready' OR cover_cache_path IS NOT ?)")
+      .run(coverCachePath, new Date().toISOString(), videoId, coverCachePath);
   }
 
   markThumbnailFailed(videoId: string): void {
@@ -2074,6 +2074,7 @@ export class VideoRepository {
           ON CONFLICT(video_id, time_ms) DO UPDATE SET
             cache_path = excluded.cache_path,
             created_at = excluded.created_at
+          WHERE timeline_previews.cache_path IS NOT excluded.cache_path
         `
       )
       .run({
@@ -2085,7 +2086,7 @@ export class VideoRepository {
       });
 
     this.db
-      .prepare("UPDATE videos SET timeline_preview_status = 'ready', updated_at = ? WHERE id = ?")
+      .prepare("UPDATE videos SET timeline_preview_status = 'ready', updated_at = ? WHERE id = ? AND timeline_preview_status <> 'ready'")
       .run(now, videoId);
   }
 

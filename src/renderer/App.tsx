@@ -9,6 +9,7 @@ import { choosePlaybackRoute } from "../shared/playbackRouting";
 import { DEFAULT_SHORTCUTS } from "../shared/shortcuts";
 import { areVisibleScanStatusesEqual } from "./scanStatus";
 import { startWindowSync } from "./windowSync";
+import { getCoverUrl as getStableCoverUrl } from "../shared/previewIdentity";
 
 const defaultSettings: AppSettings = {
   defaultRecursiveScan: true,
@@ -88,7 +89,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const isPlayerWindow = api.windowMode === "player";
   const recentVideoIds = useMemo(() => playHistory.map((entry) => entry.videoId), [playHistory]);
   const getCoverUrl = useCallback((video: VideoRecord) =>
-    `local-video://cover/${encodeURIComponent(video.id)}?v=${encodeURIComponent(`${video.updatedAt}-${settings.coverFrameTimeSeconds}`)}`,
+    getStableCoverUrl(video, settings.coverFrameTimeSeconds),
   [settings.coverFrameTimeSeconds]);
 
   const reload = useCallback(async (providedSnapshot?: WindowSyncSnapshot) => {

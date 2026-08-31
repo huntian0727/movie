@@ -1,6 +1,8 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PreviewImage } from "../../src/renderer/components/PreviewImage";
+import { getCoverUrl } from "../../src/shared/previewIdentity";
+import type { VideoRecord } from "../../src/shared/videoTypes";
 
 const observers: Array<(visible: boolean) => void> = [];
 let load: ReturnType<typeof vi.fn>;
@@ -21,6 +23,30 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("visible-page preview requests", () => {
+  it("keeps the same loaded blob across metadata polling and visibility changes", async () => {
+    const createObjectURL = vi.fn().mockReturnValue("blob:stable-cover");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL, revokeObjectURL }));
+    load.mockResolvedValue(new Uint8Array([1, 2, 3]));
+    const video = { id: "a", sizeBytes: 100, modifiedAt: "2026-09-01", durationMs: null } as VideoRecord;
+    const { container, rerender, unmount } = render(<PreviewImage src={getCoverUrl(video, 5)} delayMs={0} />);
+    act(() => observers[0](true));
+    await waitFor(() => expect(container.querySelector("img")).toHaveAttribute("data-preview-state", "ready"));
+    const originalImage = container.querySelector("img");
+    for (let tick = 0; tick < 5; tick++) {
+      rerender(<PreviewImage src={getCoverUrl({ ...video, updatedAt: String(tick), thumbnailStatus: "ready" }, 5)} delayMs={0} />);
+      expect(container.querySelector("img")).toBe(originalImage);
+      expect(originalImage).toHaveAttribute("src", "blob:stable-cover");
+    }
+    act(() => observers[0](false));
+    act(() => observers[0](true));
+    expect(load).toHaveBeenCalledOnce();
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:stable-cover");
+  });
+
   it("waits for visibility and cancels the outstanding request when the page leaves", async () => {
     const { unmount } = render(<PreviewImage src="local-video://cover/a" delayMs={0} />);
     expect(load).not.toHaveBeenCalled();
