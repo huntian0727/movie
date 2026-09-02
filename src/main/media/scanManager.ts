@@ -334,10 +334,7 @@ function mergeBatchCounters(counters: ScanCounters, batch?: BatchProgress): Scan
   return batch ? { ...counters, ...batch } : counters;
 }
 
-function isNormalScanMode(mode: ScanMode): boolean {
-  return mode === "current-folder" || mode === "scan-all";
-}
-
 function canExistingTaskSatisfy(existingMode: ScanMode, requestedMode: ScanMode): boolean {
-  return existingMode === requestedMode || (isNormalScanMode(existingMode) && isNormalScanMode(requestedMode));
+  return existingMode === requestedMode
+    || (existingMode === "current-folder" && requestedMode === "scan-all");
 }

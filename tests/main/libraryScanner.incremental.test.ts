@@ -36,15 +36,43 @@ describe("directory snapshot incremental scanning", () => {
     fs.addDirectory(`${ROOT}\\Series`, [file("episode.mp4")]);
     const repo = new MemoryScanRepository();
 
-    const first = await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    const first = await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
     expect(first.counters).toMatchObject({ changedDirectories: 2, addedVideos: 2 });
     expect(fs.fileStatCalls).toBe(2);
 
     fs.resetCounters();
-    const second = await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    const second = await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
     expect(second.counters).toMatchObject({ skippedDirectories: 2, skippedVideos: 2 });
     expect(fs.fileStatCalls).toBe(0);
     expect(fs.directoryStatCalls).toBe(2);
+  });
+
+  it("detects an in-place video replacement during a manual current-folder scan", async () => {
+    const fs = new FakeFileSystem();
+    const filePath = `${ROOT}\\A.mp4`;
+    const directoryMtime = "2026-08-01T00:00:00.000Z";
+    fs.addDirectory(ROOT, [file("A.mp4")]);
+    fs.setDirectoryMtime(ROOT, directoryMtime);
+    fs.setFileMetadata(filePath, 100, "2026-08-01T01:00:00.000Z");
+    const repo = new MemoryScanRepository();
+
+    await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "current-folder" });
+    expect(repo.videos.get(normalizeManagedPath(filePath))).toMatchObject({
+      sizeBytes: 100,
+      modifiedAt: "2026-08-01T01:00:00.000Z"
+    });
+
+    fs.setFileMetadata(filePath, 200, "2026-08-01T02:00:00.000Z");
+    fs.resetCounters();
+    const result = await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "current-folder" });
+
+    expect(result.counters).toMatchObject({ updatedVideos: 1 });
+    expect(fs.fileStatCalls).toBe(1);
+    expect(repo.videos.get(normalizeManagedPath(filePath))).toMatchObject({
+      sizeBytes: 200,
+      modifiedAt: "2026-08-01T02:00:00.000Z",
+      metadataStatus: "pending"
+    });
   });
 
   it("still descends into children when the parent snapshot is unchanged", async () => {
@@ -52,11 +80,11 @@ describe("directory snapshot incremental scanning", () => {
     fs.addDirectory(ROOT, [dir("Series")]);
     fs.addDirectory(`${ROOT}\\Series`, [file("episode-1.mp4")]);
     const repo = new MemoryScanRepository();
-    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
 
     fs.addDirectory(`${ROOT}\\Series`, [file("episode-1.mp4"), file("episode-2.mp4")]);
     fs.resetCounters();
-    const result = await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    const result = await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
 
     expect(result.counters).toMatchObject({ skippedDirectories: 1, changedDirectories: 1, addedVideos: 1 });
     expect(repo.videos.has(normalizeManagedPath(`${ROOT}\\Series\\episode-2.mp4`))).toBe(true);
@@ -68,11 +96,11 @@ describe("directory snapshot incremental scanning", () => {
     fs.addDirectory(ROOT, [file("b.mp4"), file("a.mp4"), dir("Child")]);
     fs.addDirectory(`${ROOT}\\Child`, []);
     const repo = new MemoryScanRepository();
-    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
 
     fs.reverseEntries = true;
     fs.resetCounters();
-    const result = await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    const result = await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
     expect(result.counters).toMatchObject({ changedDirectories: 0, skippedDirectories: 2 });
     expect(fs.fileStatCalls).toBe(0);
   });
@@ -452,12 +480,12 @@ describe("directory snapshot incremental scanning", () => {
       );
     }
     const repo = new MemoryScanRepository();
-    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
 
     fs.resetCounters();
     repo.resetOperationCounters();
     const startedAt = performance.now();
-    const result = await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+    const result = await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
     const metrics = {
       elapsedMs: Math.round((performance.now() - startedAt) * 100) / 100,
       directoryReads: fs.readDirectories.length,
@@ -474,6 +502,35 @@ describe("directory snapshot incremental scanning", () => {
     expect(fs.fileStatCalls).toBe(0);
     expect(fs.directoryStatCalls).toBe(101);
     expect(metrics.databaseWrites).toBe(0);
+  }, 15_000);
+
+  it("stats each direct video at most once when one entry changes in a 10,000-video flat directory", async () => {
+    const fs = new FakeFileSystem();
+    fs.addDirectory(ROOT, Array.from({ length: 10_000 }, (_, index) => file(`V${index}.mp4`)));
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
+
+    fs.addDirectory(ROOT, [
+      ...Array.from({ length: 9_999 }, (_, index) => file(`V${index}.mp4`)),
+      file("replacement.mp4")
+    ]);
+    fs.resetCounters();
+    repo.resetOperationCounters();
+    const startedAt = performance.now();
+    const result = await scanSourceFolder(repo.value, FOLDER, { ...fs.dependencies(), mode: "scan-all" });
+    const metrics = {
+      elapsedMs: Math.round((performance.now() - startedAt) * 100) / 100,
+      directoryReads: fs.readDirectories.length,
+      directoryStatReads: fs.directoryStatCalls,
+      videoStatReads: fs.fileStatCalls,
+      databaseReads: repo.dbReads,
+      databaseWrites: repo.dbWrites
+    };
+    console.info("scan-changed-flat-directory-performance-metrics", JSON.stringify(metrics));
+
+    expect(result.totalFiles).toBe(10_000);
+    expect(result.counters).toMatchObject({ changedDirectories: 1, addedVideos: 1, missingVideos: 1 });
+    expect(metrics).toMatchObject({ directoryReads: 1, directoryStatReads: 1, videoStatReads: 10_000 });
   }, 15_000);
 
   it("retries 100 failures without scanning 9,900 successful videos", async () => {
@@ -520,6 +577,8 @@ describe("directory snapshot incremental scanning", () => {
 class FakeFileSystem {
   private readonly entries = new Map<string, Dirent[]>();
   private readonly directoryReadSequences = new Map<string, Dirent[][]>();
+  private readonly directoryMtimes = new Map<string, string>();
+  private readonly fileMetadata = new Map<string, { size: number; mtime: string }>();
   readonly failDirectories = new Set<string>();
   readonly failFiles = new Set<string>();
   readonly missingFiles = new Set<string>();
@@ -538,6 +597,14 @@ class FakeFileSystem {
 
   setDirectoryReadSequence(directoryPath: string, sequence: Dirent[][]): void {
     this.directoryReadSequences.set(normalizeManagedPath(directoryPath), sequence.map((entries) => [...entries]));
+  }
+
+  setDirectoryMtime(directoryPath: string, mtime: string): void {
+    this.directoryMtimes.set(normalizeManagedPath(directoryPath), mtime);
+  }
+
+  setFileMetadata(filePath: string, size: number, mtime: string): void {
+    this.fileMetadata.set(normalizeManagedPath(filePath), { size, mtime });
   }
 
   resetCounters(): void {
@@ -568,9 +635,12 @@ class FakeFileSystem {
         else this.fileStatCalls += 1;
         if (!isDirectory && this.missingFiles.has(key)) throw Object.assign(new Error("file not found"), { code: "ENOENT" });
         if (!isDirectory && this.failFiles.has(key)) throw Object.assign(new Error("file unavailable"), { code: "ETIMEDOUT" });
+        const fileMetadata = this.fileMetadata.get(key);
         return {
-          size: isDirectory ? 0 : 1_024,
-          mtime: new Date("2026-08-01T00:00:00.000Z")
+          size: isDirectory ? 0 : fileMetadata?.size ?? 1_024,
+          mtime: new Date(isDirectory
+            ? this.directoryMtimes.get(key) ?? "2026-08-01T00:00:00.000Z"
+            : fileMetadata?.mtime ?? "2026-08-01T00:00:00.000Z")
         } as Stats;
       }),
       onMetadataPending: vi.fn()

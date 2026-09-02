@@ -377,14 +377,31 @@ async function scanDirectoryTree(
   const previous = safeGetSnapshot(context.repo, context.sourceFolder.id, directoryPath);
   reportProgress(context, "comparing-snapshots", directoryPath);
   const canSkip = snapshotCanSkip(previous, directoryMtime, directVideos.length, directChildren.length, digest);
+  const shouldReconcileUnchangedLocalVideos = canSkip
+    && context.mode === "current-folder"
+    && !context.cloudDirectorySource;
 
   reconcileDeletedChildDirectories(context, directoryPath, directChildPaths);
-  if (canSkip) {
+  if (canSkip && !shouldReconcileUnchangedLocalVideos) {
     context.counters.skippedDirectories += 1;
     context.counters.skippedVideos += directVideos.length;
     context.processedFiles += directVideos.length;
     context.counters.missingVideos += safeReconcileDirectory(context.repo, context.sourceFolder.id, directoryPath, directVideoPaths);
     reportProgress(context, "comparing-snapshots", directoryPath);
+  } else if (shouldReconcileUnchangedLocalVideos) {
+    context.counters.skippedDirectories += 1;
+    let directFailures = 0;
+    for (const entry of directVideos) {
+      const filePath = path.join(directoryPath, entry.name);
+      await context.dependencies.waitIfPaused?.();
+      throwIfCancelled(context.dependencies);
+      reportProgress(context, "processing", filePath);
+      if (!await processVideoFile(context, filePath)) directFailures += 1;
+      context.processedFiles += 1;
+      reportProgress(context, "processing", filePath);
+    }
+    context.counters.missingVideos += safeReconcileDirectory(context.repo, context.sourceFolder.id, directoryPath, directVideoPaths);
+    if (directFailures > 0) safeMarkSnapshotIncomplete(context.repo, context.sourceFolder.id, directoryPath);
   } else {
     context.counters.changedDirectories += 1;
     let directFailures = 0;

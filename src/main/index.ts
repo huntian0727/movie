@@ -226,9 +226,7 @@ app.whenReady().then(async () => {
     metadataQueue.pause();
     void (async () => {
       try {
-        for (const folder of repo.listSourceFolders().filter((candidate) => candidate.enabled)) {
-          await scanManager.start(folder);
-        }
+        await scanManager.scanAll(repo.listSourceFolders());
         metadataQueue?.enqueuePending();
         domainEvents.publish({ type: "library:rescanned", videoIds: [] });
       } finally {

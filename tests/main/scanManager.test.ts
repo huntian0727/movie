@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import type { SourceFolder } from "../../src/shared/videoTypes";
+import type { ScanMode, SourceFolder } from "../../src/shared/videoTypes";
 import type { VideoRepository } from "../../src/main/db/videoRepository";
 import { ScanManager } from "../../src/main/media/scanManager";
 import { ScanCancelledError } from "../../src/main/media/libraryScanner";
@@ -133,6 +133,26 @@ describe("ScanManager", () => {
     expect(scan).toHaveBeenCalledTimes(2);
     expect(manager.listStatuses().find((status) => status.folderId === secondFolder.id)?.counters)
       .toMatchObject({ totalFolders: 2, completedFolders: 2, currentFolderIndex: 2 });
+  });
+
+  it("queues a reliable current-folder scan behind an active scan-all fast scan", async () => {
+    const gate = deferred();
+    const modes: ScanMode[] = [];
+    const scan = vi.fn(async (_repo, _folder, dependencies) => {
+      modes.push(dependencies.mode!);
+      if (dependencies.mode === "scan-all") await gate.promise;
+      return completedResult();
+    });
+    const manager = new ScanManager({} as VideoRepository, scan);
+
+    const all = manager.scanAll([folder]);
+    await vi.waitFor(() => expect(scan).toHaveBeenCalledOnce());
+    const current = manager.start(folder);
+    gate.resolve();
+    await Promise.all([all, current]);
+
+    expect(modes).toEqual(["scan-all", "current-folder"]);
+    expect(scan).toHaveBeenCalledTimes(2);
   });
 
   it("skips a retry requested during a normal scan when no unresolved failures remain", async () => {

@@ -125,41 +125,56 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
     additionalArguments: ["--video-manager-window-role=main", `--video-manager-entry-url=${encodeURIComponent(entryUrl)}`]
   } });
   configureWindowSecurity(window, { role: "main", entryUrl });
+  window.webContents.on("console-message", (_event, _level, message) => {
+    if (message.startsWith("[packaged-smoke]")) console.log(message);
+  });
   try {
     await window.loadFile(entryPath);
+    window.show();
+    window.focus();
     return await window.webContents.executeJavaScript(`(async () => {
+      console.log('[packaged-smoke] renderer-loaded');
       const id = ${JSON.stringify(videoId)};
       const url = 'local-video://cover/' + encodeURIComponent(id);
       const request = (cachedOnly) => window.videoManager.loadPreviewImage({requestId: crypto.randomUUID(), url, cachedOnly, priority: 2});
       const before = await window.videoManager.listVideosByIds([id]);
-      const bytes = await request(false);
-      const img = new Image();
-      const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], {type:'image/jpeg'}));
-      try { img.src = blobUrl; await img.decode(); } finally { URL.revokeObjectURL(blobUrl); }
-      const cached = await request(true);
-      await window.videoManager.regenerateCover(id);
-      const regenerated = await request(false);
-      const visibleCover = await new Promise((resolve, reject) => {
-        const deadline = Date.now() + 5000;
+      console.log('[packaged-smoke] video-loaded');
+      const waitForVisibleCover = (previous = null) => new Promise((resolve, reject) => {
+        const deadline = Date.now() + 10000;
         const poll = () => {
           const cover = document.querySelector('.video-cover img[data-preview-state="ready"]');
-          if (cover?.complete && cover.naturalWidth > 0) return resolve(cover);
+          if (cover && cover !== previous && cover.complete && cover.naturalWidth > 0) return resolve(cover);
           if (Date.now() >= deadline) return reject(new Error('Visible preview did not become ready'));
           setTimeout(poll, 50);
         };
         poll();
       });
+      const bytes = await request(false);
+      console.log('[packaged-smoke] preview-generated');
+      const cached = await request(true);
+      console.log('[packaged-smoke] cache-hit');
+      const initialVisibleCover = document.querySelector('.video-cover img');
+      const regenerateButton = document.querySelector('button[aria-label^="重新生成 "]');
+      if (!regenerateButton) throw new Error('Visible regenerate-preview control was not found');
+      regenerateButton.scrollIntoView({block: 'center'});
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      regenerateButton.click();
+      console.log('[packaged-smoke] regenerate-clicked');
+      const visibleCover = await waitForVisibleCover(initialVisibleCover);
       const visibleSource = visibleCover.src;
+      const regenerated = await request(true);
+      console.log('[packaged-smoke] regenerated-visible-preview-ready');
       let sourceChanges = 0;
       const observer = new MutationObserver((records) => { sourceChanges += records.filter(r => r.attributeName === 'src').length; });
       observer.observe(visibleCover, {attributes: true, attributeFilter: ['src']});
       // Pending metadata causes a real 1.5-second page poll. Watch at least three cycles.
       await new Promise(resolve => setTimeout(resolve, 5000));
+      console.log('[packaged-smoke] polling-observed');
       observer.disconnect();
       const afterPolling = document.querySelector('.video-cover img');
       return {
         previewGeneratedBeforeMetadata: before[0].metadataStatus === 'pending' && bytes?.length > 0,
-        previewDecodedInRenderer: img.naturalWidth > 0,
+        previewDecodedInRenderer: visibleCover.complete && visibleCover.naturalWidth > 0,
         previewCacheHit: cached?.length > 0,
         previewRegenerated: regenerated?.length > 0,
         previewStableAcrossPagePolling: afterPolling === visibleCover && afterPolling.src === visibleSource && sourceChanges === 0
