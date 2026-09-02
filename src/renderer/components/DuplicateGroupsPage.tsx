@@ -130,6 +130,7 @@ export function DuplicateGroupsPage({
   const [internalSizeSortDirection, setInternalSizeSortDirection] = useState<SortDirection>("desc");
   const [taskCenterOpen, setTaskCenterOpen] = useState(false);
   const [activeTaskCount, setActiveTaskCount] = useState(0);
+  const [submittedCleanupJobId, setSubmittedCleanupJobId] = useState<string | null>(null);
   const [directPreviewPending, setDirectPreviewPending] = useState(false);
   const [directPreviewElapsed, setDirectPreviewElapsed] = useState(0);
   const [missingCheckPending, setMissingCheckPending] = useState(false);
@@ -169,8 +170,19 @@ export function DuplicateGroupsPage({
 
   useEffect(() => {
     if (!onLoadCleanupJobs) return;
-    void onLoadCleanupJobs(1, 20).then((result) => setActiveTaskCount(result.activeCount)).catch(() => undefined);
-  }, [onLoadCleanupJobs, cleanupRefreshSequence]);
+    let disposed = false;
+    void onLoadCleanupJobs(1, 20).then((result) => {
+      if (disposed) return;
+      setActiveTaskCount(result.activeCount);
+      if (!submittedCleanupJobId) return;
+      const submittedJob = result.items.find((job) => job.id === submittedCleanupJobId);
+      if (submittedJob && isCleanupJobFinished(submittedJob)) {
+        setSubmittedCleanupJobId(null);
+        setMissingCheckMessage(null);
+      }
+    }).catch(() => undefined);
+    return () => { disposed = true; };
+  }, [onLoadCleanupJobs, cleanupRefreshSequence, submittedCleanupJobId]);
 
   useEffect(() => {
     if (!onGetLegacyCloudDriveBindingStatus) return;
@@ -247,6 +259,7 @@ export function DuplicateGroupsPage({
     try {
       const accepted = await onAutoDelete(autoPlan);
       setMissingCheckMessage(`${label}：已启动 CloudDrive API批量删除任务，不读取视频内容。任务 ${accepted.jobId.slice(0, 8)}`);
+      setSubmittedCleanupJobId(accepted.jobId);
       setActiveTaskCount((current) => current + 1);
     } catch (cause) {
       setActionError(toDuplicateActionMessage(cause));
@@ -262,6 +275,7 @@ export function DuplicateGroupsPage({
     try {
       const accepted = await onAutoDeleteFiltered();
       setMissingCheckMessage(`已对全部筛选结果启动 CloudDrive API 批量删除任务。任务 ${accepted.jobId.slice(0, 8)}`);
+      setSubmittedCleanupJobId(accepted.jobId);
       setActiveTaskCount((current) => current + 1);
     } catch (cause) {
       setActionError(toDuplicateActionMessage(cause));
@@ -750,6 +764,10 @@ function planVideoIds(groups: DuplicateGroup[], selectedKeepByGroup: Record<stri
 
 function largestVideoSize(group: DuplicateGroup): number {
   return group.items.reduce((largest, item) => Math.max(largest, item.video.sizeBytes), 0);
+}
+
+function isCleanupJobFinished(job: DuplicateCleanupJob): boolean {
+  return ["cancelled", "completed", "completed_with_errors"].includes(job.status);
 }
 
 function normalizeDirectoryForComparison(directoryPath: string): string {

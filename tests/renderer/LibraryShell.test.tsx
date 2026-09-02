@@ -883,6 +883,27 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(onLoadVideoPage).toHaveBeenCalledTimes(2));
   });
 
+  it("reloads duplicate groups after a successful background deletion event", async () => {
+    const emptyPage = {
+      groups: [], page: 1, pageSize: 20, totalPages: 1, totalGroups: 0, overallTotalGroups: 0,
+      totalCandidateGroups: 0, totalCandidateFiles: 0, totalReclaimableBytes: 0, directoryOptions: []
+    };
+    const onLoadDuplicateGroups = vi.fn()
+      .mockResolvedValueOnce({ ...emptyPage, groups: duplicateGroups, totalGroups: 1, overallTotalGroups: 1, totalCandidateGroups: 1, totalCandidateFiles: 2, totalReclaimableBytes: 1024 })
+      .mockResolvedValue(emptyPage);
+    const { rerender } = render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]}
+      refreshSequence={1} onLoadDuplicateGroups={onLoadDuplicateGroups} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+    expect(await screen.findByText("候选组 01")).toBeInTheDocument();
+
+    rerender(<LibraryShell videos={[video]} folders={[folder]}
+      refreshSequence={2} onLoadDuplicateGroups={onLoadDuplicateGroups} />);
+
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText("候选组 01")).not.toBeInTheDocument());
+  });
+
   it("shows CloudDrive API identity and targeted duration coverage on source folders", () => {
     render(
       <LibraryShell

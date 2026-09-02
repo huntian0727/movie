@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DuplicateGroupsPage } from "../../src/renderer/components/DuplicateGroupsPage";
-import type { DuplicateGroup, VideoRecord } from "../../src/shared/videoTypes";
+import type { DuplicateCleanupJob, DuplicateGroup, VideoRecord } from "../../src/shared/videoTypes";
 
 const video: VideoRecord = {
   id: "keep", sourceFolderId: "f1", path: "D:\\Movies\\clip.mp4", directory: "D:\\Movies", filename: "clip.mp4",
@@ -35,6 +35,18 @@ function taskCenterProps() {
   };
 }
 
+function cleanupJob(overrides: Partial<DuplicateCleanupJob> = {}): DuplicateCleanupJob {
+  return {
+    id: "job-1", requestId: "request-1", status: "running", sourceView: "duplicates-all-filtered",
+    totalGroups: 1, totalItems: 1, processedItems: 0, successItems: 0, failedItems: 0, skippedItems: 0,
+    plannedReclaimableBytes: 4096, reclaimedBytes: 0, createdAt: "2026-09-03T00:00:00.000Z",
+    startedAt: "2026-09-03T00:00:01.000Z", completedAt: null, updatedAt: "2026-09-03T00:00:01.000Z", errorSummary: null,
+    workflowVersion: 3, phase: "deletion", verificationRevision: null, verificationProcessedItems: 0,
+    identicalItems: 0, differentItems: 0, unverifiableItems: 0, verificationCompletedAt: null,
+    authorizedRevision: null, authorizedAt: null, ...overrides
+  };
+}
+
 describe("DuplicateGroupsPage staged safety flow", () => {
   it("keeps candidate browsing metadata-only and explains verified one-click deletion", () => {
     const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
@@ -59,6 +71,33 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     });
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(screen.getByText(/批量清理：已启动 CloudDrive API批量删除任务/)).toBeInTheDocument();
+  });
+
+  it("clears the submitted cleanup banner as soon as that background job finishes", async () => {
+    const runningJob = cleanupJob();
+    const completedJob = cleanupJob({
+      status: "completed", phase: "finished", processedItems: 1, successItems: 1,
+      reclaimedBytes: 4096, completedAt: "2026-09-03T00:00:02.000Z", updatedAt: "2026-09-03T00:00:02.000Z"
+    });
+    const onLoadCleanupJobs = vi.fn()
+      .mockResolvedValueOnce({ items: [], page: 1, pageSize: 20, totalItems: 0, totalPages: 1, activeCount: 0 })
+      .mockResolvedValueOnce({ items: [runningJob], page: 1, pageSize: 20, totalItems: 1, totalPages: 1, activeCount: 1 })
+      .mockResolvedValue({ items: [completedJob], page: 1, pageSize: 20, totalItems: 1, totalPages: 1, activeCount: 0 });
+    const onAutoDeleteFiltered = vi.fn().mockResolvedValue({
+      jobId: "job-1", requestId: "request-1", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096
+    });
+    const { rerender } = render(<DuplicateGroupsPage {...baseProps()} totalDeletableFiles={1}
+      onAutoDeleteFiltered={onAutoDeleteFiltered} onLoadCleanupJobs={onLoadCleanupJobs} cleanupRefreshSequence={1} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /批量删除全部筛选结果/ }));
+    expect(await screen.findByText(/已对全部筛选结果启动 CloudDrive API 批量删除任务/)).toBeInTheDocument();
+    await waitFor(() => expect(onLoadCleanupJobs).toHaveBeenCalledTimes(2));
+
+    rerender(<DuplicateGroupsPage {...baseProps()} totalDeletableFiles={1}
+      onAutoDeleteFiltered={onAutoDeleteFiltered} onLoadCleanupJobs={onLoadCleanupJobs} cleanupRefreshSequence={2} />);
+
+    await waitFor(() => expect(screen.queryByText(/已对全部筛选结果启动 CloudDrive API 批量删除任务/)).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /后台任务 0/ })).toBeInTheDocument();
   });
 
   it("starts only full verification after an explicit preflight and does not claim deletion", async () => {
