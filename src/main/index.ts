@@ -23,6 +23,7 @@ import { runPackagedSmoke } from "./packagedSmoke.js";
 import { configureSecurityLogger, configureWindowSecurity, installContentSecurityPolicy } from "./security.js";
 import { createSettingsStore } from "./settings/settingsStore.js";
 import { configureCloudDriveRuntime } from "./clouddrive/mountedScanner.js";
+import { showMainWindowMaximized } from "./windowPresentation.js";
 
 // Renderer/webviews run without hardware acceleration so the app starts on
 // machines without a usable GPU (remote desktops, VMs, older GPUs). Without
@@ -84,6 +85,7 @@ async function createWindow(): Promise<void> {
     minHeight: 640,
     title: "映匣",
     autoHideMenuBar: true,
+    show: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -102,6 +104,7 @@ async function createWindow(): Promise<void> {
   } else {
     await window.loadURL(devServerUrl);
   }
+  showMainWindowMaximized(window);
 }
 
 app.whenReady().then(async () => {
