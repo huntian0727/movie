@@ -5,7 +5,7 @@ import type {
   DuplicateVerificationStatus
 } from "../../shared/videoTypes.js";
 import type { DatabaseConnection } from "./database.js";
-import type { VideoRepository } from "./videoRepository.js";
+import type { PreparedDuplicateResolveEntry, VideoRepository } from "./videoRepository.js";
 
 interface JobRow {
   id: string; request_id: string; status: DuplicateCleanupJob["status"]; source_view: string | null;
@@ -92,12 +92,18 @@ export class DuplicateCleanupRepository {
   }
 
   submitFast(request: DuplicateCleanupSubmitRequest): DuplicateCleanupAccepted {
+    return this.submitFastPrepared(request, this.videos.validateDuplicateResolvePlan(request.plan));
+  }
+
+  submitFastPrepared(
+    request: Pick<DuplicateCleanupSubmitRequest, "requestId" | "sourceView">,
+    entries: PreparedDuplicateResolveEntry[]
+  ): DuplicateCleanupAccepted {
     const existing = this.findByRequestId(request.requestId);
     if (existing) return toAccepted(existing);
     return this.db.transaction(() => {
       const raced = this.findByRequestId(request.requestId);
       if (raced) return toAccepted(raced);
-      const entries = this.videos.validateDuplicateResolvePlan(request.plan);
       if (entries.length === 0) throw new Error("Duplicate cleanup plan has no deletable CloudDrive candidates.");
       for (const entry of entries) {
         for (const video of entry.deleteVideos) {
@@ -153,9 +159,12 @@ export class DuplicateCleanupRepository {
   assertVideosAvailable(videoIds: string[]): void {
     const ids = [...new Set(videoIds)];
     if (ids.length === 0) return;
-    const placeholders = ids.map(() => "?").join(",");
-    const rows = this.db.prepare(`SELECT video_id FROM duplicate_cleanup_reservations WHERE released_at IS NULL AND video_id IN (${placeholders})`).all(...ids) as Array<{ video_id: string }>;
-    if (rows.length > 0) throw new Error("Selected videos are reserved by a duplicate verification or deletion task.");
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      const chunk = ids.slice(offset, offset + 500);
+      const placeholders = chunk.map(() => "?").join(",");
+      const row = this.db.prepare(`SELECT 1 FROM duplicate_cleanup_reservations WHERE released_at IS NULL AND video_id IN (${placeholders}) LIMIT 1`).get(...chunk);
+      if (row) throw new Error("Selected videos are reserved by a duplicate verification or deletion task.");
+    }
   }
 
   assertSourceFolderVideosAvailable(sourceFolderId: string): void {
@@ -436,6 +445,18 @@ export class DuplicateCleanupRepository {
   updateItem(itemId: string, status: DuplicateCleanupItemStatus, outcomeCode: string | null = null, message: string | null = null): void {
     this.db.prepare("UPDATE duplicate_cleanup_items SET status = ?, outcome_code = ?, message = ?, updated_at = ? WHERE id = ?")
       .run(status, outcomeCode, message, new Date().toISOString(), itemId);
+  }
+
+  updateItems(itemIds: readonly string[], status: DuplicateCleanupItemStatus, outcomeCode: string | null = null, message: string | null = null): void {
+    const ids = [...new Set(itemIds)];
+    if (ids.length === 0) return;
+    const now = new Date().toISOString();
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      const chunk = ids.slice(offset, offset + 500);
+      const placeholders = chunk.map(() => "?").join(",");
+      this.db.prepare(`UPDATE duplicate_cleanup_items SET status = ?, outcome_code = ?, message = ?, updated_at = ? WHERE id IN (${placeholders})`)
+        .run(status, outcomeCode, message, now, ...chunk);
+    }
   }
 
   requestCancel(jobId: string): DuplicateCleanupJob {

@@ -79,6 +79,12 @@ interface SourceFolderStatsRow {
   duplicate_duration_ready_count: number;
 }
 
+export interface PreparedDuplicateResolveEntry {
+  groupKey: string;
+  keepVideo: VideoRecord;
+  deleteVideos: VideoRecord[];
+}
+
 export interface CloudDriveBindingCandidateRecord {
   videoId: string;
   sourceFolderId: string;
@@ -1926,6 +1932,17 @@ export class VideoRepository {
   }
 
   buildDuplicateResolvePlanForQuery(query: DuplicateGroupPageQuery): DuplicateResolvePlan {
+    const entries = this.buildDuplicateResolveEntriesForQuery(query);
+    return {
+      groups: entries.map((entry) => ({
+        groupKey: entry.groupKey,
+        keepVideoId: entry.keepVideo.id,
+        deleteVideoIds: entry.deleteVideos.map((video) => video.id)
+      }))
+    };
+  }
+
+  buildDuplicateResolveEntriesForQuery(query: DuplicateGroupPageQuery): PreparedDuplicateResolveEntry[] {
     const preferredDirectoryPaths = normalizePreferredDirectoryPaths(query);
     const params: Record<string, unknown> = {};
     const filterDirectoryPath = query.filterDirectoryPath;
@@ -1973,7 +1990,7 @@ export class VideoRepository {
       ORDER BY videos.size_bytes, duplicate_identities.duration_seconds, videos.filename COLLATE NOCASE
     `).iterate(params) as Iterable<VideoRow>;
 
-    const resolutions: DuplicateResolvePlan["groups"] = [];
+    const resolutions: PreparedDuplicateResolveEntry[] = [];
     let currentKey = "";
     let currentVideos: VideoRecord[] = [];
     const flush = () => {
@@ -1981,9 +1998,10 @@ export class VideoRepository {
       const group = buildDuplicateGroupFromVideos(currentKey, currentVideos, preferredDirectoryPaths);
       const deleteVideoIds = group.items
         .filter((item) => item.video.id !== group.recommendedKeepVideoId && item.canAutoDelete)
-        .map((item) => item.video.id);
-      if (deleteVideoIds.length > 0) {
-        resolutions.push({ groupKey: group.groupKey, keepVideoId: group.recommendedKeepVideoId, deleteVideoIds });
+        .map((item) => item.video);
+      const keepVideo = group.items.find((item) => item.video.id === group.recommendedKeepVideoId)?.video;
+      if (keepVideo && deleteVideoIds.length > 0) {
+        resolutions.push({ groupKey: group.groupKey, keepVideo, deleteVideos: deleteVideoIds });
       }
     };
     for (const row of rows) {
@@ -1997,7 +2015,7 @@ export class VideoRepository {
       currentVideos.push(mapVideo(row));
     }
     flush();
-    return { groups: resolutions };
+    return resolutions;
   }
 
   private listDuplicateDirectoryOptions(): DuplicateDirectoryOption[] {
@@ -2207,6 +2225,18 @@ export class VideoRepository {
     this.db.prepare("DELETE FROM videos WHERE id = ?").run(videoId);
   }
 
+  removeVideos(videoIds: readonly string[]): void {
+    const ids = [...new Set(videoIds)];
+    if (ids.length === 0) return;
+    const removeChunk = this.db.transaction((chunk: string[]) => {
+      const placeholders = chunk.map(() => "?").join(",");
+      this.db.prepare(`DELETE FROM videos WHERE id IN (${placeholders})`).run(...chunk);
+    });
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      removeChunk(ids.slice(offset, offset + 500));
+    }
+  }
+
   recordPlayback(videoId: string, positionMs = 0): void {
     this.getVideo(videoId);
     this.db
@@ -2314,11 +2344,7 @@ export class VideoRepository {
     };
   }
 
-  validateDuplicateResolvePlan(plan: DuplicateResolvePlan): Array<{
-    groupKey: string;
-    keepVideo: VideoRecord;
-    deleteVideos: VideoRecord[];
-  }> {
+  validateDuplicateResolvePlan(plan: DuplicateResolvePlan): PreparedDuplicateResolveEntry[] {
     const seenGroupKeys = new Set<string>();
 
     return plan.groups.map((group) => {

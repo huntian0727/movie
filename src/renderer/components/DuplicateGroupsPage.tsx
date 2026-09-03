@@ -61,6 +61,7 @@ interface DuplicateGroupsPageProps {
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   onAutoDelete?(plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onAutoDeleteFiltered?(): Promise<DuplicateCleanupAccepted>;
+  onFilteredCleanupAccepted?(): void;
   onSubmitCleanup?(requestId: string, plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onConfirmCleanup?(request: DuplicateCleanupConfirmRequest): Promise<DuplicateCleanupJob>;
   onLoadCleanupJobs?(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;
@@ -109,6 +110,7 @@ export function DuplicateGroupsPage({
   onResolve,
   onAutoDelete,
   onAutoDeleteFiltered,
+  onFilteredCleanupAccepted,
   onSubmitCleanup,
   onConfirmCleanup,
   onLoadCleanupJobs,
@@ -139,6 +141,7 @@ export function DuplicateGroupsPage({
   const [missingCheckMessage, setMissingCheckMessage] = useState<string | null>(null);
   const [bindingPending, setBindingPending] = useState(false);
   const [bindingProgress, setBindingProgress] = useState<CloudDriveLegacyBindingProgress | null>(null);
+  const [filteredSubmissionHidden, setFilteredSubmissionHidden] = useState(false);
   const submitGuardRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
   const onCleanupFinishedRef = useRef(onCleanupFinished);
@@ -242,6 +245,10 @@ export function DuplicateGroupsPage({
     },
     [groups, manualKeepByGroup]
   );
+
+  useEffect(() => {
+    setFilteredSubmissionHidden(false);
+  }, [groups]);
   const fastDeleteCount = useMemo(
     () => plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),
     [plan]
@@ -283,6 +290,7 @@ export function DuplicateGroupsPage({
 
   const handleFilteredAutoDelete = async () => {
     if (!onAutoDeleteFiltered || actionPending) return;
+    setFilteredSubmissionHidden(true);
     setActionPending(true);
     setActionError(null);
     try {
@@ -290,7 +298,9 @@ export function DuplicateGroupsPage({
       setMissingCheckMessage(`已对全部筛选结果启动 CloudDrive API 批量删除任务。任务 ${accepted.jobId.slice(0, 8)}`);
       setSubmittedCleanupJobId(accepted.jobId);
       setActiveTaskCount((current) => current + 1);
+      onFilteredCleanupAccepted?.();
     } catch (cause) {
+      setFilteredSubmissionHidden(false);
       setActionError(toDuplicateActionMessage(cause));
     } finally {
       setActionPending(false);
@@ -557,7 +567,7 @@ export function DuplicateGroupsPage({
       </div>
 
       <div className="duplicate-groups">
-        {sortedGroups.map((group, index) => (
+        {!filteredSubmissionHidden && sortedGroups.map((group, index) => (
           <DuplicateGroupCard
             key={group.groupKey}
             group={group}

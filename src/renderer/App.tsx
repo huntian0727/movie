@@ -87,6 +87,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const [duplicateRefreshSequence, setDuplicateRefreshSequence] = useState(0);
   const [duplicateCleanupRefreshSequence, setDuplicateCleanupRefreshSequence] = useState(0);
   const duplicateRemovalRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRemovalSequence = useRef(0);
   const [scanFailureRefreshSequence, setScanFailureRefreshSequence] = useState(0);
   const previousScanStates = useRef(new Map<string, FolderScanStatus["state"]>());
   const isPlayerWindow = api.windowMode === "player";
@@ -143,21 +144,27 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       await reload();
       return;
     }
-    setLibraryRefreshSequence(event.sequence);
+    if (event.type === "duplicate-cleanup:changed") {
+      setDuplicateCleanupRefreshSequence(event.sequence);
+      return;
+    }
     if (event.type === "video:removed") {
+      pendingRemovalSequence.current = Math.max(pendingRemovalSequence.current, event.sequence);
       if (duplicateRemovalRefreshTimer.current) {
         clearTimeout(duplicateRemovalRefreshTimer.current);
       }
       duplicateRemovalRefreshTimer.current = setTimeout(() => {
         duplicateRemovalRefreshTimer.current = null;
-        setDuplicateRefreshSequence(event.sequence);
-      }, 250);
+        const sequence = pendingRemovalSequence.current;
+        setLibraryRefreshSequence(sequence);
+        setDuplicateRefreshSequence(sequence);
+        void api.getLibraryNavigation().then(setNavigation);
+      }, 500);
+      return;
     }
+    setLibraryRefreshSequence(event.sequence);
     if (event.type === "library:rescanned") {
       setDuplicateRefreshSequence(event.sequence);
-    }
-    if (event.type === "duplicate-cleanup:changed") {
-      setDuplicateCleanupRefreshSequence(event.sequence);
     }
     if (event.type === "library:rescanned") {
       setScanFailureRefreshSequence(event.sequence);

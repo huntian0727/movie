@@ -467,14 +467,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   );
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupSubmitFiltered, (_event, payload) => {
     const parsed = duplicateCleanupFilteredSubmitSchema.parse(payload);
-    const plan = repo.buildDuplicateResolvePlanForQuery(parsed.query);
-    if (plan.groups.length === 0) throw new Error("当前筛选结果中没有可通过 CloudDrive API 删除的候选项");
-    return dependencies.duplicateCleanup.submit({
-      requestId: parsed.requestId,
-      plan,
-      sourceView: parsed.sourceView ?? "duplicates-filtered",
-      autoDeleteAfterVerification: true
-    });
+    return dependencies.duplicateCleanup.submitFiltered(parsed);
   });
   ipcMain.handle(IPC_CHANNELS.duplicateCloudDriveBindLegacy, async () => {
     if (!legacyCloudDriveBindingInFlight) {

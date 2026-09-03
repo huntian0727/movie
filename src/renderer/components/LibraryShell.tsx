@@ -925,6 +925,11 @@ export function LibraryShell({
               },
               sourceView: "duplicates-all-filtered"
             }) : undefined}
+            onFilteredCleanupAccepted={() => {
+              setDuplicateFilterDirectoryPath("");
+              setDuplicatePageNumber(1);
+              setDuplicateRefreshVersion((current) => current + 1);
+            }}
             onResolve={async (plan) => {
               if (!onResolveDuplicateGroups) {
                 throw new Error("重复项清理能力未连接");
@@ -942,7 +947,9 @@ export function LibraryShell({
             onClearCleanup={duplicateCleanupApi?.clearDuplicateCleanup}
             onOpenCleanupItem={duplicateCleanupApi?.openDuplicateCleanupItem}
             onCleanupFinished={async (job) => {
-              if (job.sourceView !== "duplicates-all-filtered" || job.status !== "completed" || job.failedItems > 0 || job.skippedItems > 0) return;
+              if (job.sourceView !== "duplicates-all-filtered") return;
+              setDuplicateRefreshVersion((current) => current + 1);
+              if (job.status !== "completed" || job.failedItems > 0 || job.skippedItems > 0) return;
               const currentDirectory = duplicatePreferredDirectories[0];
               if (currentDirectory && duplicateCleanupApi?.removeDuplicatePreferredDirectory) {
                 await duplicateCleanupApi.removeDuplicatePreferredDirectory(currentDirectory.id);

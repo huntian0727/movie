@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AppSettings, MediaCacheStatus, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
+import type { AppSettings, DomainEvent, MediaCacheStatus, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 import { App, DesktopApp } from "../../src/renderer/App";
 import type { DesktopVideoManagerApi } from "../../src/renderer/api/client";
@@ -64,6 +64,30 @@ describe("desktop-only renderer runtime", () => {
     vi.mocked(api.listVideoPage).mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 });
     const { container } = render(<DesktopApp api={api} />);
     await waitFor(() => expect(container.querySelector(".video-cover img")).toHaveAttribute("src", expect.stringContaining("local-video://cover/pending-api-video")));
+  });
+
+  it("keeps cleanup progress lightweight and coalesces removal refreshes", async () => {
+    let listener: ((event: DomainEvent) => void) | undefined;
+    const api = createDesktopApi();
+    vi.mocked(api.subscribeDomainEvents).mockImplementation((nextListener) => {
+      listener = nextListener;
+      return () => undefined;
+    });
+    render(<DesktopApp api={api} />);
+    await waitFor(() => expect(api.getWindowSyncSnapshot).toHaveBeenCalled());
+    await waitFor(() => expect(api.getLibraryNavigation).toHaveBeenCalled());
+    const initialNavigationCalls = vi.mocked(api.getLibraryNavigation).mock.calls.length;
+
+    await act(async () => listener?.({ sequence: 1, type: "duplicate-cleanup:changed", videoIds: [], jobId: "job-1" }));
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(api.getLibraryNavigation).toHaveBeenCalledTimes(initialNavigationCalls);
+
+    await act(async () => {
+      listener?.({ sequence: 2, type: "video:removed", videoIds: ["v1"] });
+      listener?.({ sequence: 3, type: "video:removed", videoIds: ["v2"] });
+      listener?.({ sequence: 4, type: "video:removed", videoIds: ["v3"] });
+    });
+    await waitFor(() => expect(api.getLibraryNavigation).toHaveBeenCalledTimes(initialNavigationCalls + 1), { timeout: 1_000 });
   });
 });
 

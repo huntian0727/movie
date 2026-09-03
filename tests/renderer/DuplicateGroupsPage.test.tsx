@@ -102,6 +102,33 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(onCleanupFinished).toHaveBeenCalledWith(completedJob);
   });
 
+  it("hides submitted filtered candidates immediately and notifies the shell after acceptance", async () => {
+    let accept!: (value: { jobId: string; requestId: string; status: "queued"; totalGroups: number; totalItems: number; plannedReclaimableBytes: number }) => void;
+    const pending = new Promise<Parameters<typeof accept>[0]>((resolve) => { accept = resolve; });
+    const onAutoDeleteFiltered = vi.fn(() => pending);
+    const onFilteredCleanupAccepted = vi.fn();
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} totalDeletableFiles={1}
+      onAutoDeleteFiltered={onAutoDeleteFiltered} onFilteredCleanupAccepted={onFilteredCleanupAccepted} />);
+
+    fireEvent.click(container.querySelector("button.danger")!);
+
+    expect(screen.queryByText("clip-copy.mp4")).not.toBeInTheDocument();
+    expect(onFilteredCleanupAccepted).not.toHaveBeenCalled();
+    accept({ jobId: "job-1", requestId: "request-1", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
+    await waitFor(() => expect(onFilteredCleanupAccepted).toHaveBeenCalledOnce());
+  });
+
+  it("restores optimistically hidden candidates when filtered task creation fails", async () => {
+    const onAutoDeleteFiltered = vi.fn().mockRejectedValue(new Error("task creation failed"));
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} totalDeletableFiles={1}
+      onAutoDeleteFiltered={onAutoDeleteFiltered} />);
+
+    fireEvent.click(container.querySelector("button.danger")!);
+
+    await waitFor(() => expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent("task creation failed");
+  });
+
   it("starts only full verification after an explicit preflight and does not claim deletion", async () => {
     const onSubmitCleanup = vi.fn().mockResolvedValue({ jobId: "j", requestId: "r", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
     render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);

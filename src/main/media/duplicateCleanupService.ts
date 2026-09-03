@@ -4,7 +4,7 @@ import { readdir, rename, stat } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import type {
   DuplicateCleanupAccepted, DuplicateCleanupConfirmRequest, DuplicateCleanupJob,
-  DuplicateCleanupSubmitRequest, DuplicateVerificationStatus
+  DuplicateCleanupFilteredSubmitRequest, DuplicateCleanupSubmitRequest, DuplicateVerificationStatus
 } from "../../shared/videoTypes.js";
 import type { DuplicateCleanupRepository, DuplicateCleanupWorkItem } from "../db/duplicateCleanupRepository.js";
 import type { VideoRepository } from "../db/videoRepository.js";
@@ -86,6 +86,19 @@ export class DuplicateCleanupService {
     } else {
       accepted = this.jobs.submit(request);
     }
+    if (accepted.status === "queued") this.enqueue(accepted.jobId);
+    return accepted;
+  }
+
+  submitFiltered(request: DuplicateCleanupFilteredSubmitRequest): DuplicateCleanupAccepted {
+    const entries = this.videos.buildDuplicateResolveEntriesForQuery(request.query);
+    if (entries.length === 0) {
+      throw new Error("当前筛选结果中没有可通过 CloudDrive API 删除的候选项");
+    }
+    const accepted = this.jobs.submitFastPrepared({
+      requestId: request.requestId,
+      sourceView: request.sourceView ?? "duplicates-filtered"
+    }, entries);
     if (accepted.status === "queued") this.enqueue(accepted.jobId);
     return accepted;
   }
@@ -298,23 +311,27 @@ export class DuplicateCleanupService {
 
   private async processFastBatch(jobId: string, batch: DuplicateCleanupWorkItem[]): Promise<void> {
       const currentItems: DuplicateCleanupWorkItem[] = [];
+      const alreadyMissingItemIds: string[] = [];
+      const changedIdentityItemIds: string[] = [];
       for (const item of batch) {
         let current;
         try {
           current = this.videos.getVideo(item.delete_video_id);
         } catch {
-          this.jobs.updateItem(item.id, "deleted", "already-missing", "The indexed target no longer exists.");
+          alreadyMissingItemIds.push(item.id);
           continue;
         }
         if (!item.delete_provider_file_id || !item.delete_provider_path ||
             current.providerFileId !== item.delete_provider_file_id || current.providerPath !== item.delete_provider_path ||
             current.sizeBytes !== item.expected_delete_size_bytes || current.modifiedAt !== item.expected_delete_modified_at) {
-          this.jobs.updateItem(item.id, "skipped", "provider-identity-changed",
-            "The cached CloudDrive identity or file version changed after the deletion plan was created.");
+          changedIdentityItemIds.push(item.id);
           continue;
         }
         currentItems.push(item);
       }
+      this.jobs.updateItems(alreadyMissingItemIds, "deleted", "already-missing", "The indexed target no longer exists.");
+      this.jobs.updateItems(changedIdentityItemIds, "skipped", "provider-identity-changed",
+        "The cached CloudDrive identity or file version changed after the deletion plan was created.");
       const claimed = new Set(this.jobs.claimFastDeletionItems(jobId, currentItems.map((item) => item.id)));
       await this.deleteFastBatch(jobId, currentItems.filter((item) => claimed.has(item.id)));
       this.jobs.progress(jobId);
@@ -330,15 +347,14 @@ export class DuplicateCleanupService {
       result = { success: false, errorMessage: toMessage(error), resultFilePaths: [] };
     }
     if (result.success) {
-      for (const item of items) {
-        this.videos.removeVideo(item.delete_video_id);
-        this.jobs.updateItem(item.id, "deleted", result.permanentlyDeleted === false
-          ? "moved-to-cloud-recycle-bin"
-          : "deleted-via-clouddrive-api", result.permanentlyDeleted === false
-          ? "CloudDrive does not expose permanent deletion; the file was moved to its recycle bin and freed space is not counted."
-          : null);
-        this.domainEvents.publish({ type: "video:removed", videoIds: [item.delete_video_id] });
-      }
+      const videoIds = items.map((item) => item.delete_video_id);
+      this.videos.removeVideos(videoIds);
+      this.jobs.updateItems(items.map((item) => item.id), "deleted", result.permanentlyDeleted === false
+        ? "moved-to-cloud-recycle-bin"
+        : "deleted-via-clouddrive-api", result.permanentlyDeleted === false
+        ? "CloudDrive does not expose permanent deletion; the file was moved to its recycle bin and freed space is not counted."
+        : null);
+      this.domainEvents.publish({ type: "video:removed", videoIds });
       return;
     }
     if (items.length > 1) {

@@ -92,6 +92,35 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     service.stop();
   });
 
+  it("commits a successful CloudDrive batch with one removal event", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const secondDelete = await createVideo(repo, keepVideo.sourceFolderId, path.join(path.dirname(deleteVideo.path), "delete-2.mp4"), 1);
+    plan.groups[0]!.deleteVideoIds.push(secondDelete.id);
+    repo.setSourceFolderProvider(keepVideo.sourceFolderId, { type: "clouddrive", rootPath: "/115", name: "115" });
+    for (const [record, fileId, remotePath] of [
+      [keepVideo, "remote-keep", "/115/keep.mp4"],
+      [deleteVideo, "remote-delete-1", "/115/delete.mp4"],
+      [secondDelete, "remote-delete-2", "/115/delete-2.mp4"]
+    ] as const) {
+      expect(repo.updateVideoProviderIdentityIfVersion(record.id, record.path, record.sizeBytes, record.modifiedAt,
+        { fileId, path: remotePath })).toBe(true);
+    }
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const publish = vi.fn();
+    const service = createService(jobs, repo, {
+      deleteCloudFiles: vi.fn().mockResolvedValue({ success: true, errorMessage: "", resultFilePaths: ["/115/delete.mp4", "/115/delete-2.mp4"] }),
+      domainEvents: { publish }
+    });
+
+    const accepted = service.submit({ requestId: "cloud-batch-delete", plan, autoDeleteAfterVerification: true });
+    await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+
+    const removalEvents = publish.mock.calls.map(([event]) => event).filter((event) => event.type === "video:removed");
+    expect(removalEvents).toEqual([{ type: "video:removed", videoIds: [deleteVideo.id, secondDelete.id] }]);
+    service.stop();
+  });
+
   it("classifies same-metadata different content and gives it zero deletion authorization", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, false);
@@ -611,9 +640,11 @@ function createService(jobs: DuplicateCleanupRepository, repo: VideoRepository, 
   hashFile?: (filePath: string, signal?: AbortSignal) => Promise<string>;
   renameFile?: (source: string, destination: string) => Promise<void>;
   deleteCloudFiles?: (remotePaths: readonly string[], permanently?: boolean, isCancelled?: () => boolean) => Promise<{ success: boolean; errorMessage: string; resultFilePaths: string[] }>;
+  domainEvents?: { publish(event: unknown): unknown };
 } = {}) {
+  const { domainEvents, ...serviceOptions } = options;
   return new DuplicateCleanupService(jobs, repo, { enqueue: vi.fn(() => true) } as never,
-    { scheduleMaintenance: vi.fn() } as never, { publish: vi.fn() } as never, options);
+    { scheduleMaintenance: vi.fn() } as never, (domainEvents ?? { publish: vi.fn() }) as never, serviceOptions);
 }
 
 async function waitFor(jobs: DuplicateCleanupRepository, jobId: string, predicate: (job: ReturnType<DuplicateCleanupRepository["getJob"]>) => boolean) {
