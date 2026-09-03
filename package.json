@@ -55,7 +55,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@electron/asar": "3.4.1",
+    "@electron/asar": "4.2.1",
     "@electron/rebuild": "3.6.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
