@@ -5,8 +5,12 @@ import path from "node:path";
 import { runPackagedSmoke } from "./run-packaged-smoke.mjs";
 
 const releaseDirectory = path.join(process.cwd(), "release");
-const installerName = (await readdir(releaseDirectory)).find((name) => /Setup\.exe$/i.test(name));
-if (!installerName) throw new Error(`No NSIS installer found in ${releaseDirectory}`);
+const packageManifest = JSON.parse(await readFile(path.join(process.cwd(), "package.json"), "utf8"));
+const installerName = `Local-Video-Manager-${packageManifest.version}-x64-Setup.exe`;
+const installerPath = path.join(releaseDirectory, installerName);
+await access(installerPath).catch(() => {
+  throw new Error(`Current-version NSIS installer not found: ${installerPath}`);
+});
 
 const installParent = await mkdtemp(path.join(os.tmpdir(), "video-manager-installer-smoke-"));
 const installDirectory = path.join(installParent, "installed-app");
@@ -23,7 +27,6 @@ const sandboxEnvironment = {
 let succeeded = false;
 
 try {
-  const installerPath = path.join(releaseDirectory, installerName);
   await Promise.all([
     mkdir(expectedUserData, { recursive: true }),
     mkdir(sandboxLocalAppData, { recursive: true })

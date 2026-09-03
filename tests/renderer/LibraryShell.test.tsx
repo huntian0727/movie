@@ -892,16 +892,33 @@ describe("LibraryShell", () => {
       .mockResolvedValueOnce({ ...emptyPage, groups: duplicateGroups, totalGroups: 1, overallTotalGroups: 1, totalCandidateGroups: 1, totalCandidateFiles: 2, totalReclaimableBytes: 1024 })
       .mockResolvedValue(emptyPage);
     const { rerender } = render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]}
-      refreshSequence={1} onLoadDuplicateGroups={onLoadDuplicateGroups} />);
+      duplicateRefreshSequence={1} onLoadDuplicateGroups={onLoadDuplicateGroups} />);
 
     fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
     expect(await screen.findByText("候选组 01")).toBeInTheDocument();
 
     rerender(<LibraryShell videos={[video]} folders={[folder]}
-      refreshSequence={2} onLoadDuplicateGroups={onLoadDuplicateGroups} />);
+      duplicateRefreshSequence={2} onLoadDuplicateGroups={onLoadDuplicateGroups} />);
 
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByText("候选组 01")).not.toBeInTheDocument());
+  });
+
+  it("does not rerun the expensive duplicate query for an unrelated video metadata update", async () => {
+    const onLoadDuplicateGroups = vi.fn().mockResolvedValue({
+      groups: duplicateGroups, page: 1, pageSize: 20, totalPages: 1, totalGroups: 1, overallTotalGroups: 1,
+      totalCandidateGroups: 1, totalCandidateFiles: 2, totalReclaimableBytes: 1024, directoryOptions: []
+    });
+    const { rerender } = render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]}
+      refreshSequence={1} duplicateRefreshSequence={1} onLoadDuplicateGroups={onLoadDuplicateGroups} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalledOnce());
+
+    rerender(<LibraryShell videos={[video, nestedVideo]} folders={[folder]}
+      refreshSequence={2} duplicateRefreshSequence={1} onLoadDuplicateGroups={onLoadDuplicateGroups} />);
+
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(onLoadDuplicateGroups).toHaveBeenCalledOnce();
   });
 
   it("shows CloudDrive API identity and targeted duration coverage on source folders", () => {

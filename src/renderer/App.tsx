@@ -84,6 +84,9 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const [navigation, setNavigation] = useState<LibraryNavigationSnapshot>(emptyNavigation);
   const [playerSession, setPlayerSession] = useState<PlayerSessionSnapshot | null>(null);
   const [libraryRefreshSequence, setLibraryRefreshSequence] = useState(0);
+  const [duplicateRefreshSequence, setDuplicateRefreshSequence] = useState(0);
+  const [duplicateCleanupRefreshSequence, setDuplicateCleanupRefreshSequence] = useState(0);
+  const duplicateRemovalRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [scanFailureRefreshSequence, setScanFailureRefreshSequence] = useState(0);
   const previousScanStates = useRef(new Map<string, FolderScanStatus["state"]>());
   const isPlayerWindow = api.windowMode === "player";
@@ -141,6 +144,21 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       return;
     }
     setLibraryRefreshSequence(event.sequence);
+    if (event.type === "video:removed") {
+      if (duplicateRemovalRefreshTimer.current) {
+        clearTimeout(duplicateRemovalRefreshTimer.current);
+      }
+      duplicateRemovalRefreshTimer.current = setTimeout(() => {
+        duplicateRemovalRefreshTimer.current = null;
+        setDuplicateRefreshSequence(event.sequence);
+      }, 250);
+    }
+    if (event.type === "library:rescanned") {
+      setDuplicateRefreshSequence(event.sequence);
+    }
+    if (event.type === "duplicate-cleanup:changed") {
+      setDuplicateCleanupRefreshSequence(event.sequence);
+    }
     if (event.type === "library:rescanned") {
       setScanFailureRefreshSequence(event.sequence);
       await reload();
@@ -148,6 +166,12 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     }
     setNavigation(await api.getLibraryNavigation());
   }, [api, isPlayerWindow, reload]);
+
+  useEffect(() => () => {
+    if (duplicateRemovalRefreshTimer.current) {
+      clearTimeout(duplicateRemovalRefreshTimer.current);
+    }
+  }, []);
 
   useEffect(() => {
     const subscription = startWindowSync(api, {
@@ -407,6 +431,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       folders={folders}
       navigation={navigation}
       refreshSequence={libraryRefreshSequence}
+      duplicateRefreshSequence={duplicateRefreshSequence}
+      duplicateCleanupRefreshSequence={duplicateCleanupRefreshSequence}
       scanFailureRefreshSequence={scanFailureRefreshSequence}
       shortcuts={settings.shortcuts}
       onLoadVideoPage={api.listVideoPage}

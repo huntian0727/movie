@@ -9,7 +9,9 @@ import { VideoRepository } from "../../src/main/db/videoRepository.js";
 
 const LIBRARY_SIZE = 10_000;
 const DUPLICATE_FILE_COUNT = 2_000;
+const DUPLICATE_GROUP_COUNT = 12_000;
 const QUERY_BUDGET_MS = 10_000;
+const DUPLICATE_PAGE_BUDGET_MS = 3_000;
 let db: DatabaseConnection | undefined;
 let tempDirectory: string | undefined;
 
@@ -56,6 +58,27 @@ describe("release performance baselines", () => {
     expect(page.groups[0]?.items).toHaveLength(DUPLICATE_FILE_COUNT);
     expect(elapsedMs).toBeLessThan(QUERY_BUDGET_MS);
   }, 30_000);
+
+  it("pages a large set of duplicate groups without rescanning every directory option", () => {
+    const repo = createDuplicateGroupsRepository(DUPLICATE_GROUP_COUNT);
+
+    const firstStartedAt = performance.now();
+    const firstPage = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" });
+    const firstElapsedMs = performance.now() - firstStartedAt;
+    const secondStartedAt = performance.now();
+    const secondPage = repo.listDuplicateGroupsPage({ page: 2, pageSize: 20, sortDirection: "desc" });
+    const secondElapsedMs = performance.now() - secondStartedAt;
+
+    expect(firstPage).toMatchObject({
+      totalGroups: DUPLICATE_GROUP_COUNT,
+      totalCandidateGroups: DUPLICATE_GROUP_COUNT,
+      totalCandidateFiles: DUPLICATE_GROUP_COUNT * 2
+    });
+    expect(firstPage.groups).toHaveLength(20);
+    expect(secondPage.groups).toHaveLength(20);
+    expect(firstElapsedMs).toBeLessThan(DUPLICATE_PAGE_BUDGET_MS);
+    expect(secondElapsedMs).toBeLessThan(DUPLICATE_PAGE_BUDGET_MS);
+  }, 45_000);
 });
 
 function createPopulatedRepository(videoCount: number, duplicateCount: number): VideoRepository {
@@ -94,6 +117,48 @@ function createPopulatedRepository(videoCount: number, duplicateCount: number): 
         fingerprintUpdatedAt: isDuplicate ? timestamp : null,
         timestamp
       });
+    }
+  })();
+  return repo;
+}
+
+function createDuplicateGroupsRepository(groupCount: number): VideoRepository {
+  tempDirectory = mkdtempSync(path.join(tmpdir(), "video-manager-duplicate-performance-"));
+  db = createDatabase(path.join(tempDirectory, "library.sqlite"));
+  const repo = new VideoRepository(db);
+  const folder = repo.addSourceFolder("D:\\Synthetic", true);
+  const insert = db.prepare(`
+    INSERT INTO videos (
+      id, source_folder_id, path, directory, filename, basename, extension, size_bytes,
+      duration_ms, width, height, format, modified_at, imported_at, updated_at, is_favorite,
+      is_pending_delete, is_missing, metadata_status, thumbnail_status, timeline_preview_status,
+      cover_cache_path, content_fingerprint, fingerprint_status, fingerprint_updated_at, fingerprint_error
+    ) VALUES (
+      @id, @sourceFolderId, @path, @directory, @filename, @basename, '.mp4', @sizeBytes,
+      @durationMs, 320, 240, 'mp4', @timestamp, @timestamp, @timestamp, 0,
+      0, 0, 'ready', 'pending', 'pending',
+      NULL, NULL, 'pending', NULL, NULL
+    )
+  `);
+  const timestamp = "2026-09-04T00:00:00.000Z";
+  db.transaction(() => {
+    for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+      const directory = `D:\\Synthetic\\directory-${String(groupIndex).padStart(6, "0")}`;
+      for (let copyIndex = 0; copyIndex < 2; copyIndex += 1) {
+        const id = `group-${groupIndex}-copy-${copyIndex}`;
+        const filename = `${id}.mp4`;
+        insert.run({
+          id,
+          sourceFolderId: folder.id,
+          path: `${directory}\\${filename}`,
+          directory,
+          filename,
+          basename: path.parse(filename).name,
+          sizeBytes: 10_000 + groupIndex,
+          durationMs: 1_000 + groupIndex * 1_000,
+          timestamp
+        });
+      }
     }
   })();
   return repo;

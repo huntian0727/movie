@@ -810,6 +810,18 @@ describe("VideoRepository", () => {
     });
   });
 
+  it("keeps only the most recently selected preferred directory", () => {
+    const { repo } = createRepo();
+    const first = repo.saveDuplicatePreferredDirectory("D:\\Movies\\Keep A");
+    const second = repo.saveDuplicatePreferredDirectory("D:\\Movies\\Keep B");
+
+    expect(repo.listDuplicatePreferredDirectories()).toEqual([second]);
+    expect(repo.listDuplicatePreferredDirectories(true)).toEqual([second]);
+    expect(repo.removeDuplicatePreferredDirectory(first.id)).toBe(false);
+    expect(repo.removeDuplicatePreferredDirectory(second.id)).toBe(true);
+    expect(repo.listDuplicatePreferredDirectories()).toEqual([]);
+  });
+
   it("builds a duplicate resolve preview and rejects invalid plans", () => {
     const { repo, folderId } = createRepo();
     const keep = createVideo(repo, folderId);

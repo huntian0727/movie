@@ -70,6 +70,7 @@ interface DuplicateGroupsPageProps {
   onRetryCleanup?(jobId: string): Promise<DuplicateCleanupJob>;
   onClearCleanup?(jobId: string): Promise<boolean>;
   onOpenCleanupItem?(itemId: string): Promise<boolean>;
+  onCleanupFinished?(job: DuplicateCleanupJob): void | Promise<void>;
   cleanupRefreshSequence?: number;
 }
 
@@ -117,6 +118,7 @@ export function DuplicateGroupsPage({
   onRetryCleanup,
   onClearCleanup,
   onOpenCleanupItem,
+  onCleanupFinished,
   cleanupRefreshSequence
 }: DuplicateGroupsPageProps) {
   const [manualKeepByGroup, setManualKeepByGroup] = useState<Record<string, string>>({});
@@ -139,11 +141,21 @@ export function DuplicateGroupsPage({
   const [bindingProgress, setBindingProgress] = useState<CloudDriveLegacyBindingProgress | null>(null);
   const submitGuardRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
+  const onCleanupFinishedRef = useRef(onCleanupFinished);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const taskCenterOpenerRef = useRef<HTMLButtonElement>(null);
   const sizeSortDirection = controlledSizeSortDirection ?? internalSizeSortDirection;
   const legacyResolveEnabled: boolean = false;
   const previewFileCount = useMemo(() => new Set(planVideoIds(groups, manualKeepByGroup)).size, [groups, manualKeepByGroup]);
+  const directoryPickerOptions = useMemo(() => directoryOptions.map((option) => ({
+    ...option,
+    meta: `${option.groupCount} 个候选组 · 候选可释放空间 ${formatBytes(option.estimatedReclaimableBytes)}`
+  })), [directoryOptions]);
+  const currentPreferredDirectory = preferredDirectories[0];
+
+  useEffect(() => {
+    onCleanupFinishedRef.current = onCleanupFinished;
+  }, [onCleanupFinished]);
 
   const sortedGroups = useMemo(
     () => [...groups].sort((left, right) => {
@@ -179,6 +191,7 @@ export function DuplicateGroupsPage({
       if (submittedJob && isCleanupJobFinished(submittedJob)) {
         setSubmittedCleanupJobId(null);
         setMissingCheckMessage(null);
+        void onCleanupFinishedRef.current?.(submittedJob);
       }
     }).catch(() => undefined);
     return () => { disposed = true; };
@@ -379,25 +392,20 @@ export function DuplicateGroupsPage({
           </div>
           <div className="duplicate-summary-actions">
             <div className="duplicate-sort duplicate-directory-filter">
-              <span>优先保留目录（不限制显示范围）</span>
+              <span>当前优先保留目录（包含所有子目录）</span>
               <DirectoryPicker
-                directoryOptions={directoryOptions.map((option) => ({ ...option, meta: `${option.groupCount} 个候选组 · 候选可释放空间 ${formatBytes(option.estimatedReclaimableBytes)}` }))}
+                directoryOptions={directoryPickerOptions}
                 value={undefined}
-                placeholder="添加优先保留目录"
+                placeholder={currentPreferredDirectory ? "更换优先保留目录" : "添加优先保留目录"}
                 ariaLabel="选择候选项计划保留目录（包含所有子目录）"
                 onChange={(path) => onPreferredDirectoryPathChange?.(path)}
               />
             </div>
-            {preferredDirectories.map((directory) => {
-              const hasMatches = directoryOptions.some((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(directory.path));
-              return (
-                <p className="duplicate-directory-scope" key={directory.id}>
-                  <code title={directory.path}>{directory.path}</code>（含子目录）
-                  {!hasMatches && <span className="duplicate-directory-no-match">当前无匹配</span>}
-                  <button type="button" aria-label={`移除优先保留目录 ${directory.path}`} onClick={() => void onRemovePreferredDirectory?.(directory.id)}>移除</button>
-                </p>
-              );
-            })}
+            {currentPreferredDirectory && <p className="duplicate-directory-scope">
+              当前优先保留：<code title={currentPreferredDirectory.path}>{currentPreferredDirectory.path}</code>（含子目录）
+              {!directoryOptions.some((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(currentPreferredDirectory.path)) && <span className="duplicate-directory-no-match">当前无匹配</span>}
+              <button type="button" aria-label={`清除当前优先保留目录 ${currentPreferredDirectory.path}`} onClick={() => void onRemovePreferredDirectory?.(currentPreferredDirectory.id)}>清除</button>
+            </p>}
             {filterDirectoryPath && (
               <div className="duplicate-directory-scope">
                 <p role="status">当前只查看 <code title={filterDirectoryPath}>{filterDirectoryPath}</code> 及其子目录涉及的重复项。</p>
@@ -446,29 +454,21 @@ export function DuplicateGroupsPage({
         </div>
         <div className="duplicate-summary-actions">
           <div className="duplicate-sort duplicate-directory-filter">
-            <span>优先保留目录（不限制显示范围）</span>
+            <span>当前优先保留目录（包含所有子目录）</span>
             <DirectoryPicker
-              directoryOptions={directoryOptions.map((option) => ({
-                ...option,
-                meta: `${option.groupCount} 个候选组 · 候选可释放空间 ${formatBytes(option.estimatedReclaimableBytes)}`
-              }))}
+              directoryOptions={directoryPickerOptions}
               value={undefined}
-              placeholder="添加优先保留目录"
+              placeholder={currentPreferredDirectory ? "更换优先保留目录" : "添加优先保留目录"}
               ariaLabel="选择候选项计划保留目录（包含所有子目录）"
               onChange={(path) => onPreferredDirectoryPathChange?.(path)}
             />
           </div>
-          {preferredDirectories.length > 0 && (
-            <div className="duplicate-directory-scope" role="list" aria-label="已启用的优先保留目录">
-              {preferredDirectories.map((directory) => (
-                <p role="listitem" key={directory.id}>
-                  <code title={directory.path}>{directory.path}</code>（含子目录）
-                  {!directoryOptions.some((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(directory.path)) && <span className="duplicate-directory-no-match">当前无匹配</span>}
-                  <button type="button" aria-label={`移除优先保留目录 ${directory.path}`} onClick={() => void onRemovePreferredDirectory?.(directory.id)}>移除</button>
-                </p>
-              ))}
-            </div>
-          )}
+          {currentPreferredDirectory && <div className="duplicate-directory-scope" aria-label="当前优先保留目录">
+            <p>当前优先保留：<code title={currentPreferredDirectory.path}>{currentPreferredDirectory.path}</code>（含子目录）
+              {!directoryOptions.some((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(currentPreferredDirectory.path)) && <span className="duplicate-directory-no-match">当前无匹配</span>}
+              <button type="button" aria-label={`清除当前优先保留目录 ${currentPreferredDirectory.path}`} onClick={() => void onRemovePreferredDirectory?.(currentPreferredDirectory.id)}>清除</button>
+            </p>
+          </div>}
           {filterDirectoryPath && (
             <div className="duplicate-directory-scope">
               <p role="status">当前只查看 <code title={filterDirectoryPath}>{filterDirectoryPath}</code> 及其所有子目录涉及的重复项。优先保留规则与此筛选独立。</p>

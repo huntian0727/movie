@@ -12,6 +12,8 @@ interface DirectoryPickerProps {
   onChange(path: string): void;
 }
 
+const MAX_VISIBLE_DIRECTORY_OPTIONS = 200;
+
 export interface DirectoryPickerOption {
   path: string;
   meta?: string;
@@ -48,6 +50,7 @@ export function DirectoryPicker({
     if (!keyword) return options;
     return options.filter((option) => option.path.toLocaleLowerCase().includes(keyword) || directoryName(option.path).toLocaleLowerCase().includes(keyword));
   }, [options, query]);
+  const visibleMatches = useMemo(() => matches.slice(0, MAX_VISIBLE_DIRECTORY_OPTIONS), [matches]);
 
   useEffect(() => {
     if (!open) return;
@@ -86,13 +89,14 @@ export function DirectoryPicker({
           </div>
           <div className="directory-picker-results" role="listbox" aria-label="目录搜索结果">
             {allowClear && <button type="button" className="directory-picker-clear" onClick={clear}>全部资料库（自动推荐）</button>}
-            {matches.map((option) => (
+            {visibleMatches.map((option) => (
               <button type="button" role="option" aria-selected={normalizePath(option.path) === normalizePath(value ?? "")} key={option.path} title={option.path} onClick={() => choose(option.path)}>
                 <FolderOpen size={15} />
                 <span><strong>{directoryName(option.path)}</strong><small>{option.meta ? `${option.path} · ${option.meta}` : option.path}</small></span>
               </button>
             ))}
             {matches.length === 0 && <p>没有匹配的已入库目录</p>}
+            {matches.length > visibleMatches.length && <p>还有 {(matches.length - visibleMatches.length).toLocaleString()} 个目录，请输入关键词缩小范围。</p>}
           </div>
           <p className="directory-picker-note">仅搜索资料库已有目录，不会读取磁盘或网盘。</p>
         </div>

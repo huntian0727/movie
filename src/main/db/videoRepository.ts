@@ -143,6 +143,11 @@ interface PlayHistoryRow {
 interface DuplicateIdentityRow {
   size_bytes: number;
   duration_seconds: number;
+  total_groups: number;
+  total_candidate_files: number;
+  total_reclaimable_bytes: number;
+  total_deletable_files: number;
+  total_unbound_deletion_candidate_files: number;
 }
 
 interface DuplicateDirectoryRow {
@@ -268,7 +273,11 @@ const SORT_COLUMNS: Record<SortField, string> = {
   modifiedAt: "modified_at"
 };
 
+const DUPLICATE_DIRECTORY_OPTIONS_CACHE_MS = 60_000;
+
 export class VideoRepository {
+  private duplicateDirectoryOptionsCache: { expiresAt: number; options: DuplicateDirectoryOption[] } | null = null;
+
   constructor(private readonly db: DatabaseConnection) {}
 
   runInTransaction<T>(operation: () => T): T {
@@ -709,7 +718,8 @@ export class VideoRepository {
       SELECT id, path, enabled, created_at, updated_at
       FROM duplicate_preferred_directories
       ${includeDisabled ? "" : "WHERE enabled = 1"}
-      ORDER BY path COLLATE NOCASE
+      ORDER BY updated_at DESC, path COLLATE NOCASE
+      ${includeDisabled ? "" : "LIMIT 1"}
     `).all() as Array<{ id: string; path: string; enabled: number; created_at: string; updated_at: string }>;
     return rows.map((row) => ({
       id: row.id,
@@ -724,14 +734,17 @@ export class VideoRepository {
     const normalizedPath = normalizeManagedPath(directoryPath);
     if (!normalizedPath) throw new Error("Preferred directory path is empty");
     const now = new Date().toISOString();
-    this.db.prepare(`
-      INSERT INTO duplicate_preferred_directories (id, path, normalized_path, enabled, created_at, updated_at)
-      VALUES (@id, @path, @normalizedPath, 1, @now, @now)
-      ON CONFLICT(normalized_path) DO UPDATE SET
-        path = excluded.path,
-        enabled = 1,
-        updated_at = excluded.updated_at
-    `).run({ id: crypto.randomUUID(), path: directoryPath, normalizedPath, now });
+    this.db.transaction(() => {
+      this.db.prepare(`
+        INSERT INTO duplicate_preferred_directories (id, path, normalized_path, enabled, created_at, updated_at)
+        VALUES (@id, @path, @normalizedPath, 1, @now, @now)
+        ON CONFLICT(normalized_path) DO UPDATE SET
+          path = excluded.path,
+          enabled = 1,
+          updated_at = excluded.updated_at
+      `).run({ id: crypto.randomUUID(), path: directoryPath, normalizedPath, now });
+      this.db.prepare("DELETE FROM duplicate_preferred_directories WHERE normalized_path <> ?").run(normalizedPath);
+    })();
     const row = this.db.prepare(`
       SELECT id, path, enabled, created_at, updated_at
       FROM duplicate_preferred_directories WHERE normalized_path = ?
@@ -748,7 +761,9 @@ export class VideoRepository {
   }
 
   removeDuplicatePreferredDirectory(id: string): boolean {
-    return this.db.prepare("DELETE FROM duplicate_preferred_directories WHERE id = ?").run(id).changes > 0;
+    const exists = this.db.prepare("SELECT 1 FROM duplicate_preferred_directories WHERE id = ?").get(id);
+    if (!exists) return false;
+    return this.db.prepare("DELETE FROM duplicate_preferred_directories").run().changes > 0;
   }
 
   getScanFailures(failureIds: readonly string[]): ScanFailure[] {
@@ -1759,7 +1774,6 @@ export class VideoRepository {
   }
 
   listDuplicateGroupsPage(query: DuplicateGroupPageQuery): DuplicateGroupPage {
-    const scopedSizeWhere = ["is_missing = 0"];
     const scopedSizeParams: Record<string, unknown> = {};
     const preferredDirectoryPaths = normalizePreferredDirectoryPaths(query);
     const preferredTreeClauses = preferredDirectoryPaths.map((directoryPath, index) => {
@@ -1774,17 +1788,22 @@ export class VideoRepository {
       scopedSizeParams.filterDirectoryPath = filterDirectoryPath;
       scopedSizeParams.filterDirectoryPrefix = `${escapeLikePattern(trimTrailingSeparators(filterDirectoryPath))}\\%`;
       filterTreeClause = `(directory = @filterDirectoryPath COLLATE NOCASE OR directory LIKE @filterDirectoryPrefix ESCAPE '!' COLLATE NOCASE)`;
-      scopedSizeWhere.push(filterTreeClause);
     }
-    const scopedSizesQuery = `SELECT DISTINCT size_bytes FROM videos WHERE ${scopedSizeWhere.join(" AND ")}`;
-    const candidateSizesQuery = `
+    const candidateScope = filterTreeClause
+      ? `WITH scoped_sizes AS MATERIALIZED (
+           SELECT DISTINCT size_bytes FROM videos WHERE is_missing = 0 AND ${filterTreeClause}
+         )`
+      : "";
+    const candidateScopeClause = filterTreeClause
+      ? "AND EXISTS (SELECT 1 FROM scoped_sizes WHERE scoped_sizes.size_bytes = videos.size_bytes)"
+      : "";
+    const candidateSizesQuery = `${candidateScope}
       SELECT size_bytes, COUNT(*) AS file_count
       FROM videos
       WHERE is_missing = 0
-        AND size_bytes IN (${scopedSizesQuery})
+        ${candidateScopeClause}
       GROUP BY size_bytes
-      HAVING COUNT(*) >= 2
-    `;
+      HAVING COUNT(*) >= 2`;
     const candidateStats = this.db
       .prepare(
         `SELECT
@@ -1794,91 +1813,98 @@ export class VideoRepository {
       )
       .get(scopedSizeParams) as DuplicateStatsRow;
 
-    const scopedIdentityWhere = [
-      "is_missing = 0",
-      "metadata_status = 'ready'",
-      "duration_ms IS NOT NULL",
-      "duration_ms > 0"
-    ];
-    if (filterTreeClause) {
-      scopedIdentityWhere.push(filterTreeClause);
-    }
-    const scopedIdentitiesQuery = `SELECT DISTINCT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds FROM videos WHERE ${scopedIdentityWhere.join(" AND ")}`;
     const cloudItemExpression = "provider_file_id IS NOT NULL AND provider_file_id != '' AND provider_path IS NOT NULL AND provider_path != ''";
-    const deletableCountExpression = preferredTreeClause
-      ? `SUM(CASE WHEN ${cloudItemExpression} THEN 1 ELSE 0 END)
-          - CASE WHEN SUM(CASE WHEN NOT (${cloudItemExpression}) AND ${preferredTreeClause} THEN 1 ELSE 0 END) > 0 THEN 0 ELSE 1 END`
-      : `SUM(CASE WHEN ${cloudItemExpression} THEN 1 ELSE 0 END)
-          - CASE WHEN SUM(CASE WHEN ${cloudItemExpression} THEN 1 ELSE 0 END) = COUNT(*) THEN 1 ELSE 0 END`;
-    const unboundDeletionCandidateCountExpression = preferredTreeClause
-      ? `SUM(CASE WHEN NOT (${cloudItemExpression}) THEN 1 ELSE 0 END)
-          - CASE WHEN SUM(CASE WHEN NOT (${cloudItemExpression}) AND ${preferredTreeClause} THEN 1 ELSE 0 END) > 0 THEN 1 ELSE 0 END`
-      : `MAX(SUM(CASE WHEN NOT (${cloudItemExpression}) THEN 1 ELSE 0 END) - 1, 0)`;
-    const duplicateGroupsQuery = `
-      SELECT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds,
-             COUNT(*) AS file_count,
-             ${deletableCountExpression} AS deletable_count,
-             ${unboundDeletionCandidateCountExpression} AS unbound_deletion_candidate_count
-      FROM videos
-      WHERE is_missing = 0
-        AND metadata_status = 'ready'
-        AND duration_ms IS NOT NULL
-        AND duration_ms > 0
-        AND NOT EXISTS (
-          SELECT 1 FROM duplicate_cleanup_reservations active_reservation
-          JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
-          WHERE active_reservation.released_at IS NULL
-            AND reserved_video.size_bytes = videos.size_bytes
-            AND ((reserved_video.duration_ms + 500) / 1000) = ((videos.duration_ms + 500) / 1000)
-        )
-        AND (size_bytes, ((duration_ms + 500) / 1000)) IN (${scopedIdentitiesQuery})
-      GROUP BY size_bytes, duration_seconds
-      HAVING COUNT(*) >= 2
-    `;
-    const verifiedStats = this.db
-      .prepare(
-        `SELECT
-           COUNT(*) AS total_groups,
-           COALESCE(SUM(file_count), 0) AS total_candidate_files,
-           COALESCE(SUM(deletable_count * size_bytes), 0) AS total_reclaimable_bytes,
-           COALESCE(SUM(deletable_count), 0) AS total_deletable_files,
-           COALESCE(SUM(unbound_deletion_candidate_count), 0) AS total_unbound_deletion_candidate_files
-         FROM (${duplicateGroupsQuery})`
+    const preferredLocalCountExpression = preferredTreeClause
+      ? `SUM(CASE WHEN NOT (${cloudItemExpression}) AND ${preferredTreeClause} THEN 1 ELSE 0 END)`
+      : "0";
+    const deletableScoreExpression = preferredTreeClause
+      ? "MAX(cloud_count - CASE WHEN preferred_local_count > 0 THEN 0 ELSE 1 END, 0)"
+      : "MAX(cloud_count - CASE WHEN cloud_count = file_count THEN 1 ELSE 0 END, 0)";
+    const unboundScoreExpression = preferredTreeClause
+      ? "MAX(unbound_count - CASE WHEN preferred_local_count > 0 THEN 1 ELSE 0 END, 0)"
+      : "MAX(unbound_count - 1, 0)";
+    const identityScopeCte = filterTreeClause
+      ? `, scoped_identities AS MATERIALIZED (
+           SELECT DISTINCT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds
+           FROM videos
+           WHERE is_missing = 0
+             AND metadata_status = 'ready'
+             AND duration_ms IS NOT NULL
+             AND duration_ms > 0
+             AND ${filterTreeClause}
+         )`
+      : "";
+    const identityScopeClause = filterTreeClause
+      ? `AND EXISTS (
+           SELECT 1 FROM scoped_identities scoped
+           WHERE scoped.size_bytes = videos.size_bytes
+             AND scoped.duration_seconds = ((videos.duration_ms + 500) / 1000)
+         )`
+      : "";
+    const duplicateGroupsCte = `
+      WITH active_reserved_identities AS MATERIALIZED (
+        SELECT DISTINCT reserved_video.size_bytes,
+               ((reserved_video.duration_ms + 500) / 1000) AS duration_seconds
+        FROM duplicate_cleanup_reservations reservation
+        JOIN videos reserved_video ON reserved_video.id = reservation.video_id
+        WHERE reservation.released_at IS NULL
       )
-      .get(scopedSizeParams) as DuplicateStatsRow;
-    const overallTotalGroups = filterTreeClause
-      ? (this.db.prepare(`
-          SELECT COUNT(*) AS total_groups
-          FROM (
-            SELECT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds
-            FROM videos
-            WHERE is_missing = 0
-              AND metadata_status = 'ready'
-              AND duration_ms IS NOT NULL
-              AND duration_ms > 0
-              AND NOT EXISTS (
-                SELECT 1 FROM duplicate_cleanup_reservations active_reservation
-                JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
-                WHERE active_reservation.released_at IS NULL
-                  AND reserved_video.size_bytes = videos.size_bytes
-                  AND ((reserved_video.duration_ms + 500) / 1000) = ((videos.duration_ms + 500) / 1000)
-              )
-            GROUP BY size_bytes, duration_seconds
-            HAVING COUNT(*) >= 2
+      ${identityScopeCte}, duplicate_groups AS MATERIALIZED (
+        SELECT videos.size_bytes, ((videos.duration_ms + 500) / 1000) AS duration_seconds,
+               COUNT(*) AS file_count,
+               SUM(CASE WHEN ${cloudItemExpression} THEN 1 ELSE 0 END) AS cloud_count,
+               SUM(CASE WHEN NOT (${cloudItemExpression}) THEN 1 ELSE 0 END) AS unbound_count,
+               ${preferredLocalCountExpression} AS preferred_local_count
+        FROM videos
+        WHERE videos.is_missing = 0
+          AND videos.metadata_status = 'ready'
+          AND videos.duration_ms IS NOT NULL
+          AND videos.duration_ms > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM active_reserved_identities reserved
+            WHERE reserved.size_bytes = videos.size_bytes
+              AND reserved.duration_seconds = ((videos.duration_ms + 500) / 1000)
           )
-        `).get() as { total_groups: number }).total_groups
-      : verifiedStats.total_groups;
-    const totalPages = Math.max(1, Math.ceil(verifiedStats.total_groups / query.pageSize));
-    const page = Math.min(Math.max(1, query.page), totalPages);
+          ${identityScopeClause}
+        GROUP BY videos.size_bytes, duration_seconds
+        HAVING COUNT(*) >= 2
+      ), scored_groups AS (
+        SELECT *,
+          ${deletableScoreExpression} AS deletable_count,
+          ${unboundScoreExpression} AS unbound_deletion_candidate_count
+        FROM duplicate_groups
+      )`;
     const direction = query.sortDirection === "asc" ? "ASC" : "DESC";
+    const requestedPage = Math.max(1, query.page);
     const identityRows = this.db
       .prepare(
-        `SELECT size_bytes, duration_seconds
-         FROM (${duplicateGroupsQuery})
-         ORDER BY size_bytes ${direction}, duration_seconds ASC
-         LIMIT @limit OFFSET @offset`
+        `${duplicateGroupsCte}, ranked_groups AS (
+           SELECT *,
+             COUNT(*) OVER () AS total_groups,
+             COALESCE(SUM(file_count) OVER (), 0) AS total_candidate_files,
+             COALESCE(SUM(deletable_count * size_bytes) OVER (), 0) AS total_reclaimable_bytes,
+             COALESCE(SUM(deletable_count) OVER (), 0) AS total_deletable_files,
+             COALESCE(SUM(unbound_deletion_candidate_count) OVER (), 0) AS total_unbound_deletion_candidate_files,
+             ROW_NUMBER() OVER (ORDER BY size_bytes ${direction}, duration_seconds ASC) AS row_number
+           FROM scored_groups
+         )
+         SELECT size_bytes, duration_seconds, total_groups, total_candidate_files, total_reclaimable_bytes,
+                total_deletable_files, total_unbound_deletion_candidate_files
+         FROM ranked_groups
+         WHERE row_number > (MIN(@requestedPage, CAST((total_groups + @limit - 1) / @limit AS INTEGER)) - 1) * @limit
+           AND row_number <= MIN(@requestedPage, CAST((total_groups + @limit - 1) / @limit AS INTEGER)) * @limit
+         ORDER BY row_number`
       )
-      .all({ ...scopedSizeParams, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as DuplicateIdentityRow[];
+      .all({ ...scopedSizeParams, limit: query.pageSize, requestedPage }) as DuplicateIdentityRow[];
+    const verifiedStats: DuplicateStatsRow = identityRows[0] ?? {
+      total_groups: 0,
+      total_candidate_files: 0,
+      total_reclaimable_bytes: 0,
+      total_deletable_files: 0,
+      total_unbound_deletion_candidate_files: 0
+    };
+    const totalPages = Math.max(1, Math.ceil(verifiedStats.total_groups / query.pageSize));
+    const page = Math.min(requestedPage, totalPages);
     const groups = identityRows
       .map((group) => this.buildDuplicateGroup(buildSizeDurationGroupKey(group.size_bytes, group.duration_seconds * 1000), preferredDirectoryPaths))
       .filter((group): group is DuplicateGroup => group !== null);
@@ -1889,7 +1915,7 @@ export class VideoRepository {
       pageSize: query.pageSize,
       totalPages,
       totalGroups: verifiedStats.total_groups,
-      overallTotalGroups,
+      overallTotalGroups: filterTreeClause ? this.countAllDuplicateGroups() : verifiedStats.total_groups,
       totalCandidateGroups: candidateStats.total_groups,
       totalCandidateFiles: candidateStats.total_candidate_files,
       totalReclaimableBytes: verifiedStats.total_reclaimable_bytes ?? 0,
@@ -1975,8 +2001,18 @@ export class VideoRepository {
   }
 
   private listDuplicateDirectoryOptions(): DuplicateDirectoryOption[] {
+    const now = Date.now();
+    if (this.duplicateDirectoryOptionsCache && this.duplicateDirectoryOptionsCache.expiresAt > now) {
+      return this.duplicateDirectoryOptionsCache.options;
+    }
     const rows = this.db.prepare(`
-      WITH duplicate_identities AS (
+      WITH active_reserved_identities AS MATERIALIZED (
+        SELECT DISTINCT reserved_video.size_bytes,
+               ((reserved_video.duration_ms + 500) / 1000) AS duration_seconds
+        FROM duplicate_cleanup_reservations reservation
+        JOIN videos reserved_video ON reserved_video.id = reservation.video_id
+        WHERE reservation.released_at IS NULL
+      ), duplicate_identities AS MATERIALIZED (
         SELECT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds, COUNT(*) AS file_count
         FROM videos
         WHERE is_missing = 0
@@ -1984,11 +2020,9 @@ export class VideoRepository {
           AND duration_ms IS NOT NULL
           AND duration_ms > 0
           AND NOT EXISTS (
-            SELECT 1 FROM duplicate_cleanup_reservations active_reservation
-            JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
-            WHERE active_reservation.released_at IS NULL
-              AND reserved_video.size_bytes = videos.size_bytes
-              AND ((reserved_video.duration_ms + 500) / 1000) = ((videos.duration_ms + 500) / 1000)
+            SELECT 1 FROM active_reserved_identities reserved
+            WHERE reserved.size_bytes = videos.size_bytes
+              AND reserved.duration_seconds = ((videos.duration_ms + 500) / 1000)
           )
         GROUP BY size_bytes, duration_seconds
         HAVING COUNT(*) >= 2
@@ -2015,7 +2049,7 @@ export class VideoRepository {
       }
     }
 
-    return [...byPath.values()]
+    const options = [...byPath.values()]
       .map(({ path: directoryPath, groups }) => ({
         path: directoryPath,
         groupCount: groups.size,
@@ -2026,6 +2060,36 @@ export class VideoRepository {
         right.groupCount - left.groupCount ||
         left.path.localeCompare(right.path, "zh-CN", { numeric: true })
       );
+    this.duplicateDirectoryOptionsCache = { expiresAt: now + DUPLICATE_DIRECTORY_OPTIONS_CACHE_MS, options };
+    return options;
+  }
+
+  private countAllDuplicateGroups(): number {
+    return (this.db.prepare(`
+      WITH active_reserved_identities AS MATERIALIZED (
+        SELECT DISTINCT reserved_video.size_bytes,
+               ((reserved_video.duration_ms + 500) / 1000) AS duration_seconds
+        FROM duplicate_cleanup_reservations reservation
+        JOIN videos reserved_video ON reserved_video.id = reservation.video_id
+        WHERE reservation.released_at IS NULL
+      )
+      SELECT COUNT(*) AS count
+      FROM (
+        SELECT videos.size_bytes, ((videos.duration_ms + 500) / 1000) AS duration_seconds
+        FROM videos
+        WHERE videos.is_missing = 0
+          AND videos.metadata_status = 'ready'
+          AND videos.duration_ms IS NOT NULL
+          AND videos.duration_ms > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM active_reserved_identities reserved
+            WHERE reserved.size_bytes = videos.size_bytes
+              AND reserved.duration_seconds = ((videos.duration_ms + 500) / 1000)
+          )
+        GROUP BY videos.size_bytes, duration_seconds
+        HAVING COUNT(*) >= 2
+      )
+    `).get() as CountRow).count;
   }
 
   previewDuplicateResolve(plan: DuplicateResolvePlan): Omit<DuplicateResolvePreview, "verificationStatus"> {

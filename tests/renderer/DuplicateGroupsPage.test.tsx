@@ -86,18 +86,20 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     const onAutoDeleteFiltered = vi.fn().mockResolvedValue({
       jobId: "job-1", requestId: "request-1", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096
     });
+    const onCleanupFinished = vi.fn();
     const { rerender } = render(<DuplicateGroupsPage {...baseProps()} totalDeletableFiles={1}
-      onAutoDeleteFiltered={onAutoDeleteFiltered} onLoadCleanupJobs={onLoadCleanupJobs} cleanupRefreshSequence={1} />);
+      onAutoDeleteFiltered={onAutoDeleteFiltered} onLoadCleanupJobs={onLoadCleanupJobs} onCleanupFinished={onCleanupFinished} cleanupRefreshSequence={1} />);
 
     fireEvent.click(screen.getByRole("button", { name: /批量删除全部筛选结果/ }));
     expect(await screen.findByText(/已对全部筛选结果启动 CloudDrive API 批量删除任务/)).toBeInTheDocument();
     await waitFor(() => expect(onLoadCleanupJobs).toHaveBeenCalledTimes(2));
 
     rerender(<DuplicateGroupsPage {...baseProps()} totalDeletableFiles={1}
-      onAutoDeleteFiltered={onAutoDeleteFiltered} onLoadCleanupJobs={onLoadCleanupJobs} cleanupRefreshSequence={2} />);
+      onAutoDeleteFiltered={onAutoDeleteFiltered} onLoadCleanupJobs={onLoadCleanupJobs} onCleanupFinished={onCleanupFinished} cleanupRefreshSequence={2} />);
 
     await waitFor(() => expect(screen.queryByText(/已对全部筛选结果启动 CloudDrive API 批量删除任务/)).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: /后台任务 0/ })).toBeInTheDocument();
+    expect(onCleanupFinished).toHaveBeenCalledWith(completedJob);
   });
 
   it("starts only full verification after an explicit preflight and does not claim deletion", async () => {
@@ -224,6 +226,22 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
+  it("renders only the first 200 directory choices until the user narrows the search", () => {
+    const directoryOptions = Array.from({ length: 250 }, (_, index) => ({
+      path: `D:\\Library\\Folder ${String(index).padStart(3, "0")}`,
+      groupCount: 1,
+      estimatedReclaimableBytes: 1024
+    }));
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} directoryOptions={directoryOptions} />);
+
+    fireEvent.click(screen.getByLabelText("选择候选项计划保留目录（包含所有子目录）"));
+
+    expect(container.querySelectorAll(".directory-picker-menu [role='option']")).toHaveLength(200);
+    expect(screen.getByText("还有 50 个目录，请输入关键词缩小范围。")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("搜索目录"), { target: { value: "Folder 249" } });
+    expect(container.querySelectorAll(".directory-picker-menu [role='option']")).toHaveLength(1);
+  });
+
   it("quickly binds legacy duplicate candidates through CloudDrive metadata only", async () => {
     const onRefresh = vi.fn();
     const onBindLegacyCloudDrive = vi.fn().mockResolvedValue({
@@ -317,7 +335,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
       preferredDirectories={[preferredDirectory]} onRemovePreferredDirectory={onRemovePreferredDirectory} />);
 
     expect(screen.getByText("当前无匹配")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "移除优先保留目录 D:\\Movies" }));
+    fireEvent.click(screen.getByRole("button", { name: "清除当前优先保留目录 D:\\Movies" }));
     expect(onRemovePreferredDirectory).toHaveBeenCalledWith("preferred-1");
   });
 

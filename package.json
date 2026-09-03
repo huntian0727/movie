@@ -1,6 +1,6 @@
 {
   "name": "local-video-manager",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "main": "dist-main/main/index.js",
   "type": "module",

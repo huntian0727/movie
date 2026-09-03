@@ -30,6 +30,8 @@ interface LibraryShellProps {
   loading?: boolean;
   error?: string | null;
   refreshSequence?: number;
+  duplicateRefreshSequence?: number;
+  duplicateCleanupRefreshSequence?: number;
   scanFailureRefreshSequence?: number;
   shortcuts?: ShortcutSettings;
   onAddFolder?(): void | Promise<void>;
@@ -84,6 +86,8 @@ export function LibraryShell({
   loading = false,
   error = null,
   refreshSequence = 0,
+  duplicateRefreshSequence = 0,
+  duplicateCleanupRefreshSequence = 0,
   scanFailureRefreshSequence = 0,
   shortcuts = DEFAULT_SHORTCUTS,
   onAddFolder,
@@ -379,7 +383,7 @@ export function LibraryShell({
     });
 
     return () => { disposed = true; };
-  }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, refreshSequence, view]);
+  }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
 
   const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
   const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
@@ -882,7 +886,7 @@ export function LibraryShell({
                 return;
               }
               const saved = await duplicateCleanupApi.saveDuplicatePreferredDirectory(path);
-              setDuplicatePreferredDirectories((current) => [...current.filter((entry) => entry.id !== saved.id), saved]);
+              setDuplicatePreferredDirectories([saved]);
               setDuplicatePreferredDirectoryPath("");
               setDuplicateFilterDirectoryPath(path);
               setDuplicatePageNumber(1);
@@ -890,7 +894,9 @@ export function LibraryShell({
             onClearDirectoryFilter={() => { setDuplicateFilterDirectoryPath(""); setDuplicatePageNumber(1); }}
             onRemovePreferredDirectory={duplicateCleanupApi?.removeDuplicatePreferredDirectory ? async (id) => {
               await duplicateCleanupApi.removeDuplicatePreferredDirectory!(id);
-              setDuplicatePreferredDirectories((current) => current.filter((entry) => entry.id !== id));
+              setDuplicatePreferredDirectories([]);
+              setDuplicatePreferredDirectoryPath("");
+              setDuplicateFilterDirectoryPath("");
               setDuplicatePageNumber(1);
             } : undefined}
             onOpen={openVideo}
@@ -935,7 +941,18 @@ export function LibraryShell({
             onRetryCleanup={duplicateCleanupApi?.retryDuplicateCleanup}
             onClearCleanup={duplicateCleanupApi?.clearDuplicateCleanup}
             onOpenCleanupItem={duplicateCleanupApi?.openDuplicateCleanupItem}
-            cleanupRefreshSequence={refreshSequence}
+            onCleanupFinished={async (job) => {
+              if (job.sourceView !== "duplicates-all-filtered" || job.status !== "completed" || job.failedItems > 0 || job.skippedItems > 0) return;
+              const currentDirectory = duplicatePreferredDirectories[0];
+              if (currentDirectory && duplicateCleanupApi?.removeDuplicatePreferredDirectory) {
+                await duplicateCleanupApi.removeDuplicatePreferredDirectory(currentDirectory.id);
+              }
+              setDuplicatePreferredDirectories([]);
+              setDuplicatePreferredDirectoryPath("");
+              setDuplicateFilterDirectoryPath("");
+              setDuplicatePageNumber(1);
+            }}
+            cleanupRefreshSequence={duplicateCleanupRefreshSequence}
           />
         ) : (loading || videoPageLoading) && renderedVideos.length === 0 ? (
           <div className="loading-state"><span /><p>正在读取视频资料...</p></div>
