@@ -352,38 +352,38 @@ export class VideoRepository {
 
   listSourceFoldersWithStats(): SourceFolder[] {
     const rows = this.db.prepare("SELECT * FROM source_folders ORDER BY path ASC").all() as SourceFolderRow[];
-    const readStats = this.db.prepare(`
+    const statsRows = this.db.prepare(`
+      WITH duplicate_sizes AS (
+        SELECT size_bytes
+        FROM videos
+        WHERE is_missing = 0
+        GROUP BY size_bytes
+        HAVING COUNT(*) > 1
+      )
       SELECT
+        videos.source_folder_id,
         COUNT(*) AS video_count,
         COALESCE(SUM(CASE
           WHEN videos.provider_file_id IS NOT NULL AND videos.provider_path IS NOT NULL THEN 1
           ELSE 0
         END), 0) AS provider_identity_count,
         COALESCE(SUM(CASE
-          WHEN videos.is_missing = 0 AND EXISTS (
-            SELECT 1 FROM videos peer
-            WHERE peer.id <> videos.id
-              AND peer.is_missing = 0
-              AND peer.size_bytes = videos.size_bytes
-          ) THEN 1 ELSE 0
+          WHEN videos.is_missing = 0 AND duplicate_sizes.size_bytes IS NOT NULL THEN 1 ELSE 0
         END), 0) AS duplicate_size_candidate_count,
         COALESCE(SUM(CASE
           WHEN videos.is_missing = 0
             AND videos.metadata_status = 'ready'
             AND videos.duration_ms IS NOT NULL
             AND videos.duration_ms > 0
-            AND EXISTS (
-              SELECT 1 FROM videos peer
-              WHERE peer.id <> videos.id
-                AND peer.is_missing = 0
-                AND peer.size_bytes = videos.size_bytes
-            )
+            AND duplicate_sizes.size_bytes IS NOT NULL
           THEN 1 ELSE 0
         END), 0) AS duplicate_duration_ready_count
       FROM videos
-      WHERE videos.source_folder_id = ?
-    `);
-    return rows.map((row) => mapSourceFolder(row, readStats.get(row.id) as SourceFolderStatsRow));
+      LEFT JOIN duplicate_sizes ON duplicate_sizes.size_bytes = videos.size_bytes
+      GROUP BY videos.source_folder_id
+    `).all() as Array<SourceFolderStatsRow & { source_folder_id: string }>;
+    const statsByFolderId = new Map(statsRows.map((stats) => [stats.source_folder_id, stats]));
+    return rows.map((row) => mapSourceFolder(row, statsByFolderId.get(row.id)));
   }
 
   removeSourceFolder(folderId: string): SourceFolderRemovalResult {
@@ -2223,6 +2223,17 @@ export class VideoRepository {
 
   removeVideo(videoId: string): void {
     this.db.prepare("DELETE FROM videos WHERE id = ?").run(videoId);
+  }
+
+  listRetainedMediaCachePaths(): string[] {
+    return this.db.prepare(`
+      SELECT cover_cache_path AS cache_path
+      FROM videos
+      WHERE cover_cache_path IS NOT NULL
+      UNION
+      SELECT cache_path
+      FROM timeline_previews
+    `).pluck().all() as string[];
   }
 
   removeVideos(videoIds: readonly string[]): void {

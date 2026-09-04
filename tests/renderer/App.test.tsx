@@ -89,6 +89,69 @@ describe("desktop-only renderer runtime", () => {
     });
     await waitFor(() => expect(api.getLibraryNavigation).toHaveBeenCalledTimes(initialNavigationCalls + 1), { timeout: 1_000 });
   });
+
+  it("coalesces metadata events without rebuilding full library navigation", async () => {
+    let listener: ((event: DomainEvent) => void) | undefined;
+    const api = createDesktopApi();
+    vi.mocked(api.subscribeDomainEvents).mockImplementation((nextListener) => {
+      listener = nextListener;
+      return () => undefined;
+    });
+    render(<DesktopApp api={api} />);
+    await waitFor(() => expect(api.listVideoPage).toHaveBeenCalled());
+    const initialPageCalls = vi.mocked(api.listVideoPage).mock.calls.length;
+    const initialNavigationCalls = vi.mocked(api.getLibraryNavigation).mock.calls.length;
+
+    await act(async () => {
+      listener?.({ sequence: 1, type: "video:updated", videoIds: ["v1"] });
+      listener?.({ sequence: 2, type: "video:updated", videoIds: ["v2"] });
+      listener?.({ sequence: 3, type: "video:updated", videoIds: ["v3"] });
+    });
+
+    await waitFor(() => expect(api.listVideoPage).toHaveBeenCalledTimes(initialPageCalls + 1), { timeout: 1_000 });
+    expect(api.getLibraryNavigation).toHaveBeenCalledTimes(initialNavigationCalls);
+  });
+
+  it("checks the event sequence on focus without performing an unchanged full reload", async () => {
+    const api = createDesktopApi();
+    render(<DesktopApp api={api} />);
+    await waitFor(() => expect(api.listFolders).toHaveBeenCalled());
+    const initialFolderCalls = vi.mocked(api.listFolders).mock.calls.length;
+    const initialNavigationCalls = vi.mocked(api.getLibraryNavigation).mock.calls.length;
+
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(api.getWindowSyncSnapshot).toHaveBeenCalledTimes(2));
+
+    expect(api.listFolders).toHaveBeenCalledTimes(initialFolderCalls);
+    expect(api.getLibraryNavigation).toHaveBeenCalledTimes(initialNavigationCalls);
+  });
+
+  it("does not load library navigation or source-folder statistics in a player window", async () => {
+    let listener: ((event: DomainEvent) => void) | undefined;
+    const api = createDesktopApi();
+    Object.assign(api, { windowMode: "player" as const });
+    const video = {
+      id: "player-video", filename: "sample.mp4", basename: "sample", path: "F:\\sample.mp4", directory: "F:\\",
+      extension: ".mp4", sizeBytes: 1024, durationMs: 1_000, width: 320, height: 240,
+      metadataStatus: "ready", thumbnailStatus: "pending", updatedAt: "2026-09-01", isMissing: false
+    } as VideoRecord;
+    vi.mocked(api.getWindowSyncSnapshot).mockResolvedValue({
+      sequence: 0,
+      playerSession: { sequence: 0, selectedVideoId: video.id, queueIds: [video.id], videos: [video] }
+    });
+    vi.mocked(api.subscribeDomainEvents).mockImplementation((nextListener) => {
+      listener = nextListener;
+      return () => undefined;
+    });
+
+    render(<DesktopApp api={api} />);
+    await waitFor(() => expect(screen.getByText("sample.mp4")).toBeInTheDocument());
+    expect(api.listFolders).not.toHaveBeenCalled();
+    expect(api.getLibraryNavigation).not.toHaveBeenCalled();
+
+    await act(async () => listener?.({ sequence: 1, type: "source-folder:updated", videoIds: [] }));
+    expect(api.listFolders).not.toHaveBeenCalled();
+  });
 });
 
 function createDesktopApi(): DesktopVideoManagerApi {

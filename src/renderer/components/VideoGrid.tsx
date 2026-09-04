@@ -27,21 +27,22 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
   const [failedCoverUrls, setFailedCoverUrls] = useState<Set<string>>(() => new Set());
   const [explicitPreviewIds, setExplicitPreviewIds] = useState<Set<string>>(() => new Set());
   const [previewAttempts, setPreviewAttempts] = useState<Record<string, number>>({});
-  const [previewStates, setPreviewStates] = useState<Record<string, "loading" | "ready" | "failed">>({});
   const [resettingIds, setResettingIds] = useState<Set<string>>(() => new Set());
+  const [resetFailedIds, setResetFailedIds] = useState<Set<string>>(() => new Set());
 
   const retryPreview = async (video: VideoRecord, url: string | null) => {
     if (!onRegenerateCover || resettingIds.has(video.id)) return;
     setResettingIds((current) => new Set(current).add(video.id));
-    setPreviewStates((current) => ({ ...current, [video.id]: "loading" }));
     try {
       await onRegenerateCover(video);
       setExplicitPreviewIds((current) => new Set(current).add(video.id));
       setFailedCoverUrls((current) => { const next = new Set(current); if (url) next.delete(url); return next; });
+      setResetFailedIds((current) => { const next = new Set(current); next.delete(video.id); return next; });
       // Explicit retry must work even if the database timestamp / URL is unchanged.
       setPreviewAttempts((current) => ({ ...current, [video.id]: (current[video.id] ?? 0) + 1 }));
     } catch {
-      setPreviewStates((current) => ({ ...current, [video.id]: "failed" }));
+      if (url) setFailedCoverUrls((current) => new Set(current).add(url));
+      setResetFailedIds((current) => new Set(current).add(video.id));
     } finally {
       setResettingIds((current) => { const next = new Set(current); next.delete(video.id); return next; });
     }
@@ -81,10 +82,8 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
                   src={coverUrl}
                   priority={explicitPreviewIds.has(video.id) ? 2 : 1}
                   onError={() => {
-                    setPreviewStates((current) => ({ ...current, [video.id]: "failed" }));
                     setFailedCoverUrls((current) => new Set(current).add(coverUrl));
                   }}
-                  onStateChange={(state) => setPreviewStates((current) => current[video.id] === state ? current : { ...current, [video.id]: state })}
                 />
               ) : (
                 <Film size={42} strokeWidth={1.4} aria-hidden="true" />
@@ -155,8 +154,8 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
                   </button>
                 )}
               </div>
-              {previewStates[video.id] === "loading" && <p role="status">预览排队或生成中…</p>}
-              {previewStates[video.id] === "failed" && <p role="status">预览加载失败，可点击重新生成重试</p>}
+              {resettingIds.has(video.id) && <p role="status">预览排队或生成中…</p>}
+              {((requestedCoverUrl && failedCoverUrls.has(requestedCoverUrl)) || resetFailedIds.has(video.id)) && <p role="status">预览加载失败，可点击重新生成重试</p>}
             </div>
           </article>
         );

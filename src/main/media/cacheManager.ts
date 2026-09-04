@@ -40,7 +40,7 @@ export interface MediaCacheCleanupResult {
 
 export interface MediaCacheManagerDependencies {
   now?: () => number;
-  getRetainedCacheKeys?: () => ReadonlySet<string> | Promise<ReadonlySet<string>>;
+  getRetainedCachePaths?: () => ReadonlySet<string> | Promise<ReadonlySet<string>>;
   onEntriesRemoved?: (paths: string[]) => void | Promise<void>;
   deleteFile?: (filePath: string) => Promise<void>;
   logger?: StructuredLogger;
@@ -49,7 +49,6 @@ export interface MediaCacheManagerDependencies {
 interface CacheEntry {
   path: string;
   category: "covers" | "timeline";
-  cacheKey: string | null;
   sizeBytes: number;
   lastAccessMs: number;
 }
@@ -243,7 +242,7 @@ export class MediaCacheManager {
   ): Promise<MediaCacheCleanupResult> {
     await this.waitForClear();
     const entries = await this.collectEntries();
-    const retainedKeys = await this.dependencies.getRetainedCacheKeys?.();
+    const retainedPaths = await this.dependencies.getRetainedCachePaths?.();
     const now = this.now();
     const candidates = new Set<string>();
     const byCategory = {
@@ -251,9 +250,10 @@ export class MediaCacheManager {
       timeline: entries.filter((entry) => entry.category === "timeline").sort(oldestFirst)
     };
 
-    if (retainedKeys) {
+    if (retainedPaths) {
+      const normalizedRetainedPaths = new Set([...retainedPaths].map(normalizeCachePath));
       for (const entry of entries) {
-        if (!entry.cacheKey || !retainedKeys.has(entry.cacheKey)) candidates.add(entry.path);
+        if (!normalizedRetainedPaths.has(normalizeCachePath(entry.path))) candidates.add(entry.path);
       }
     }
 
@@ -479,7 +479,6 @@ async function collectFiles(
       target.push({
         path: entryPath,
         category,
-        cacheKey: getCacheKeyFromPath(entryPath, category),
         sizeBytes: entryStat.size,
         lastAccessMs: entryStat.mtimeMs
       });
@@ -517,12 +516,6 @@ function addQuotaCandidates(
     candidates.add(entry.path);
     retainedBytes -= entry.sizeBytes;
   }
-}
-
-function getCacheKeyFromPath(filePath: string, category: CacheEntry["category"]): string | null {
-  const value = category === "covers" ? path.basename(filePath) : path.basename(path.dirname(filePath));
-  const match = /^([a-f0-9]{32})(?:-|$)/i.exec(value);
-  return match?.[1]?.toLowerCase() ?? null;
 }
 
 function statusFromEntries(
@@ -564,6 +557,11 @@ function newestFirst(left: CacheEntry, right: CacheEntry): number {
 function isPathInside(candidate: string, parent: string): boolean {
   const relative = path.relative(parent, candidate);
   return relative !== "" && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative);
+}
+
+function normalizeCachePath(candidate: string): string {
+  const resolved = path.resolve(candidate);
+  return process.platform === "win32" ? resolved.toLocaleLowerCase() : resolved;
 }
 
 async function exists(candidatePath: string): Promise<boolean> {

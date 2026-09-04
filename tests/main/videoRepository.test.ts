@@ -418,6 +418,23 @@ describe("VideoRepository", () => {
     expect(repo.getSourceFolderByPath("d:\\movies").id).toBe(first.id);
   });
 
+  it("lists only cache paths retained by generated preview records", () => {
+    const { repo, folderId } = createRepo();
+    const coverVideo = createVideo(repo, folderId);
+    const timelineVideo = createVideo(repo, folderId, {
+      path: "D:\\Movies\\timeline-retained.mp4",
+      filename: "timeline-retained.mp4",
+      basename: "timeline-retained"
+    });
+    repo.markThumbnailReady(coverVideo.id, "C:\\Cache\\cover-retained.jpg");
+    repo.markTimelinePreviewReady(timelineVideo.id, 5000, "C:\\Cache\\timeline\\5000-retained.jpg");
+
+    expect(repo.listRetainedMediaCachePaths()).toEqual(expect.arrayContaining([
+      "C:\\Cache\\cover-retained.jpg",
+      "C:\\Cache\\timeline\\5000-retained.jpg"
+    ]));
+  });
+
   it("adds a CloudDrive API folder with mounted and remote identities", () => {
     db = createDatabase(path.join(tempDir, "library.sqlite"));
     const repo = new VideoRepository(db);

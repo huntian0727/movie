@@ -97,7 +97,9 @@ describe("versioned database migrations", () => {
       expect(db.pragma("quick_check", { simple: true })).toBe("ok");
       const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>;
       expect(indexes.map((row) => row.name)).toEqual(expect.arrayContaining([
-        "idx_videos_size_bytes", "idx_videos_fingerprint_status", "idx_videos_is_pending_delete"
+        "idx_videos_size_bytes", "idx_videos_fingerprint_status", "idx_videos_is_pending_delete",
+        "idx_videos_library_modified", "idx_videos_library_size", "idx_videos_library_duration",
+        "idx_videos_cover_cache_path", "idx_timeline_previews_cache_path"
       ]));
       const defaultRow = db.prepare(`
         SELECT dflt_value FROM pragma_table_info('videos') WHERE name = 'is_pending_delete'
@@ -299,7 +301,7 @@ describe("versioned database migrations", () => {
     legacy.close();
 
     const upgraded = createDatabase(dbPath);
-    expect(upgraded.pragma("user_version", { simple: true })).toBe(11);
+    expect(upgraded.pragma("user_version", { simple: true })).toBe(LATEST_SCHEMA_VERSION);
     expect(upgraded.prepare("SELECT workflow_version, phase, status, authorized_revision FROM duplicate_cleanup_jobs WHERE id = 'legacy-job'").get())
       .toEqual({ workflow_version: 1, phase: "legacy_blocked", status: "cancelled", authorized_revision: null });
     expect(upgraded.prepare(`SELECT status, verification_status, keep_sha256, delete_sha256,

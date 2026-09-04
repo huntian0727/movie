@@ -200,7 +200,7 @@ describe("MediaCacheManager", () => {
     await writeFile(stalePath, "stale");
     const removed = vi.fn();
     const manager = new MediaCacheManager(root, generousLimits, {
-      getRetainedCacheKeys: () => new Set([retainedKey]),
+      getRetainedCachePaths: () => new Set([retainedPath]),
       onEntriesRemoved: removed
     });
 

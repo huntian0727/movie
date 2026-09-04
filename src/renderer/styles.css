@@ -78,6 +78,7 @@ button { color: inherit; }
 .folder-search { height: 34px; margin: 0 2px 8px; padding: 0 8px; border: 1px solid #343734; border-radius: 6px; display: flex; align-items: center; gap: 7px; color: #777b75; background: #151615; }
 .folder-search:focus-within { border-color: #626760; color: #b7bbb4; background: #1b1d1b; }
 .folder-search input { min-width: 0; width: 100%; border: 0; outline: 0; color: #e4e6e2; background: transparent; font-size: 11px; }
+.folder-search-summary { margin: -4px 18px 8px; color: #8d918a; font-size: 10px; line-height: 15px; }
 .folder-search input::placeholder { color: #656962; }
 .folder-search button { width: 23px; height: 23px; flex: 0 0 auto; padding: 0; border: 0; border-radius: 4px; display: grid; place-items: center; color: #868a83; background: transparent; cursor: pointer; }
 .folder-search button:hover { color: #fff; background: #303330; }

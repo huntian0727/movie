@@ -87,7 +87,14 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const [duplicateRefreshSequence, setDuplicateRefreshSequence] = useState(0);
   const [duplicateCleanupRefreshSequence, setDuplicateCleanupRefreshSequence] = useState(0);
   const duplicateRemovalRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const metadataRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sourceFolderRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRemovalSequence = useRef(0);
+  const pendingMetadataSequence = useRef(0);
+  const lastAppliedSequence = useRef(0);
+  const focusCheckPending = useRef(false);
+  const initialized = useRef(false);
+  const playerVideoIds = useRef(new Set<string>());
   const [scanFailureRefreshSequence, setScanFailureRefreshSequence] = useState(0);
   const previousScanStates = useRef(new Map<string, FolderScanStatus["state"]>());
   const isPlayerWindow = api.windowMode === "player";
@@ -97,34 +104,52 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   [settings.coverFrameTimeSeconds]);
 
   const reload = useCallback(async (providedSnapshot?: WindowSyncSnapshot) => {
-    setLoading(true);
+    if (!initialized.current) setLoading(true);
     setError(null);
 
     try {
       const syncSnapshot = providedSnapshot ?? await api.getWindowSyncSnapshot();
+      lastAppliedSequence.current = Math.max(lastAppliedSequence.current, syncSnapshot.sequence);
       const nextPlayerSession = isPlayerWindow ? syncSnapshot.playerSession : null;
-      const [nextFolders, settingsSnapshot, nextPlayHistory, nextNavigation] = await Promise.all([
-        api.listFolders(),
-        api.getSettings(),
-        api.listPlayHistory(),
-        api.getLibraryNavigation()
-      ]);
-      setVideos(nextPlayerSession?.videos ?? []);
-      setPlayerSession(nextPlayerSession);
-      setFolders(nextFolders);
-      setNavigation(nextNavigation);
-      setSettings(settingsSnapshot.settings);
-      setCacheLocation(settingsSnapshot.cacheLocation);
-      setCacheStatus(settingsSnapshot.cacheStatus);
-      setPlayHistory(nextPlayHistory);
+      if (isPlayerWindow) {
+        const [settingsSnapshot, nextPlayHistory] = await Promise.all([
+          api.getSettings(),
+          api.listPlayHistory()
+        ]);
+        setVideos(nextPlayerSession?.videos ?? []);
+        setPlayerSession(nextPlayerSession);
+        setSettings(settingsSnapshot.settings);
+        setCacheLocation(settingsSnapshot.cacheLocation);
+        setCacheStatus(settingsSnapshot.cacheStatus);
+        setPlayHistory(nextPlayHistory);
+      } else {
+        const [nextFolders, settingsSnapshot, nextPlayHistory, nextNavigation] = await Promise.all([
+          api.listFolders(),
+          api.getSettings(),
+          api.listPlayHistory(),
+          api.getLibraryNavigation()
+        ]);
+        setFolders(nextFolders);
+        setNavigation(nextNavigation);
+        setSettings(settingsSnapshot.settings);
+        setCacheLocation(settingsSnapshot.cacheLocation);
+        setCacheStatus(settingsSnapshot.cacheStatus);
+        setPlayHistory(nextPlayHistory);
+      }
     } catch (cause) {
       setError(toMessage(cause));
     } finally {
+      initialized.current = true;
       setLoading(false);
     }
   }, [api, isPlayerWindow]);
 
+  useEffect(() => {
+    playerVideoIds.current = new Set(videos.map((video) => video.id));
+  }, [videos]);
+
   const handleDomainEvent = useCallback(async (event: DomainEvent) => {
+    lastAppliedSequence.current = Math.max(lastAppliedSequence.current, event.sequence);
     if (event.type === "settings:changed") {
       const snapshot = await api.getSettings();
       setSettings(snapshot.settings);
@@ -136,12 +161,31 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       setPlayHistory(await api.listPlayHistory());
       return;
     }
-    if (event.type === "source-folder:updated") {
-      setFolders(await api.listFolders());
+    if (isPlayerWindow) {
+      if (event.type === "source-folder:updated" || event.type === "library:rescanned" || event.type === "duplicate-cleanup:changed") {
+        return;
+      }
+      const affectedIds = event.videoIds.filter((videoId) => playerVideoIds.current.has(videoId));
+      if (affectedIds.length === 0) return;
+      if (event.type === "video:removed") {
+        await reload();
+        return;
+      }
+      const refreshed = await api.listVideosByIds(affectedIds);
+      const refreshedById = new Map(refreshed.filter((video) => !video.isMissing).map((video) => [video.id, video]));
+      const patchVideos = (current: VideoRecord[]) => current
+        .map((video) => refreshedById.get(video.id) ?? video)
+        .filter((video) => !affectedIds.includes(video.id) || refreshedById.has(video.id));
+      setVideos(patchVideos);
+      setPlayerSession((current) => current ? { ...current, videos: patchVideos(current.videos) } : current);
       return;
     }
-    if (isPlayerWindow) {
-      await reload();
+    if (event.type === "source-folder:updated") {
+      if (sourceFolderRefreshTimer.current) clearTimeout(sourceFolderRefreshTimer.current);
+      sourceFolderRefreshTimer.current = setTimeout(() => {
+        sourceFolderRefreshTimer.current = null;
+        void api.listFolders().then(setFolders).catch((cause) => setError(toMessage(cause)));
+      }, 750);
       return;
     }
     if (event.type === "duplicate-cleanup:changed") {
@@ -162,6 +206,15 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       }, 500);
       return;
     }
+    if (event.type === "video:updated") {
+      pendingMetadataSequence.current = Math.max(pendingMetadataSequence.current, event.sequence);
+      if (metadataRefreshTimer.current) clearTimeout(metadataRefreshTimer.current);
+      metadataRefreshTimer.current = setTimeout(() => {
+        metadataRefreshTimer.current = null;
+        setLibraryRefreshSequence(pendingMetadataSequence.current);
+      }, 350);
+      return;
+    }
     setLibraryRefreshSequence(event.sequence);
     if (event.type === "library:rescanned") {
       setDuplicateRefreshSequence(event.sequence);
@@ -178,6 +231,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     if (duplicateRemovalRefreshTimer.current) {
       clearTimeout(duplicateRemovalRefreshTimer.current);
     }
+    if (metadataRefreshTimer.current) clearTimeout(metadataRefreshTimer.current);
+    if (sourceFolderRefreshTimer.current) clearTimeout(sourceFolderRefreshTimer.current);
   }, []);
 
   useEffect(() => {
@@ -190,13 +245,23 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   }, [api, handleDomainEvent, reload]);
 
   useEffect(() => {
-    const reloadOnFocus = () => void reload();
+    const reloadOnFocus = () => {
+      if (focusCheckPending.current) return;
+      focusCheckPending.current = true;
+      void api.getWindowSyncSnapshot().then((snapshot) => {
+        if (snapshot.sequence > lastAppliedSequence.current) return reload(snapshot);
+      }).catch((cause) => setError(toMessage(cause))).finally(() => {
+        focusCheckPending.current = false;
+      });
+    };
     window.addEventListener("focus", reloadOnFocus);
     return () => window.removeEventListener("focus", reloadOnFocus);
-  }, [reload]);
+  }, [api, reload]);
 
   useEffect(() => {
+    if (isPlayerWindow) return;
     let disposed = false;
+    let timer: number | null = null;
     const poll = async () => {
       try {
         const statuses = await api.listFolderScanStatuses();
@@ -209,39 +274,19 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
         previousScanStates.current = new Map(statuses.map((status) => [status.folderId, status.state]));
         setScanStatuses((current) => areVisibleScanStatusesEqual(current, statuses) ? current : statuses);
         if (shouldReload) void reload();
+        const hasActiveScan = statuses.some((status) => status.state === "queued" || status.state === "scanning" || status.state === "paused");
+        if (!disposed) timer = window.setTimeout(() => void poll(), hasActiveScan ? 1_000 : 4_000);
       } catch (cause) {
         if (!disposed) setError(toMessage(cause));
+        if (!disposed) timer = window.setTimeout(() => void poll(), 4_000);
       }
     };
     void poll();
-    const timer = window.setInterval(() => void poll(), 1000);
-    return () => { disposed = true; window.clearInterval(timer); };
-  }, [api, reload]);
-
-  useEffect(() => {
-    if (!videos.some((video) => video.metadataStatus === "pending")) return;
-    let disposed = false;
-    let polling = false;
-    const refreshMetadata = async () => {
-      if (polling) return;
-      polling = true;
-      try {
-        const refreshedVideos = await api.listVideosByIds(videos.map((video) => video.id));
-        if (!disposed) {
-          setVideos(refreshedVideos.filter((video) => !video.isMissing));
-        }
-      } catch (cause) {
-        if (!disposed) setError(toMessage(cause));
-      } finally {
-        polling = false;
-      }
-    };
-    const timer = window.setInterval(() => void refreshMetadata(), 1500);
     return () => {
       disposed = true;
-      window.clearInterval(timer);
+      if (timer !== null) window.clearTimeout(timer);
     };
-  }, [api, videos]);
+  }, [api, isPlayerWindow, reload]);
 
   const addFolder = async () => {
     const folder = await api.addFolder();

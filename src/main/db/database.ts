@@ -14,6 +14,8 @@ export interface MigrationHooks {
 export interface CreateDatabaseOptions {
   migrationHooks?: MigrationHooks;
   now?: () => Date;
+  /** Latest-schema databases can skip the expensive full-table integrity pass on a known-clean startup. */
+  verifyExistingIntegrity?: boolean;
 }
 
 export class DatabaseMigrationError extends Error {
@@ -75,7 +77,7 @@ export function migrateDatabase(
   }
 
   if (!needsUpgrade) {
-    validateDatabase(db, dbPath);
+    validateDatabase(db, dbPath, options.verifyExistingIntegrity ?? true);
     return { fromVersion, toVersion: fromVersion };
   }
 
@@ -195,7 +197,7 @@ function createMigrationBackup(
   }
 }
 
-function validateDatabase(db: DatabaseConnection, dbPath: string): void {
+function validateDatabase(db: DatabaseConnection, dbPath: string, verifyIntegrity = true): void {
   const version = readUserVersion(db);
   if (version !== LATEST_SCHEMA_VERSION) {
     throw new DatabaseMigrationError(
@@ -244,7 +246,7 @@ function validateDatabase(db: DatabaseConnection, dbPath: string): void {
   requireColumns(db, "duplicate_preferred_directories", [
     "id", "path", "normalized_path", "enabled", "created_at", "updated_at"
   ]);
-  validateIntegrity(db);
+  if (verifyIntegrity) validateIntegrity(db);
 }
 
 function validateIntegrity(db: DatabaseConnection): void {

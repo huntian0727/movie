@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, protocol, session } from "electron";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -8,7 +9,7 @@ import { VideoRepository } from "./db/videoRepository.js";
 import { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { ScanManager } from "./media/scanManager.js";
-import { buildCacheKey, getMediaCacheRoot, migrateLegacyMediaCache } from "./media/cacheService.js";
+import { getMediaCacheRoot, migrateLegacyMediaCache } from "./media/cacheService.js";
 import { MediaCacheManager } from "./media/cacheManager.js";
 import { MEDIA_SCHEME, registerMediaProtocol } from "./media/mediaProtocol.js";
 import { MetadataQueue } from "./media/metadataQueue.js";
@@ -40,6 +41,7 @@ if (packagedSmokeUserData) {
 }
 const startupUserDataPath = app.getPath("userData");
 const databasePath = path.join(startupUserDataPath, "library.sqlite");
+const uncleanShutdownMarkerPath = path.join(startupUserDataPath, "database-unclean-shutdown.marker");
 const logger = new StructuredLogger(path.join(startupUserDataPath, "logs"));
 configureSecurityLogger(logger);
 let database: DatabaseConnection | undefined;
@@ -47,6 +49,7 @@ let metadataQueue: MetadataQueue | undefined;
 let mediaCacheManager: MediaCacheManager | undefined;
 let playerWindows: PlayerWindowCoordinator | undefined;
 let duplicateCleanup: DuplicateCleanupService | undefined;
+let databaseOpened = false;
 
 protocol.registerSchemesAsPrivileged([
   { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
@@ -129,7 +132,10 @@ app.whenReady().then(async () => {
     devServerUrl,
     entryUrl: rendererEntryUrl
   });
-  database = createDatabase(databasePath);
+  const verifyExistingIntegrity = existsSync(uncleanShutdownMarkerPath);
+  database = createDatabase(databasePath, { verifyExistingIntegrity });
+  writeFileSync(uncleanShutdownMarkerPath, new Date().toISOString(), "utf8");
+  databaseOpened = true;
   const repo = new VideoRepository(database);
   const settings = await createSettingsStore();
   configureCloudDriveRuntime(settings.get().cloudDrive, process.env);
@@ -146,12 +152,7 @@ app.whenReady().then(async () => {
     });
   }
   mediaCacheManager = new MediaCacheManager(cacheRoot, {}, {
-    getRetainedCacheKeys: () =>
-      new Set(
-        repo
-          .listMediaCacheIdentities()
-          .map((identity) => buildCacheKey(identity.path, identity.sizeBytes, identity.modifiedAt))
-      ),
+    getRetainedCachePaths: () => new Set(repo.listRetainedMediaCachePaths()),
     onEntriesRemoved: (cachePaths) => repo.forgetMediaCachePaths(cachePaths),
     logger
   });
@@ -299,6 +300,10 @@ app.on("before-quit", () => {
   metadataQueue = undefined;
   database?.close();
   database = undefined;
+  if (databaseOpened) {
+    rmSync(uncleanShutdownMarkerPath, { force: true });
+    databaseOpened = false;
+  }
 });
 
 app.on("window-all-closed", () => {

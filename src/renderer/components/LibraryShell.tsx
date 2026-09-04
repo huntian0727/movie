@@ -11,6 +11,7 @@ import { VideoTable } from "./VideoTable";
 import { formatBytes } from "./formatters";
 
 const PAGE_SIZE_OPTIONS = [30, 50, 100, 200, 300] as const;
+const MAX_FOLDER_SEARCH_RESULTS = 200;
 const GRID_CARD_WIDTH_OPTIONS = [180, 220, 260, 320, 400] as const;
 const GRID_CARD_WIDTH_STORAGE_KEY = "video-manager:grid-card-width";
 const PAGE_SIZE_STORAGE_KEY = "video-manager:library-page-size";
@@ -135,6 +136,7 @@ export function LibraryShell({
   const [folderScope, setFolderScope] = useState<"recursive" | "exact">("recursive");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [search, setSearch] = useState("");
+  const [querySearch, setQuerySearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("filename");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [renameTarget, setRenameTarget] = useState<VideoRecord | null>(null);
@@ -193,15 +195,20 @@ export function LibraryShell({
     () => new Map(directoryEntries.map((entry) => [normalizeDirectoryPath(entry.path), entry])),
     [directoryEntries]
   );
+  const expandedFolderPathSet = useMemo(() => new Set(expandedFolderPaths), [expandedFolderPaths]);
   const visibleDirectoryEntries = useMemo(
-    () => directoryEntries.filter((entry) => isDirectoryEntryVisible(entry, expandedFolderPaths, directoryEntryByPath)),
-    [directoryEntries, directoryEntryByPath, expandedFolderPaths]
+    () => directoryEntries.filter((entry) => isDirectoryEntryVisible(entry, expandedFolderPathSet, directoryEntryByPath)),
+    [directoryEntries, directoryEntryByPath, expandedFolderPathSet]
   );
-  const displayedDirectoryEntries = useMemo(() => {
+  const folderSearchMatches = useMemo(() => {
     const query = folderQuery.trim().toLocaleLowerCase();
-    if (!query) return visibleDirectoryEntries;
+    if (!query) return [];
     return directoryEntries.filter((entry) => entry.path.toLocaleLowerCase().includes(query));
-  }, [directoryEntries, folderQuery, visibleDirectoryEntries]);
+  }, [directoryEntries, folderQuery]);
+  const displayedDirectoryEntries = useMemo(() => {
+    if (!folderQuery.trim()) return visibleDirectoryEntries;
+    return folderSearchMatches.slice(0, MAX_FOLDER_SEARCH_RESULTS);
+  }, [folderQuery, folderSearchMatches, visibleDirectoryEntries]);
 
   const visibleVideos = useMemo(() => {
     if (onLoadVideoPage) return videoPage.videos;
@@ -235,6 +242,11 @@ export function LibraryShell({
   }, [folderScope, pageSize, search, selectedFolderPath, sortDirection, sortField, view]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setQuerySearch(search), 200);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     if (!onLoadVideoPage || view === "duplicates" || view === "scanFailures") return;
     let disposed = false;
     setVideoPageLoading(true);
@@ -243,7 +255,7 @@ export function LibraryShell({
       view,
       directoryPath: view === "folder" ? selectedFolderPath ?? undefined : undefined,
       folderScope: view === "folder" ? folderScope : undefined,
-      search,
+      search: querySearch,
       sortField,
       sortDirection,
       page,
@@ -258,13 +270,7 @@ export function LibraryShell({
       if (!disposed) setVideoPageLoading(false);
     });
     return () => { disposed = true; };
-  }, [folderScope, onLoadVideoPage, page, pageSize, refreshSequence, search, selectedFolderPath, sortDirection, sortField, videoPageRefreshVersion, view]);
-
-  useEffect(() => {
-    if (!onLoadVideoPage || !videoPage.videos.some((video) => video.metadataStatus === "pending")) return;
-    const timer = window.setInterval(() => setVideoPageRefreshVersion((current) => current + 1), 1500);
-    return () => window.clearInterval(timer);
-  }, [onLoadVideoPage, videoPage.videos]);
+  }, [folderScope, onLoadVideoPage, page, pageSize, querySearch, refreshSequence, selectedFolderPath, sortDirection, sortField, videoPageRefreshVersion, view]);
 
   useEffect(() => {
     try {
@@ -684,6 +690,11 @@ export function LibraryShell({
             </button>
           )}
         </label>
+        {folderQuery.trim() && folderSearchMatches.length > MAX_FOLDER_SEARCH_RESULTS && (
+          <p className="folder-search-summary" role="status">
+            找到 {folderSearchMatches.length.toLocaleString("zh-CN")} 个目录，先显示前 {MAX_FOLDER_SEARCH_RESULTS} 个；继续输入可缩小范围。
+          </p>
+        )}
         <nav ref={folderNavRef} className={`folder-nav${folderQuery.trim() ? " search-results" : ""}`} aria-label="视频文件夹">
           {displayedDirectoryEntries.map((entry) => {
             const normalizedPath = normalizeDirectoryPath(entry.path);
@@ -1543,14 +1554,13 @@ function areStringArraysEqual(left: string[], right: string[]): boolean {
 
 function isDirectoryEntryVisible(
   entry: DirectoryEntry,
-  expandedFolderPaths: string[],
+  expandedFolderPaths: ReadonlySet<string>,
   directoryEntryByPath: Map<string, DirectoryEntry>
 ): boolean {
-  const expandedPathSet = new Set(expandedFolderPaths);
   let parentPath = entry.parentPath;
 
   while (parentPath) {
-    if (!expandedPathSet.has(parentPath)) {
+    if (!expandedFolderPaths.has(parentPath)) {
       return false;
     }
     parentPath = directoryEntryByPath.get(parentPath)?.parentPath ?? null;

@@ -9,6 +9,7 @@ import { codecMetadataMigration } from "./008-codec-metadata.js";
 import { codecProbeStatusMigration } from "./009-codec-probe-status.js";
 import { duplicateSha256SafetyMigration } from "./010-duplicate-sha256-safety.js";
 import { cloudDriveDuplicateCleanupMigration } from "./011-clouddrive-duplicate-cleanup.js";
+import { libraryQueryPerformanceMigration } from "./012-library-query-performance.js";
 
 export const migrations = [
   coreLibraryMigration,
@@ -21,7 +22,8 @@ export const migrations = [
   codecMetadataMigration,
   codecProbeStatusMigration,
   duplicateSha256SafetyMigration,
-  cloudDriveDuplicateCleanupMigration
+  cloudDriveDuplicateCleanupMigration,
+  libraryQueryPerformanceMigration
 ] as const;
 
-export const LATEST_SCHEMA_VERSION = 11;
+export const LATEST_SCHEMA_VERSION = 12;
