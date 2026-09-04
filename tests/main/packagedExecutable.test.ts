@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { resolvePackagedExecutablePath } from "../../src/main/media/packagedExecutable";
 
 describe("resolvePackagedExecutablePath", () => {
@@ -35,5 +36,14 @@ describe("resolvePackagedExecutablePath", () => {
   it("keeps the original path when the unpacked executable is absent", () => {
     const original = "C:\\Video\\resources\\app.asar\\node_modules\\ffmpeg-static\\ffmpeg.exe";
     expect(resolvePackagedExecutablePath(original, () => false)).toBe(original);
+  });
+
+  it("keeps both read-only query workers inside the packaged smoke gate", () => {
+    const source = readFileSync("src/main/packagedSmoke.ts", "utf8");
+
+    expect(source).toContain("context.assetCenterQueries.getSummary()");
+    expect(source).toContain("context.playbackDiagnosticQueries.search");
+    expect(source).toContain("assetCenterWorkerQuery");
+    expect(source).toContain("playbackDiagnosticWorkerQuery");
   });
 });

@@ -222,7 +222,9 @@ app.whenReady().then(async () => {
       db: database,
       repo,
       scanManager,
-      metadataQueue
+      metadataQueue,
+      assetCenterQueries,
+      playbackDiagnosticQueries
     });
     app.quit();
     return;

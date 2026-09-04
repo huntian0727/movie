@@ -4,12 +4,14 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { execa } from "execa";
+import type { AssetCenterReadService } from "./assetCenter/assetCenterQueryService.js";
 import type { DatabaseConnection } from "./db/database.js";
 import type { VideoRepository } from "./db/videoRepository.js";
 import type { ScanManager } from "./media/scanManager.js";
 import { MEDIA_SCHEME } from "./media/mediaProtocol.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
 import { resolvePackagedExecutablePath } from "./media/packagedExecutable.js";
+import type { PlaybackDiagnosticReadService } from "./playbackDiagnostic/playbackDiagnosticQueryService.js";
 import { configureWindowSecurity } from "./security.js";
 
 interface PackagedSmokeContext {
@@ -21,6 +23,8 @@ interface PackagedSmokeContext {
   repo: VideoRepository;
   scanManager: ScanManager;
   metadataQueue: MetadataQueue;
+  assetCenterQueries: AssetCenterReadService;
+  playbackDiagnosticQueries: PlaybackDiagnosticReadService;
 }
 
 interface StaticBinaryModule {
@@ -102,6 +106,14 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
     checks.databaseReopenedAfterExit = videos.length === 1 && videos[0]?.filename === "sample.mp4";
     checks.videoCount = videos.length;
   }
+
+  const [assetSummary, diagnosticPage] = await Promise.all([
+    context.assetCenterQueries.getSummary(),
+    context.playbackDiagnosticQueries.search({ search: "packaged-smoke-fixture", page: 1, pageSize: 30 })
+  ]);
+  checks.assetCenterWorkerQuery = assetSummary.totalVideoCount === 1;
+  checks.playbackDiagnosticWorkerQuery =
+    diagnosticPage.totalCount === 1 && diagnosticPage.videos[0]?.filename === "sample.mp4";
 
   const failedChecks = Object.entries(checks).filter(([, value]) => value === false);
   if (failedChecks.length > 0) {
