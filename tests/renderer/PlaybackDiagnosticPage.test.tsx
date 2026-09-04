@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { ComponentProps } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PlaybackDiagnosticPage } from "../../src/renderer/components/PlaybackDiagnosticPage";
 import type { LibraryPage, PlaybackDiagnosticSearchQuery, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
@@ -99,15 +99,106 @@ describe("PlaybackDiagnosticPage", () => {
     expect(screen.queryByText("v10.mp4")).not.toBeInTheDocument();
   });
 
+  it("shows search errors instead of an empty state and retries only the search", async () => {
+    const searchVideos = vi.fn()
+      .mockRejectedValueOnce(new Error("database busy\n    at hidden-stack"))
+      .mockResolvedValueOnce(emptyPage);
+    renderPage({ searchVideos });
+
+    fireEvent.change(screen.getByPlaceholderText("输入文件名或路径"), { target: { value: "clip" } });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("搜索失败：database busy");
+    expect(alert).not.toHaveTextContent("hidden-stack");
+    expect(screen.queryByText("没有找到匹配视频")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新读取" }));
+
+    await waitFor(() => expect(searchVideos).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("没有找到匹配视频")).toBeInTheDocument();
+  });
+
+  it("reports when all recent record ids are no longer valid", async () => {
+    renderPage({ recentVideoIds: ["removed-1", "removed-2"], loadVideosByIds: vi.fn(async () => []) });
+
+    expect(await screen.findByText("最近播放记录已失效")).toBeInTheDocument();
+    expect(screen.getByText("这些记录已从资料库移除，请搜索其他视频。")).toBeInTheDocument();
+  });
+
+  it("retries a recent-record failure without starting a search", async () => {
+    const loadVideosByIds = vi.fn()
+      .mockRejectedValueOnce(new Error("recent cache busy"))
+      .mockResolvedValueOnce([video]);
+    const searchVideos = vi.fn(async () => emptyPage);
+    renderPage({ recentVideoIds: [video.id], loadVideosByIds, searchVideos });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("最近播放读取失败：recent cache busy");
+    expect(screen.queryByText("最近播放记录已失效")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新读取" }));
+
+    expect(await screen.findByText(video.filename)).toBeInTheDocument();
+    expect(loadVideosByIds).toHaveBeenCalledTimes(2);
+    expect(searchVideos).not.toHaveBeenCalled();
+  });
+
+  it("uses a div landmark root and limits live announcements to the result summary", () => {
+    const { container } = renderPage();
+    const root = container.querySelector(".playback-diagnostic-page");
+    const results = container.querySelector(".diagnostic-video-results");
+
+    expect(root?.tagName).toBe("DIV");
+    expect(container.querySelector("main")).toBeNull();
+    expect(results).not.toHaveAttribute("aria-live");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(results).toHaveAttribute("aria-busy", "false");
+  });
+
   it("shows cached media fields, source, actual route, and null audio as unrecorded", async () => {
     const loadVideosByIds = vi.fn(async () => [video]);
-    renderPage({ selectedVideoId: video.id, initialVideo: video, loadVideosByIds });
+    const { container } = renderPage({ selectedVideoId: video.id, initialVideo: video, loadVideosByIds });
 
     expect(await screen.findByText("内置播放器")).toBeInTheDocument();
     expect(screen.getByText(/h264/i)).toBeInTheDocument();
     expect(screen.getByText("本地目录 · D:\\Movies")).toBeInTheDocument();
     expect(screen.getByText("未记录")).toBeInTheDocument();
+    expect(container.querySelector(".diagnostic-file-heading + .diagnostic-analysis")).toBeInTheDocument();
+    expect(container.querySelector(".diagnostic-information-grid > .diagnostic-analysis")).toBeNull();
+    expect(container.querySelectorAll(".diagnostic-information-grid > .diagnostic-info-section")).toHaveLength(3);
+    expect(container.querySelector(".diagnostic-info-section dd.wrap")).toHaveTextContent(video.path);
+    expect(screen.getByRole("button", { name: "重新读取缓存" })).toHaveAttribute("title", "只重新读取资料库缓存记录，不访问视频文件");
     expect(loadVideosByIds).toHaveBeenCalledWith([video.id]);
+  });
+
+  it("offers a local cache retry when the selected record read fails", async () => {
+    const loadVideosByIds = vi.fn()
+      .mockRejectedValueOnce(new Error("cache unavailable\n    at hidden-stack"))
+      .mockResolvedValueOnce([video]);
+    renderPage({ selectedVideoId: video.id, initialVideo: null, loadVideosByIds });
+
+    expect(await screen.findByText("无法读取视频记录")).toBeInTheDocument();
+    expect(screen.getByText("cache unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/hidden-stack/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新读取缓存" }));
+
+    expect(await screen.findByText("内置播放器")).toBeInTheDocument();
+    expect(loadVideosByIds).toHaveBeenCalledTimes(2);
+  });
+
+  it("announces action progress and marks the primary playback action", async () => {
+    let finishOpen: (() => void) | undefined;
+    const pendingOpen = new Promise<void>((resolve) => { finishOpen = resolve; });
+    const onOpen = vi.fn(() => pendingOpen);
+    const { container } = renderPage({ selectedVideoId: video.id, initialVideo: video, loadVideosByIds: vi.fn(async () => [video]), onOpen });
+    const playButton = await screen.findByRole("button", { name: "按当前策略播放" });
+
+    expect(playButton).toHaveClass("primary");
+    fireEvent.click(playButton);
+    expect(screen.getByRole("button", { name: "正在启动..." })).toBeDisabled();
+    expect(container.querySelector(".diagnostic-actions")).toHaveAttribute("aria-busy", "true");
+
+    await act(async () => {
+      finishOpen?.();
+      await pendingOpen;
+    });
+    expect(screen.getByRole("button", { name: "按当前策略播放" })).toBeEnabled();
   });
 
   it("distinguishes audio that is not collected from a completed empty field", async () => {

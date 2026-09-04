@@ -132,9 +132,9 @@ export function AssetCenterPage({
               : summaryLoading ? "正在读取资料库统计…" : "资料库统计暂不可用"}
           </p>
         </div>
-        <button type="button" aria-label={refreshing ? "正在刷新资产数据" : "刷新资产数据"} title="只重新读取本地数据库，不会启动扫描" onClick={refresh} disabled={refreshing}>
+        <button type="button" aria-label={refreshing ? "正在重新读取缓存" : "重新读取缓存"} title="只重新读取本地数据库缓存，不会启动扫描" onClick={refresh} disabled={refreshing}>
           <RefreshCw size={18} className={refreshing ? "spin" : undefined} />
-          <span>{refreshing ? "刷新中" : "刷新数据"}</span>
+          <span>{refreshing ? "读取中" : "重新读取缓存"}</span>
         </button>
       </header>
 
@@ -150,35 +150,37 @@ export function AssetCenterPage({
         <section className="asset-metric-strip" aria-label="资产核心统计" aria-busy={summaryLoading}>
           <MetricButton
             label="视频总数量"
-            value={summary ? summary.totalVideoCount.toLocaleString("zh-CN") : "暂无"}
+            value={summary ? summary.totalVideoCount.toLocaleString("zh-CN") : summaryLoading ? "读取中" : "暂无"}
             note={summary ? `${summary.missingVideoCount.toLocaleString("zh-CN")} 条缺失记录另行保留` : "等待统计"}
+            loading={summaryLoading && !summary}
             onClick={() => onNavigate("all")}
           />
           <MetricButton
             label="总容量"
-            value={summary ? formatAssetBytes(summary.totalSizeBytes) : "暂无"}
+            value={summary ? formatAssetBytes(summary.totalSizeBytes) : summaryLoading ? "读取中" : "暂无"}
             note="按数据库中的有效视频大小统计"
+            loading={summaryLoading && !summary}
             onClick={() => showSources({ availability: "all", sort: "sizeBytes", direction: "desc" })}
           />
           <MetricButton
             label="资料库根来源"
-            value={summary ? summary.sourceCount.toLocaleString("zh-CN") : "暂无"}
+            value={summary ? summary.sourceCount.toLocaleString("zh-CN") : summaryLoading ? "读取中" : "暂无"}
             note={summary ? `${summary.enabledSourceCount.toLocaleString("zh-CN")} 个已启用` : "等待统计"}
+            loading={summaryLoading && !summary}
             onClick={() => showSources({ availability: "all" })}
           />
           <MetricButton
             label="最近可访问"
-            value={summary ? `${summary.reachableSourceCount}/${summary.enabledSourceCount}` : "暂无"}
-            note={summary ? `${summary.offlineSourceCount} 离线，${summary.checkFailedSourceCount} 检查失败，${summary.unknownSourceCount} 未知（非实时）` : "基于最近一次检查"}
+            value={summary ? `${summary.reachableSourceCount.toLocaleString("zh-CN")}/${summary.enabledSourceCount.toLocaleString("zh-CN")}` : summaryLoading ? "读取中" : "暂无"}
+            note={summary ? `${summary.offlineSourceCount.toLocaleString("zh-CN")} 离线，${summary.checkFailedSourceCount.toLocaleString("zh-CN")} 检查失败，${summary.unknownSourceCount.toLocaleString("zh-CN")} 未知（非实时）` : "基于最近一次检查"}
+            loading={summaryLoading && !summary}
             onClick={() => showSources({ availability: "all", sort: "lastScannedAt", direction: "desc" })}
           />
         </section>
 
-        {summaryLoading && !summary && <div className="asset-center-loading" role="status"><LoaderCircle className="spin" size={18} />正在聚合资产数据…</div>}
-
         <div className="asset-status-grid">
           <section className="asset-panel" aria-labelledby="asset-scan-status-title">
-            <header><h2 id="asset-scan-status-title">扫描状态</h2><span>{activeScans.length > 0 ? `${activeScans.length} 个活动任务` : "当前空闲"}</span></header>
+            <header><h2 id="asset-scan-status-title">扫描状态</h2><span>{activeScans.length > 0 ? `${activeScans.length.toLocaleString("zh-CN")} 个活动任务` : "当前空闲"}</span></header>
             {activeScans.length > 0 ? (
               <div className="asset-active-scans" aria-live="polite">
                 {activeScans.slice(0, 4).map((status) => (
@@ -188,6 +190,7 @@ export function AssetCenterPage({
                     <em>{status.processedFiles.toLocaleString("zh-CN")}/{status.totalFiles ? status.totalFiles.toLocaleString("zh-CN") : "?"}</em>
                   </article>
                 ))}
+                {activeScans.length > 4 && <p className="asset-active-scans-more">另有 {(activeScans.length - 4).toLocaleString("zh-CN")} 个活动任务</p>}
               </div>
             ) : (
               <p className="asset-panel-empty">当前没有扫描任务。</p>
@@ -231,8 +234,8 @@ export function AssetCenterPage({
           </div>
 
           {sourcesError && <div className="asset-source-error" role="alert"><span>资料库列表读取失败：{sourcesError}</span><button type="button" onClick={refresh}>重试</button></div>}
-          {sourcesLoading && sourcePage.items.length === 0 ? (
-            <div className="asset-center-loading" role="status"><LoaderCircle className="spin" size={18} />正在读取资料库…</div>
+          {sourcesError && sourcePage.items.length === 0 ? null : sourcesLoading && sourcePage.items.length === 0 ? (
+            <SourceTableSkeleton />
           ) : sourcePage.items.length === 0 ? (
             <div className="asset-source-empty"><FolderRoot size={30} /><strong>{summary?.sourceCount === 0 ? "尚未添加资料库" : "没有符合筛选条件的资料库"}</strong><span>{summary?.sourceCount === 0 ? "请使用左侧文件夹区域添加本地目录或 CloudDrive 来源。" : "请调整搜索、类型或可访问性筛选。"}</span></div>
           ) : (
@@ -247,7 +250,7 @@ export function AssetCenterPage({
           <div className="asset-source-pagination" aria-label="资料库分页">
             <span>共 {sourcePage.totalCount.toLocaleString("zh-CN")} 个来源</span>
             <button type="button" disabled={sourcePage.page <= 1 || sourcesLoading} onClick={() => setPage((current) => current - 1)}>上一页</button>
-            <strong>{sourcePage.page} / {sourcePage.totalPages}</strong>
+            <strong>{sourcePage.page.toLocaleString("zh-CN")} / {sourcePage.totalPages.toLocaleString("zh-CN")}</strong>
             <button type="button" disabled={sourcePage.page >= sourcePage.totalPages || sourcesLoading} onClick={() => setPage((current) => current + 1)}>下一页</button>
             <label>每页<select aria-label="每页资料库数量" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value) as AssetCenterSourcePageSize)}><option value="30">30</option><option value="50">50</option><option value="100">100</option></select></label>
           </div>
@@ -257,8 +260,18 @@ export function AssetCenterPage({
   );
 }
 
-function MetricButton({ label, value, note, onClick }: { label: string; value: string; note: string; onClick(): void }) {
-  return <button type="button" className="asset-metric" onClick={onClick}><span>{label}</span><strong>{value}</strong><small>{note}</small></button>;
+function MetricButton({ label, value, note, loading = false, onClick }: { label: string; value: string; note: string; loading?: boolean; onClick(): void }) {
+  return <button type="button" className={`asset-metric${loading ? " is-loading" : ""}`} onClick={onClick}><span>{label}</span><strong>{value}</strong><small>{note}</small></button>;
+}
+
+function SourceTableSkeleton() {
+  return (
+    <div className="asset-source-skeleton" role="status" aria-label="正在读取资料库">
+      {Array.from({ length: 6 }, (_, index) => (
+        <div key={index} aria-hidden="true"><span /><span /><span /><span /></div>
+      ))}
+    </div>
+  );
 }
 
 function HealthRow({ label, value, note, onClick }: { label: string; value: number | null; note: string; onClick?(): void }) {
@@ -280,7 +293,7 @@ function SourceRow({ source, onOpen }: { source: AssetCenterSourceRow; onOpen():
       <td className="numeric">{formatBytes(source.sizeBytes)}</td>
       <td><span className={`asset-availability ${source.availability}`} title={`最近检查：${source.lastCheckAt ? formatDateTime(source.lastCheckAt) : "暂无"}`}><StatusIcon size={14} />{status}</span></td>
       <td>{source.lastScannedAt ? formatDateTime(source.lastScannedAt) : "从未扫描"}</td>
-      <td className={source.issueCount > 0 ? "numeric warning" : "numeric"} title={`扫描异常 ${source.scanFailureCount}，文件缺失 ${source.missingVideoCount}，元数据异常 ${source.metadataIssueCount}`}>{source.issueCount.toLocaleString("zh-CN")}</td>
+      <td className={source.issueCount > 0 ? "numeric warning" : "numeric"} title={`扫描异常 ${source.scanFailureCount.toLocaleString("zh-CN")}，文件缺失 ${source.missingVideoCount.toLocaleString("zh-CN")}，元数据异常 ${source.metadataIssueCount.toLocaleString("zh-CN")}`}>{source.issueCount.toLocaleString("zh-CN")}</td>
     </tr>
   );
 }
@@ -323,5 +336,6 @@ function folderName(folderPath: string): string {
 }
 
 function toMessage(value: unknown): string {
-  return value instanceof Error ? value.message : String(value);
+  const message = value instanceof Error ? value.message : typeof value === "string" ? value : "读取失败，请稍后重试";
+  return message.split(/\r?\n/, 1)[0].slice(0, 500);
 }
