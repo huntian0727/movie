@@ -1,5 +1,36 @@
 # 映匣 Asset Center V1 交付记录
 
+## QA FAIL 后的性能修正
+
+- 保留 `docs/ai/qa/2026-09-04-asset-center-v1-qa.md` 的 FAIL 结论，未改写 QA 报告；本节记录阻断项后的开发修正，等待 QA 复测。
+- 将 Asset Center 重聚合移出 Electron 主线程：两个既有 IPC 现在调用独立 `worker_threads` 查询服务，Worker 使用 `better-sqlite3` 的 `readonly + fileMustExist + PRAGMA query_only=ON` 连接。
+- Repository 和 Worker 共用 `assetCenterQueries.ts` 中的唯一查询实现，避免两条路径的数据口径分叉。
+- 来源分页改为单条窗口查询，同时返回总数、总页数、纠正后的页码和当前页；不再对同一个聚合 CTE 分别执行 COUNT 与分页查询。
+- 查询服务使用单 Worker 串行执行只读请求，以请求 ID 配对响应；Worker 错误或退出会拒绝全部未完成请求，下次请求按需重建；应用退出时主动终止 Worker。
+- 未新增或修改数据库表、索引、迁移；未访问媒体文件、CloudDrive、ffprobe 或预览图。
+
+### 性能复测
+
+- 真实只读资料库（319,986 个有效视频、7 个来源，预热后 3 次）：summary `499.77–511.80 ms`，sources `261.54–297.67 ms`。查询仍有聚合成本，但全部在 Worker 中执行，不阻塞 Electron 主线程；sources 相比 QA 的 `523.58–600.77 ms` 约减少一半。
+- 合成资料库（320,000 个视频、100 个来源）：sources 单次 `1105.07 ms`，且由计数断言确认只准备并执行 1 条 SQL；QA 修正前为 `2117.77–2394.98 ms`。
+- 实际编译后的 Worker 已在 Electron 33.4.11 / ABI 130 下完成只读 smoke，返回 0 个视频、1 个来源。
+- `npm run lint`、`npm run typecheck`、`npm run build` 均通过；Asset Center 针对性回归 7 个文件/70 项通过；Electron Node ABI 环境完整 Vitest 59 个文件/575 项全部通过。
+
+### 新增文件
+
+- `src/main/assetCenter/assetCenterQueries.ts`
+- `src/main/assetCenter/assetCenterQueryService.ts`
+- `src/main/assetCenter/assetCenterReadonlyDatabase.ts`
+- `src/main/assetCenter/assetCenterWorker.ts`
+- `src/main/assetCenter/assetCenterWorkerProtocol.ts`
+- `tests/main/assetCenterQueryService.test.ts`
+- `tests/gates/assetCenterPerformance.test.ts`
+
+### 剩余风险
+
+- 本轮未打包，Worker 在 asar 安装包中的启动仍需最终桌面端打包 smoke 验证。
+- summary 本身仍需约 0.5 秒读取 32 万条缓存记录；已移出主线程，不再造成前端卡顿，但首次数据显示仍会保留加载态。
+
 ## Context
 
 本次在不修改扫描、播放、文件管理核心逻辑及数据库结构的前提下，新增独立资产中心页面和只读数据通路。
@@ -62,17 +93,18 @@
 ### 测试结果
 
 - `npm run typecheck`：通过。
-- `vitest run`（Electron Node ABI 环境）：57 个测试文件、570 项测试全部通过。
+- `vitest run`（Electron Node ABI 环境）：59 个测试文件、575 项测试全部通过。
 - `npm run build`：通过，Vite 成功生成生产 Renderer。
 - Electron native smoke：通过，ABI 130、Electron 33.4.11。
 - Electron main-process smoke：通过，`app.whenReady` 正常完成。
+- Asset Center 32 万视频/100 来源性能门禁：通过，来源分页只执行 1 条 SQL。
+- 真实 319,986 个视频资料库只读性能复测：已完成，数据库大小与修改时间未变化。
 - `git diff --check`：通过。
 
 ## Risks and follow-up
 
 ### 未验证事项
 
-- 尚未使用用户真实的约 32 万条视频资料库进行 SQL 实测计时和 `EXPLAIN QUERY PLAN` 记录。
 - 尚未在真实 Windows 主窗口进行人工视觉、键盘焦点和不同窗口宽度检查。
 - 本阶段尚未执行安装包打包、桌面快捷方式启动及安装验证；这些项目留给 Asset Center QA 和最终交付阶段。
 

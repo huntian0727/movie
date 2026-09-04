@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { DatabaseConnection } from "./db/database.js";
 import { createDatabase, DatabaseMigrationError } from "./db/database.js";
 import { VideoRepository } from "./db/videoRepository.js";
+import { AssetCenterQueryService } from "./assetCenter/assetCenterQueryService.js";
 import { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { ScanManager } from "./media/scanManager.js";
@@ -49,6 +50,7 @@ let metadataQueue: MetadataQueue | undefined;
 let mediaCacheManager: MediaCacheManager | undefined;
 let playerWindows: PlayerWindowCoordinator | undefined;
 let duplicateCleanup: DuplicateCleanupService | undefined;
+let assetCenterQueries: AssetCenterQueryService | undefined;
 let databaseOpened = false;
 
 protocol.registerSchemesAsPrivileged([
@@ -137,6 +139,7 @@ app.whenReady().then(async () => {
   writeFileSync(uncleanShutdownMarkerPath, new Date().toISOString(), "utf8");
   databaseOpened = true;
   const repo = new VideoRepository(database);
+  assetCenterQueries = new AssetCenterQueryService(databasePath);
   const settings = await createSettingsStore();
   configureCloudDriveRuntime(settings.get().cloudDrive, process.env);
   const userDataPath = app.getPath("userData");
@@ -178,6 +181,7 @@ app.whenReady().then(async () => {
   );
   registerIpcHandlers(repo, {
     database,
+    assetCenterQueries,
     logger,
     diagnosticEnvironment: createDiagnosticEnvironment({
       appVersion: app.getVersion(),
@@ -290,6 +294,8 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => {
+  assetCenterQueries?.dispose();
+  assetCenterQueries = undefined;
   duplicateCleanup?.stop();
   duplicateCleanup = undefined;
   playerWindows?.close();

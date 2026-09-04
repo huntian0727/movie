@@ -108,6 +108,7 @@ describe("IPC_CHANNELS", () => {
     expect(preload).toContain("getAssetCenterSummary: () => ipcRenderer.invoke(channels.assetCenterSummary)");
     expect(preload).toContain("listAssetCenterSources: (query: AssetCenterSourceQuery) => ipcRenderer.invoke(channels.assetCenterSources, query)");
     expect(ipc).toMatch(/const assetCenterSourceQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
-    expect(ipc).toContain("repo.listAssetCenterSources(assetCenterSourceQuerySchema.parse(query))");
+    expect(ipc).toContain("dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query))");
+    expect(ipc).toContain("dependencies.assetCenterQueries.getSummary()");
   });
 });

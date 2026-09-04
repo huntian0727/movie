@@ -9,6 +9,7 @@ import { isValidShortcutBinding } from "../shared/shortcuts.js";
 import type { DatabaseConnection } from "./db/database.js";
 import type { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import type { VideoRepository } from "./db/videoRepository.js";
+import type { AssetCenterReadService } from "./assetCenter/assetCenterQueryService.js";
 import {
   configureCloudDriveRuntime,
   browseConfiguredCloudDriveFolder,
@@ -278,6 +279,7 @@ const scanFailureReviewQuerySchema = z.object({
 
 interface IpcDependencies {
   database: DatabaseConnection;
+  assetCenterQueries: AssetCenterReadService;
   logger: StructuredLogger;
   diagnosticEnvironment: DiagnosticEnvironment;
   settings: SettingsStore;
@@ -427,9 +429,9 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
   ipcMain.handle(IPC_CHANNELS.libraryPage, (_event, query) => repo.listVideoPage(libraryPageQuerySchema.parse(query)));
   ipcMain.handle(IPC_CHANNELS.libraryNavigation, () => repo.getLibraryNavigation());
-  ipcMain.handle(IPC_CHANNELS.assetCenterSummary, () => repo.getAssetCenterSummary());
+  ipcMain.handle(IPC_CHANNELS.assetCenterSummary, () => dependencies.assetCenterQueries.getSummary());
   ipcMain.handle(IPC_CHANNELS.assetCenterSources, (_event, query) =>
-    repo.listAssetCenterSources(assetCenterSourceQuerySchema.parse(query))
+    dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query))
   );
   ipcMain.handle(IPC_CHANNELS.libraryMissingList, () => repo.listMissingVideos());
   ipcMain.handle(IPC_CHANNELS.videoListByIds, (_event, videoIds) => repo.listVideosByIds(z.array(z.string().min(1)).max(300).parse(videoIds)));

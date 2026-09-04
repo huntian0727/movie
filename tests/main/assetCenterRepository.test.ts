@@ -153,6 +153,13 @@ describe("Asset Center repository", () => {
     expect(offlineOnly.items.map((item) => item.id)).toEqual([nas.id]);
     const cloudOnly = repo.listAssetCenterSources({ ...defaultQuery(), search: "archive", type: "clouddrive" });
     expect(cloudOnly.items.map((item) => item.id)).toEqual([failed.id]);
+
+    const clamped = repo.listAssetCenterSources({ ...defaultQuery(), page: 99 });
+    expect(clamped).toMatchObject({ page: 1, totalPages: 1, totalCount: 4 });
+    expect(clamped.items).toHaveLength(4);
+
+    const empty = repo.listAssetCenterSources({ ...defaultQuery(), search: "does-not-exist" });
+    expect(empty).toMatchObject({ page: 1, totalPages: 1, totalCount: 0, items: [] });
   });
 });
 
