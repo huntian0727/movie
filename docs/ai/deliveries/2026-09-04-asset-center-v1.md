@@ -1,5 +1,13 @@
 # 映匣 Asset Center V1 交付记录
 
+## QA 复测结论
+
+- `docs/ai/qa/2026-09-04-asset-center-v1-qa-retest.md` 对性能修正 Commit `a1e126324ecfbbf084b556077afbf3ddd1cbabff` 的结论为 PASS。
+- 真实 319,986 视频资料库通过编译后 Worker 读取期间，主事件循环最大采样间隔为 `21.58 ms`，数据库文件未变化。
+- 32 万视频/100 来源自动门禁为 `1251.78 ms`，来源分页精确执行 1 条 SQL。
+- 完整 Vitest 59 个文件/575 项、lint、typecheck、build 和 Electron smoke 全部通过。
+- ASAR/安装包中的 Worker 启动仍属于最终桌面交付门禁。
+
 ## QA FAIL 后的性能修正
 
 - 保留 `docs/ai/qa/2026-09-04-asset-center-v1-qa.md` 的 FAIL 结论，未改写 QA 报告；本节记录阻断项后的开发修正，等待 QA 复测。
