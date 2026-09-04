@@ -149,6 +149,16 @@ const cloudDriveSourceSelectionSchema = z.object({
   mountPoint: z.string().min(1).max(32767),
   remotePath: z.string().min(1).max(32767)
 }).strict();
+
+const assetCenterSourceQuerySchema = z.object({
+  page: z.number().int().min(1).max(1_000_000),
+  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)]),
+  search: z.string().trim().max(500),
+  type: z.enum(["all", "localOrMounted", "nas", "clouddrive"]),
+  availability: z.enum(["all", "reachable", "offline", "checkFailed", "unknown", "disabled"]),
+  sort: z.enum(["path", "videoCount", "sizeBytes", "lastScannedAt", "issueCount"]),
+  direction: z.enum(["asc", "desc"])
+}).strict();
 const videoIdsSchema = z.array(z.string().min(1)).min(1).max(500);
 const playerSessionSchema = videoIdSchema.extend({
   queueIds: z.array(z.string().min(1)).min(1).max(MAX_PLAYER_QUEUE_ITEMS)
@@ -417,6 +427,10 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
   ipcMain.handle(IPC_CHANNELS.libraryPage, (_event, query) => repo.listVideoPage(libraryPageQuerySchema.parse(query)));
   ipcMain.handle(IPC_CHANNELS.libraryNavigation, () => repo.getLibraryNavigation());
+  ipcMain.handle(IPC_CHANNELS.assetCenterSummary, () => repo.getAssetCenterSummary());
+  ipcMain.handle(IPC_CHANNELS.assetCenterSources, (_event, query) =>
+    repo.listAssetCenterSources(assetCenterSourceQuerySchema.parse(query))
+  );
   ipcMain.handle(IPC_CHANNELS.libraryMissingList, () => repo.listMissingVideos());
   ipcMain.handle(IPC_CHANNELS.videoListByIds, (_event, videoIds) => repo.listVideosByIds(z.array(z.string().min(1)).max(300).parse(videoIds)));
 

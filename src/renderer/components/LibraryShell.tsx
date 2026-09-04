@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, Cloud, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
-import type { BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, Cloud, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, PieChart, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
+import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
+import { AssetCenterPage } from "./AssetCenterPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
 import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
@@ -63,6 +64,8 @@ interface LibraryShellProps {
   getCoverUrl?(video: VideoRecord): string | null;
   navigation?: LibraryNavigationSnapshot;
   onLoadVideoPage?(query: LibraryPageQuery): Promise<LibraryPage>;
+  onLoadAssetCenterSummary?(): Promise<AssetCenterSummary>;
+  onLoadAssetCenterSources?: VideoManagerApi["listAssetCenterSources"];
   duplicateGroups?: DuplicateGroup[];
   onLoadDuplicateGroups?(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   recentVideoIds?: string[];
@@ -119,6 +122,8 @@ export function LibraryShell({
   getCoverUrl,
   navigation,
   onLoadVideoPage,
+  onLoadAssetCenterSummary,
+  onLoadAssetCenterSources,
   duplicateGroups = EMPTY_DUPLICATE_GROUPS,
   onLoadDuplicateGroups,
   recentVideoIds = EMPTY_RECENT_VIDEO_IDS,
@@ -236,6 +241,8 @@ export function LibraryShell({
   const favoriteCount = useMemo(() => navigation?.favoriteVideos ?? videos.reduce((count, video) => count + (video.isFavorite ? 1 : 0), 0), [navigation?.favoriteVideos, videos]);
   const pendingDeleteCount = navigation?.pendingDeleteVideos ?? videos.reduce((count, video) => count + (video.isPendingDelete ? 1 : 0), 0);
   const pendingDeleteBytes = navigation?.pendingDeleteBytes ?? videos.reduce((total, video) => total + (video.isPendingDelete ? video.sizeBytes : 0), 0);
+  const isStandaloneView = view === "assetCenter" || view === "duplicates" || view === "scanFailures";
+  const isVideoBrowseView = !isStandaloneView;
 
   useEffect(() => {
     setPage(1);
@@ -247,7 +254,7 @@ export function LibraryShell({
   }, [search]);
 
   useEffect(() => {
-    if (!onLoadVideoPage || view === "duplicates" || view === "scanFailures") return;
+    if (!onLoadVideoPage || !isVideoBrowseView) return;
     let disposed = false;
     setVideoPageLoading(true);
     setVideoPageError(null);
@@ -270,7 +277,7 @@ export function LibraryShell({
       if (!disposed) setVideoPageLoading(false);
     });
     return () => { disposed = true; };
-  }, [folderScope, onLoadVideoPage, page, pageSize, querySearch, refreshSequence, selectedFolderPath, sortDirection, sortField, videoPageRefreshVersion, view]);
+  }, [folderScope, isVideoBrowseView, onLoadVideoPage, page, pageSize, querySearch, refreshSequence, selectedFolderPath, sortDirection, sortField, videoPageRefreshVersion, view]);
 
   useEffect(() => {
     try {
@@ -319,6 +326,7 @@ export function LibraryShell({
 
   useEffect(() => {
     const focusFolderSearch = (event: KeyboardEvent) => {
+      if (!isVideoBrowseView) return;
       if (!event.ctrlKey || event.altKey || event.metaKey || event.code !== "KeyF") return;
       if (renameTarget || deleteTarget || detailsTarget || removeFolderTarget || folderIssueTarget) return;
       const target = event.target;
@@ -328,7 +336,7 @@ export function LibraryShell({
     };
     window.addEventListener("keydown", focusFolderSearch);
     return () => window.removeEventListener("keydown", focusFolderSearch);
-  }, [deleteTarget, detailsTarget, folderIssueTarget, removeFolderTarget, renameTarget]);
+  }, [deleteTarget, detailsTarget, folderIssueTarget, isVideoBrowseView, removeFolderTarget, renameTarget]);
 
   useEffect(() => {
     const existingPaths = new Set(directoryEntries.map((entry) => normalizeDirectoryPath(entry.path)));
@@ -415,7 +423,7 @@ export function LibraryShell({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (view === "duplicates" || view === "scanFailures" || event.defaultPrevented) return;
+      if (!isVideoBrowseView || event.defaultPrevented) return;
       if (renameTarget || deleteTarget || detailsTarget || removeFolderTarget || folderIssueTarget) return;
       const previousPage = matchesShortcut(event, shortcuts.libraryPreviousPage);
       const nextPageShortcut = matchesShortcut(event, shortcuts.libraryNextPage);
@@ -432,7 +440,7 @@ export function LibraryShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [currentPage, deleteTarget, detailsTarget, folderIssueTarget, removeFolderTarget, renameTarget, shortcuts, totalPages, view]);
+  }, [currentPage, deleteTarget, detailsTarget, folderIssueTarget, isVideoBrowseView, removeFolderTarget, renameTarget, shortcuts, totalPages]);
   const openVideo = (video: VideoRecord, queue = renderedVideos) => onOpen?.(video, queue);
   const toggleFavorite = (video: VideoRecord) => void runAction(() => onToggleFavorite?.(video)).then((changed) => {
     if (changed && onLoadVideoPage) setVideoPageRefreshVersion((current) => current + 1);
@@ -642,6 +650,9 @@ export function LibraryShell({
           <div><strong>映匣</strong><small>本地视频库</small></div>
         </div>
         <nav className="primary-nav" aria-label="视频库导航">
+          <button aria-label="查看资产中心" className={view === "assetCenter" ? "active" : undefined} onClick={() => { setView("assetCenter"); setSelectedFolderPath(null); }}>
+            <PieChart size={18} /><span>资产中心</span>
+          </button>
           <button aria-label="查看所有视频" className={view === "all" ? "active" : undefined} onClick={() => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); }}>
             <Library size={18} /><span>所有视频</span><em>{navigation?.totalVideos ?? videos.length}</em>
           </button>
@@ -807,7 +818,7 @@ export function LibraryShell({
       </aside>
 
       <section className="content" ref={contentRef}>
-        <Toolbar
+        {view !== "assetCenter" && <Toolbar
           title={title}
           count={toolbarCount}
           countLabel={view === "duplicates" ? "组重复" : view === "scanFailures" ? "项异常" : "部视频"}
@@ -829,9 +840,9 @@ export function LibraryShell({
             if (nextWidth) setGridCardWidth(nextWidth);
           }}
           onRefresh={() => void onRefresh?.()}
-        />
+        />}
 
-        {view !== "duplicates" && view !== "scanFailures" && (
+        {isVideoBrowseView && (
           <div className="batch-toolbar">
             {!selectionMode ? <>
               <button type="button" onClick={() => setSelectionMode(true)}><ListChecks size={16} /> 多选</button>
@@ -846,8 +857,24 @@ export function LibraryShell({
           </div>
         )}
 
-        {(error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
-        {view === "scanFailures" ? (
+        {view !== "assetCenter" && (error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
+        {view === "assetCenter" ? (
+          onLoadAssetCenterSummary && onLoadAssetCenterSources
+            ? <AssetCenterPage
+                scanStatuses={scanStatuses}
+                refreshSequence={refreshSequence}
+                loadSummary={onLoadAssetCenterSummary}
+                loadSources={onLoadAssetCenterSources}
+                onNavigate={(nextView) => {
+                  setSelectedFolderPath(null);
+                  if (nextView === "scanFailures") setScanFailureSourceFolderId(undefined);
+                  if (nextView === "duplicates") setDuplicatePageNumber(1);
+                  setView(nextView);
+                }}
+                onSelectSource={(sourcePath) => selectDirectory(sourcePath)}
+              />
+            : <div className="empty-state"><AlertTriangle size={36} /><h3>资产中心能力未连接</h3><p>请重新启动应用后重试。</p></div>
+        ) : view === "scanFailures" ? (
           onLoadScanFailureReviewPage && onRetryScanFailure && onDeleteScanFailureFile && onOpenScanFailureLocation
             ? <ScanFailuresPage
                 folders={folders}

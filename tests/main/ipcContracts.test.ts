@@ -9,6 +9,8 @@ describe("IPC_CHANNELS", () => {
       libraryList: "library:list",
       libraryPage: "library:page",
       libraryNavigation: "library:navigation",
+      assetCenterSummary: "asset-center:summary",
+      assetCenterSources: "asset-center:sources",
       libraryMissingList: "library:missing-list",
       videoListByIds: "video:list-by-ids",
       folderList: "folder:list",
@@ -96,5 +98,16 @@ describe("IPC_CHANNELS", () => {
       expect(source).not.toContain("folder-scan:retry");
       expect(source).not.toContain("folderScanRetry");
     }
+  });
+
+  it("keeps both Asset Center read APIs in the preload contract and validates paged queries strictly", () => {
+    const projectRoot = path.resolve(import.meta.dirname, "../..");
+    const preload = readFileSync(path.join(projectRoot, "src/main/preload.cts"), "utf8");
+    const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
+
+    expect(preload).toContain("getAssetCenterSummary: () => ipcRenderer.invoke(channels.assetCenterSummary)");
+    expect(preload).toContain("listAssetCenterSources: (query: AssetCenterSourceQuery) => ipcRenderer.invoke(channels.assetCenterSources, query)");
+    expect(ipc).toMatch(/const assetCenterSourceQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
+    expect(ipc).toContain("repo.listAssetCenterSources(assetCenterSourceQuerySchema.parse(query))");
   });
 });

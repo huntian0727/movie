@@ -6,7 +6,7 @@ export const DUPLICATE_PAGE_SIZES = [10, 20, 50, 100, 200, 300, 500] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 export type DuplicatePageSize = (typeof DUPLICATE_PAGE_SIZES)[number];
 export type SortDirection = "asc" | "desc";
-export type LibraryView = "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "duplicates";
+export type LibraryView = "assetCenter" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "duplicates";
 export type ViewMode = "grid" | "table";
 export type MetadataStatus = "pending" | "ready" | "failed";
 export type CodecProbeStatus = "unprobed" | "ready" | "failed";
@@ -660,6 +660,80 @@ export interface AppSettings {
   shortcuts: ShortcutSettings;
 }
 
+export type AssetCenterSourceType = "localOrMounted" | "nas" | "clouddrive";
+export type AssetCenterSourceAvailability = "reachable" | "offline" | "checkFailed" | "unknown" | "disabled";
+export type AssetCenterSourcePageSize = 30 | 50 | 100;
+export type AssetCenterSourceSort = "path" | "videoCount" | "sizeBytes" | "lastScannedAt" | "issueCount";
+
+export interface AssetCenterLatestScan {
+  taskId: string;
+  sourceFolderId: string | null;
+  mode: ScanMode;
+  status: Extract<FolderScanState, "completed" | "completed-with-errors" | "offline" | "error">;
+  startedAt: string;
+  completedAt: string;
+  addedVideos: number;
+  updatedVideos: number;
+  missingVideos: number;
+  failureCount: number;
+  errorSummary: string | null;
+}
+
+export interface AssetCenterSummary {
+  generatedAt: string;
+  totalVideoCount: number;
+  totalSizeBytes: number;
+  sourceCount: number;
+  enabledSourceCount: number;
+  reachableSourceCount: number;
+  offlineSourceCount: number;
+  checkFailedSourceCount: number;
+  unknownSourceCount: number;
+  latestScannedAt: string | null;
+  latestCompletedScan: AssetCenterLatestScan | null;
+  scanFailureCount: number;
+  missingVideoCount: number;
+  metadataIssueCount: number;
+  playbackRiskCount: number | null;
+  duplicateCandidateGroupCount: number;
+}
+
+export interface AssetCenterSourceQuery {
+  page: number;
+  pageSize: AssetCenterSourcePageSize;
+  search: string;
+  type: "all" | AssetCenterSourceType;
+  availability: "all" | AssetCenterSourceAvailability;
+  sort: AssetCenterSourceSort;
+  direction: SortDirection;
+}
+
+export interface AssetCenterSourceRow {
+  id: string;
+  path: string;
+  providerName: string | null;
+  sourceType: AssetCenterSourceType;
+  enabled: boolean;
+  availability: AssetCenterSourceAvailability;
+  lastCheckAt: string | null;
+  videoCount: number;
+  sizeBytes: number;
+  missingVideoCount: number;
+  metadataIssueCount: number;
+  scanFailureCount: number;
+  issueCount: number;
+  lastScannedAt: string | null;
+  scanError: string | null;
+}
+
+export interface AssetCenterSourcePage {
+  items: AssetCenterSourceRow[];
+  page: number;
+  pageSize: AssetCenterSourcePageSize;
+  totalPages: number;
+  totalCount: number;
+}
+
 export type ShortcutActionId =
   | "libraryPreviousPage"
   | "libraryNextPage"
@@ -787,6 +861,8 @@ export const IPC_CHANNELS = {
   libraryList: "library:list",
   libraryPage: "library:page",
   libraryNavigation: "library:navigation",
+  assetCenterSummary: "asset-center:summary",
+  assetCenterSources: "asset-center:sources",
   libraryMissingList: "library:missing-list",
   videoListByIds: "video:list-by-ids",
   folderList: "folder:list",
@@ -868,6 +944,8 @@ export interface VideoManagerApi {
   listVideos(query: LibraryQuery): Promise<VideoRecord[]>;
   listVideoPage(query: LibraryPageQuery): Promise<LibraryPage>;
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
+  getAssetCenterSummary(): Promise<AssetCenterSummary>;
+  listAssetCenterSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
   listMissingVideos(): Promise<VideoRecord[]>;
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
