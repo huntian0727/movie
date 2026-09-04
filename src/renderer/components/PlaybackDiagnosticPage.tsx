@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowLeft, CircleGauge, ExternalLink, FileSearch, FolderOpen, LoaderCircle, Play, RefreshCw, Search, Wrench } from "lucide-react";
 import { explainPlaybackRoute } from "../../shared/playbackDiagnosis";
 import { choosePlaybackRoute } from "../../shared/playbackRouting";
-import type { LibraryPage, LibraryPageQuery, PlaybackPreference, SourceFolder, VideoRecord } from "../../shared/videoTypes";
+import type { LibraryPage, PlaybackDiagnosticSearchQuery, PlaybackPreference, SourceFolder, VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
 
 const SEARCH_PAGE_SIZE = 30;
@@ -15,7 +15,7 @@ interface PlaybackDiagnosticPageProps {
   recentVideoIds?: string[];
   folders?: SourceFolder[];
   playbackPreference: PlaybackPreference;
-  loadVideoPage(query: LibraryPageQuery): Promise<LibraryPage>;
+  searchVideos(query: PlaybackDiagnosticSearchQuery): Promise<LibraryPage>;
   loadVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   onSelectVideo(video: VideoRecord): void;
   onClearSelection(): void;
@@ -32,7 +32,7 @@ export function PlaybackDiagnosticPage({
   recentVideoIds = EMPTY_RECENT_VIDEO_IDS,
   folders = [],
   playbackPreference,
-  loadVideoPage,
+  searchVideos,
   loadVideosByIds,
   onSelectVideo,
   onClearSelection,
@@ -132,11 +132,8 @@ export function PlaybackDiagnosticPage({
     const requestId = ++searchRequest.current;
     setSearchLoading(true);
     setSearchError(null);
-    void loadVideoPage({
-      view: "all",
+    void searchVideos({
       search: debouncedQuery,
-      sortField: "filename",
-      sortDirection: "asc",
       page: searchPageNumber,
       pageSize: SEARCH_PAGE_SIZE
     }).then((result) => {
@@ -148,7 +145,7 @@ export function PlaybackDiagnosticPage({
     }).finally(() => {
       if (searchRequest.current === requestId) setSearchLoading(false);
     });
-  }, [debouncedQuery, loadVideoPage, searchPageNumber, selectedVideoId]);
+  }, [debouncedQuery, searchPageNumber, searchVideos, selectedVideoId]);
 
   const source = useMemo(() => video ? folders.find((folder) => folder.id === video.sourceFolderId) ?? null : null, [folders, video]);
   const route = video ? choosePlaybackRoute(video, playbackPreference) : null;

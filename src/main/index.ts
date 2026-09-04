@@ -7,6 +7,7 @@ import type { DatabaseConnection } from "./db/database.js";
 import { createDatabase, DatabaseMigrationError } from "./db/database.js";
 import { VideoRepository } from "./db/videoRepository.js";
 import { AssetCenterQueryService } from "./assetCenter/assetCenterQueryService.js";
+import { PlaybackDiagnosticQueryService } from "./playbackDiagnostic/playbackDiagnosticQueryService.js";
 import { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { ScanManager } from "./media/scanManager.js";
@@ -51,6 +52,7 @@ let mediaCacheManager: MediaCacheManager | undefined;
 let playerWindows: PlayerWindowCoordinator | undefined;
 let duplicateCleanup: DuplicateCleanupService | undefined;
 let assetCenterQueries: AssetCenterQueryService | undefined;
+let playbackDiagnosticQueries: PlaybackDiagnosticQueryService | undefined;
 let databaseOpened = false;
 
 protocol.registerSchemesAsPrivileged([
@@ -140,6 +142,7 @@ app.whenReady().then(async () => {
   databaseOpened = true;
   const repo = new VideoRepository(database);
   assetCenterQueries = new AssetCenterQueryService(databasePath);
+  playbackDiagnosticQueries = new PlaybackDiagnosticQueryService(databasePath);
   const settings = await createSettingsStore();
   configureCloudDriveRuntime(settings.get().cloudDrive, process.env);
   const userDataPath = app.getPath("userData");
@@ -182,6 +185,7 @@ app.whenReady().then(async () => {
   registerIpcHandlers(repo, {
     database,
     assetCenterQueries,
+    playbackDiagnosticQueries,
     logger,
     diagnosticEnvironment: createDiagnosticEnvironment({
       appVersion: app.getVersion(),
@@ -294,6 +298,15 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => {
+  void playbackDiagnosticQueries?.dispose().catch((error) => {
+    logger.warn({
+      module: "playback.diagnostic",
+      event: "query_worker_shutdown_failed",
+      message: "Unable to stop the Playback Diagnostic query worker cleanly",
+      context: { error }
+    });
+  });
+  playbackDiagnosticQueries = undefined;
   assetCenterQueries?.dispose();
   assetCenterQueries = undefined;
   duplicateCleanup?.stop();

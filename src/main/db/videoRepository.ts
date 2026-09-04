@@ -111,7 +111,7 @@ export interface CloudDriveIdentityUpdate {
   providerModifiedAt: string;
 }
 
-interface VideoRow {
+export interface VideoRow {
   id: string;
   source_folder_id: string;
   path: string;
@@ -2413,7 +2413,7 @@ function mapSourceFolder(row: SourceFolderRow, stats?: SourceFolderStatsRow): So
   };
 }
 
-function mapVideo(row: VideoRow): VideoRecord {
+export function mapVideo(row: VideoRow): VideoRecord {
   return {
     id: row.id,
     sourceFolderId: row.source_folder_id,

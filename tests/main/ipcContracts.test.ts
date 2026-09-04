@@ -11,6 +11,7 @@ describe("IPC_CHANNELS", () => {
       libraryNavigation: "library:navigation",
       assetCenterSummary: "asset-center:summary",
       assetCenterSources: "asset-center:sources",
+      playbackDiagnosticSearch: "playback-diagnostic:search",
       libraryMissingList: "library:missing-list",
       videoListByIds: "video:list-by-ids",
       folderList: "folder:list",
@@ -110,5 +111,20 @@ describe("IPC_CHANNELS", () => {
     expect(ipc).toMatch(/const assetCenterSourceQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
     expect(ipc).toContain("dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query))");
     expect(ipc).toContain("dependencies.assetCenterQueries.getSummary()");
+  });
+
+  it("keeps Playback Diagnostic search on its dedicated validated worker API", () => {
+    const projectRoot = path.resolve(import.meta.dirname, "../..");
+    const preload = readFileSync(path.join(projectRoot, "src/main/preload.cts"), "utf8");
+    const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
+    const renderer = readFileSync(path.join(projectRoot, "src/renderer/App.tsx"), "utf8");
+    const worker = readFileSync(path.join(projectRoot, "src/main/playbackDiagnostic/playbackDiagnosticWorker.ts"), "utf8");
+
+    expect(preload).toContain("searchPlaybackDiagnosticVideos: (query: PlaybackDiagnosticSearchQuery) => ipcRenderer.invoke(channels.playbackDiagnosticSearch, query)");
+    expect(ipc).toMatch(/const playbackDiagnosticSearchQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
+    expect(ipc).toContain("dependencies.playbackDiagnosticQueries.search(playbackDiagnosticSearchQuerySchema.parse(query))");
+    expect(renderer).toContain("onSearchPlaybackDiagnosticVideos={api.searchPlaybackDiagnosticVideos}");
+    expect(worker).toContain("openAssetCenterReadonlyDatabase(data.databasePath)");
+    expect(worker).not.toMatch(/ffprobe|CloudDrive|scanFolder|thumbnail|coverCache/);
   });
 });

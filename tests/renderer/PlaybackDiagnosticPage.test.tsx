@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PlaybackDiagnosticPage } from "../../src/renderer/components/PlaybackDiagnosticPage";
-import type { LibraryPage, LibraryPageQuery, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
+import type { LibraryPage, PlaybackDiagnosticSearchQuery, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
 
 const video: VideoRecord = {
   id: "v1",
@@ -58,7 +58,7 @@ function renderPage(overrides: Partial<ComponentProps<typeof PlaybackDiagnosticP
     recentVideoIds: [],
     folders: [folder],
     playbackPreference: "auto",
-    loadVideoPage: vi.fn(async () => emptyPage),
+    searchVideos: vi.fn(async () => emptyPage),
     loadVideosByIds: vi.fn(async () => []),
     onSelectVideo: vi.fn(),
     onClearSelection: vi.fn(),
@@ -70,34 +70,31 @@ function renderPage(overrides: Partial<ComponentProps<typeof PlaybackDiagnosticP
 
 describe("PlaybackDiagnosticPage", () => {
   it("does not enumerate the library until the user enters a search", async () => {
-    const loadVideoPage = vi.fn(async (query: LibraryPageQuery) => ({ ...emptyPage, videos: [video], page: query.page, totalPages: 2, totalCount: 31 }));
-    renderPage({ loadVideoPage });
+    const searchVideos = vi.fn(async (query: PlaybackDiagnosticSearchQuery) => ({ ...emptyPage, videos: [video], page: query.page, totalPages: 2, totalCount: 31 }));
+    renderPage({ searchVideos });
 
-    expect(loadVideoPage).not.toHaveBeenCalled();
+    expect(searchVideos).not.toHaveBeenCalled();
     fireEvent.change(screen.getByPlaceholderText("输入文件名或路径"), { target: { value: "clip" } });
 
-    await waitFor(() => expect(loadVideoPage).toHaveBeenCalledWith({
-      view: "all",
+    await waitFor(() => expect(searchVideos).toHaveBeenCalledWith({
       search: "clip",
-      sortField: "filename",
-      sortDirection: "asc",
       page: 1,
       pageSize: 30
     }));
     expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
     expect(document.querySelector("img")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "下一页" }));
-    await waitFor(() => expect(loadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, pageSize: 30 })));
+    await waitFor(() => expect(searchVideos).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, pageSize: 30 })));
   });
 
   it("loads at most ten recent records without loading the all-library page", async () => {
     const recentIds = Array.from({ length: 14 }, (_, index) => `v${index}`);
     const loadVideosByIds = vi.fn(async (ids: string[]) => ids.map((id) => ({ ...video, id, filename: `${id}.mp4` })));
-    const loadVideoPage = vi.fn(async () => emptyPage);
-    renderPage({ recentVideoIds: recentIds, loadVideosByIds, loadVideoPage });
+    const searchVideos = vi.fn(async () => emptyPage);
+    renderPage({ recentVideoIds: recentIds, loadVideosByIds, searchVideos });
 
     await waitFor(() => expect(loadVideosByIds).toHaveBeenCalledWith(recentIds.slice(0, 10)));
-    expect(loadVideoPage).not.toHaveBeenCalled();
+    expect(searchVideos).not.toHaveBeenCalled();
     expect(await screen.findByText("v0.mp4")).toBeInTheDocument();
     expect(screen.queryByText("v10.mp4")).not.toBeInTheDocument();
   });
@@ -161,7 +158,7 @@ describe("PlaybackDiagnosticPage", () => {
       initialVideo: video,
       folders: [folder],
       playbackPreference: "auto",
-      loadVideoPage: vi.fn(async () => emptyPage),
+      searchVideos: vi.fn(async () => emptyPage),
       loadVideosByIds,
       onSelectVideo: vi.fn(),
       onClearSelection: vi.fn(),

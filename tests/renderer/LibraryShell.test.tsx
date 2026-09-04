@@ -924,7 +924,8 @@ describe("LibraryShell", () => {
   it("opens playback diagnostic from video details and closes the dialog", async () => {
     const onLoadVideoPage = vi.fn(async () => ({ videos: [video], page: 1, pageSize: 100 as const, totalPages: 1, totalCount: 1 }));
     const onLoadVideosByIds = vi.fn(async () => [video]);
-    render(<LibraryShell videos={[video]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} onLoadVideosByIds={onLoadVideosByIds} />);
+    const onSearchPlaybackDiagnosticVideos = vi.fn(async () => ({ videos: [], page: 1, pageSize: 30 as const, totalPages: 1, totalCount: 0 }));
+    render(<LibraryShell videos={[video]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} onLoadVideosByIds={onLoadVideosByIds} onSearchPlaybackDiagnosticVideos={onSearchPlaybackDiagnosticVideos} />);
 
     expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "查看 clip.mp4 详情" }));
@@ -938,8 +939,9 @@ describe("LibraryShell", () => {
   it("keeps playback diagnostic outside common paging, batch, shortcut, and refresh controls", async () => {
     const onLoadVideoPage = vi.fn(async () => ({ videos: [video], page: 1, pageSize: 100 as const, totalPages: 1, totalCount: 1 }));
     const onLoadVideosByIds = vi.fn(async () => []);
+    const onSearchPlaybackDiagnosticVideos = vi.fn(async () => ({ videos: [], page: 1, pageSize: 30 as const, totalPages: 1, totalCount: 0 }));
     const onRefresh = vi.fn();
-    const { rerender } = render(<LibraryShell videos={[]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} onLoadVideosByIds={onLoadVideosByIds} onRefresh={onRefresh} />);
+    const { rerender } = render(<LibraryShell videos={[]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} onLoadVideosByIds={onLoadVideosByIds} onSearchPlaybackDiagnosticVideos={onSearchPlaybackDiagnosticVideos} onRefresh={onRefresh} />);
     await waitFor(() => expect(onLoadVideoPage).toHaveBeenCalledOnce());
     onLoadVideoPage.mockClear();
 
@@ -956,11 +958,13 @@ describe("LibraryShell", () => {
       scanStatuses={[{ folderId: folder.id, mode: "current-folder", state: "scanning", phase: "processing", totalFiles: 20, processedFiles: 7, currentPath: video.path, message: null, counters: scanCounters, updatedAt: "" }]}
       onLoadVideoPage={onLoadVideoPage}
       onLoadVideosByIds={onLoadVideosByIds}
+      onSearchPlaybackDiagnosticVideos={onSearchPlaybackDiagnosticVideos}
       onRefresh={onRefresh}
     />);
     await new Promise((resolve) => window.setTimeout(resolve, 20));
     expect(onLoadVideoPage).not.toHaveBeenCalled();
     expect(onLoadVideosByIds).not.toHaveBeenCalled();
+    expect(onSearchPlaybackDiagnosticVideos).not.toHaveBeenCalled();
     expect(onRefresh).not.toHaveBeenCalled();
   });
 

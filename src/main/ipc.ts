@@ -10,6 +10,7 @@ import type { DatabaseConnection } from "./db/database.js";
 import type { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import type { VideoRepository } from "./db/videoRepository.js";
 import type { AssetCenterReadService } from "./assetCenter/assetCenterQueryService.js";
+import type { PlaybackDiagnosticReadService } from "./playbackDiagnostic/playbackDiagnosticQueryService.js";
 import {
   configureCloudDriveRuntime,
   browseConfiguredCloudDriveFolder,
@@ -160,6 +161,11 @@ const assetCenterSourceQuerySchema = z.object({
   sort: z.enum(["path", "videoCount", "sizeBytes", "lastScannedAt", "issueCount"]),
   direction: z.enum(["asc", "desc"])
 }).strict();
+const playbackDiagnosticSearchQuerySchema = z.object({
+  search: z.string().trim().min(1).max(500),
+  page: z.number().int().min(1).max(1_000_000),
+  pageSize: z.literal(30)
+}).strict();
 const videoIdsSchema = z.array(z.string().min(1)).min(1).max(500);
 const playerSessionSchema = videoIdSchema.extend({
   queueIds: z.array(z.string().min(1)).min(1).max(MAX_PLAYER_QUEUE_ITEMS)
@@ -280,6 +286,7 @@ const scanFailureReviewQuerySchema = z.object({
 interface IpcDependencies {
   database: DatabaseConnection;
   assetCenterQueries: AssetCenterReadService;
+  playbackDiagnosticQueries: PlaybackDiagnosticReadService;
   logger: StructuredLogger;
   diagnosticEnvironment: DiagnosticEnvironment;
   settings: SettingsStore;
@@ -432,6 +439,9 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.assetCenterSummary, () => dependencies.assetCenterQueries.getSummary());
   ipcMain.handle(IPC_CHANNELS.assetCenterSources, (_event, query) =>
     dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query))
+  );
+  ipcMain.handle(IPC_CHANNELS.playbackDiagnosticSearch, (_event, query) =>
+    dependencies.playbackDiagnosticQueries.search(playbackDiagnosticSearchQuerySchema.parse(query))
   );
   ipcMain.handle(IPC_CHANNELS.libraryMissingList, () => repo.listMissingVideos());
   ipcMain.handle(IPC_CHANNELS.videoListByIds, (_event, videoIds) => repo.listVideosByIds(z.array(z.string().min(1)).max(300).parse(videoIds)));

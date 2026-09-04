@@ -734,6 +734,12 @@ export interface AssetCenterSourcePage {
   totalCount: number;
 }
 
+export interface PlaybackDiagnosticSearchQuery {
+  search: string;
+  page: number;
+  pageSize: 30;
+}
+
 export type ShortcutActionId =
   | "libraryPreviousPage"
   | "libraryNextPage"
@@ -863,6 +869,7 @@ export const IPC_CHANNELS = {
   libraryNavigation: "library:navigation",
   assetCenterSummary: "asset-center:summary",
   assetCenterSources: "asset-center:sources",
+  playbackDiagnosticSearch: "playback-diagnostic:search",
   libraryMissingList: "library:missing-list",
   videoListByIds: "video:list-by-ids",
   folderList: "folder:list",
@@ -946,6 +953,7 @@ export interface VideoManagerApi {
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
   getAssetCenterSummary(): Promise<AssetCenterSummary>;
   listAssetCenterSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
+  searchPlaybackDiagnosticVideos(query: PlaybackDiagnosticSearchQuery): Promise<LibraryPage>;
   listMissingVideos(): Promise<VideoRecord[]>;
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;

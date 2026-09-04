@@ -67,6 +67,7 @@ interface LibraryShellProps {
   navigation?: LibraryNavigationSnapshot;
   onLoadVideoPage?(query: LibraryPageQuery): Promise<LibraryPage>;
   onLoadVideosByIds?(videoIds: string[]): Promise<VideoRecord[]>;
+  onSearchPlaybackDiagnosticVideos?: VideoManagerApi["searchPlaybackDiagnosticVideos"];
   playbackPreference?: PlaybackPreference;
   onLoadAssetCenterSummary?(): Promise<AssetCenterSummary>;
   onLoadAssetCenterSources?: VideoManagerApi["listAssetCenterSources"];
@@ -128,6 +129,7 @@ export function LibraryShell({
   navigation,
   onLoadVideoPage,
   onLoadVideosByIds,
+  onSearchPlaybackDiagnosticVideos,
   playbackPreference = "auto",
   onLoadAssetCenterSummary,
   onLoadAssetCenterSources,
@@ -888,14 +890,14 @@ export function LibraryShell({
               />
             : <div className="empty-state"><AlertTriangle size={36} /><h3>资产中心能力未连接</h3><p>请重新启动应用后重试。</p></div>
         ) : view === "playbackDiagnostic" ? (
-          onLoadVideoPage && onLoadVideosByIds
+          onSearchPlaybackDiagnosticVideos && onLoadVideosByIds
             ? <PlaybackDiagnosticPage
                 selectedVideoId={diagnosticVideoId}
                 initialVideo={diagnosticInitialVideo}
                 recentVideoIds={recentVideoIds}
                 folders={folders}
                 playbackPreference={playbackPreference}
-                loadVideoPage={onLoadVideoPage}
+                searchVideos={onSearchPlaybackDiagnosticVideos}
                 loadVideosByIds={onLoadVideosByIds}
                 onSelectVideo={(video) => {
                   setDiagnosticVideoId(video.id);

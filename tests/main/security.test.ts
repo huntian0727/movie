@@ -128,6 +128,7 @@ describe("Electron security policy", () => {
       expect(getAllowedIpcRoles(IPC_CHANNELS.videoBatchMove)).toEqual(["main"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.assetCenterSummary)).toEqual(["main"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.assetCenterSources)).toEqual(["main"]);
+      expect(getAllowedIpcRoles(IPC_CHANNELS.playbackDiagnosticSearch)).toEqual(["main"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.diagnosticsPreview)).toEqual(["main"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.diagnosticsExport)).toEqual(["main"]);
       expect(getAllowedIpcRoles(IPC_CHANNELS.settingsSet)).toEqual(["main"]);

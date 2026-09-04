@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { AssetCenterSourceQuery, DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
+import type { AssetCenterSourceQuery, DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, PlaybackDiagnosticSearchQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
 
 // Sandboxed preloads cannot load local modules, so keep a type-checked copy of the public channel names here.
 const channels: typeof SharedIpcChannels = {
@@ -8,6 +8,7 @@ const channels: typeof SharedIpcChannels = {
   libraryNavigation: "library:navigation",
   assetCenterSummary: "asset-center:summary",
   assetCenterSources: "asset-center:sources",
+  playbackDiagnosticSearch: "playback-diagnostic:search",
   libraryMissingList: "library:missing-list",
   videoListByIds: "video:list-by-ids",
   duplicateList: "duplicate:list",
@@ -91,6 +92,7 @@ const mainApi: VideoManagerApi = {
   getLibraryNavigation: () => ipcRenderer.invoke(channels.libraryNavigation),
   getAssetCenterSummary: () => ipcRenderer.invoke(channels.assetCenterSummary),
   listAssetCenterSources: (query: AssetCenterSourceQuery) => ipcRenderer.invoke(channels.assetCenterSources, query),
+  searchPlaybackDiagnosticVideos: (query: PlaybackDiagnosticSearchQuery) => ipcRenderer.invoke(channels.playbackDiagnosticSearch, query),
   listMissingVideos: () => ipcRenderer.invoke(channels.libraryMissingList),
   listVideosByIds: (videoIds: string[]) => ipcRenderer.invoke(channels.videoListByIds, videoIds),
   listDuplicateGroups: (query: DuplicateGroupPageQuery) => ipcRenderer.invoke(channels.duplicateList, query),
