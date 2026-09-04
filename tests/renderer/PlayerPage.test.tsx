@@ -349,6 +349,7 @@ describe("PlayerPage", () => {
     expect(screen.getByRole("dialog", { name: "clip.mp4" })).toBeInTheDocument();
     expect(document.querySelector("video")).toBeInTheDocument();
     expect(screen.getByText("完整路径")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "播放诊断" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "关闭详情" }));
     expect(screen.queryByRole("dialog", { name: "clip.mp4" })).not.toBeInTheDocument();

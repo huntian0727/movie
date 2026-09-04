@@ -488,6 +488,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       scanFailureRefreshSequence={scanFailureRefreshSequence}
       shortcuts={settings.shortcuts}
       onLoadVideoPage={api.listVideoPage}
+      onLoadVideosByIds={api.listVideosByIds}
+      playbackPreference={settings.playbackPreference}
       onLoadAssetCenterSummary={api.getAssetCenterSummary}
       onLoadAssetCenterSources={api.listAssetCenterSources}
       scanStatuses={scanStatuses}
@@ -537,6 +539,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       recentVideoIds={recentVideoIds}
       onPreviewDuplicateResolve={(plan: DuplicateResolvePlan) => api.previewDuplicateResolve(plan)}
       onRevealInFolder={(video) => api.revealVideoInFolder(video.id).then(() => undefined)}
+      onPlayExternal={(video) => api.playExternalVideo(video.id).then(() => undefined)}
       onOpen={async (video, queue) => {
         const queueIds = queue.map((item) => item.id);
         setDirectoryPlaybackQueue([]);

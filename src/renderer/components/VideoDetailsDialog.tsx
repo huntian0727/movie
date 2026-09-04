@@ -1,4 +1,4 @@
-import { Copy, Info, X } from "lucide-react";
+import { CircleGauge, Copy, Info, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
@@ -6,9 +6,10 @@ import { formatBytes, formatDateTime, formatDuration } from "./formatters";
 interface VideoDetailsDialogProps {
   video: VideoRecord;
   onClose(): void;
+  onOpenDiagnostic?(video: VideoRecord): void;
 }
 
-export function VideoDetailsDialog({ video, onClose }: VideoDetailsDialogProps) {
+export function VideoDetailsDialog({ video, onClose, onOpenDiagnostic }: VideoDetailsDialogProps) {
   const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle");
 
   useEffect(() => {
@@ -110,6 +111,10 @@ export function VideoDetailsDialog({ video, onClose }: VideoDetailsDialogProps) 
               <Copy size={15} />
               <span>{copyState === "success" ? "已复制路径" : "复制路径"}</span>
             </button>
+            {onOpenDiagnostic && <button type="button" onClick={() => onOpenDiagnostic(video)}>
+              <CircleGauge size={15} />
+              <span>播放诊断</span>
+            </button>}
             <button type="button" className="primary" onClick={onClose}>关闭</button>
           </div>
         </footer>

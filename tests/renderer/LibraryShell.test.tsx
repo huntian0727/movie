@@ -921,6 +921,49 @@ describe("LibraryShell", () => {
     expect(onLoadDuplicateGroups).toHaveBeenCalledOnce();
   });
 
+  it("opens playback diagnostic from video details and closes the dialog", async () => {
+    const onLoadVideoPage = vi.fn(async () => ({ videos: [video], page: 1, pageSize: 100 as const, totalPages: 1, totalCount: 1 }));
+    const onLoadVideosByIds = vi.fn(async () => [video]);
+    render(<LibraryShell videos={[video]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} onLoadVideosByIds={onLoadVideosByIds} />);
+
+    expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看 clip.mp4 详情" }));
+    fireEvent.click(screen.getByRole("button", { name: "播放诊断" }));
+
+    expect(screen.queryByRole("dialog", { name: "clip.mp4" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "播放诊断" })).toBeInTheDocument();
+    await waitFor(() => expect(onLoadVideosByIds).toHaveBeenCalledWith([video.id]));
+  });
+
+  it("keeps playback diagnostic outside common paging, batch, shortcut, and refresh controls", async () => {
+    const onLoadVideoPage = vi.fn(async () => ({ videos: [video], page: 1, pageSize: 100 as const, totalPages: 1, totalCount: 1 }));
+    const onLoadVideosByIds = vi.fn(async () => []);
+    const onRefresh = vi.fn();
+    const { rerender } = render(<LibraryShell videos={[]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} onLoadVideosByIds={onLoadVideosByIds} onRefresh={onRefresh} />);
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenCalledOnce());
+    onLoadVideoPage.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看播放诊断" }));
+
+    expect(await screen.findByRole("heading", { name: "播放诊断" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "多选" })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("搜索文件名")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("输入文件名或路径")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "ArrowRight", code: "ArrowRight" });
+    rerender(<LibraryShell
+      videos={[]}
+      folders={[folder]}
+      scanStatuses={[{ folderId: folder.id, mode: "current-folder", state: "scanning", phase: "processing", totalFiles: 20, processedFiles: 7, currentPath: video.path, message: null, counters: scanCounters, updatedAt: "" }]}
+      onLoadVideoPage={onLoadVideoPage}
+      onLoadVideosByIds={onLoadVideosByIds}
+      onRefresh={onRefresh}
+    />);
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    expect(onLoadVideoPage).not.toHaveBeenCalled();
+    expect(onLoadVideosByIds).not.toHaveBeenCalled();
+    expect(onRefresh).not.toHaveBeenCalled();
+  });
+
   it("shows CloudDrive API identity and targeted duration coverage on source folders", () => {
     render(
       <LibraryShell

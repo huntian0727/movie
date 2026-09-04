@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, Clock3, Cloud, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, PieChart, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
-import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, CircleGauge, Clock3, Cloud, CopyMinus, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, PieChart, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
+import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, PlaybackPreference, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { AssetCenterPage } from "./AssetCenterPage";
+import { PlaybackDiagnosticPage } from "./PlaybackDiagnosticPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
 import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
@@ -54,7 +55,8 @@ interface LibraryShellProps {
   onCancelScanFailureBatch?: VideoManagerApi["cancelScanFailureBatch"];
   onOpenScanFailureLocation?(failureId: string): Promise<unknown>;
   onRefresh?(): void | Promise<void>;
-  onOpen?(video: VideoRecord, queue: VideoRecord[]): void;
+  onOpen?(video: VideoRecord, queue: VideoRecord[]): void | Promise<void>;
+  onPlayExternal?(video: VideoRecord): void | Promise<void>;
   onToggleFavorite?(video: VideoRecord): void | Promise<void>;
   onTogglePendingDelete?(video: VideoRecord): void | Promise<void>;
   onRename?(video: VideoRecord, baseName: string): void | Promise<void>;
@@ -64,6 +66,8 @@ interface LibraryShellProps {
   getCoverUrl?(video: VideoRecord): string | null;
   navigation?: LibraryNavigationSnapshot;
   onLoadVideoPage?(query: LibraryPageQuery): Promise<LibraryPage>;
+  onLoadVideosByIds?(videoIds: string[]): Promise<VideoRecord[]>;
+  playbackPreference?: PlaybackPreference;
   onLoadAssetCenterSummary?(): Promise<AssetCenterSummary>;
   onLoadAssetCenterSources?: VideoManagerApi["listAssetCenterSources"];
   duplicateGroups?: DuplicateGroup[];
@@ -113,6 +117,7 @@ export function LibraryShell({
   onOpenScanFailureLocation,
   onRefresh,
   onOpen,
+  onPlayExternal,
   onToggleFavorite,
   onTogglePendingDelete,
   onRename,
@@ -122,6 +127,8 @@ export function LibraryShell({
   getCoverUrl,
   navigation,
   onLoadVideoPage,
+  onLoadVideosByIds,
+  playbackPreference = "auto",
   onLoadAssetCenterSummary,
   onLoadAssetCenterSources,
   duplicateGroups = EMPTY_DUPLICATE_GROUPS,
@@ -147,6 +154,8 @@ export function LibraryShell({
   const [renameTarget, setRenameTarget] = useState<VideoRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<VideoRecord | null>(null);
+  const [diagnosticVideoId, setDiagnosticVideoId] = useState<string | null>(null);
+  const [diagnosticInitialVideo, setDiagnosticInitialVideo] = useState<VideoRecord | null>(null);
   const [removeFolderTarget, setRemoveFolderTarget] = useState<SourceFolder | null>(null);
   const [folderIssueTarget, setFolderIssueTarget] = useState<{
     folder: SourceFolder;
@@ -241,8 +250,9 @@ export function LibraryShell({
   const favoriteCount = useMemo(() => navigation?.favoriteVideos ?? videos.reduce((count, video) => count + (video.isFavorite ? 1 : 0), 0), [navigation?.favoriteVideos, videos]);
   const pendingDeleteCount = navigation?.pendingDeleteVideos ?? videos.reduce((count, video) => count + (video.isPendingDelete ? 1 : 0), 0);
   const pendingDeleteBytes = navigation?.pendingDeleteBytes ?? videos.reduce((total, video) => total + (video.isPendingDelete ? video.sizeBytes : 0), 0);
-  const isStandaloneView = view === "assetCenter" || view === "duplicates" || view === "scanFailures";
+  const isStandaloneView = view === "assetCenter" || view === "playbackDiagnostic" || view === "duplicates" || view === "scanFailures";
   const isVideoBrowseView = !isStandaloneView;
+  const usesCommonToolbar = view !== "assetCenter" && view !== "playbackDiagnostic";
 
   useEffect(() => {
     setPage(1);
@@ -665,6 +675,9 @@ export function LibraryShell({
           <button aria-label="查看最近播放" className={view === "recent" ? "active" : undefined} onClick={() => { setView("recent"); setSelectedFolderPath(null); }}>
             <Clock3 size={18} /><span>最近播放</span><em>{recentVideoIds.length}</em>
           </button>
+          <button aria-label="查看播放诊断" className={view === "playbackDiagnostic" ? "active" : undefined} onClick={() => { setView("playbackDiagnostic"); setSelectedFolderPath(null); }}>
+            <CircleGauge size={18} /><span>播放诊断</span>
+          </button>
           <button aria-label="查看扫描异常" className={view === "scanFailures" ? "active" : undefined} onClick={() => { setView("scanFailures"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); }}>
             <AlertTriangle size={18} /><span>扫描异常</span><em>{navigation?.scanFailureCount ?? 0}</em>
           </button>
@@ -818,7 +831,7 @@ export function LibraryShell({
       </aside>
 
       <section className="content" ref={contentRef}>
-        {view !== "assetCenter" && <Toolbar
+        {usesCommonToolbar && <Toolbar
           title={title}
           count={toolbarCount}
           countLabel={view === "duplicates" ? "组重复" : view === "scanFailures" ? "项异常" : "部视频"}
@@ -857,7 +870,7 @@ export function LibraryShell({
           </div>
         )}
 
-        {view !== "assetCenter" && (error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
+        {usesCommonToolbar && (error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
         {view === "assetCenter" ? (
           onLoadAssetCenterSummary && onLoadAssetCenterSources
             ? <AssetCenterPage
@@ -874,6 +887,36 @@ export function LibraryShell({
                 onSelectSource={(sourcePath) => selectDirectory(sourcePath)}
               />
             : <div className="empty-state"><AlertTriangle size={36} /><h3>资产中心能力未连接</h3><p>请重新启动应用后重试。</p></div>
+        ) : view === "playbackDiagnostic" ? (
+          onLoadVideoPage && onLoadVideosByIds
+            ? <PlaybackDiagnosticPage
+                selectedVideoId={diagnosticVideoId}
+                initialVideo={diagnosticInitialVideo}
+                recentVideoIds={recentVideoIds}
+                folders={folders}
+                playbackPreference={playbackPreference}
+                loadVideoPage={onLoadVideoPage}
+                loadVideosByIds={onLoadVideosByIds}
+                onSelectVideo={(video) => {
+                  setDiagnosticVideoId(video.id);
+                  setDiagnosticInitialVideo(video);
+                }}
+                onClearSelection={() => {
+                  setDiagnosticVideoId(null);
+                  setDiagnosticInitialVideo(null);
+                }}
+                onOpen={onOpen}
+                onPlayExternal={onPlayExternal}
+                onRevealInFolder={onRevealInFolder}
+                onRetryMetadata={onRetryMetadata}
+                onOpenScanFailures={() => {
+                  setDiagnosticVideoId(null);
+                  setDiagnosticInitialVideo(null);
+                  setScanFailureSourceFolderId(undefined);
+                  setView("scanFailures");
+                }}
+              />
+            : <div className="empty-state"><AlertTriangle size={36} /><h3>播放诊断能力未连接</h3><p>请重新启动应用后重试。</p></div>
         ) : view === "scanFailures" ? (
           onLoadScanFailureReviewPage && onRetryScanFailure && onDeleteScanFailureFile && onOpenScanFailureLocation
             ? <ScanFailuresPage
@@ -1021,7 +1064,17 @@ export function LibraryShell({
         )}
       </section>
 
-      {detailsTarget && <VideoDetailsDialog video={detailsTarget} onClose={() => setDetailsTarget(null)} />}
+      {detailsTarget && <VideoDetailsDialog
+        video={detailsTarget}
+        onClose={() => setDetailsTarget(null)}
+        onOpenDiagnostic={(video) => {
+          setDiagnosticVideoId(video.id);
+          setDiagnosticInitialVideo(video);
+          setDetailsTarget(null);
+          setSelectedFolderPath(null);
+          setView("playbackDiagnostic");
+        }}
+      />}
 
       {folderIssueTarget && (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => {
