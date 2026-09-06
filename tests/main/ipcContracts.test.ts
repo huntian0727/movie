@@ -16,6 +16,7 @@ describe("IPC_CHANNELS", () => {
       libraryMissingPage: "library:missing-page",
       libraryMissingRecheck: "library:missing-recheck",
       libraryMissingForget: "library:missing-forget",
+      libraryMetadataIssuePage: "library:metadata-issue-page",
       videoListByIds: "video:list-by-ids",
       folderList: "folder:list",
       folderAdd: "folder:add",
@@ -142,5 +143,15 @@ describe("IPC_CHANNELS", () => {
     expect(ipc).toMatch(/const missingVideoPageQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
     expect(ipc).toContain("missingVideos.recheck(videoIdsSchema.parse(videoIds))");
     expect(ipc).toContain("missingVideos.forget(videoIdsSchema.parse(videoIds))");
+  });
+
+  it("exposes metadata issue paging through a dedicated validated query", () => {
+    const projectRoot = path.resolve(import.meta.dirname, "../..");
+    const preload = readFileSync(path.join(projectRoot, "src/main/preload.cts"), "utf8");
+    const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
+
+    expect(preload).toContain("listMetadataIssuePage: (query: MetadataIssuePageQuery) => ipcRenderer.invoke(channels.libraryMetadataIssuePage, query)");
+    expect(ipc).toMatch(/const metadataIssuePageQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
+    expect(ipc).toContain("repo.listMetadataIssuePage(metadataIssuePageQuerySchema.parse(query))");
   });
 });

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, CircleGauge, Clock3, Cloud, CopyMinus, FileQuestion, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, PieChart, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
-import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, PlaybackPreference, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, CircleGauge, Clock3, Cloud, CopyMinus, Database, FileQuestion, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, PieChart, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
+import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, PlaybackPreference, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { AssetCenterPage } from "./AssetCenterPage";
 import { PlaybackDiagnosticPage } from "./PlaybackDiagnosticPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
 import { MissingVideosPage } from "./MissingVideosPage";
+import { MetadataIssuesPage } from "./MetadataIssuesPage";
 import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 import { VideoGrid } from "./VideoGrid";
@@ -51,6 +52,7 @@ interface LibraryShellProps {
   onLoadMissingVideoPage?: VideoManagerApi["listMissingVideoPage"];
   onRecheckMissingVideos?: VideoManagerApi["recheckMissingVideos"];
   onForgetMissingVideos?: VideoManagerApi["forgetMissingVideos"];
+  onLoadMetadataIssuePage?(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
   onRetryScanFailure?(failureId: string): Promise<unknown>;
   onDeleteScanFailureFile?(failureId: string): Promise<unknown>;
   onCleanupScanFailures?: VideoManagerApi["cleanupScanFailures"];
@@ -116,6 +118,7 @@ export function LibraryShell({
   onLoadMissingVideoPage,
   onRecheckMissingVideos,
   onForgetMissingVideos,
+  onLoadMetadataIssuePage,
   onRetryScanFailure,
   onDeleteScanFailureFile,
   onCleanupScanFailures,
@@ -156,6 +159,8 @@ export function LibraryShell({
   const [scanFailureSourceFolderId, setScanFailureSourceFolderId] = useState<string | undefined>();
   const [missingVideoSourceFolderId, setMissingVideoSourceFolderId] = useState<string | undefined>();
   const [missingVideoCount, setMissingVideoCount] = useState(0);
+  const [metadataIssueSourceFolderId, setMetadataIssueSourceFolderId] = useState<string | undefined>();
+  const [metadataIssueCount, setMetadataIssueCount] = useState(0);
   const [folderScope, setFolderScope] = useState<"recursive" | "exact">("recursive");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [search, setSearch] = useState("");
@@ -261,7 +266,7 @@ export function LibraryShell({
   const favoriteCount = useMemo(() => navigation?.favoriteVideos ?? videos.reduce((count, video) => count + (video.isFavorite ? 1 : 0), 0), [navigation?.favoriteVideos, videos]);
   const pendingDeleteCount = navigation?.pendingDeleteVideos ?? videos.reduce((count, video) => count + (video.isPendingDelete ? 1 : 0), 0);
   const pendingDeleteBytes = navigation?.pendingDeleteBytes ?? videos.reduce((total, video) => total + (video.isPendingDelete ? video.sizeBytes : 0), 0);
-  const isStandaloneView = view === "assetCenter" || view === "playbackDiagnostic" || view === "duplicates" || view === "scanFailures" || view === "missingVideos";
+  const isStandaloneView = view === "assetCenter" || view === "playbackDiagnostic" || view === "duplicates" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const isVideoBrowseView = !isStandaloneView;
   const usesCommonToolbar = view !== "assetCenter" && view !== "playbackDiagnostic";
 
@@ -420,8 +425,8 @@ export function LibraryShell({
     return () => { disposed = true; };
   }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
 
-  const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "missingVideos" ? "文件缺失" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
-  const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : view === "missingVideos" ? missingVideoCount : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
+  const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "missingVideos" ? "文件缺失" : view === "metadataIssues" ? "元数据异常" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
+  const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : view === "missingVideos" ? missingVideoCount : view === "metadataIssues" ? metadataIssueCount : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
   const totalPages = onLoadVideoPage ? videoPage.totalPages : Math.max(1, Math.ceil(visibleVideos.length / pageSize));
   const currentPage = onLoadVideoPage ? videoPage.page : Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * pageSize;
@@ -695,6 +700,9 @@ export function LibraryShell({
           <button aria-label="查看文件缺失记录" className={view === "missingVideos" ? "active" : undefined} onClick={() => { setView("missingVideos"); setSelectedFolderPath(null); setMissingVideoSourceFolderId(undefined); }}>
             <FileQuestion size={18} /><span>文件缺失</span>
           </button>
+          <button aria-label="查看元数据异常" className={view === "metadataIssues" ? "active" : undefined} onClick={() => { setView("metadataIssues"); setSelectedFolderPath(null); setMetadataIssueSourceFolderId(undefined); }}>
+            <Database size={18} /><span>元数据异常</span>
+          </button>
           <button aria-label="查看重复项" className={view === "duplicates" ? "active" : undefined} onClick={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}>
                 <CopyMinus size={18} /><span>重复项</span><em>{duplicatePage.overallTotalGroups}</em>
           </button>
@@ -848,7 +856,7 @@ export function LibraryShell({
         {usesCommonToolbar && <Toolbar
           title={title}
           count={toolbarCount}
-          countLabel={view === "duplicates" ? "组重复" : view === "scanFailures" ? "项异常" : view === "missingVideos" ? "条记录" : "部视频"}
+          countLabel={view === "duplicates" ? "组重复" : view === "scanFailures" ? "项异常" : view === "missingVideos" || view === "metadataIssues" ? "条记录" : "部视频"}
           search={search}
           sortField={sortField}
           sortDirection={sortDirection}
@@ -856,8 +864,8 @@ export function LibraryShell({
           gridCardSizeIndex={gridCardSizeIndex}
           gridCardSizeMaxIndex={GRID_CARD_WIDTH_OPTIONS.length - 1}
           loading={loading}
-          showBrowseControls={view !== "duplicates" && view !== "scanFailures" && view !== "missingVideos"}
-          onBack={view === "folder" ? () => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); } : view === "scanFailures" ? () => { setView("all"); setScanFailureSourceFolderId(undefined); } : view === "missingVideos" ? () => { setView("assetCenter"); setMissingVideoSourceFolderId(undefined); } : undefined}
+          showBrowseControls={view !== "duplicates" && view !== "scanFailures" && view !== "missingVideos" && view !== "metadataIssues"}
+          onBack={view === "folder" ? () => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); } : view === "scanFailures" ? () => { setView("all"); setScanFailureSourceFolderId(undefined); } : view === "missingVideos" ? () => { setView("assetCenter"); setMissingVideoSourceFolderId(undefined); } : view === "metadataIssues" ? () => { setView("assetCenter"); setMetadataIssueSourceFolderId(undefined); } : undefined}
           onSearch={setSearch}
           onSortField={setSortField}
           onToggleDirection={() => setSortDirection((current) => (current === "asc" ? "desc" : "asc"))}
@@ -903,6 +911,11 @@ export function LibraryShell({
                   setMissingVideoSourceFolderId(sourceFolderId);
                   setView("missingVideos");
                 }}
+                onOpenMetadata={(sourceFolderId) => {
+                  setSelectedFolderPath(null);
+                  setMetadataIssueSourceFolderId(sourceFolderId);
+                  setView("metadataIssues");
+                }}
                 onSelectSource={(sourcePath) => selectDirectory(sourcePath)}
               />
             : <div className="empty-state"><AlertTriangle size={36} /><h3>资产中心能力未连接</h3><p>请重新启动应用后重试。</p></div>
@@ -936,6 +949,18 @@ export function LibraryShell({
                 }}
               />
             : <div className="empty-state"><AlertTriangle size={36} /><h3>播放诊断能力未连接</h3><p>请重新启动应用后重试。</p></div>
+        ) : view === "metadataIssues" ? (
+          onLoadMetadataIssuePage && onRetryMetadata
+            ? <MetadataIssuesPage
+                folders={folders}
+                initialSourceFolderId={metadataIssueSourceFolderId}
+                refreshSequence={refreshSequence}
+                loadPage={onLoadMetadataIssuePage}
+                onRetry={onRetryMetadata}
+                onOpenLocation={onRevealInFolder}
+                onTotalCount={setMetadataIssueCount}
+              />
+            : <div className="empty-state"><AlertTriangle size={36} /><h3>元数据异常明细能力未连接</h3></div>
         ) : view === "missingVideos" ? (
           onLoadMissingVideoPage && onRecheckMissingVideos && onForgetMissingVideos
             ? <MissingVideosPage

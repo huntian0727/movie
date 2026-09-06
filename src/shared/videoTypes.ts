@@ -6,7 +6,7 @@ export const DUPLICATE_PAGE_SIZES = [10, 20, 50, 100, 200, 300, 500] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 export type DuplicatePageSize = (typeof DUPLICATE_PAGE_SIZES)[number];
 export type SortDirection = "asc" | "desc";
-export type LibraryView = "assetCenter" | "playbackDiagnostic" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "missingVideos" | "duplicates";
+export type LibraryView = "assetCenter" | "playbackDiagnostic" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "missingVideos" | "metadataIssues" | "duplicates";
 export type ViewMode = "grid" | "table";
 export type MetadataStatus = "pending" | "ready" | "failed";
 export type CodecProbeStatus = "unprobed" | "ready" | "failed";
@@ -215,6 +215,36 @@ export interface MissingVideoActionResult {
   skippedCount: number;
   failureCount: number;
   items: MissingVideoActionItem[];
+}
+
+export type MetadataIssueStatus = Extract<MetadataStatus, "pending" | "failed">;
+export type MetadataIssueStatusFilter = "all" | MetadataIssueStatus;
+export type MetadataIssuePageSize = 30 | 50 | 100;
+
+export interface MetadataIssuePageQuery {
+  sourceFolderId?: string;
+  status: MetadataIssueStatusFilter;
+  search: string;
+  page: number;
+  pageSize: MetadataIssuePageSize;
+}
+
+export interface MetadataIssueItem {
+  video: VideoRecord;
+  errorCode: string | null;
+  errorSummary: string | null;
+  lastFailedAt: string | null;
+  retryCount: number;
+}
+
+export interface MetadataIssuePage {
+  items: MetadataIssueItem[];
+  page: number;
+  pageSize: MetadataIssuePageSize;
+  totalPages: number;
+  totalCount: number;
+  pendingCount: number;
+  failedCount: number;
 }
 
 export type ScanFailureBatchOperation = "recheck-accessibility" | "analyze-metadata" | "permanent-delete" | "remove-missing-record";
@@ -911,6 +941,7 @@ export const IPC_CHANNELS = {
   libraryMissingPage: "library:missing-page",
   libraryMissingRecheck: "library:missing-recheck",
   libraryMissingForget: "library:missing-forget",
+  libraryMetadataIssuePage: "library:metadata-issue-page",
   videoListByIds: "video:list-by-ids",
   folderList: "folder:list",
   folderAdd: "folder:add",
@@ -998,6 +1029,7 @@ export interface VideoManagerApi {
   listMissingVideoPage(query: MissingVideoPageQuery): Promise<MissingVideoPage>;
   recheckMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
   forgetMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
+  listMetadataIssuePage(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;

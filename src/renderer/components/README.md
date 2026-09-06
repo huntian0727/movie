@@ -19,3 +19,5 @@
 `LibraryShell` 的 `refreshSequence` 是领域事件触发当前查询失效的入口；不要用重新加载整页播放器 URL 代替状态同步。`windowSync.ts` 必须先注册监听器再读取快照，并在卸载时释放原监听器，避免独立窗口反复开关后累积回调。
 
 `MissingVideosPage.tsx` 是 `is_missing = 1` 记录的专用工作台：资产中心可进入全部明细，资料库“问题”单元格可携带来源 ID 直接筛选。界面只传递 video ID，复查和记录移除由主进程反查路径并完成安全校验。
+
+`MetadataIssuesPage.tsx` 是有效视频中 `metadata_status = pending/failed` 的分页工作台。资产中心可从全局统计或单个资料库直接进入；页面将活动的 metadata `scan_failure` 摘要与视频状态合并展示。用户触发的单条/当前页重新分析复用 `retryMetadata`，批量时限制 8 个并发 IPC，不执行文件写入或删除。

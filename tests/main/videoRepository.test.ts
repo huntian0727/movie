@@ -318,6 +318,51 @@ describe("VideoRepository", () => {
     expect(() => repo.getVideo(second.id)).toThrow("Video not found");
   });
 
+  it("pages metadata issues by source, status, and search with failure details", () => {
+    const { repo, folderId } = createRepo();
+    const secondFolder = repo.addSourceFolder("D:\\Archive", true);
+    const failed = createVideo(repo, folderId, {
+      path: "D:\\Movies\\alpha.mp4", filename: "alpha.mp4", basename: "alpha", metadataStatus: "pending"
+    });
+    const pending = createVideo(repo, secondFolder.id, {
+      path: "D:\\Archive\\beta.mp4", directory: "D:\\Archive", filename: "beta.mp4", basename: "beta", metadataStatus: "pending"
+    });
+    createVideo(repo, folderId, {
+      path: "D:\\Movies\\ready.mp4", filename: "ready.mp4", basename: "ready", metadataStatus: "ready"
+    });
+    expect(repo.markMetadataFailed(failed.id, failed.path, failed.sizeBytes, failed.modifiedAt)).toBe(true);
+    repo.recordScanFailure({
+      sourceFolderId: folderId,
+      scanTaskId: `metadata:${failed.id}`,
+      objectType: "file",
+      objectPath: failed.path,
+      failureStage: "metadata",
+      errorCode: "EPROBE",
+      errorSummary: "ffprobe timed out",
+      incrementRetry: true
+    });
+
+    expect(repo.listMetadataIssuePage({ status: "all", search: "", page: 1, pageSize: 30 })).toMatchObject({
+      totalCount: 2,
+      pendingCount: 1,
+      failedCount: 1
+    });
+    expect(repo.listMetadataIssuePage({ sourceFolderId: folderId, status: "failed", search: "alpha", page: 1, pageSize: 30 })).toMatchObject({
+      totalCount: 1,
+      pendingCount: 0,
+      failedCount: 1,
+      items: [{
+        video: expect.objectContaining({ id: failed.id, metadataStatus: "failed" }),
+        errorCode: "EPROBE",
+        errorSummary: "ffprobe timed out",
+        retryCount: 1
+      }]
+    });
+    expect(repo.listMetadataIssuePage({ status: "pending", search: "D:\\Archive", page: 1, pageSize: 30 }).items[0]?.video.id).toBe(pending.id);
+    repo.markMissing(pending.id, true);
+    expect(repo.listMetadataIssuePage({ status: "all", search: "", page: 1, pageSize: 30 }).totalCount).toBe(1);
+  });
+
   it("persists codec metadata and clears it when the file version changes", () => {
     const { repo, folderId } = createRepo();
     const video = createVideo(repo, folderId, {

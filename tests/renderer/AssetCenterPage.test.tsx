@@ -64,6 +64,7 @@ describe("AssetCenterPage", () => {
     const onNavigate = vi.fn();
     const onSelectSource = vi.fn();
     const onOpenMissing = vi.fn();
+    const onOpenMetadata = vi.fn();
     render(
       <AssetCenterPage
         scanStatuses={[{
@@ -89,6 +90,7 @@ describe("AssetCenterPage", () => {
         loadSources={vi.fn().mockResolvedValue(sourcePage)}
         onNavigate={onNavigate}
         onOpenMissing={onOpenMissing}
+        onOpenMetadata={onOpenMetadata}
         onSelectSource={onSelectSource}
       />
     );
@@ -108,6 +110,8 @@ describe("AssetCenterPage", () => {
     expect(onSelectSource).toHaveBeenCalledWith("F:\\Cloud");
     fireEvent.click(screen.getByRole("button", { name: "查看 F:\\Cloud 的 2 条缺失记录" }));
     expect(onOpenMissing).toHaveBeenCalledWith("source-1");
+    fireEvent.click(screen.getByRole("button", { name: "查看 F:\\Cloud 的 4 条元数据异常" }));
+    expect(onOpenMetadata).toHaveBeenCalledWith("source-1");
   });
 
   it("keeps source errors local, supports empty results, and retries only read-only loaders", async () => {
@@ -123,6 +127,7 @@ describe("AssetCenterPage", () => {
         loadSources={loadSources}
         onNavigate={vi.fn()}
         onOpenMissing={vi.fn()}
+        onOpenMetadata={vi.fn()}
         onSelectSource={vi.fn()}
       />
     );
@@ -146,6 +151,7 @@ describe("AssetCenterPage", () => {
         loadSources={() => neverSources}
         onNavigate={vi.fn()}
         onOpenMissing={vi.fn()}
+        onOpenMetadata={vi.fn()}
         onSelectSource={vi.fn()}
       />
     );
@@ -171,6 +177,7 @@ describe("AssetCenterPage", () => {
         loadSources={loadSources}
         onNavigate={vi.fn()}
         onOpenMissing={vi.fn()}
+        onOpenMetadata={vi.fn()}
         onSelectSource={vi.fn()}
       />
     );
@@ -198,6 +205,7 @@ describe("AssetCenterPage", () => {
         loadSources={vi.fn().mockResolvedValue(sourcePage)}
         onNavigate={vi.fn()}
         onOpenMissing={vi.fn()}
+        onOpenMetadata={vi.fn()}
         onSelectSource={vi.fn()}
       />
     );

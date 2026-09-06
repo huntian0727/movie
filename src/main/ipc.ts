@@ -175,6 +175,13 @@ const missingVideoPageQuerySchema = z.object({
   page: z.number().int().min(1).max(1_000_000),
   pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
 }).strict();
+const metadataIssuePageQuerySchema = z.object({
+  sourceFolderId: z.string().min(1).optional(),
+  status: z.enum(["all", "pending", "failed"]),
+  search: z.string().trim().max(500),
+  page: z.number().int().min(1).max(1_000_000),
+  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
+}).strict();
 const videoIdsSchema = z.array(z.string().min(1)).min(1).max(500);
 const playerSessionSchema = videoIdSchema.extend({
   queueIds: z.array(z.string().min(1)).min(1).max(MAX_PLAYER_QUEUE_ITEMS)
@@ -459,6 +466,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   );
   ipcMain.handle(IPC_CHANNELS.libraryMissingList, () => repo.listMissingVideos());
   ipcMain.handle(IPC_CHANNELS.libraryMissingPage, (_event, query) => repo.listMissingVideoPage(missingVideoPageQuerySchema.parse(query)));
+  ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, (_event, query) => repo.listMetadataIssuePage(metadataIssuePageQuerySchema.parse(query)));
   ipcMain.handle(IPC_CHANNELS.libraryMissingRecheck, async (_event, videoIds) => {
     const result = await missingVideos.recheck(videoIdsSchema.parse(videoIds));
     const restoredIds = result.items.filter((item) => item.status === "restored").map((item) => item.videoId);
@@ -909,7 +917,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     if (video.metadataStatus === "failed") {
       repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
     }
-    dependencies.metadataQueue.enqueue(video.id);
+    dependencies.metadataQueue.enqueue(video.id, true);
     const refreshed = repo.getVideo(video.id);
     dependencies.domainEvents.publish({ type: "video:updated", videoIds: [video.id] });
     return refreshed;

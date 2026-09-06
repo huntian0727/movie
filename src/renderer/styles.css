@@ -93,6 +93,29 @@
 .missing-video-skeleton { display: grid; gap: 1px; border: 1px solid #30322f; border-radius: 8px; overflow: hidden; background: #292b28; }
 .missing-video-skeleton span { height: 62px; background: linear-gradient(90deg, #181a18 20%, #222522 45%, #181a18 70%); background-size: 240% 100%; animation: shimmer 1.4s infinite linear; }
 .missing-video-pagination { margin-top: 0; }
+.metadata-issue-intro { border-color: #343a37; color: #aeb9b2; background: #1a1e1b; }
+.metadata-issue-intro strong { color: #dce4de; }
+.metadata-issue-intro small { color: #89928c; }
+.metadata-issue-counts { flex: 0 0 auto; gap: 16px !important; }
+.metadata-issue-counts > span { min-width: 92px; display: grid !important; gap: 2px; color: #8c958f; font-size: 10px; text-align: right; }
+.metadata-issue-counts b { color: #d7ddd9; font-size: 18px; font-variant-numeric: tabular-nums; }
+.metadata-issue-filters label:first-child select { min-width: min(360px, 36vw); }
+.metadata-issues-page button:focus-visible, .metadata-issues-page input:focus-visible, .metadata-issues-page select:focus-visible { outline: 2px solid #cf725e; outline-offset: 2px; }
+.metadata-issue-table { min-width: 1120px; }
+.metadata-issue-table th:nth-child(1) { width: 42px; }
+.metadata-issue-table th:nth-child(2) { width: 31%; }
+.metadata-issue-table th:nth-child(3) { width: 105px; }
+.metadata-issue-table th:nth-child(4) { width: 29%; }
+.metadata-issue-table th:nth-child(5) { width: 155px; }
+.metadata-issue-table th:nth-child(6) { width: 220px; }
+.metadata-issue-table .missing-video-file small { color: #858a83; font-size: 10px; }
+.metadata-issue-status { min-width: 66px; padding: 4px 6px; border: 1px solid; border-radius: 4px; display: inline-flex; justify-content: center; font-size: 10px; font-weight: 650; }
+.metadata-issue-status.pending { border-color: #56503e; color: #d3b66f; background: #282318; }
+.metadata-issue-status.failed { border-color: #67413a; color: #e7a196; background: #2d1e1b; }
+.metadata-issue-error { min-width: 0; display: grid; gap: 4px; }
+.metadata-issue-error strong, .metadata-issue-error small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.metadata-issue-error strong { color: #cdd1cc; font-size: 11px; font-weight: 550; }
+.metadata-issue-error small { color: #777c76; font-size: 10px; }
 
 @media (max-width: 1050px) {
   .scan-failure-card { grid-template-columns: 24px 120px minmax(0, 1fr); }
@@ -366,6 +389,10 @@ button { color: inherit; }
 .asset-issue-link { min-width: 58px; padding: 3px 5px; border: 0; border-radius: 4px; display: inline-grid; justify-items: end; color: inherit; background: transparent; cursor: pointer; }
 .asset-issue-link:hover { color: #ffd08a; background: #2c271d; }
 .asset-issue-link small { color: #a88955; font-size: 9px; font-weight: 500; }
+.asset-issue-summary { display: grid; justify-items: end; gap: 3px; }
+.asset-issue-summary > strong { font-variant-numeric: tabular-nums; }
+.asset-issue-summary > span { display: flex; justify-content: flex-end; gap: 3px; }
+.asset-issue-summary .asset-issue-link { min-width: 0; padding: 2px 4px; font-size: 9px; white-space: nowrap; }
 .asset-center-notice, .asset-source-error { min-height: 40px; padding: 8px 11px; border: 1px solid #5b332e; border-radius: 7px; display: flex; align-items: center; gap: 8px; color: #f2aa9e; background: #291b19; font-size: 12px; }
 .asset-center-notice span, .asset-source-error span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .asset-center-notice button, .asset-source-error button { height: 28px; padding: 0 9px; border: 1px solid #70423a; border-radius: 5px; color: #ffd3cb; background: #38221f; cursor: pointer; }

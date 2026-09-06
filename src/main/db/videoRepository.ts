@@ -18,6 +18,8 @@ import type {
   LibraryPage,
   LibraryPageQuery,
   LibraryQuery,
+  MetadataIssuePage,
+  MetadataIssuePageQuery,
   MetadataStatus,
   MissingVideoPage,
   MissingVideoPageQuery,
@@ -148,6 +150,13 @@ export interface VideoRow {
   provider_file_id: string | null;
   provider_path: string | null;
   duration_source: NonNullable<VideoRecord["durationSource"]>;
+}
+
+interface MetadataIssueRow extends VideoRow {
+  metadata_error_code: string | null;
+  metadata_error_summary: string | null;
+  metadata_last_failed_at: string | null;
+  metadata_retry_count: number | null;
 }
 
 interface PlayHistoryRow {
@@ -1441,6 +1450,69 @@ export class VideoRepository {
       LIMIT @limit OFFSET @offset
     `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as VideoRow[]).map(mapVideo);
     return { items, page, pageSize: query.pageSize, totalPages, totalCount };
+  }
+
+  listMetadataIssuePage(query: MetadataIssuePageQuery): MetadataIssuePage {
+    const baseClauses = ["videos.is_missing = 0", "videos.metadata_status IN ('pending', 'failed')"];
+    const params: Record<string, string | number> = {};
+    if (query.sourceFolderId) {
+      baseClauses.push("videos.source_folder_id = @sourceFolderId");
+      params.sourceFolderId = query.sourceFolderId;
+    }
+    const normalizedSearch = query.search.trim();
+    if (normalizedSearch) {
+      baseClauses.push("(videos.filename LIKE @search ESCAPE '\\' COLLATE NOCASE OR videos.path LIKE @search ESCAPE '\\' COLLATE NOCASE)");
+      params.search = `%${escapeSqlLike(normalizedSearch)}%`;
+    }
+    const baseWhere = baseClauses.join(" AND ");
+    const counts = this.db.prepare(`
+      SELECT
+        COALESCE(SUM(CASE WHEN videos.metadata_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_count,
+        COALESCE(SUM(CASE WHEN videos.metadata_status = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count
+      FROM videos
+      WHERE ${baseWhere}
+    `).get(params) as { pending_count: number; failed_count: number };
+    const statusClause = query.status === "all" ? "" : " AND videos.metadata_status = @status";
+    if (query.status !== "all") params.status = query.status;
+    const totalCount = query.status === "pending"
+      ? counts.pending_count
+      : query.status === "failed"
+        ? counts.failed_count
+        : counts.pending_count + counts.failed_count;
+    const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
+    const page = Math.min(query.page, totalPages);
+    const rows = this.db.prepare(`
+      SELECT videos.*,
+        metadata_failure.error_code AS metadata_error_code,
+        metadata_failure.error_summary AS metadata_error_summary,
+        metadata_failure.last_failed_at AS metadata_last_failed_at,
+        metadata_failure.retry_count AS metadata_retry_count
+      FROM videos
+      LEFT JOIN scan_failures AS metadata_failure
+        ON metadata_failure.source_folder_id = videos.source_folder_id
+        AND metadata_failure.object_path = videos.path
+        AND metadata_failure.failure_stage = 'metadata'
+        AND metadata_failure.status != 'resolved'
+      WHERE ${baseWhere}${statusClause}
+      ORDER BY CASE videos.metadata_status WHEN 'failed' THEN 0 ELSE 1 END,
+        videos.updated_at DESC, videos.filename COLLATE NOCASE ASC
+      LIMIT @limit OFFSET @offset
+    `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as MetadataIssueRow[];
+    return {
+      items: rows.map((row) => ({
+        video: mapVideo(row),
+        errorCode: row.metadata_error_code,
+        errorSummary: row.metadata_error_summary,
+        lastFailedAt: row.metadata_last_failed_at,
+        retryCount: row.metadata_retry_count ?? 0
+      })),
+      page,
+      pageSize: query.pageSize,
+      totalPages,
+      totalCount,
+      pendingCount: counts.pending_count,
+      failedCount: counts.failed_count
+    };
   }
 
   listVideosByIds(videoIds: string[]): VideoRecord[] {
