@@ -25,7 +25,7 @@ status: completed
 - Electron 33 `ELECTRON_RUN_AS_NODE=1` 定向 Vitest：PASS，5 个文件、62 项测试。
 - Electron 33 `ELECTRON_RUN_AS_NODE=1` 全量 Vitest：PASS，66 个文件、627 项测试。
 - 固定 Node 22.23.1 / npm 10.9.8 `npm run build`：PASS。
-- 标准 Node release gate：待在隔离的 Node ABI 127 checkout 运行；当前 checkout 按项目规则保留 Electron ABI 130，未原地 rebuild。
+- 隔离工作树的标准 Node 22.23.1 / ABI 127 `npm run test:release-gate`：PASS；全量 Vitest 为 66 个文件、627 项测试。主 checkout 按项目规则保留 Electron ABI 130，未原地 rebuild。
 - `npm run dist:win`：PASS，重建 `release/win-unpacked` 并生成 `Local-Video-Manager-0.1.15-x64-Setup.exe`。
 - `npm run verify:artifact`：PASS，`app.asar` 共 3975 个条目，未发现禁止的开发产物。
 - `npm run test:packaged-smoke`：PASS；`npm run test:installer-smoke`：PASS。
