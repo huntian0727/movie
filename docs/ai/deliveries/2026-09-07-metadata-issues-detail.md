@@ -22,9 +22,12 @@ status: completed
 ## Verification
 
 - `npm run typecheck`：PASS。
-- Electron 33 `ELECTRON_RUN_AS_NODE=1` 定向 Vitest：PASS，4 个文件、61 项测试。
-- 32 万条异常记录分页性能门禁：PASS，实测首页 100 条查询 246.17 ms。
-- 全量 Node release gate、打包和真实桌面快捷方式验证：待交付阶段完成。
+- Electron 33 `ELECTRON_RUN_AS_NODE=1` 全量 Vitest：PASS，67 个文件、632 项测试。
+- 32 万条异常记录分页性能门禁：PASS；工作区全量测试实测首页 100 条查询 279.89 ms，隔离发布门禁复测 235.72 ms，门槛 3,000 ms。
+- Node 22.23.1 隔离 `npm run test:release-gate`：PASS，包含类型检查、构建、Windows 文件测试、迁移测试、性能门禁和 632 项全量测试。
+- `npm run dist:win`、`verify:artifact`、`test:packaged-smoke`、`test:installer-smoke`：PASS；`app.asar` 共 3,975 个条目且不含禁止的开发文件。
+- 桌面快捷方式 `Video Manager (Dev).lnk` 目标与工作目录均指向本次 `release/win-unpacked`，已由该快捷方式启动并确认实际进程路径一致。
+- 当前自动化环境未暴露原生 Electron 窗口给截图接口，无法完成像素级人工界面截图复核；渲染挂载、预加载桥接、媒体协议、预览生成和重新生成已由解压版与安装器冒烟测试覆盖。
 
 ## Risks and follow-up
 
