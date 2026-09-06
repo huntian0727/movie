@@ -146,6 +146,22 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
     window.focus();
     return await window.webContents.executeJavaScript(`(async () => {
       console.log('[packaged-smoke] renderer-loaded');
+      const waitForSelector = (selector, message) => new Promise((resolve, reject) => {
+        const deadline = Date.now() + 10000;
+        const poll = () => {
+          const element = document.querySelector(selector);
+          if (element) return resolve(element);
+          if (Date.now() >= deadline) return reject(new Error(message));
+          setTimeout(poll, 50);
+        };
+        poll();
+      });
+      const assetCenterHeading = await waitForSelector('.asset-center-page h1', 'Default Asset Center view was not found');
+      const defaultAssetCenter = assetCenterHeading.textContent?.trim() === '资产中心';
+      const allVideosButton = await waitForSelector('button[aria-label="查看所有视频"]', 'All Videos navigation control was not found');
+      allVideosButton.click();
+      await waitForSelector('.video-cover', 'All Videos view did not render after navigation');
+      console.log('[packaged-smoke] default-asset-center-verified');
       const id = ${JSON.stringify(videoId)};
       const url = 'local-video://cover/' + encodeURIComponent(id);
       const request = (cachedOnly) => window.videoManager.loadPreviewImage({requestId: crypto.randomUUID(), url, cachedOnly, priority: 2});
@@ -185,6 +201,7 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
       observer.disconnect();
       const afterPolling = document.querySelector('.video-cover img');
       return {
+        defaultAssetCenter,
         previewGeneratedBeforeMetadata: before[0].metadataStatus === 'pending' && bytes?.length > 0,
         previewDecodedInRenderer: visibleCover.complete && visibleCover.naturalWidth > 0,
         previewCacheHit: cached?.length > 0,

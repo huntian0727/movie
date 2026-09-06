@@ -44,6 +44,8 @@ describe("resolvePackagedExecutablePath", () => {
     expect(source).toContain("context.assetCenterQueries.getSummary()");
     expect(source).toContain("context.playbackDiagnosticQueries.search");
     expect(source).toContain("assetCenterWorkerQuery");
+    expect(source).toContain("defaultAssetCenter");
+    expect(source).toContain("default-asset-center-verified");
     expect(source).toContain("playbackDiagnosticWorkerQuery");
   });
 });
