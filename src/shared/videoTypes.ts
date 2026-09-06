@@ -6,7 +6,7 @@ export const DUPLICATE_PAGE_SIZES = [10, 20, 50, 100, 200, 300, 500] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 export type DuplicatePageSize = (typeof DUPLICATE_PAGE_SIZES)[number];
 export type SortDirection = "asc" | "desc";
-export type LibraryView = "assetCenter" | "playbackDiagnostic" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "duplicates";
+export type LibraryView = "assetCenter" | "playbackDiagnostic" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "missingVideos" | "duplicates";
 export type ViewMode = "grid" | "table";
 export type MetadataStatus = "pending" | "ready" | "failed";
 export type CodecProbeStatus = "unprobed" | "ready" | "failed";
@@ -178,6 +178,43 @@ export interface ScanFailureCleanupResult {
   failureCount: number;
   reclaimedBytes: number;
   items: ScanFailureCleanupItemResult[];
+}
+
+export type MissingVideoPageSize = 30 | 50 | 100;
+
+export interface MissingVideoPageQuery {
+  sourceFolderId?: string;
+  search: string;
+  page: number;
+  pageSize: MissingVideoPageSize;
+}
+
+export interface MissingVideoPage {
+  items: VideoRecord[];
+  page: number;
+  pageSize: MissingVideoPageSize;
+  totalPages: number;
+  totalCount: number;
+}
+
+export type MissingVideoActionStatus = "restored" | "still-missing" | "record-removed" | "skipped" | "failed";
+
+export interface MissingVideoActionItem {
+  videoId: string;
+  path: string;
+  status: MissingVideoActionStatus;
+  message: string;
+}
+
+export interface MissingVideoActionResult {
+  operation: "recheck" | "forget";
+  requestedCount: number;
+  restoredCount: number;
+  stillMissingCount: number;
+  removedCount: number;
+  skippedCount: number;
+  failureCount: number;
+  items: MissingVideoActionItem[];
 }
 
 export type ScanFailureBatchOperation = "recheck-accessibility" | "analyze-metadata" | "permanent-delete" | "remove-missing-record";
@@ -871,6 +908,9 @@ export const IPC_CHANNELS = {
   assetCenterSources: "asset-center:sources",
   playbackDiagnosticSearch: "playback-diagnostic:search",
   libraryMissingList: "library:missing-list",
+  libraryMissingPage: "library:missing-page",
+  libraryMissingRecheck: "library:missing-recheck",
+  libraryMissingForget: "library:missing-forget",
   videoListByIds: "video:list-by-ids",
   folderList: "folder:list",
   folderAdd: "folder:add",
@@ -955,6 +995,9 @@ export interface VideoManagerApi {
   listAssetCenterSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
   searchPlaybackDiagnosticVideos(query: PlaybackDiagnosticSearchQuery): Promise<LibraryPage>;
   listMissingVideos(): Promise<VideoRecord[]>;
+  listMissingVideoPage(query: MissingVideoPageQuery): Promise<MissingVideoPage>;
+  recheckMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
+  forgetMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;

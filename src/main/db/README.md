@@ -54,6 +54,10 @@
 ## 测试覆盖
 
 `databaseMigrations.test.ts` 覆盖空库、无版本旧库、v1–v10、10,000 条历史视频的 v8→v9 无探测升级、v9→v10 旧清理任务安全失效、codec 状态回填与用户状态保留、旧异常回填/去重/幂等/重试清除、每步故障回滚、备份可独立打开、备份失败、未知/损坏 schema、默认值/索引/FK 和幂等启动。`videoRepository.test.ts` 覆盖 codec/probe 状态持久化、人工重试和文件版本失效；`libraryScanner.incremental.test.ts` 覆盖快照算法。标准命令为 `npm run test:migrations` 和 `npm test`；native ABI 必须与运行测试的 Node 一致。
+
+## 缺失记录管理
+
+`listMissingVideoPage` 只查询 `is_missing = 1` 的记录，支持来源目录、文件名/路径搜索和 SQLite 分页。恢复与清理都必须使用路径、大小和修改时间的版本条件；`removeMissingVideosIfVersions` 只删除仍为缺失且版本未变的资料库记录，不执行文件系统操作。
 # 重复项后台清理（schema v10）
 
 `duplicateCleanupRepository.ts` 负责持久化重复项清理任务、逐文件版本/完整哈希/强身份、授权 revision、隔离恢复路径和活动占用。提交必须在一个 SQLite 事务中同时写入 `duplicate_cleanup_jobs`、`duplicate_cleanup_items` 和 keep/delete 两类 `duplicate_cleanup_reservations`；`request_id` 用于 IPC 重试幂等，活动 `video_id` 唯一索引用于阻止同一文件进入两个任务。

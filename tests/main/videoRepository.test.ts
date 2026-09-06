@@ -295,6 +295,29 @@ describe("VideoRepository", () => {
     });
   });
 
+  it("pages, filters, restores, and conditionally removes missing records", () => {
+    const { repo, folderId } = createRepo();
+    const secondFolder = repo.addSourceFolder("D:\\Archive", true);
+    const first = createVideo(repo, folderId, { path: "D:\\Movies\\alpha.mp4", filename: "alpha.mp4", basename: "alpha" });
+    const second = createVideo(repo, folderId, { path: "D:\\Movies\\beta.mp4", filename: "beta.mp4", basename: "beta" });
+    const archive = createVideo(repo, secondFolder.id, { path: "D:\\Archive\\alpha-old.mp4", directory: "D:\\Archive", filename: "alpha-old.mp4", basename: "alpha-old" });
+    repo.markMissing(first.id, true);
+    repo.markMissing(second.id, true);
+    repo.markMissing(archive.id, true);
+
+    expect(repo.listMissingVideoPage({ sourceFolderId: folderId, search: "alpha", page: 1, pageSize: 30 })).toMatchObject({
+      totalCount: 1,
+      items: [expect.objectContaining({ id: first.id, isMissing: true })]
+    });
+    expect(repo.listMissingVideoPage({ search: "D:\\Archive", page: 1, pageSize: 30 }).items.map((video) => video.id)).toEqual([archive.id]);
+
+    expect(repo.restoreMissingIfVersion(first.id, first.path, first.sizeBytes, first.modifiedAt)).toBe(true);
+    expect(repo.getVideo(first.id).isMissing).toBe(false);
+    expect(repo.removeMissingVideosIfVersions([first, second])).toEqual([second.id]);
+    expect(repo.getVideo(first.id).id).toBe(first.id);
+    expect(() => repo.getVideo(second.id)).toThrow("Video not found");
+  });
+
   it("persists codec metadata and clears it when the file version changes", () => {
     const { repo, folderId } = createRepo();
     const video = createVideo(repo, folderId, {

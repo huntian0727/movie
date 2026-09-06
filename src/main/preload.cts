@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { AssetCenterSourceQuery, DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, PlaybackDiagnosticSearchQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
+import type { AssetCenterSourceQuery, DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, MissingVideoPageQuery, PlaybackDiagnosticSearchQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
 
 // Sandboxed preloads cannot load local modules, so keep a type-checked copy of the public channel names here.
 const channels: typeof SharedIpcChannels = {
@@ -10,6 +10,9 @@ const channels: typeof SharedIpcChannels = {
   assetCenterSources: "asset-center:sources",
   playbackDiagnosticSearch: "playback-diagnostic:search",
   libraryMissingList: "library:missing-list",
+  libraryMissingPage: "library:missing-page",
+  libraryMissingRecheck: "library:missing-recheck",
+  libraryMissingForget: "library:missing-forget",
   videoListByIds: "video:list-by-ids",
   duplicateList: "duplicate:list",
   duplicatePreviewResolve: "duplicate:preview-resolve",
@@ -94,6 +97,9 @@ const mainApi: VideoManagerApi = {
   listAssetCenterSources: (query: AssetCenterSourceQuery) => ipcRenderer.invoke(channels.assetCenterSources, query),
   searchPlaybackDiagnosticVideos: (query: PlaybackDiagnosticSearchQuery) => ipcRenderer.invoke(channels.playbackDiagnosticSearch, query),
   listMissingVideos: () => ipcRenderer.invoke(channels.libraryMissingList),
+  listMissingVideoPage: (query: MissingVideoPageQuery) => ipcRenderer.invoke(channels.libraryMissingPage, query),
+  recheckMissingVideos: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMissingRecheck, videoIds),
+  forgetMissingVideos: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMissingForget, videoIds),
   listVideosByIds: (videoIds: string[]) => ipcRenderer.invoke(channels.videoListByIds, videoIds),
   listDuplicateGroups: (query: DuplicateGroupPageQuery) => ipcRenderer.invoke(channels.duplicateList, query),
   previewDuplicateResolve: (plan) => ipcRenderer.invoke(channels.duplicatePreviewResolve, plan),

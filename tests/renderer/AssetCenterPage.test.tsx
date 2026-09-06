@@ -63,6 +63,7 @@ describe("AssetCenterPage", () => {
   it("shows cached statistics, current scan state, latest scan counters, and source availability", async () => {
     const onNavigate = vi.fn();
     const onSelectSource = vi.fn();
+    const onOpenMissing = vi.fn();
     render(
       <AssetCenterPage
         scanStatuses={[{
@@ -87,6 +88,7 @@ describe("AssetCenterPage", () => {
         loadSummary={vi.fn().mockResolvedValue(summary)}
         loadSources={vi.fn().mockResolvedValue(sourcePage)}
         onNavigate={onNavigate}
+        onOpenMissing={onOpenMissing}
         onSelectSource={onSelectSource}
       />
     );
@@ -104,6 +106,8 @@ describe("AssetCenterPage", () => {
     expect(onNavigate).toHaveBeenCalledWith("duplicates");
     fireEvent.click(screen.getByRole("button", { name: /Cloud archive/ }));
     expect(onSelectSource).toHaveBeenCalledWith("F:\\Cloud");
+    fireEvent.click(screen.getByRole("button", { name: "查看 F:\\Cloud 的 2 条缺失记录" }));
+    expect(onOpenMissing).toHaveBeenCalledWith("source-1");
   });
 
   it("keeps source errors local, supports empty results, and retries only read-only loaders", async () => {
@@ -118,6 +122,7 @@ describe("AssetCenterPage", () => {
         loadSummary={loadSummary}
         loadSources={loadSources}
         onNavigate={vi.fn()}
+        onOpenMissing={vi.fn()}
         onSelectSource={vi.fn()}
       />
     );
@@ -140,6 +145,7 @@ describe("AssetCenterPage", () => {
         loadSummary={() => neverSummary}
         loadSources={() => neverSources}
         onNavigate={vi.fn()}
+        onOpenMissing={vi.fn()}
         onSelectSource={vi.fn()}
       />
     );
@@ -164,6 +170,7 @@ describe("AssetCenterPage", () => {
         loadSummary={loadSummary}
         loadSources={loadSources}
         onNavigate={vi.fn()}
+        onOpenMissing={vi.fn()}
         onSelectSource={vi.fn()}
       />
     );
@@ -190,6 +197,7 @@ describe("AssetCenterPage", () => {
         loadSummary={vi.fn().mockResolvedValue(summary)}
         loadSources={vi.fn().mockResolvedValue(sourcePage)}
         onNavigate={vi.fn()}
+        onOpenMissing={vi.fn()}
         onSelectSource={vi.fn()}
       />
     );

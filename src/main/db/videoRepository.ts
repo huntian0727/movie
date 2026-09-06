@@ -19,6 +19,8 @@ import type {
   LibraryPageQuery,
   LibraryQuery,
   MetadataStatus,
+  MissingVideoPage,
+  MissingVideoPageQuery,
   PlayHistoryEntry,
   ScanCounters,
   ScanFailure,
@@ -1416,6 +1418,31 @@ export class VideoRepository {
     return (this.db.prepare("SELECT * FROM videos WHERE is_missing = 1 ORDER BY filename COLLATE NOCASE ASC").all() as VideoRow[]).map(mapVideo);
   }
 
+  listMissingVideoPage(query: MissingVideoPageQuery): MissingVideoPage {
+    const clauses = ["is_missing = 1"];
+    const params: Record<string, string | number> = {};
+    if (query.sourceFolderId) {
+      clauses.push("source_folder_id = @sourceFolderId");
+      params.sourceFolderId = query.sourceFolderId;
+    }
+    const normalizedSearch = query.search.trim();
+    if (normalizedSearch) {
+      clauses.push("(filename LIKE @search ESCAPE '\\' COLLATE NOCASE OR path LIKE @search ESCAPE '\\' COLLATE NOCASE)");
+      params.search = `%${escapeSqlLike(normalizedSearch)}%`;
+    }
+    const where = clauses.join(" AND ");
+    const totalCount = (this.db.prepare(`SELECT COUNT(*) AS count FROM videos WHERE ${where}`).get(params) as { count: number }).count;
+    const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
+    const page = Math.min(query.page, totalPages);
+    const items = (this.db.prepare(`
+      SELECT * FROM videos
+      WHERE ${where}
+      ORDER BY filename COLLATE NOCASE ASC, path COLLATE NOCASE ASC
+      LIMIT @limit OFFSET @offset
+    `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as VideoRow[]).map(mapVideo);
+    return { items, page, pageSize: query.pageSize, totalPages, totalCount };
+  }
+
   listVideosByIds(videoIds: string[]): VideoRecord[] {
     const uniqueIds = [...new Set(videoIds)];
     if (uniqueIds.length === 0) return [];
@@ -1498,6 +1525,19 @@ export class VideoRepository {
 
   markMissing(videoId: string, missing: boolean): void {
     this.db.prepare("UPDATE videos SET is_missing = ?, updated_at = ? WHERE id = ?").run(missing ? 1 : 0, new Date().toISOString(), videoId);
+  }
+
+  restoreMissingIfVersion(videoId: string, expectedPath: string, expectedSizeBytes: number, expectedModifiedAt: string): boolean {
+    const result = this.db.prepare(`
+      UPDATE videos
+      SET is_missing = 0, updated_at = @updatedAt
+      WHERE id = @videoId
+        AND is_missing = 1
+        AND path = @expectedPath
+        AND size_bytes = @expectedSizeBytes
+        AND modified_at = @expectedModifiedAt
+    `).run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, updatedAt: new Date().toISOString() });
+    return result.changes > 0;
   }
 
   markMissingIfVersion(videoId: string, expectedPath: string, expectedSizeBytes: number, expectedModifiedAt: string): boolean {
@@ -2238,6 +2278,20 @@ export class VideoRepository {
     for (let offset = 0; offset < ids.length; offset += 500) {
       removeChunk(ids.slice(offset, offset + 500));
     }
+  }
+
+  removeMissingVideosIfVersions(videos: readonly Pick<VideoRecord, "id" | "path" | "sizeBytes" | "modifiedAt">[]): string[] {
+    const uniqueVideos = [...new Map(videos.map((video) => [video.id, video])).values()];
+    if (uniqueVideos.length === 0) return [];
+    const remove = this.db.prepare(`
+      DELETE FROM videos
+      WHERE id = @id
+        AND is_missing = 1
+        AND path = @path
+        AND size_bytes = @sizeBytes
+        AND modified_at = @modifiedAt
+    `);
+    return this.db.transaction(() => uniqueVideos.filter((video) => remove.run(video).changes > 0).map((video) => video.id))();
   }
 
   recordPlayback(videoId: string, positionMs = 0): void {

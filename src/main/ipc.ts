@@ -23,6 +23,7 @@ import {
 import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
 import { cleanupScanFailures, deleteScanFailureFile } from "./files/scanFailureActions.js";
 import { ScanFailureBatchService } from "./files/scanFailureBatchService.js";
+import { MissingVideoService } from "./files/missingVideoService.js";
 import { isManagedPathWithin } from "./files/pathNormalization.js";
 import {
   buildDiagnosticPackage,
@@ -75,6 +76,8 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.videoBatchDelete,
   IPC_CHANNELS.videoBatchMove,
   IPC_CHANNELS.videoForget,
+  IPC_CHANNELS.libraryMissingRecheck,
+  IPC_CHANNELS.libraryMissingForget,
   IPC_CHANNELS.videoRegenerateCover,
   IPC_CHANNELS.videoOpenPlayer,
   IPC_CHANNELS.videoPlayExternal,
@@ -165,6 +168,12 @@ const playbackDiagnosticSearchQuerySchema = z.object({
   search: z.string().trim().min(1).max(500),
   page: z.number().int().min(1).max(1_000_000),
   pageSize: z.literal(30)
+}).strict();
+const missingVideoPageQuerySchema = z.object({
+  sourceFolderId: z.string().min(1).optional(),
+  search: z.string().trim().max(500),
+  page: z.number().int().min(1).max(1_000_000),
+  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
 }).strict();
 const videoIdsSchema = z.array(z.string().min(1)).min(1).max(500);
 const playerSessionSchema = videoIdSchema.extend({
@@ -431,6 +440,11 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
       dependencies.domainEvents.publish({ type: removedVideoIds.length > 0 ? "video:removed" : "library:rescanned", videoIds: removedVideoIds });
     }
   });
+  const missingVideos = new MissingVideoService(repo, {
+    confirmRemoteMissingBatch: (targetPaths) => confirmMountedCloudDriveFilesMissing(targetPaths, process.env),
+    assertVideosAvailable: (videoIds) => dependencies.duplicateCleanup.assertVideosAvailable(videoIds),
+    enqueueMetadata: (videoId) => { dependencies.metadataQueue.enqueue(videoId); }
+  });
   ipcMain.handle(IPC_CHANNELS.libraryList, (_event, query) => {
     return repo.listVideos(libraryQuerySchema.parse(query));
   });
@@ -444,6 +458,24 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     dependencies.playbackDiagnosticQueries.search(playbackDiagnosticSearchQuerySchema.parse(query))
   );
   ipcMain.handle(IPC_CHANNELS.libraryMissingList, () => repo.listMissingVideos());
+  ipcMain.handle(IPC_CHANNELS.libraryMissingPage, (_event, query) => repo.listMissingVideoPage(missingVideoPageQuerySchema.parse(query)));
+  ipcMain.handle(IPC_CHANNELS.libraryMissingRecheck, async (_event, videoIds) => {
+    const result = await missingVideos.recheck(videoIdsSchema.parse(videoIds));
+    const restoredIds = result.items.filter((item) => item.status === "restored").map((item) => item.videoId);
+    if (restoredIds.length > 0) dependencies.domainEvents.publish({ type: "video:updated", videoIds: restoredIds });
+    return result;
+  });
+  ipcMain.handle(IPC_CHANNELS.libraryMissingForget, async (_event, videoIds) => {
+    const result = await missingVideos.forget(videoIdsSchema.parse(videoIds));
+    const restoredIds = result.items.filter((item) => item.status === "restored").map((item) => item.videoId);
+    const removedIds = result.items.filter((item) => item.status === "record-removed").map((item) => item.videoId);
+    if (restoredIds.length > 0) dependencies.domainEvents.publish({ type: "video:updated", videoIds: restoredIds });
+    if (removedIds.length > 0) {
+      dependencies.cacheManager.scheduleMaintenance(true);
+      dependencies.domainEvents.publish({ type: "video:removed", videoIds: removedIds });
+    }
+    return result;
+  });
   ipcMain.handle(IPC_CHANNELS.videoListByIds, (_event, videoIds) => repo.listVideosByIds(z.array(z.string().min(1)).max(300).parse(videoIds)));
 
   ipcMain.handle(IPC_CHANNELS.duplicateList, (_event, query) =>

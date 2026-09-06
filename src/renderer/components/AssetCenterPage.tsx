@@ -36,6 +36,7 @@ interface AssetCenterPageProps {
   loadSummary(): Promise<AssetCenterSummary>;
   loadSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
   onNavigate(view: Extract<LibraryView, "all" | "duplicates" | "scanFailures">): void;
+  onOpenMissing(sourceFolderId?: string): void;
   onSelectSource(path: string): void;
 }
 
@@ -45,6 +46,7 @@ export function AssetCenterPage({
   loadSummary,
   loadSources,
   onNavigate,
+  onOpenMissing,
   onSelectSource
 }: AssetCenterPageProps) {
   const [summary, setSummary] = useState<AssetCenterSummary | null>(null);
@@ -216,7 +218,7 @@ export function AssetCenterPage({
             <HealthRow label="播放风险" value={summary?.playbackRiskCount ?? null} note="按当前自动播放规则估算" />
             <HealthRow label="元数据异常" value={summary?.metadataIssueCount ?? null} note="分析中或分析失败的有效视频" />
             <HealthRow label="重复候选" value={summary?.duplicateCandidateGroupCount ?? null} note="按文件大小和整数秒时长匹配" onClick={() => onNavigate("duplicates")} />
-            <HealthRow label="文件缺失" value={summary?.missingVideoCount ?? null} note="数据库记录保留，等待复查" onClick={() => onNavigate("scanFailures")} />
+            <HealthRow label="文件缺失" value={summary?.missingVideoCount ?? null} note="数据库记录保留，等待复查" onClick={() => onOpenMissing()} />
           </section>
         </div>
 
@@ -242,7 +244,7 @@ export function AssetCenterPage({
             <div className="asset-source-table-wrap" aria-busy={sourcesLoading}>
               <table className="asset-source-table">
                 <thead><tr><th>资料库</th><th>类型</th><th>视频</th><th>容量</th><th>可访问性</th><th>最近扫描</th><th>问题</th></tr></thead>
-                <tbody>{sourcePage.items.map((source) => <SourceRow key={source.id} source={source} onOpen={() => onSelectSource(source.path)} />)}</tbody>
+                <tbody>{sourcePage.items.map((source) => <SourceRow key={source.id} source={source} onOpen={() => onSelectSource(source.path)} onOpenMissing={() => onOpenMissing(source.id)} />)}</tbody>
               </table>
               {sourcesLoading && <span className="asset-table-refreshing" role="status">正在更新列表…</span>}
             </div>
@@ -281,7 +283,7 @@ function HealthRow({ label, value, note, onClick }: { label: string; value: numb
     : <div className="asset-health-row">{content}</div>;
 }
 
-function SourceRow({ source, onOpen }: { source: AssetCenterSourceRow; onOpen(): void }) {
+function SourceRow({ source, onOpen, onOpenMissing }: { source: AssetCenterSourceRow; onOpen(): void; onOpenMissing(): void }) {
   const SourceIcon = source.sourceType === "clouddrive" ? Cloud : source.sourceType === "nas" ? Server : HardDrive;
   const status = availabilityLabel(source.availability);
   const StatusIcon = source.availability === "reachable" ? CheckCircle2 : source.availability === "unknown" ? CircleHelp : source.availability === "disabled" ? Database : source.availability === "offline" ? TriangleAlert : AlertTriangle;
@@ -293,7 +295,11 @@ function SourceRow({ source, onOpen }: { source: AssetCenterSourceRow; onOpen():
       <td className="numeric">{formatBytes(source.sizeBytes)}</td>
       <td><span className={`asset-availability ${source.availability}`} title={`最近检查：${source.lastCheckAt ? formatDateTime(source.lastCheckAt) : "暂无"}`}><StatusIcon size={14} />{status}</span></td>
       <td>{source.lastScannedAt ? formatDateTime(source.lastScannedAt) : "从未扫描"}</td>
-      <td className={source.issueCount > 0 ? "numeric warning" : "numeric"} title={`扫描异常 ${source.scanFailureCount.toLocaleString("zh-CN")}，文件缺失 ${source.missingVideoCount.toLocaleString("zh-CN")}，元数据异常 ${source.metadataIssueCount.toLocaleString("zh-CN")}`}>{source.issueCount.toLocaleString("zh-CN")}</td>
+      <td className={source.issueCount > 0 ? "numeric warning" : "numeric"} title={`扫描异常 ${source.scanFailureCount.toLocaleString("zh-CN")}，文件缺失 ${source.missingVideoCount.toLocaleString("zh-CN")}，元数据异常 ${source.metadataIssueCount.toLocaleString("zh-CN")}`}>
+        {source.missingVideoCount > 0
+          ? <button type="button" className="asset-issue-link" onClick={onOpenMissing} aria-label={`查看 ${source.path} 的 ${source.missingVideoCount} 条缺失记录`}>{source.issueCount.toLocaleString("zh-CN")}<small>缺失 {source.missingVideoCount.toLocaleString("zh-CN")}</small></button>
+          : source.issueCount.toLocaleString("zh-CN")}
+      </td>
     </tr>
   );
 }

@@ -13,6 +13,9 @@ describe("IPC_CHANNELS", () => {
       assetCenterSources: "asset-center:sources",
       playbackDiagnosticSearch: "playback-diagnostic:search",
       libraryMissingList: "library:missing-list",
+      libraryMissingPage: "library:missing-page",
+      libraryMissingRecheck: "library:missing-recheck",
+      libraryMissingForget: "library:missing-forget",
       videoListByIds: "video:list-by-ids",
       folderList: "folder:list",
       folderAdd: "folder:add",
@@ -126,5 +129,18 @@ describe("IPC_CHANNELS", () => {
     expect(renderer).toContain("onSearchPlaybackDiagnosticVideos={api.searchPlaybackDiagnosticVideos}");
     expect(worker).toContain("openAssetCenterReadonlyDatabase(data.databasePath)");
     expect(worker).not.toMatch(/ffprobe|CloudDrive|scanFolder|thumbnail|coverCache/);
+  });
+
+  it("exposes validated missing-record paging, recheck, and database-only cleanup APIs", () => {
+    const projectRoot = path.resolve(import.meta.dirname, "../..");
+    const preload = readFileSync(path.join(projectRoot, "src/main/preload.cts"), "utf8");
+    const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
+
+    expect(preload).toContain("listMissingVideoPage: (query: MissingVideoPageQuery) => ipcRenderer.invoke(channels.libraryMissingPage, query)");
+    expect(preload).toContain("recheckMissingVideos: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMissingRecheck, videoIds)");
+    expect(preload).toContain("forgetMissingVideos: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMissingForget, videoIds)");
+    expect(ipc).toMatch(/const missingVideoPageQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
+    expect(ipc).toContain("missingVideos.recheck(videoIdsSchema.parse(videoIds))");
+    expect(ipc).toContain("missingVideos.forget(videoIdsSchema.parse(videoIds))");
   });
 });
