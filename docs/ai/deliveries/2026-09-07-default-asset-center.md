@@ -20,7 +20,12 @@ status: completed
 
 ## Verification
 
-- 待完成类型检查、回归测试、发布门禁、重新打包和桌面快捷方式启动验证。
+- `npm run typecheck`：PASS。
+- Electron 33 `ELECTRON_RUN_AS_NODE=1` 全量 Vitest：PASS，67 个文件、632 项测试。
+- Node 22.23.1 隔离 `npm run test:release-gate`：PASS，最终提交再次覆盖类型检查、构建、Windows 文件、迁移、性能和 632 项全量测试。
+- `npm run dist:win` 与 `verify:artifact`：PASS；`app.asar` 共 3,975 个条目且不含禁止的开发文件。
+- 解压版和安装器冒烟测试：PASS；两者均返回 `defaultAssetCenter: true`，随后可导航到“所有视频”并完成封面生成、缓存、重新生成和轮询稳定性检查。
+- 桌面快捷方式目标和工作目录均指向本次 `release/win-unpacked`，已通过该快捷方式启动并确认实际进程路径一致。
 
 ## Risks and follow-up
 
