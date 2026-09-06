@@ -214,7 +214,7 @@ describe("AssetCenterPage", () => {
     expect(container.querySelectorAll(".asset-active-scans article")).toHaveLength(4);
   });
 
-  it("keeps the standalone asset view out of video paging, batch tools, shortcuts, and scan refresh", async () => {
+  it("opens on the standalone asset view without video paging, batch tools, shortcuts, or scan refresh", async () => {
     const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [], page: 1, pageSize: 100, totalPages: 1, totalCount: 0 });
     const onRefresh = vi.fn();
     const loadSummary = vi.fn().mockResolvedValue(summary);
@@ -228,17 +228,15 @@ describe("AssetCenterPage", () => {
         onRefresh={onRefresh}
       />
     );
-    await waitFor(() => expect(onLoadVideoPage).toHaveBeenCalledTimes(1));
-
-    fireEvent.click(screen.getByRole("button", { name: "查看资产中心" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "资产中心" })).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "查看资产中心" })).toHaveClass("active");
     expect(screen.queryByRole("button", { name: "多选" })).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("搜索文件名")).not.toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "PageDown" });
     fireEvent.click(screen.getByRole("button", { name: "重新读取缓存" }));
     await waitFor(() => expect(loadSummary).toHaveBeenCalledTimes(2));
-    expect(onLoadVideoPage).toHaveBeenCalledTimes(1);
+    expect(onLoadVideoPage).not.toHaveBeenCalled();
     expect(onRefresh).not.toHaveBeenCalled();
   });
 });

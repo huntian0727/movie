@@ -154,7 +154,7 @@ export function LibraryShell({
   onOpenSettings
   , onBatchDelete, onDeleteAllPending, onChooseMoveDestination, onPreviewBatchMove, onBatchMove
 }: LibraryShellProps) {
-  const [view, setView] = useState<LibraryView>("all");
+  const [view, setView] = useState<LibraryView>(() => onLoadAssetCenterSummary && onLoadAssetCenterSources ? "assetCenter" : "all");
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [scanFailureSourceFolderId, setScanFailureSourceFolderId] = useState<string | undefined>();
   const [missingVideoSourceFolderId, setMissingVideoSourceFolderId] = useState<string | undefined>();
