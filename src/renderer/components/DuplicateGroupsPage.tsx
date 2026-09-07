@@ -75,6 +75,11 @@ interface DuplicateGroupsPageProps {
   cleanupRefreshSequence?: number;
 }
 
+type DuplicateDirectorySortMode = "space" | "files" | "groups" | "path";
+type DuplicateDirectoryFilterPreset = "all" | "files-10" | "files-100" | "space-10gb" | "space-100gb" | "space-1tb";
+
+const GIBIBYTE = 1024 ** 3;
+
 export function DuplicateGroupsPage({
   groups,
   loading = false,
@@ -132,6 +137,8 @@ export function DuplicateGroupsPage({
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [internalSizeSortDirection, setInternalSizeSortDirection] = useState<SortDirection>("desc");
+  const [directorySortMode, setDirectorySortMode] = useState<DuplicateDirectorySortMode>("space");
+  const [directoryFilterPreset, setDirectoryFilterPreset] = useState<DuplicateDirectoryFilterPreset>("all");
   const [taskCenterOpen, setTaskCenterOpen] = useState(false);
   const [activeTaskCount, setActiveTaskCount] = useState(0);
   const [submittedCleanupJobId, setSubmittedCleanupJobId] = useState<string | null>(null);
@@ -150,11 +157,18 @@ export function DuplicateGroupsPage({
   const sizeSortDirection = controlledSizeSortDirection ?? internalSizeSortDirection;
   const legacyResolveEnabled: boolean = false;
   const previewFileCount = useMemo(() => new Set(planVideoIds(groups, manualKeepByGroup)).size, [groups, manualKeepByGroup]);
-  const directoryPickerOptions = useMemo(() => directoryOptions.map((option) => ({
+  const rankedDirectoryOptions = useMemo(() => directoryOptions
+    .filter((option) => matchesDirectoryFilter(option, directoryFilterPreset))
+    .sort((left, right) => compareDirectoryOptions(left, right, directorySortMode)),
+  [directoryFilterPreset, directoryOptions, directorySortMode]);
+  const directoryPickerOptions = useMemo(() => rankedDirectoryOptions.map((option) => ({
     ...option,
-    meta: `${option.groupCount} 个候选组 · 候选可释放空间 ${formatBytes(option.estimatedReclaimableBytes)}`
-  })), [directoryOptions]);
+    meta: `候选清理 ${option.estimatedCleanupFileCount.toLocaleString()} 个 · ${option.groupCount.toLocaleString()} 组 · 释放 ${formatBytes(option.estimatedReclaimableBytes)}`
+  })), [rankedDirectoryOptions]);
   const currentPreferredDirectory = preferredDirectories[0];
+  const currentPreferredDirectoryOption = currentPreferredDirectory
+    ? directoryOptions.find((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(currentPreferredDirectory.path))
+    : undefined;
 
   useEffect(() => {
     onCleanupFinishedRef.current = onCleanupFinished;
@@ -473,9 +487,34 @@ export function DuplicateGroupsPage({
               onChange={(path) => onPreferredDirectoryPathChange?.(path)}
             />
           </div>
+          <label className="duplicate-sort">
+            <span>目录排序</span>
+            <select aria-label="优先保留目录排序" value={directorySortMode} onChange={(event) => setDirectorySortMode(event.target.value as DuplicateDirectorySortMode)}>
+              <option value="space">释放空间最多</option>
+              <option value="files">可清理文件最多</option>
+              <option value="groups">候选组最多</option>
+              <option value="path">目录名称</option>
+            </select>
+          </label>
+          <label className="duplicate-sort">
+            <span>目录筛选</span>
+            <select aria-label="优先保留目录筛选" value={directoryFilterPreset} onChange={(event) => setDirectoryFilterPreset(event.target.value as DuplicateDirectoryFilterPreset)}>
+              <option value="all">全部目录</option>
+              <option value="files-10">可清理 10 个以上</option>
+              <option value="files-100">可清理 100 个以上</option>
+              <option value="space-10gb">可释放 10 GB 以上</option>
+              <option value="space-100gb">可释放 100 GB 以上</option>
+              <option value="space-1tb">可释放 1 TB 以上</option>
+            </select>
+          </label>
+          <p className="duplicate-directory-ranking-note">
+            显示 {rankedDirectoryOptions.length.toLocaleString()} / {directoryOptions.length.toLocaleString()} 个目录；数值是候选估算，清理前仍会完整校验 SHA-256。
+          </p>
           {currentPreferredDirectory && <div className="duplicate-directory-scope" aria-label="当前优先保留目录">
             <p>当前优先保留：<code title={currentPreferredDirectory.path}>{currentPreferredDirectory.path}</code>（含子目录）
-              {!directoryOptions.some((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(currentPreferredDirectory.path)) && <span className="duplicate-directory-no-match">当前无匹配</span>}
+              {currentPreferredDirectoryOption
+                ? <span className="duplicate-directory-impact">候选清理 {currentPreferredDirectoryOption.estimatedCleanupFileCount.toLocaleString()} 个 · 释放 {formatBytes(currentPreferredDirectoryOption.estimatedReclaimableBytes)}</span>
+                : <span className="duplicate-directory-no-match">当前无匹配</span>}
               <button type="button" aria-label={`清除当前优先保留目录 ${currentPreferredDirectory.path}`} onClick={() => void onRemovePreferredDirectory?.(currentPreferredDirectory.id)}>清除</button>
             </p>
           </div>}
@@ -774,6 +813,35 @@ function planVideoIds(groups: DuplicateGroup[], selectedKeepByGroup: Record<stri
 
 function largestVideoSize(group: DuplicateGroup): number {
   return group.items.reduce((largest, item) => Math.max(largest, item.video.sizeBytes), 0);
+}
+
+function compareDirectoryOptions(left: DuplicateDirectoryOption, right: DuplicateDirectoryOption, mode: DuplicateDirectorySortMode): number {
+  if (mode === "files") {
+    return right.estimatedCleanupFileCount - left.estimatedCleanupFileCount ||
+      right.estimatedReclaimableBytes - left.estimatedReclaimableBytes ||
+      right.groupCount - left.groupCount ||
+      left.path.localeCompare(right.path, "zh-CN", { numeric: true });
+  }
+  if (mode === "groups") {
+    return right.groupCount - left.groupCount ||
+      right.estimatedReclaimableBytes - left.estimatedReclaimableBytes ||
+      right.estimatedCleanupFileCount - left.estimatedCleanupFileCount ||
+      left.path.localeCompare(right.path, "zh-CN", { numeric: true });
+  }
+  if (mode === "path") return left.path.localeCompare(right.path, "zh-CN", { numeric: true });
+  return right.estimatedReclaimableBytes - left.estimatedReclaimableBytes ||
+    right.estimatedCleanupFileCount - left.estimatedCleanupFileCount ||
+    right.groupCount - left.groupCount ||
+    left.path.localeCompare(right.path, "zh-CN", { numeric: true });
+}
+
+function matchesDirectoryFilter(option: DuplicateDirectoryOption, preset: DuplicateDirectoryFilterPreset): boolean {
+  if (preset === "files-10") return option.estimatedCleanupFileCount >= 10;
+  if (preset === "files-100") return option.estimatedCleanupFileCount >= 100;
+  if (preset === "space-10gb") return option.estimatedReclaimableBytes >= 10 * GIBIBYTE;
+  if (preset === "space-100gb") return option.estimatedReclaimableBytes >= 100 * GIBIBYTE;
+  if (preset === "space-1tb") return option.estimatedReclaimableBytes >= 1024 * GIBIBYTE;
+  return true;
 }
 
 function isCleanupJobFinished(job: DuplicateCleanupJob): boolean {

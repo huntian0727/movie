@@ -582,7 +582,7 @@ describe("LibraryShell", () => {
       totalCandidateGroups: 45,
       totalCandidateFiles: 90,
       totalReclaimableBytes: 4096,
-      directoryOptions: [{ path: "D:\\Movies", groupCount: 41, estimatedReclaimableBytes: 4096 }]
+      directoryOptions: [{ path: "D:\\Movies", groupCount: 41, estimatedCleanupFileCount: 41, estimatedReclaimableBytes: 4096 }]
     }));
     render(
       <LibraryShell

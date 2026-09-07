@@ -842,9 +842,9 @@ describe("VideoRepository", () => {
     expect(page.groups[0]).toMatchObject({ recommendedKeepVideoId: selected.id });
     expect(page.groups[0]?.items.find((item) => item.video.id === selected.id)?.keepReason).toContain("选中目录优先");
     expect(page.directoryOptions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ path: "D:\\Movies", groupCount: 2, estimatedReclaimableBytes: 16000 }),
-      expect.objectContaining({ path: "D:\\Movies\\Series", groupCount: 1, estimatedReclaimableBytes: 9000 }),
-      expect.objectContaining({ path: "E:\\Backup", groupCount: 2, estimatedReclaimableBytes: 16000 })
+      expect.objectContaining({ path: "D:\\Movies", groupCount: 2, estimatedCleanupFileCount: 2, estimatedReclaimableBytes: 16000 }),
+      expect.objectContaining({ path: "D:\\Movies\\Series", groupCount: 1, estimatedCleanupFileCount: 1, estimatedReclaimableBytes: 9000 }),
+      expect.objectContaining({ path: "E:\\Backup", groupCount: 2, estimatedCleanupFileCount: 2, estimatedReclaimableBytes: 16000 })
     ]));
     expect(page.directoryOptions.some((option) => option.path === "D:\\Movies\\Solo")).toBe(false);
 

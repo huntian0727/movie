@@ -194,7 +194,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
   it("delegates pagination and directory filters", () => {
     const onPage = vi.fn(); const onPageSize = vi.fn(); const onPreferredDirectoryPathChange = vi.fn();
     render(<DuplicateGroupsPage {...baseProps()} page={2} pageSize={20} totalPages={4} totalGroups={63}
-      directoryOptions={[{ path: "D:\\Backup", groupCount: 1, estimatedReclaimableBytes: 4096 }]}
+      directoryOptions={[{ path: "D:\\Backup", groupCount: 1, estimatedCleanupFileCount: 1, estimatedReclaimableBytes: 4096 }]}
       onPage={onPage} onPageSize={onPageSize} onPreferredDirectoryPathChange={onPreferredDirectoryPathChange} />);
     fireEvent.click(screen.getByRole("button", { name: "下一页" }));
     expect(onPage).toHaveBeenCalledWith(3);
@@ -203,6 +203,33 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     fireEvent.click(screen.getByLabelText("选择候选项计划保留目录（包含所有子目录）"));
     fireEvent.click(screen.getByRole("option", { name: /Backup/ }));
     expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("D:\\Backup");
+  });
+
+  it("ranks preferred directories by reclaimable space or cleanup count and applies presets", () => {
+    const directoryOptions = [
+      { path: "D:\\Many files", groupCount: 80, estimatedCleanupFileCount: 200, estimatedReclaimableBytes: 5 * 1024 ** 3 },
+      { path: "D:\\Most space", groupCount: 12, estimatedCleanupFileCount: 20, estimatedReclaimableBytes: 200 * 1024 ** 3 },
+      { path: "D:\\Middle", groupCount: 30, estimatedCleanupFileCount: 50, estimatedReclaimableBytes: 50 * 1024 ** 3 }
+    ];
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} directoryOptions={directoryOptions} />);
+    fireEvent.click(screen.getByLabelText("选择候选项计划保留目录（包含所有子目录）"));
+    const orderedPaths = () => [...container.querySelectorAll(".directory-picker-menu [role='option']")]
+      .map((option) => option.getAttribute("title"));
+
+    expect(orderedPaths()).toEqual(["D:\\Most space", "D:\\Middle", "D:\\Many files"]);
+    fireEvent.change(screen.getByLabelText("优先保留目录排序"), { target: { value: "files" } });
+    expect(orderedPaths()).toEqual(["D:\\Many files", "D:\\Middle", "D:\\Most space"]);
+    fireEvent.change(screen.getByLabelText("优先保留目录筛选"), { target: { value: "files-100" } });
+    expect(orderedPaths()).toEqual(["D:\\Many files"]);
+    expect(screen.getByText(/显示 1 \/ 3 个目录/)).toBeInTheDocument();
+  });
+
+  it("shows the estimated cleanup impact for the active preferred directory", () => {
+    render(<DuplicateGroupsPage {...baseProps()} preferredDirectories={[preferredDirectory]} directoryOptions={[
+      { path: "D:\\Movies", groupCount: 41, estimatedCleanupFileCount: 64, estimatedReclaimableBytes: 12 * 1024 ** 3 }
+    ]} />);
+
+    expect(screen.getByLabelText("当前优先保留目录")).toHaveTextContent("候选清理 64 个 · 释放 12.00 GB");
   });
 
   it("uses a candidate directory as the recursive preferred directory without starting verification", () => {
@@ -257,6 +284,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     const directoryOptions = Array.from({ length: 250 }, (_, index) => ({
       path: `D:\\Library\\Folder ${String(index).padStart(3, "0")}`,
       groupCount: 1,
+      estimatedCleanupFileCount: 1,
       estimatedReclaimableBytes: 1024
     }));
     const { container } = render(<DuplicateGroupsPage {...baseProps()} directoryOptions={directoryOptions} />);

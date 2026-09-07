@@ -2227,10 +2227,12 @@ export class VideoRepository {
       .map(({ path: directoryPath, groups }) => ({
         path: directoryPath,
         groupCount: groups.size,
+        estimatedCleanupFileCount: [...groups.values()].reduce((total, group) => total + (group.fileCount - 1), 0),
         estimatedReclaimableBytes: [...groups.values()].reduce((total, group) => total + (group.fileCount - 1) * group.sizeBytes, 0)
       }))
       .sort((left, right) =>
         right.estimatedReclaimableBytes - left.estimatedReclaimableBytes ||
+        right.estimatedCleanupFileCount - left.estimatedCleanupFileCount ||
         right.groupCount - left.groupCount ||
         left.path.localeCompare(right.path, "zh-CN", { numeric: true })
       );

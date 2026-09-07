@@ -416,6 +416,7 @@ export interface DuplicateGroupPageQuery {
 export interface DuplicateDirectoryOption {
   path: string;
   groupCount: number;
+  estimatedCleanupFileCount: number;
   estimatedReclaimableBytes: number;
 }
 
