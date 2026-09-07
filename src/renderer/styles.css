@@ -96,10 +96,11 @@
 .metadata-issue-intro { border-color: #343a37; color: #aeb9b2; background: #1a1e1b; }
 .metadata-issue-intro strong { color: #dce4de; }
 .metadata-issue-intro small { color: #89928c; }
-.metadata-issue-counts { flex: 0 0 auto; gap: 16px !important; }
-.metadata-issue-counts > span { min-width: 92px; display: grid !important; gap: 2px; color: #8c958f; font-size: 10px; text-align: right; }
+.metadata-issue-counts { flex: 0 1 auto; display: grid !important; grid-template-columns: repeat(5, minmax(72px, 1fr)); gap: 12px !important; }
+.metadata-issue-counts > span { min-width: 72px; display: grid !important; gap: 2px; color: #9ba49e; font-size: 10px; text-align: right; }
 .metadata-issue-counts b { color: #d7ddd9; font-size: 18px; font-variant-numeric: tabular-nums; }
 .metadata-issue-filters label:first-child select { min-width: min(360px, 36vw); }
+.metadata-issue-actions button.active { border-color: #b8614f; color: #f0b2a5; background: #33201c; }
 .metadata-issues-page button:focus-visible, .metadata-issues-page input:focus-visible, .metadata-issues-page select:focus-visible { outline: 2px solid #cf725e; outline-offset: 2px; }
 .metadata-issue-table { min-width: 1120px; }
 .metadata-issue-table th:nth-child(1) { width: 42px; }
@@ -111,6 +112,10 @@
 .metadata-issue-table .missing-video-file small { color: #858a83; font-size: 10px; }
 .metadata-issue-status { min-width: 66px; padding: 4px 6px; border: 1px solid; border-radius: 4px; display: inline-flex; justify-content: center; font-size: 10px; font-weight: 650; }
 .metadata-issue-status.pending { border-color: #56503e; color: #d3b66f; background: #282318; }
+.metadata-issue-status.automatic, .metadata-issue-status.queued { border-color: #4f5f4f; color: #b9d1b8; background: #202a20; }
+.metadata-issue-status.active { border-color: #3f6659; color: #a8dbc9; background: #1a2b25; }
+.metadata-issue-status.deferred { border-color: #56503e; color: #d3b66f; background: #282318; }
+.metadata-issue-status.zero { border-color: #685638; color: #e4bb70; background: #302719; }
 .metadata-issue-status.failed { border-color: #67413a; color: #e7a196; background: #2d1e1b; }
 .metadata-issue-error { min-width: 0; display: grid; gap: 4px; }
 .metadata-issue-error strong, .metadata-issue-error small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -120,6 +125,9 @@
 @media (max-width: 1050px) {
   .scan-failure-card { grid-template-columns: 24px 120px minmax(0, 1fr); }
   .scan-failure-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; }
+  .metadata-issue-intro { align-items: flex-start; flex-direction: column; }
+  .metadata-issue-counts { width: 100%; grid-template-columns: repeat(5, minmax(64px, 1fr)); }
+  .metadata-issue-counts > span { text-align: left; }
 }
 
 * { box-sizing: border-box; }

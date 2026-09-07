@@ -217,13 +217,15 @@ export interface MissingVideoActionResult {
   items: MissingVideoActionItem[];
 }
 
-export type MetadataIssueStatus = Extract<MetadataStatus, "pending" | "failed">;
-export type MetadataIssueStatusFilter = "all" | MetadataIssueStatus;
+export type MetadataIssueAnalysisState = "automatic" | "deferred" | "failed";
+export type MetadataIssueStatusFilter = "all" | MetadataIssueAnalysisState;
+export type MetadataIssueQueueState = "queued" | "active" | null;
 export type MetadataIssuePageSize = 30 | 50 | 100;
 
 export interface MetadataIssuePageQuery {
   sourceFolderId?: string;
   status: MetadataIssueStatusFilter;
+  zeroBytesOnly: boolean;
   search: string;
   page: number;
   pageSize: MetadataIssuePageSize;
@@ -231,6 +233,8 @@ export interface MetadataIssuePageQuery {
 
 export interface MetadataIssueItem {
   video: VideoRecord;
+  analysisState: MetadataIssueAnalysisState;
+  queueState: MetadataIssueQueueState;
   errorCode: string | null;
   errorSummary: string | null;
   lastFailedAt: string | null;
@@ -243,8 +247,33 @@ export interface MetadataIssuePage {
   pageSize: MetadataIssuePageSize;
   totalPages: number;
   totalCount: number;
-  pendingCount: number;
+  automaticCount: number;
+  deferredCount: number;
   failedCount: number;
+  zeroByteCount: number;
+  queuedCount: number;
+  activeCount: number;
+}
+
+export type MetadataSizeRefreshStatus = "updated" | "still-zero" | "missing" | "not-cloud-drive" | "not-zero" | "stale" | "failed";
+
+export interface MetadataSizeRefreshItem {
+  videoId: string;
+  path: string;
+  status: MetadataSizeRefreshStatus;
+  previousSizeBytes: number;
+  currentSizeBytes: number | null;
+  message: string;
+}
+
+export interface MetadataSizeRefreshResult {
+  requestedCount: number;
+  updatedCount: number;
+  stillZeroCount: number;
+  missingCount: number;
+  skippedCount: number;
+  failureCount: number;
+  items: MetadataSizeRefreshItem[];
 }
 
 export type ScanFailureBatchOperation = "recheck-accessibility" | "analyze-metadata" | "permanent-delete" | "remove-missing-record";
@@ -942,6 +971,7 @@ export const IPC_CHANNELS = {
   libraryMissingRecheck: "library:missing-recheck",
   libraryMissingForget: "library:missing-forget",
   libraryMetadataIssuePage: "library:metadata-issue-page",
+  libraryMetadataRefreshSizes: "library:metadata-refresh-sizes",
   videoListByIds: "video:list-by-ids",
   folderList: "folder:list",
   folderAdd: "folder:add",
@@ -1030,6 +1060,7 @@ export interface VideoManagerApi {
   recheckMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
   forgetMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
   listMetadataIssuePage(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
+  refreshMetadataFileSizes(videoIds: string[]): Promise<MetadataSizeRefreshResult>;
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;

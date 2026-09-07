@@ -511,6 +511,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       onRecheckMissingVideos={api.recheckMissingVideos}
       onForgetMissingVideos={api.forgetMissingVideos}
       onLoadMetadataIssuePage={api.listMetadataIssuePage}
+      onRefreshMetadataFileSizes={api.refreshMetadataFileSizes}
       onRetryScanFailure={(failureId) => api.retryScanFailure(failureId)}
       onDeleteScanFailureFile={(failureId) => api.deleteScanFailureFile(failureId)}
       onCleanupScanFailures={(failureIds, action) => api.cleanupScanFailures(failureIds, action)}

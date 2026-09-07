@@ -17,6 +17,7 @@ import {
   confirmMountedCloudDriveFileMissing,
   confirmMountedCloudDriveFilesMissing,
   listConfiguredCloudDriveFolderRoots,
+  refreshMountedCloudDriveFilesMetadata,
   resolveConfiguredCloudDriveFolder,
   testConfiguredCloudDriveConnection
 } from "./clouddrive/mountedScanner.js";
@@ -40,6 +41,7 @@ import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js
 import { bindLegacyCloudDriveDuplicateCandidates } from "./media/cloudDriveLegacyBindingService.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
+import { MetadataFileRefreshService } from "./media/metadataFileRefreshService.js";
 import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import { playWithMpv, waitForMpvStart } from "./media/mpvController.js";
 import type { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
@@ -65,6 +67,7 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.scanFailureReviewCleanup,
   IPC_CHANNELS.scanFailureBatchSubmit,
   IPC_CHANNELS.scanFailureBatchCancel,
+  IPC_CHANNELS.libraryMetadataRefreshSizes,
   IPC_CHANNELS.folderRemove,
   IPC_CHANNELS.folderScanPause,
   IPC_CHANNELS.folderScanResume,
@@ -177,7 +180,8 @@ const missingVideoPageQuerySchema = z.object({
 }).strict();
 const metadataIssuePageQuerySchema = z.object({
   sourceFolderId: z.string().min(1).optional(),
-  status: z.enum(["all", "pending", "failed"]),
+  status: z.enum(["all", "automatic", "deferred", "failed"]),
+  zeroBytesOnly: z.boolean(),
   search: z.string().trim().max(500),
   page: z.number().int().min(1).max(1_000_000),
   pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
@@ -452,6 +456,11 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     assertVideosAvailable: (videoIds) => dependencies.duplicateCleanup.assertVideosAvailable(videoIds),
     enqueueMetadata: (videoId) => { dependencies.metadataQueue.enqueue(videoId); }
   });
+  const metadataFileRefresh = new MetadataFileRefreshService(repo, {
+    refreshRemote: (paths) => refreshMountedCloudDriveFilesMetadata(paths, process.env),
+    enqueueMetadata: (videoId) => { dependencies.metadataQueue.enqueue(videoId, true); },
+    onVideosUpdated: (videoIds) => dependencies.domainEvents.publish({ type: "video:updated", videoIds })
+  });
   ipcMain.handle(IPC_CHANNELS.libraryList, (_event, query) => {
     return repo.listVideos(libraryQuerySchema.parse(query));
   });
@@ -466,7 +475,19 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   );
   ipcMain.handle(IPC_CHANNELS.libraryMissingList, () => repo.listMissingVideos());
   ipcMain.handle(IPC_CHANNELS.libraryMissingPage, (_event, query) => repo.listMissingVideoPage(missingVideoPageQuerySchema.parse(query)));
-  ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, (_event, query) => repo.listMetadataIssuePage(metadataIssuePageQuerySchema.parse(query)));
+  ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, (_event, query) => {
+    const page = repo.listMetadataIssuePage(metadataIssuePageQuerySchema.parse(query));
+    const queueStatus = dependencies.metadataQueue.getStatus();
+    return {
+      ...page,
+      items: page.items.map((item) => ({ ...item, queueState: dependencies.metadataQueue.getVideoState(item.video.id) })),
+      queuedCount: queueStatus.queued,
+      activeCount: queueStatus.active
+    };
+  });
+  ipcMain.handle(IPC_CHANNELS.libraryMetadataRefreshSizes, (_event, videoIds) =>
+    metadataFileRefresh.refreshZeroByteFiles(videoIdsSchema.parse(videoIds))
+  );
   ipcMain.handle(IPC_CHANNELS.libraryMissingRecheck, async (_event, videoIds) => {
     const result = await missingVideos.recheck(videoIdsSchema.parse(videoIds));
     const restoredIds = result.items.filter((item) => item.status === "restored").map((item) => item.videoId);
@@ -914,6 +935,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     const parsed = videoIdSchema.parse(payload);
     const video = repo.getVideo(parsed.videoId);
     if (video.isMissing) throw new Error("文件当前不可访问，无法重新分析");
+    if (video.sizeBytes === 0) throw new Error("文件大小为 0B，请先使用“重新读取大小”；远端仍为 0B 时不会执行媒体分析");
     if (video.metadataStatus === "failed") {
       repo.markMetadataPending(video.id, video.path, video.sizeBytes, video.modifiedAt);
     }

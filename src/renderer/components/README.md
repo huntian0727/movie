@@ -21,4 +21,6 @@
 
 `MissingVideosPage.tsx` 是 `is_missing = 1` 记录的专用工作台：资产中心可进入全部明细，资料库“问题”单元格可携带来源 ID 直接筛选。界面只传递 video ID，复查和记录移除由主进程反查路径并完成安全校验。
 
-`MetadataIssuesPage.tsx` 是有效视频中 `metadata_status = pending/failed` 的分页工作台。资产中心可从全局统计或单个资料库直接进入；页面将活动的 metadata `scan_failure` 摘要与视频状态合并展示。用户触发的单条/当前页重新分析复用 `retryMetadata`，批量时限制 8 个并发 IPC，不执行文件写入或删除。
+`MetadataIssuesPage.tsx` 是有效视频中 `metadata_status = pending/failed` 的分页工作台。资产中心可从全局统计或单个资料库直接进入；页面分别显示全局运行队列、自动分析候选、策略暂缓和分析失败，并支持只看 0B。普通记录可单条或按当前页优先重新分析，批量时限制 8 个并发 IPC。
+
+0B 记录使用“重新读取大小”：主进程通过 CloudDrive API 强制刷新远端父目录。大小恢复后更新文件版本并优先排队；仍为 0B 时记录为 `EMPTY_FILE` 且不调用 ffprobe；远端确认缺失时转入文件缺失复查。该动作不修改或删除视频文件。

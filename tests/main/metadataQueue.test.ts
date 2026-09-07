@@ -6,10 +6,45 @@ import os from "node:os";
 import path from "node:path";
 import { createDatabase } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
-import { MetadataQueue } from "../../src/main/media/metadataQueue";
+import { describeMetadataFailure, MetadataQueue } from "../../src/main/media/metadataQueue";
 import type { VideoRecord } from "../../src/shared/videoTypes";
 
 describe("MetadataQueue", () => {
+  it("reports queued and active item states", async () => {
+    const video = createVideo("v1", "Z:\\Cloud\\queued.mp4");
+    const repo = createRepo(new Map([[video.id, video]]));
+    const queue = new MetadataQueue(repo.value, async () => ({ durationMs: 1, width: 1, height: 1, format: "mp4" }));
+    queue.pause();
+    queue.enqueue(video.id);
+    expect(queue.getVideoState(video.id)).toBe("queued");
+    queue.resume();
+    await queue.whenIdle();
+    expect(queue.getVideoState(video.id)).toBeNull();
+  });
+
+  it("skips ffprobe for zero-byte records and classifies them as empty files", async () => {
+    const video = { ...createVideo("v1", "Z:\\Cloud\\zero.mp4"), sizeBytes: 0 };
+    const repo = createRepo(new Map([[video.id, video]]));
+    const reader = vi.fn();
+    const queue = new MetadataQueue(repo.value, reader);
+    queue.enqueue(video.id);
+    await queue.whenIdle();
+
+    expect(reader).not.toHaveBeenCalled();
+    expect(repo.markMetadataFailed).toHaveBeenCalledOnce();
+    expect(repo.recordScanFailure).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "EMPTY_FILE", errorSummary: expect.stringContaining("0B") }));
+  });
+
+  it("normalizes failure codes and keeps the useful tail of long ffprobe messages", () => {
+    expect(describeMetadataFailure(new Error("ffprobe timed out after 60s"))).toMatchObject({ code: "TIMEOUT" });
+    expect(describeMetadataFailure(new Error("moov atom not found"))).toMatchObject({ code: "INVALID_MEDIA" });
+    const longMessage = `${"long-path/".repeat(80)}Invalid data found when processing input`;
+    const described = describeMetadataFailure(new Error(longMessage));
+    expect(described.code).toBe("INVALID_MEDIA");
+    expect(described.summary).toHaveLength(500);
+    expect(described.summary).toMatch(/Invalid data found when processing input$/);
+  });
+
   it("runs FFprobe with bounded concurrency and writes ready metadata", async () => {
     const videos = new Map([
       ["v1", createVideo("v1", "Z:\\Cloud\\one.mp4")],

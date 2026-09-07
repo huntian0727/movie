@@ -18,6 +18,7 @@ import type {
   LibraryPage,
   LibraryPageQuery,
   LibraryQuery,
+  MetadataIssueItem,
   MetadataIssuePage,
   MetadataIssuePageQuery,
   MetadataStatus,
@@ -153,6 +154,7 @@ export interface VideoRow {
 }
 
 interface MetadataIssueRow extends VideoRow {
+  metadata_analysis_state: MetadataIssueItem["analysisState"];
   metadata_error_code: string | null;
   metadata_error_summary: string | null;
   metadata_last_failed_at: string | null;
@@ -375,7 +377,7 @@ export class VideoRepository {
       WITH duplicate_sizes AS (
         SELECT size_bytes
         FROM videos
-        WHERE is_missing = 0
+        WHERE is_missing = 0 AND size_bytes > 0
         GROUP BY size_bytes
         HAVING COUNT(*) > 1
       )
@@ -1465,43 +1467,63 @@ export class VideoRepository {
       params.search = `%${escapeSqlLike(normalizedSearch)}%`;
     }
     const baseWhere = baseClauses.join(" AND ");
-    const counts = this.db.prepare(`
-      SELECT
-        COALESCE(SUM(CASE WHEN videos.metadata_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_count,
-        COALESCE(SUM(CASE WHEN videos.metadata_status = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count
-      FROM videos
-      WHERE ${baseWhere}
-    `).get(params) as { pending_count: number; failed_count: number };
-    const statusClause = query.status === "all" ? "" : " AND videos.metadata_status = @status";
-    if (query.status !== "all") params.status = query.status;
-    const totalCount = query.status === "pending"
-      ? counts.pending_count
-      : query.status === "failed"
-        ? counts.failed_count
-        : counts.pending_count + counts.failed_count;
-    const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
-    const page = Math.min(query.page, totalPages);
-    const rows = this.db.prepare(`
-      SELECT videos.*,
-        metadata_failure.error_code AS metadata_error_code,
-        metadata_failure.error_summary AS metadata_error_summary,
-        metadata_failure.last_failed_at AS metadata_last_failed_at,
-        metadata_failure.retry_count AS metadata_retry_count
-      FROM videos
+    const duplicateSizeCte = `WITH duplicate_sizes AS MATERIALIZED (
+      SELECT size_bytes FROM videos
+      WHERE is_missing = 0 AND size_bytes > 0
+      GROUP BY size_bytes
+      HAVING COUNT(*) >= 2
+    )`;
+    const automaticClause = `videos.metadata_status = 'pending'
+      AND videos.size_bytes > 0
+      AND (
+        videos.provider_file_id IS NULL
+        OR EXISTS (SELECT 1 FROM duplicate_sizes WHERE duplicate_sizes.size_bytes = videos.size_bytes)
+      )`;
+    const accessibleDeferredClause = "videos.metadata_status = 'failed' AND metadata_failure.error_code = 'ACCESSIBLE'";
+    const analysisStateExpression = `CASE
+      WHEN ${automaticClause} THEN 'automatic'
+      WHEN videos.metadata_status = 'pending' OR (${accessibleDeferredClause}) THEN 'deferred'
+      ELSE 'failed'
+    END`;
+    const fromClause = `FROM videos
       LEFT JOIN scan_failures AS metadata_failure
         ON metadata_failure.source_folder_id = videos.source_folder_id
         AND metadata_failure.object_path = videos.path
         AND metadata_failure.failure_stage = 'metadata'
         AND metadata_failure.status != 'resolved'
-      WHERE ${baseWhere}${statusClause}
-      ORDER BY CASE videos.metadata_status WHEN 'failed' THEN 0 ELSE 1 END,
+      WHERE ${baseWhere}`;
+    const counts = this.db.prepare(`${duplicateSizeCte}
+      SELECT
+        COALESCE(SUM(CASE WHEN (${analysisStateExpression}) = 'automatic' THEN 1 ELSE 0 END), 0) AS automatic_count,
+        COALESCE(SUM(CASE WHEN (${analysisStateExpression}) = 'deferred' THEN 1 ELSE 0 END), 0) AS deferred_count,
+        COALESCE(SUM(CASE WHEN (${analysisStateExpression}) = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count,
+        COALESCE(SUM(CASE WHEN videos.size_bytes = 0 THEN 1 ELSE 0 END), 0) AS zero_byte_count
+      ${fromClause}
+    `).get(params) as { automatic_count: number; deferred_count: number; failed_count: number; zero_byte_count: number };
+    const statusClause = query.status === "all" ? "" : ` AND (${analysisStateExpression}) = @status`;
+    if (query.status !== "all") params.status = query.status;
+    const zeroByteClause = query.zeroBytesOnly ? " AND videos.size_bytes = 0" : "";
+    const totalCount = (this.db.prepare(`${duplicateSizeCte} SELECT COUNT(*) AS count ${fromClause}${statusClause}${zeroByteClause}`).get(params) as CountRow).count;
+    const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
+    const page = Math.min(query.page, totalPages);
+    const rows = this.db.prepare(`${duplicateSizeCte}
+      SELECT videos.*,
+        ${analysisStateExpression} AS metadata_analysis_state,
+        metadata_failure.error_code AS metadata_error_code,
+        metadata_failure.error_summary AS metadata_error_summary,
+        metadata_failure.last_failed_at AS metadata_last_failed_at,
+        metadata_failure.retry_count AS metadata_retry_count
+      ${fromClause}${statusClause}${zeroByteClause}
+      ORDER BY CASE (${analysisStateExpression}) WHEN 'failed' THEN 0 WHEN 'automatic' THEN 1 ELSE 2 END,
         videos.updated_at DESC, videos.filename COLLATE NOCASE ASC
       LIMIT @limit OFFSET @offset
     `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as MetadataIssueRow[];
     return {
       items: rows.map((row) => ({
         video: mapVideo(row),
-        errorCode: row.metadata_error_code,
+        analysisState: row.metadata_analysis_state,
+        queueState: null,
+        errorCode: normalizeMetadataFailureCode(row.metadata_error_code, row.metadata_error_summary),
         errorSummary: row.metadata_error_summary,
         lastFailedAt: row.metadata_last_failed_at,
         retryCount: row.metadata_retry_count ?? 0
@@ -1510,8 +1532,12 @@ export class VideoRepository {
       pageSize: query.pageSize,
       totalPages,
       totalCount,
-      pendingCount: counts.pending_count,
-      failedCount: counts.failed_count
+      automaticCount: counts.automatic_count,
+      deferredCount: counts.deferred_count,
+      failedCount: counts.failed_count,
+      zeroByteCount: counts.zero_byte_count,
+      queuedCount: 0,
+      activeCount: 0
     };
   }
 
@@ -1720,8 +1746,9 @@ export class VideoRepository {
         `SELECT * FROM videos
          WHERE fingerprint_status IN ('pending', 'failed')
            AND is_missing = 0
+           AND size_bytes > 0
            AND size_bytes IN (
-             SELECT size_bytes FROM videos WHERE is_missing = 0 GROUP BY size_bytes HAVING COUNT(*) >= 2
+             SELECT size_bytes FROM videos WHERE is_missing = 0 AND size_bytes > 0 GROUP BY size_bytes HAVING COUNT(*) >= 2
            )
          ORDER BY size_bytes DESC, updated_at ASC
          LIMIT ?`
@@ -1736,11 +1763,12 @@ export class VideoRepository {
         SELECT * FROM videos
         WHERE metadata_status = 'pending'
           AND is_missing = 0
+          AND size_bytes > 0
           AND (
             provider_file_id IS NULL
             OR size_bytes IN (
               SELECT size_bytes FROM videos
-              WHERE is_missing = 0
+              WHERE is_missing = 0 AND size_bytes > 0
               GROUP BY size_bytes
               HAVING COUNT(*) >= 2
             )
@@ -1925,7 +1953,7 @@ export class VideoRepository {
     }
     const candidateScope = filterTreeClause
       ? `WITH scoped_sizes AS MATERIALIZED (
-           SELECT DISTINCT size_bytes FROM videos WHERE is_missing = 0 AND ${filterTreeClause}
+           SELECT DISTINCT size_bytes FROM videos WHERE is_missing = 0 AND size_bytes > 0 AND ${filterTreeClause}
          )`
       : "";
     const candidateScopeClause = filterTreeClause
@@ -1934,7 +1962,7 @@ export class VideoRepository {
     const candidateSizesQuery = `${candidateScope}
       SELECT size_bytes, COUNT(*) AS file_count
       FROM videos
-      WHERE is_missing = 0
+      WHERE is_missing = 0 AND size_bytes > 0
         ${candidateScopeClause}
       GROUP BY size_bytes
       HAVING COUNT(*) >= 2`;
@@ -2537,6 +2565,17 @@ function mapSourceFolder(row: SourceFolderRow, stats?: SourceFolderStatsRow): So
     duplicateSizeCandidateCount: stats?.duplicate_size_candidate_count,
     duplicateDurationReadyCount: stats?.duplicate_duration_ready_count
   };
+}
+
+function normalizeMetadataFailureCode(code: string | null, summary: string | null): string | null {
+  if (code === "ACCESSIBLE" || code === "EMPTY_FILE" || code === "INVALID_MEDIA" || code === "TIMEOUT" || code === "ENOENT" || code === "CLOUD_UNAVAILABLE") return code;
+  const message = summary ?? "";
+  if (/\b0B\b|empty (?:file|input)|zero[- ]byte/i.test(message)) return "EMPTY_FILE";
+  if (/\bENOENT\b|no such file/i.test(message)) return "ENOENT";
+  if (/timed? out|timeout|stopped responding/i.test(message) || code === "ETIMEDOUT" || code === "ESOCKETTIMEDOUT") return "TIMEOUT";
+  if (/invalid data|moov atom not found|could not find codec parameters|unsupported codec|end of file/i.test(message)) return "INVALID_MEDIA";
+  if (/clouddrive|grpc|http2|socket|stream disconnected|unavailable/i.test(message)) return "CLOUD_UNAVAILABLE";
+  return code;
 }
 
 export function mapVideo(row: VideoRow): VideoRecord {

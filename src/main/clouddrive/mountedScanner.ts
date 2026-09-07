@@ -48,6 +48,11 @@ export interface MountedCloudDriveDirectorySource {
 
 export type CloudDriveMissingConfirmation = "missing" | "present" | "not-cloud-drive";
 
+export type CloudDriveFileMetadataRefresh =
+  | { status: "present"; sizeBytes: number; modifiedAt: string; providerFileId: string; providerPath: string }
+  | { status: "missing" }
+  | { status: "not-cloud-drive" };
+
 export async function deleteCloudDriveFiles(
   remotePaths: readonly string[],
   permanently = true,
@@ -320,6 +325,112 @@ export async function confirmMountedCloudDriveFilesMissing(
     (remoteParent, cancelled) => client.getSubFiles(remoteParent, true, cancelled),
     isCancelled
   );
+}
+
+/**
+ * Force-refreshes each remote parent and returns the current CloudDrive file
+ * metadata. It never trusts the mounted filesystem placeholder size.
+ */
+export async function refreshMountedCloudDriveFilesMetadata(
+  localFilePaths: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  isCancelled?: () => boolean
+): Promise<Map<string, CloudDriveFileMetadataRefresh>> {
+  const config = readEnvironmentConfig(env);
+  if (!config) return new Map(localFilePaths.map((filePath) => [filePath, { status: "not-cloud-drive" }]));
+  const client = getSharedClient(config);
+  const mountPoints = config.manualMounts ?? await client.getMountPoints(isCancelled);
+  return refreshCloudDriveFilesMetadataFromListing(
+    localFilePaths,
+    mountPoints,
+    (remoteParent, cancelled) => client.getSubFiles(remoteParent, true, cancelled),
+    isCancelled
+  );
+}
+
+export async function refreshCloudDriveFilesMetadataFromListing(
+  localFilePaths: readonly string[],
+  mountPoints: CloudDriveMountPoint[],
+  listParent: (remoteParent: string, isCancelled?: () => boolean) => AsyncIterable<{
+    id: string;
+    name: string;
+    fullPathName: string;
+    sizeBytes: number;
+    fileType: number;
+    isDirectory: boolean;
+    writeTime: string | null;
+    createTime: string | null;
+  }>,
+  isCancelled?: () => boolean
+): Promise<Map<string, CloudDriveFileMetadataRefresh>> {
+  interface ParentGroup {
+    remoteParent: string;
+    pathApi: typeof path.win32 | typeof path.posix;
+    filesByName: Map<string, string[]>;
+  }
+
+  const results = new Map<string, CloudDriveFileMetadataRefresh>();
+  const groups = new Map<string, ParentGroup>();
+  for (const localFilePath of [...new Set(localFilePaths)]) {
+    throwIfCancelled(isCancelled);
+    const mapping = findMountMapping(localFilePath, mountPoints);
+    if (!mapping) {
+      results.set(localFilePath, { status: "not-cloud-drive" });
+      continue;
+    }
+    const normalizedFilePath = mapping.pathApi.resolve(localFilePath);
+    const localParent = mapping.pathApi.dirname(normalizedFilePath);
+    const relativeParent = mapping.pathApi.relative(mapping.localRoot, localParent);
+    if (relativeParent === ".." || relativeParent.startsWith(`..${mapping.pathApi.sep}`) || mapping.pathApi.isAbsolute(relativeParent)) {
+      results.set(localFilePath, { status: "not-cloud-drive" });
+      continue;
+    }
+    const remoteParent = joinRemotePath(mapping.mountPoint.sourceDir, relativeParent);
+    const groupKey = `${mapping.pathApi === path.win32 ? "win32" : "posix"}\n${normalizeRemotePath(remoteParent)}`;
+    const group = groups.get(groupKey) ?? { remoteParent, pathApi: mapping.pathApi, filesByName: new Map<string, string[]>() };
+    const expectedName = mapping.pathApi.basename(normalizedFilePath).normalize("NFC").toLocaleLowerCase();
+    const matchingPaths = group.filesByName.get(expectedName) ?? [];
+    matchingPaths.push(localFilePath);
+    group.filesByName.set(expectedName, matchingPaths);
+    groups.set(groupKey, group);
+  }
+
+  await forEachWithConcurrency([...groups.values()], MAX_VALIDATION_DIRECTORY_CONCURRENCY, async (group) => {
+    throwIfCancelled(isCancelled);
+    const matchedNames = new Set<string>();
+    for await (const entry of listParent(group.remoteParent, isCancelled)) {
+      throwIfCancelled(isCancelled);
+      const entryName = entry.name || posixBasename(entry.fullPathName);
+      if (!isSafeEntryName(entryName, group.pathApi)) {
+        throw new Error(`CloudDrive returned an unsafe directory entry name for ${group.remoteParent}`);
+      }
+      const normalizedName = entryName.normalize("NFC").toLocaleLowerCase();
+      const localPaths = group.filesByName.get(normalizedName);
+      if (!localPaths) continue;
+      if (matchedNames.has(normalizedName)) {
+        throw new Error(`CloudDrive returned duplicate directory entries for ${group.remoteParent}`);
+      }
+      matchedNames.add(normalizedName);
+      if (entry.isDirectory || entry.fileType !== 1) {
+        throw new Error(`CloudDrive returned a non-file entry for ${entry.fullPathName || entryName}`);
+      }
+      const modifiedAt = entry.writeTime ?? entry.createTime ?? EPOCH;
+      for (const localFilePath of localPaths) {
+        results.set(localFilePath, {
+          status: "present",
+          sizeBytes: entry.sizeBytes,
+          modifiedAt,
+          providerFileId: entry.id,
+          providerPath: entry.fullPathName || joinRemotePath(group.remoteParent, entryName)
+        });
+      }
+    }
+    for (const [expectedName, localPaths] of group.filesByName) {
+      if (matchedNames.has(expectedName)) continue;
+      for (const localFilePath of localPaths) results.set(localFilePath, { status: "missing" });
+    }
+  });
+  return results;
 }
 
 export async function confirmCloudDriveFilesMissingFromListing(

@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
-import { confirmCloudDriveFileMissingFromListing, confirmCloudDriveFilesMissingFromListing, findMountMapping, resolveCloudDriveSourceSelection, type MountedCloudDriveDirectorySource } from "../../src/main/clouddrive/mountedScanner";
+import { confirmCloudDriveFileMissingFromListing, confirmCloudDriveFilesMissingFromListing, findMountMapping, refreshCloudDriveFilesMetadataFromListing, resolveCloudDriveSourceSelection, type MountedCloudDriveDirectorySource } from "../../src/main/clouddrive/mountedScanner";
 import { scanSourceFolder } from "../../src/main/media/libraryScanner";
 
 const ROOT = "Z:\\Cloud 电影";
@@ -124,6 +124,29 @@ describe("CloudDrive mounted scanner", () => {
     expect(calls).toHaveLength(8);
     expect(maximumActiveListings).toBe(4);
     expect([...results.values()]).toEqual(Array(8).fill("missing"));
+  });
+
+  it("force-refreshes file metadata from one complete parent listing", async () => {
+    const calls: string[] = [];
+    const listParent = async function* (remoteParent: string) {
+      calls.push(remoteParent);
+      yield {
+        id: "remote-id", name: "zero.mp4", fullPathName: `${remoteParent}/zero.mp4`, sizeBytes: 4096,
+        fileType: 1, isDirectory: false, writeTime: MODIFIED, createTime: null
+      };
+    };
+
+    const results = await refreshCloudDriveFilesMetadataFromListing(
+      ["Z:\\Movies\\zero.mp4", "Z:\\Movies\\gone.mp4"],
+      [mount("Z:", "/115")],
+      listParent
+    );
+
+    expect(calls).toEqual(["/115/Movies"]);
+    expect(results.get("Z:\\Movies\\zero.mp4")).toEqual({
+      status: "present", sizeBytes: 4096, modifiedAt: MODIFIED, providerFileId: "remote-id", providerPath: "/115/Movies/zero.mp4"
+    });
+    expect(results.get("Z:\\Movies\\gone.mp4")).toEqual({ status: "missing" });
   });
 
   it("uses CloudDrive size/writeTime without statting video files and keeps Windows paths", async () => {

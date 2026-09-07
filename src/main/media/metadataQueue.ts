@@ -12,10 +12,13 @@ export interface MetadataQueueStatus {
   active: number;
 }
 
+export type MetadataQueueItemState = "queued" | "active" | null;
+
 export class MetadataQueue {
   private readonly waiting: string[] = [];
   private readonly scheduled = new Set<string>();
   private readonly explicitRetries = new Set<string>();
+  private readonly activeVideoIds = new Set<string>();
   private active = 0;
   private stopped = false;
   private paused = false;
@@ -69,6 +72,12 @@ export class MetadataQueue {
     return { queued: this.waiting.length, active: this.active };
   }
 
+  getVideoState(videoId: string): MetadataQueueItemState {
+    if (this.activeVideoIds.has(videoId)) return "active";
+    if (this.scheduled.has(videoId)) return "queued";
+    return null;
+  }
+
   pause(): void {
     this.paused = true;
   }
@@ -103,8 +112,10 @@ export class MetadataQueue {
     while (!this.stopped && !this.paused && this.active < this.concurrency && this.waiting.length > 0) {
       const videoId = this.waiting.shift()!;
       this.active += 1;
+      this.activeVideoIds.add(videoId);
       void this.process(videoId).finally(() => {
         this.active -= 1;
+        this.activeVideoIds.delete(videoId);
         this.scheduled.delete(videoId);
         this.explicitRetries.delete(videoId);
         this.resolveVideoWaiters(videoId);
@@ -151,6 +162,9 @@ export class MetadataQueue {
     if (video.isMissing || video.metadataStatus !== "pending") return;
 
     try {
+      if (video.sizeBytes === 0) {
+        throw Object.assign(new Error("文件大小为 0B，已跳过媒体分析；请先重新读取 CloudDrive 文件大小"), { code: "EMPTY_FILE" });
+      }
       if (video.providerFileId && video.providerPath) {
         const durationMs = await this.durationReader(video.path);
         if (this.stopped) return;
@@ -179,14 +193,15 @@ export class MetadataQueue {
         if (missingResult.error) failureError = missingResult.error;
       }
       if (this.repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt)) {
+        const failure = describeMetadataFailure(failureError);
         this.repo.recordScanFailure?.({
           sourceFolderId: video.sourceFolderId,
           scanTaskId: `metadata:${video.id}`,
           objectType: "file",
           objectPath: video.path,
           failureStage: "metadata",
-          errorCode: getErrorCode(failureError),
-          errorSummary: getErrorSummary(failureError),
+          errorCode: failure.code,
+          errorSummary: failure.summary,
           incrementRetry: this.explicitRetries.has(video.id)
         });
         this.onSourceFolderUpdated?.(video.sourceFolderId);
@@ -269,9 +284,23 @@ export class MetadataQueue {
   }
 }
 
-function getErrorSummary(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message.slice(0, 500);
-  return "Video metadata extraction failed";
+export function describeMetadataFailure(error: unknown): { code: string; summary: string } {
+  const message = error instanceof Error && error.message.trim()
+    ? error.message.trim()
+    : "Video metadata extraction failed";
+  const explicitCode = getErrorCode(error);
+  const code = explicitCode === "EMPTY_FILE" || /\b0B\b|empty (?:file|input)|zero[- ]byte/i.test(message)
+    ? "EMPTY_FILE"
+    : isMissingFileError(error)
+      ? "ENOENT"
+      : /timed? out|timeout|stopped responding/i.test(message)
+        ? "TIMEOUT"
+        : /invalid data|moov atom not found|could not find codec parameters|unsupported codec|end of file/i.test(message)
+          ? "INVALID_MEDIA"
+          : /clouddrive|grpc|http2|socket|stream disconnected|unavailable/i.test(message)
+            ? "CLOUD_UNAVAILABLE"
+            : explicitCode ?? "METADATA_READ_FAILED";
+  return { code, summary: message.length <= 500 ? message : message.slice(-500) };
 }
 
 function getErrorCode(error: unknown): string | null {

@@ -53,6 +53,7 @@ interface LibraryShellProps {
   onRecheckMissingVideos?: VideoManagerApi["recheckMissingVideos"];
   onForgetMissingVideos?: VideoManagerApi["forgetMissingVideos"];
   onLoadMetadataIssuePage?(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
+  onRefreshMetadataFileSizes?: VideoManagerApi["refreshMetadataFileSizes"];
   onRetryScanFailure?(failureId: string): Promise<unknown>;
   onDeleteScanFailureFile?(failureId: string): Promise<unknown>;
   onCleanupScanFailures?: VideoManagerApi["cleanupScanFailures"];
@@ -119,6 +120,7 @@ export function LibraryShell({
   onRecheckMissingVideos,
   onForgetMissingVideos,
   onLoadMetadataIssuePage,
+  onRefreshMetadataFileSizes,
   onRetryScanFailure,
   onDeleteScanFailureFile,
   onCleanupScanFailures,
@@ -950,13 +952,14 @@ export function LibraryShell({
               />
             : <div className="empty-state"><AlertTriangle size={36} /><h3>播放诊断能力未连接</h3><p>请重新启动应用后重试。</p></div>
         ) : view === "metadataIssues" ? (
-          onLoadMetadataIssuePage && onRetryMetadata
+          onLoadMetadataIssuePage && onRetryMetadata && onRefreshMetadataFileSizes
             ? <MetadataIssuesPage
                 folders={folders}
                 initialSourceFolderId={metadataIssueSourceFolderId}
                 refreshSequence={refreshSequence}
                 loadPage={onLoadMetadataIssuePage}
                 onRetry={onRetryMetadata}
+                onRefreshSizes={onRefreshMetadataFileSizes}
                 onOpenLocation={onRevealInFolder}
                 onTotalCount={setMetadataIssueCount}
               />

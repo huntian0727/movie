@@ -98,11 +98,11 @@ describe("Asset Center performance gate", () => {
 
     database.prepare("UPDATE videos SET metadata_status = CASE WHEN rowid % 4 = 0 THEN 'failed' ELSE 'pending' END").run();
     const metadataStartedAt = performance.now();
-    const metadataPage = repo.listMetadataIssuePage({ status: "all", search: "", page: 1, pageSize: 100 });
+    const metadataPage = repo.listMetadataIssuePage({ status: "all", zeroBytesOnly: false, search: "", page: 1, pageSize: 100 });
     const metadataElapsedMs = performance.now() - metadataStartedAt;
     console.info(`Metadata issues 320k page: ${metadataElapsedMs.toFixed(2)} ms`);
 
-    expect(metadataPage).toMatchObject({ totalCount: VIDEO_COUNT, pendingCount: 240_000, failedCount: 80_000 });
+    expect(metadataPage).toMatchObject({ totalCount: VIDEO_COUNT, automaticCount: 240_000, deferredCount: 0, failedCount: 80_000 });
     expect(metadataPage.items).toHaveLength(100);
     expect(metadataElapsedMs).toBeLessThan(METADATA_PAGE_BUDGET_MS);
   }, 60_000);

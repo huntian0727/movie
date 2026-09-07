@@ -269,6 +269,17 @@ describe("VideoRepository", () => {
       format: null,
       metadataStatus: "pending"
     });
+    createVideo(repo, folderId, {
+      path: "D:\\Movies\\zero.mp4",
+      filename: "zero.mp4",
+      basename: "zero",
+      sizeBytes: 0,
+      durationMs: null,
+      width: null,
+      height: null,
+      format: null,
+      metadataStatus: "pending"
+    });
 
     expect(repo.listVideosPendingMetadata()).toEqual([expect.objectContaining({ id: video.id, metadataStatus: "pending" })]);
     expect(repo.markMetadataReady(video.id, video.path, video.sizeBytes + 1, video.modifiedAt, {
@@ -322,10 +333,11 @@ describe("VideoRepository", () => {
     const { repo, folderId } = createRepo();
     const secondFolder = repo.addSourceFolder("D:\\Archive", true);
     const failed = createVideo(repo, folderId, {
-      path: "D:\\Movies\\alpha.mp4", filename: "alpha.mp4", basename: "alpha", metadataStatus: "pending"
+      path: "D:\\Movies\\alpha.mp4", filename: "alpha.mp4", basename: "alpha", sizeBytes: 1001, metadataStatus: "pending"
     });
     const pending = createVideo(repo, secondFolder.id, {
-      path: "D:\\Archive\\beta.mp4", directory: "D:\\Archive", filename: "beta.mp4", basename: "beta", metadataStatus: "pending"
+      path: "D:\\Archive\\beta.mp4", directory: "D:\\Archive", filename: "beta.mp4", basename: "beta", sizeBytes: 2002, metadataStatus: "pending",
+      providerFileId: "remote-beta", providerPath: "/archive/beta.mp4"
     });
     createVideo(repo, folderId, {
       path: "D:\\Movies\\ready.mp4", filename: "ready.mp4", basename: "ready", metadataStatus: "ready"
@@ -342,25 +354,64 @@ describe("VideoRepository", () => {
       incrementRetry: true
     });
 
-    expect(repo.listMetadataIssuePage({ status: "all", search: "", page: 1, pageSize: 30 })).toMatchObject({
+    expect(repo.listMetadataIssuePage({ status: "all", zeroBytesOnly: false, search: "", page: 1, pageSize: 30 })).toMatchObject({
       totalCount: 2,
-      pendingCount: 1,
+      automaticCount: 0,
+      deferredCount: 1,
       failedCount: 1
     });
-    expect(repo.listMetadataIssuePage({ sourceFolderId: folderId, status: "failed", search: "alpha", page: 1, pageSize: 30 })).toMatchObject({
+    expect(repo.listMetadataIssuePage({ sourceFolderId: folderId, status: "failed", zeroBytesOnly: false, search: "alpha", page: 1, pageSize: 30 })).toMatchObject({
       totalCount: 1,
-      pendingCount: 0,
+      automaticCount: 0,
+      deferredCount: 0,
       failedCount: 1,
       items: [{
         video: expect.objectContaining({ id: failed.id, metadataStatus: "failed" }),
-        errorCode: "EPROBE",
+        analysisState: "failed",
+        queueState: null,
+        errorCode: "TIMEOUT",
         errorSummary: "ffprobe timed out",
         retryCount: 1
       }]
     });
-    expect(repo.listMetadataIssuePage({ status: "pending", search: "D:\\Archive", page: 1, pageSize: 30 }).items[0]?.video.id).toBe(pending.id);
+    expect(repo.listMetadataIssuePage({ status: "deferred", zeroBytesOnly: false, search: "D:\\Archive", page: 1, pageSize: 30 }).items[0]?.video.id).toBe(pending.id);
     repo.markMissing(pending.id, true);
-    expect(repo.listMetadataIssuePage({ status: "all", search: "", page: 1, pageSize: 30 }).totalCount).toBe(1);
+    expect(repo.listMetadataIssuePage({ status: "all", zeroBytesOnly: false, search: "", page: 1, pageSize: 30 }).totalCount).toBe(1);
+  });
+
+  it("separates automatic candidates, policy-deferred records, accessible rechecks, and zero-byte files", () => {
+    const { repo, folderId } = createRepo();
+    createVideo(repo, folderId, { path: "D:\\Movies\\local.mp4", filename: "local.mp4", basename: "local", sizeBytes: 222, metadataStatus: "pending" });
+    createVideo(repo, folderId, {
+      path: "D:\\Movies\\cloud.mp4", filename: "cloud.mp4", basename: "cloud", sizeBytes: 111, metadataStatus: "pending",
+      providerFileId: "cloud-id", providerPath: "/movies/cloud.mp4"
+    });
+    createVideo(repo, folderId, { path: "D:\\Movies\\zero.mp4", filename: "zero.mp4", basename: "zero", sizeBytes: 0, metadataStatus: "pending" });
+    const accessible = createVideo(repo, folderId, { path: "D:\\Movies\\accessible.mp4", filename: "accessible.mp4", basename: "accessible", sizeBytes: 333, metadataStatus: "pending" });
+    repo.markMetadataFailed(accessible.id, accessible.path, accessible.sizeBytes, accessible.modifiedAt);
+    repo.recordScanFailure({
+      sourceFolderId: folderId,
+      scanTaskId: `metadata:${accessible.id}`,
+      objectType: "file",
+      objectPath: accessible.path,
+      failureStage: "metadata",
+      errorCode: "ACCESSIBLE",
+      errorSummary: "文件可访问；尚未执行元数据分析",
+      incrementRetry: false
+    });
+
+    expect(repo.listMetadataIssuePage({ status: "all", zeroBytesOnly: false, search: "", page: 1, pageSize: 30 })).toMatchObject({
+      totalCount: 4,
+      automaticCount: 1,
+      deferredCount: 3,
+      failedCount: 0,
+      zeroByteCount: 1
+    });
+    expect(repo.listMetadataIssuePage({ status: "automatic", zeroBytesOnly: false, search: "", page: 1, pageSize: 30 }).items[0]?.video.filename).toBe("local.mp4");
+    expect(repo.listMetadataIssuePage({ status: "deferred", zeroBytesOnly: true, search: "", page: 1, pageSize: 30 })).toMatchObject({
+      totalCount: 1,
+      items: [{ video: expect.objectContaining({ filename: "zero.mp4" }), analysisState: "deferred" }]
+    });
   });
 
   it("persists codec metadata and clears it when the file version changes", () => {

@@ -17,6 +17,7 @@ describe("IPC_CHANNELS", () => {
       libraryMissingRecheck: "library:missing-recheck",
       libraryMissingForget: "library:missing-forget",
       libraryMetadataIssuePage: "library:metadata-issue-page",
+      libraryMetadataRefreshSizes: "library:metadata-refresh-sizes",
       videoListByIds: "video:list-by-ids",
       folderList: "folder:list",
       folderAdd: "folder:add",
@@ -151,7 +152,9 @@ describe("IPC_CHANNELS", () => {
     const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
 
     expect(preload).toContain("listMetadataIssuePage: (query: MetadataIssuePageQuery) => ipcRenderer.invoke(channels.libraryMetadataIssuePage, query)");
+    expect(preload).toContain("refreshMetadataFileSizes: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMetadataRefreshSizes, videoIds)");
     expect(ipc).toMatch(/const metadataIssuePageQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
     expect(ipc).toContain("repo.listMetadataIssuePage(metadataIssuePageQuerySchema.parse(query))");
+    expect(ipc).toContain("metadataFileRefresh.refreshZeroByteFiles(videoIdsSchema.parse(videoIds))");
   });
 });
