@@ -30,6 +30,7 @@ status: completed
 - `npm run dist:win`、`verify:artifact`、`test:packaged-smoke`、`test:installer-smoke`：PASS；`app.asar` 共 3,976 个条目且不含禁止的开发文件。
 - 桌面快捷方式 `Video Manager (Dev).lnk` 的目标与工作目录均指向本次 `release/win-unpacked`，已由该快捷方式启动并确认实际进程路径一致。
 - 当前自动化环境未暴露原生 Electron 窗口给截图接口，无法完成像素级界面截图复核；渲染挂载、预加载桥接、媒体协议和默认资产中心已由解压版与安装器冒烟覆盖。
+- 最终交付由仓库发布脚本创建主分支备份标签，并同步功能分支与 `main`。
 
 ## Risks and follow-up
 
