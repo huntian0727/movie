@@ -2,7 +2,7 @@
 date: 2026-09-07
 branch: ai/duplicate-directory-ranking
 type: feat
-status: in-progress
+status: completed
 ---
 
 # 重复项目录排序与筛选
@@ -24,6 +24,11 @@ status: in-progress
 
 - `npm run typecheck`：PASS。
 - Electron 33 相关测试：PASS，3 个文件、130 项测试。
+- Electron 33 全量 Vitest：PASS，68 个测试文件、643 项测试。
+- Node 22.23.1 隔离 `npm run test:release-gate`：PASS，包含类型检查、构建、Windows 文件测试、迁移测试、性能门禁和 643 项全量测试。
+- `npm run dist:win`、`verify:artifact`、`test:packaged-smoke`、`test:installer-smoke`：PASS；`app.asar` 共 3,976 个条目且不含禁止的开发文件。
+- 桌面快捷方式 `Video Manager (Dev).lnk` 已更新到本次 `release/win-unpacked`，并确认实际启动进程路径一致。
+- 当前自动化环境未暴露原生 Electron 窗口给截图接口，因此没有进行像素级截图复核；渲染挂载、默认资产中心、预加载桥接和打包启动由解压版与安装器冒烟覆盖。
 
 ## Risks and follow-up
 
