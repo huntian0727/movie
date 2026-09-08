@@ -20,6 +20,7 @@
 - `npm run test:installer-smoke`：通过，安装、首次启动、重启和数据库重新打开均成功。
 - 已重新生成 `release/win-unpacked` 和 `Local-Video-Manager-0.1.15-x64-Setup.exe`，并更新桌面快捷方式指向最新便携发行目录。
 - 通过真实桌面快捷方式启动用户资料库后连续采样 20 秒，窗口每次均为 `Responding=True`，工作集约 200–215 MB。
+- 桌面快捷方式目标已核对为 `release/win-unpacked/Local Video Manager.exe`；本次安装包为未签名测试发行版。
 
 ## Risks and follow-up
 
