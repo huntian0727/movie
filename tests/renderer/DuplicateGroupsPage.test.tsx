@@ -61,8 +61,8 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument();
     expect(screen.getByText(/候选发现只使用精确文件大小/)).toHaveTextContent(/不计算 SHA-256/);
     expect(container).toHaveTextContent(/计划保留/);
-    expect(container).toHaveTextContent(/候选移除/);
-    expect(container).toHaveTextContent(/候选可释放空间/);
+    expect(container).toHaveTextContent(/共 2 份 · 计划保留 1 份 · 可删除 1 份/);
+    expect(container).toHaveTextContent(/可释放/);
     expect(container.textContent).not.toMatch(/重复组|拟删除|待删除|预计可释放|待删文件/);
   });
 
@@ -190,12 +190,17 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(screen.queryByRole("button", { name: /确认删除/ })).not.toBeInTheDocument();
   });
 
-  it("sorts duplicate files by size in both directions", () => {
-    const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
+  it("delegates duplicate group field and direction sorting without reordering files inside a group", () => {
+    const onSortField = vi.fn();
+    const onSortDirection = vi.fn();
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} onSortField={onSortField} onSortDirection={onSortDirection} />);
     const filenames = () => [...container.querySelectorAll(".duplicate-item-heading strong")].map((element) => element.textContent);
     expect(filenames()).toEqual(["clip-copy.mp4", "clip.mp4"]);
-    fireEvent.change(screen.getByLabelText("候选项大小排序"), { target: { value: "asc" } });
-    expect(filenames()).toEqual(["clip.mp4", "clip-copy.mp4"]);
+    fireEvent.change(screen.getByLabelText("候选组排序依据"), { target: { value: "duplicateCount" } });
+    fireEvent.change(screen.getByLabelText("候选组排序方向"), { target: { value: "asc" } });
+    expect(onSortField).toHaveBeenCalledWith("duplicateCount");
+    expect(onSortDirection).toHaveBeenCalledWith("asc");
+    expect(filenames()).toEqual(["clip-copy.mp4", "clip.mp4"]);
   });
 
   it("delegates pagination and directory filters", () => {

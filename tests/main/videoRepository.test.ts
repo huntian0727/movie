@@ -790,6 +790,61 @@ describe("VideoRepository", () => {
     expect(secondPage.groups.map((group) => group.groupKey)).toEqual(["size-duration:1000:5000"]);
   });
 
+  it("sorts duplicate groups in SQLite by count, reclaimable space, file size, and duration", () => {
+    const { repo, folderId } = createRepo();
+    const addGroup = (name: string, copies: number, sizeBytes: number, durationMs: number) => {
+      for (let copy = 1; copy <= copies; copy += 1) {
+        createVideo(repo, folderId, {
+          path: `D:\\Movies\\${name}-${copy}.mp4`,
+          filename: `${name}-${copy}.mp4`,
+          basename: `${name}-${copy}`,
+          sizeBytes,
+          durationMs,
+          providerFileId: `${name}-${copy}`,
+          providerPath: `/Movies/${name}-${copy}.mp4`
+        });
+      }
+    };
+    addGroup("many-small", 4, 1000, 1000);
+    addGroup("many-medium", 4, 2000, 3000);
+    addGroup("few-large", 2, 5000, 2000);
+    addGroup("three-long", 3, 3000, 9000);
+
+    const keys = (sortField: NonNullable<Parameters<VideoRepository["listDuplicateGroupsPage"]>[0]["sortField"]>, sortDirection: "asc" | "desc" = "desc") =>
+      repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortField, sortDirection }).groups.map((group) => group.groupKey);
+
+    expect(keys("duplicateCount")).toEqual([
+      "size-duration:2000:3000",
+      "size-duration:1000:1000",
+      "size-duration:3000:9000",
+      "size-duration:5000:2000"
+    ]);
+    expect(keys("duplicateCount", "asc")).toEqual([
+      "size-duration:5000:2000",
+      "size-duration:3000:9000",
+      "size-duration:2000:3000",
+      "size-duration:1000:1000"
+    ]);
+    expect(keys("reclaimableBytes")).toEqual([
+      "size-duration:2000:3000",
+      "size-duration:3000:9000",
+      "size-duration:5000:2000",
+      "size-duration:1000:1000"
+    ]);
+    expect(keys("sizeBytes")).toEqual([
+      "size-duration:5000:2000",
+      "size-duration:3000:9000",
+      "size-duration:2000:3000",
+      "size-duration:1000:1000"
+    ]);
+    expect(keys("durationMs")).toEqual([
+      "size-duration:3000:9000",
+      "size-duration:2000:3000",
+      "size-duration:5000:2000",
+      "size-duration:1000:1000"
+    ]);
+  });
+
   it("filters duplicate groups explicitly while retaining complete groups and preferring its file", () => {
     const { repo, folderId } = createRepo();
     const selected = createVideo(repo, folderId, {

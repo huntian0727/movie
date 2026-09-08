@@ -196,6 +196,7 @@ const batchMoveSchema = z.object({ videoIds: videoIdsSchema, targetDirectory: z.
 const duplicateGroupPageQuerySchema = z.object({
   page: z.number().int().min(1),
   pageSize: z.union([z.literal(10), z.literal(20), z.literal(50), z.literal(100), z.literal(200), z.literal(300), z.literal(500)]),
+  sortField: z.enum(["reclaimableBytes", "sizeBytes", "duplicateCount", "durationMs"]).default("sizeBytes"),
   sortDirection: z.enum(["asc", "desc"]),
   preferredDirectoryPath: z.string().min(1).optional(),
   preferredDirectoryPaths: z.array(z.string().min(1)).max(100).optional(),

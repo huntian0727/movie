@@ -4,6 +4,7 @@ import type {
   CloudDriveLegacyBindingProgress,
   CloudDriveLegacyBindingResult,
   DuplicateGroup,
+  DuplicateGroupSortField,
   DuplicateDirectoryOption,
   DuplicatePageSize,
   DuplicateResolveChangedItem,
@@ -40,13 +41,15 @@ interface DuplicateGroupsPageProps {
   totalReclaimableBytes?: number;
   totalDeletableFiles?: number;
   totalUnboundDeletionCandidateFiles?: number;
-  sizeSortDirection?: SortDirection;
+  sortField?: DuplicateGroupSortField;
+  sortDirection?: SortDirection;
   directoryOptions?: DuplicateDirectoryOption[];
   filterDirectoryPath?: string;
   preferredDirectories?: DuplicatePreferredDirectory[];
   onPage?(page: number): void;
   onPageSize?(pageSize: DuplicatePageSize): void;
-  onSizeSortDirection?(direction: SortDirection): void;
+  onSortField?(field: DuplicateGroupSortField): void;
+  onSortDirection?(direction: SortDirection): void;
   onPreferredDirectoryPathChange?(path: string): void;
   onClearDirectoryFilter?(): void;
   onRemovePreferredDirectory?(id: string): void | Promise<void>;
@@ -94,13 +97,15 @@ export function DuplicateGroupsPage({
   totalReclaimableBytes = groups.reduce((total, group) => total + group.reclaimableBytes, 0),
   totalDeletableFiles = groups.reduce((total, group) => total + group.items.filter((item) => !item.isRecommendedToKeep && item.canAutoDelete !== false).length, 0),
   totalUnboundDeletionCandidateFiles = groups.reduce((total, group) => total + Math.max(0, group.items.filter((item) => item.canAutoDelete === false).length - 1), 0),
-  sizeSortDirection: controlledSizeSortDirection,
+  sortField: controlledSortField,
+  sortDirection: controlledSortDirection,
   directoryOptions = [],
   filterDirectoryPath,
   preferredDirectories = [],
   onPage,
   onPageSize,
-  onSizeSortDirection,
+  onSortField,
+  onSortDirection,
   onPreferredDirectoryPathChange,
   onClearDirectoryFilter,
   onRemovePreferredDirectory,
@@ -137,7 +142,8 @@ export function DuplicateGroupsPage({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [internalSizeSortDirection, setInternalSizeSortDirection] = useState<SortDirection>("desc");
+  const [internalSortField, setInternalSortField] = useState<DuplicateGroupSortField>("sizeBytes");
+  const [internalSortDirection, setInternalSortDirection] = useState<SortDirection>("desc");
   const [directorySortMode, setDirectorySortMode] = useState<DuplicateDirectorySortMode>("space");
   const [directoryFilterPreset, setDirectoryFilterPreset] = useState<DuplicateDirectoryFilterPreset>("all");
   const [taskCenterOpen, setTaskCenterOpen] = useState(false);
@@ -155,7 +161,8 @@ export function DuplicateGroupsPage({
   const onCleanupFinishedRef = useRef(onCleanupFinished);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const taskCenterOpenerRef = useRef<HTMLButtonElement>(null);
-  const sizeSortDirection = controlledSizeSortDirection ?? internalSizeSortDirection;
+  const sortField = controlledSortField ?? internalSortField;
+  const sortDirection = controlledSortDirection ?? internalSortDirection;
   const legacyResolveEnabled: boolean = false;
   const previewFileCount = useMemo(() => new Set(planVideoIds(groups, manualKeepByGroup)).size, [groups, manualKeepByGroup]);
   const rankedDirectoryOptions = useMemo(() => directoryOptions
@@ -174,14 +181,6 @@ export function DuplicateGroupsPage({
   useEffect(() => {
     onCleanupFinishedRef.current = onCleanupFinished;
   }, [onCleanupFinished]);
-
-  const sortedGroups = useMemo(
-    () => [...groups].sort((left, right) => {
-      const sizeDifference = largestVideoSize(left) - largestVideoSize(right);
-      return (sizeSortDirection === "asc" ? sizeDifference : -sizeDifference) || left.groupKey.localeCompare(right.groupKey);
-    }),
-    [groups, sizeSortDirection]
-  );
 
   useEffect(() => {
     setManualKeepByGroup((current) => {
@@ -527,14 +526,27 @@ export function DuplicateGroupsPage({
             </div>
           )}
           <label className="duplicate-sort">
-            <span>按大小排序</span>
-            <select aria-label="候选项大小排序" value={sizeSortDirection} onChange={(event) => {
-              const direction = event.target.value as SortDirection;
-              setInternalSizeSortDirection(direction);
-              onSizeSortDirection?.(direction);
+            <span>排序依据</span>
+            <select aria-label="候选组排序依据" value={sortField} onChange={(event) => {
+              const field = event.target.value as DuplicateGroupSortField;
+              setInternalSortField(field);
+              onSortField?.(field);
             }}>
-              <option value="desc">从大到小</option>
-              <option value="asc">从小到大</option>
+              <option value="reclaimableBytes">可释放空间</option>
+              <option value="sizeBytes">单个文件大小</option>
+              <option value="duplicateCount">重复数量</option>
+              <option value="durationMs">视频时长</option>
+            </select>
+          </label>
+          <label className="duplicate-sort">
+            <span>排序方向</span>
+            <select aria-label="候选组排序方向" value={sortDirection} onChange={(event) => {
+              const direction = event.target.value as SortDirection;
+              setInternalSortDirection(direction);
+              onSortDirection?.(direction);
+            }}>
+              <option value="desc">从高到低</option>
+              <option value="asc">从低到高</option>
             </select>
           </label>
           <button type="button" onClick={resetSelectionToRecommended}>按推荐选择保留项</button>
@@ -609,14 +621,13 @@ export function DuplicateGroupsPage({
 
       <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={onPreferredDirectoryPathChange} />
       <div className="duplicate-groups">
-        {!filteredSubmissionHidden && sortedGroups.map((group, index) => (
+        {!filteredSubmissionHidden && groups.map((group, index) => (
           <DuplicateGroupCard
             key={group.groupKey}
             group={group}
             index={index}
             page={page}
             pageSize={pageSize}
-            sizeSortDirection={sizeSortDirection}
             selectedKeepByGroup={manualKeepByGroup}
             onSetKeep={(groupId, videoId) => setManualKeepByGroup((current) => ({ ...current, [groupId]: videoId }))}
             onPreferDirectory={(path) => onPreferredDirectoryPathChange?.(path)}
@@ -714,7 +725,6 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   index,
   page,
   pageSize,
-  sizeSortDirection,
   selectedKeepByGroup,
   onSetKeep,
   onPreferDirectory,
@@ -727,7 +737,6 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   index: number;
   page: number;
   pageSize: number;
-  sizeSortDirection: SortDirection;
   selectedKeepByGroup: Record<string, string>;
   onSetKeep(groupId: string, videoId: string): void;
   onPreferDirectory(path: string): void;
@@ -738,12 +747,9 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
 }) {
   const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
 
-  const sortedItems = useMemo(() =>
-    [...group.items].sort((left, right) => {
-      const sizeDifference = left.video.sizeBytes - right.video.sizeBytes;
-      return (sizeSortDirection === "asc" ? sizeDifference : -sizeDifference) || left.video.filename.localeCompare(right.video.filename);
-    }),
-    [group.items, sizeSortDirection]
+  const sortedItems = useMemo(
+    () => [...group.items].sort((left, right) => left.video.filename.localeCompare(right.video.filename, "zh-CN")),
+    [group.items]
   );
 
   const groupVideos = useMemo(() => sortedItems.map((item) => item.video), [sortedItems]);
@@ -762,7 +768,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
       <header className="duplicate-group-header">
         <div>
           <h3>{`候选组 ${String((page - 1) * pageSize + index + 1).padStart(2, "0")}`}</h3>
-          <p>{`${group.items.length} 个大小与时长匹配候选 · 候选移除 ${candidateRemovalCount} 个 · 候选可释放空间 ${formatBytes(reclaimableBytes)}`}</p>
+          <p>{`共 ${group.items.length} 份 · 计划保留 1 份 · 可删除 ${candidateRemovalCount} 份 · 可释放 ${formatBytes(reclaimableBytes)}`}</p>
         </div>
       </header>
       <div className="duplicate-group-items">
@@ -812,10 +818,6 @@ function planVideoIds(groups: DuplicateGroup[], selectedKeepByGroup: Record<stri
     const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
     return [keepVideoId, ...group.items.map((item) => item.video.id).filter((videoId) => videoId !== keepVideoId)];
   });
-}
-
-function largestVideoSize(group: DuplicateGroup): number {
-  return group.items.reduce((largest, item) => Math.max(largest, item.video.sizeBytes), 0);
 }
 
 function compareDirectoryOptions(left: DuplicateDirectoryOption, right: DuplicateDirectoryOption, mode: DuplicateDirectorySortMode): number {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, CircleGauge, Clock3, Cloud, CopyMinus, Database, FileQuestion, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, PieChart, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
-import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, PlaybackPreference, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, PlaybackPreference, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { AssetCenterPage } from "./AssetCenterPage";
@@ -200,6 +200,7 @@ export function LibraryShell({
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [duplicatePageNumber, setDuplicatePageNumber] = useState(1);
   const [duplicatePageSize, setDuplicatePageSize] = useState<DuplicatePageSize>(20);
+  const [duplicateSortField, setDuplicateSortField] = useState<DuplicateGroupSortField>("sizeBytes");
   const [duplicateSortDirection, setDuplicateSortDirection] = useState<SortDirection>("desc");
   const [duplicatePreferredDirectoryPath, setDuplicatePreferredDirectoryPath] = useState("");
   const [duplicateFilterDirectoryPath, setDuplicateFilterDirectoryPath] = useState("");
@@ -412,6 +413,7 @@ export function LibraryShell({
     const query: DuplicateGroupPageQuery = {
       page: duplicatePageNumber,
       pageSize: duplicatePageSize,
+      sortField: duplicateSortField,
       sortDirection: duplicateSortDirection
     };
     if (duplicatePreferredDirectories.length > 0) query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
@@ -428,7 +430,7 @@ export function LibraryShell({
     });
 
     return () => { disposed = true; };
-  }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, onLoadDuplicateGroups, view]);
+  }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
 
   const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "missingVideos" ? "文件缺失" : view === "metadataIssues" ? "元数据异常" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
   const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : view === "missingVideos" ? missingVideoCount : view === "metadataIssues" ? metadataIssueCount : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
@@ -1020,10 +1022,12 @@ export function LibraryShell({
             totalReclaimableBytes={duplicatePage.totalReclaimableBytes}
             totalDeletableFiles={duplicatePage.totalDeletableFiles}
             totalUnboundDeletionCandidateFiles={duplicatePage.totalUnboundDeletionCandidateFiles}
-            sizeSortDirection={duplicateSortDirection}
+            sortField={duplicateSortField}
+            sortDirection={duplicateSortDirection}
             onPage={setDuplicatePageNumber}
             onPageSize={(pageSize) => { setDuplicatePageSize(pageSize); setDuplicatePageNumber(1); }}
-            onSizeSortDirection={(direction) => { setDuplicateSortDirection(direction); setDuplicatePageNumber(1); }}
+            onSortField={(field) => { setDuplicateSortField(field); setDuplicatePageNumber(1); }}
+            onSortDirection={(direction) => { setDuplicateSortDirection(direction); setDuplicatePageNumber(1); }}
             directoryOptions={duplicatePage.directoryOptions}
             preferredDirectories={duplicatePreferredDirectories}
             filterDirectoryPath={duplicateFilterDirectoryPath || undefined}
@@ -1069,6 +1073,7 @@ export function LibraryShell({
               query: {
                 page: 1,
                 pageSize: duplicatePageSize,
+                sortField: duplicateSortField,
                 sortDirection: duplicateSortDirection,
                 ...(duplicatePreferredDirectories.length > 0 ? { preferredDirectoryPaths: duplicatePreferredDirectories.map((directory) => directory.path) } : {}),
                 ...(duplicateFilterDirectoryPath ? { filterDirectoryPath: duplicateFilterDirectoryPath } : {})

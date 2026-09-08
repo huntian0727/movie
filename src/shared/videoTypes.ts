@@ -404,9 +404,12 @@ export interface PreviewImageRequest {
   priority: 0 | 1 | 2;
 }
 
+export type DuplicateGroupSortField = "reclaimableBytes" | "sizeBytes" | "duplicateCount" | "durationMs";
+
 export interface DuplicateGroupPageQuery {
   page: number;
   pageSize: DuplicatePageSize;
+  sortField?: DuplicateGroupSortField;
   sortDirection: SortDirection;
   preferredDirectoryPath?: string;
   preferredDirectoryPaths?: string[];

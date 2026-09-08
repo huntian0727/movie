@@ -122,7 +122,7 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
   checks.videoDataWorkerQuery = dataPage.totalCount === 1 && dataPage.items[0]?.filename === "sample.mp4";
   const exportCount = await context.videoDataQueries.export(videoDataQuerySchema.parse({}), { all: true, ids: [], excludedIds: [] }, path.join(context.userDataPath, `video-data-${context.phase}.csv`));
   checks.videoDataWorkerExport = exportCount === 1;
-  const duplicateQuery = { page: 1, pageSize: 20, sortDirection: "desc" } as const;
+  const duplicateQuery = { page: 1, pageSize: 20, sortField: "duplicateCount", sortDirection: "desc" } as const;
   const duplicatePage = await context.assetCenterQueries.listDuplicates(duplicateQuery);
   checks.duplicateWorkerQuery = JSON.stringify(duplicatePage) === JSON.stringify(context.repo.listDuplicateGroupsPage(duplicateQuery));
   checks.playbackDiagnosticWorkerQuery =

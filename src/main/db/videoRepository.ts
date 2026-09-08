@@ -2037,6 +2037,15 @@ export class VideoRepository {
         FROM duplicate_groups
       )`;
     const direction = query.sortDirection === "asc" ? "ASC" : "DESC";
+    const sortExpression = {
+      reclaimableBytes: "deletable_count * size_bytes",
+      sizeBytes: "size_bytes",
+      duplicateCount: "file_count",
+      durationMs: "duration_seconds"
+    }[query.sortField ?? "sizeBytes"];
+    const tieBreakExpression = query.sortField === "duplicateCount"
+      ? "deletable_count * size_bytes DESC, size_bytes DESC, duration_seconds ASC"
+      : "file_count DESC, size_bytes DESC, duration_seconds ASC";
     const requestedPage = Math.max(1, query.page);
     const identityRows = this.db
       .prepare(
@@ -2047,7 +2056,7 @@ export class VideoRepository {
              COALESCE(SUM(deletable_count * size_bytes) OVER (), 0) AS total_reclaimable_bytes,
              COALESCE(SUM(deletable_count) OVER (), 0) AS total_deletable_files,
              COALESCE(SUM(unbound_deletion_candidate_count) OVER (), 0) AS total_unbound_deletion_candidate_files,
-             ROW_NUMBER() OVER (ORDER BY size_bytes ${direction}, duration_seconds ASC) AS row_number
+             ROW_NUMBER() OVER (ORDER BY ${sortExpression} ${direction}, ${tieBreakExpression}) AS row_number
            FROM scored_groups
          )
          SELECT size_bytes, duration_seconds, total_groups, total_candidate_files, total_reclaimable_bytes,

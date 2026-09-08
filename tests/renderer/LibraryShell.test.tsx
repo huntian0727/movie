@@ -597,17 +597,20 @@ describe("LibraryShell", () => {
     expect(onLoadDuplicateGroups).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
 
-    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalledWith({ page: 1, pageSize: 20, sortDirection: "desc" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalledWith({ page: 1, pageSize: 20, sortField: "sizeBytes", sortDirection: "desc" }));
     expect(screen.getByLabelText("目录清理排行")).toHaveTextContent("41");
 
-    fireEvent.change(screen.getByLabelText("候选项大小排序"), { target: { value: "asc" } });
-    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({ page: 1, pageSize: 20, sortDirection: "asc" }));
+    fireEvent.change(screen.getByLabelText("候选组排序依据"), { target: { value: "duplicateCount" } });
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({ page: 1, pageSize: 20, sortField: "duplicateCount", sortDirection: "desc" }));
+    fireEvent.change(screen.getByLabelText("候选组排序方向"), { target: { value: "asc" } });
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({ page: 1, pageSize: 20, sortField: "duplicateCount", sortDirection: "asc" }));
 
     fireEvent.click(screen.getByLabelText("选择候选项计划保留目录（包含所有子目录）"));
     fireEvent.click(screen.getByRole("option", { name: /^Movies D:/ }));
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
       page: 1,
       pageSize: 20,
+      sortField: "duplicateCount",
       sortDirection: "asc",
       preferredDirectoryPath: "D:\\Movies",
       filterDirectoryPath: "D:\\Movies"
@@ -617,6 +620,7 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
       page: 2,
       pageSize: 20,
+      sortField: "duplicateCount",
       sortDirection: "asc",
       preferredDirectoryPath: "D:\\Movies",
       filterDirectoryPath: "D:\\Movies"
@@ -625,6 +629,7 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({
       page: 1,
       pageSize: 20,
+      sortField: "duplicateCount",
       sortDirection: "asc",
       preferredDirectoryPath: "D:\\Movies\\Drama",
       filterDirectoryPath: "D:\\Movies\\Drama"
