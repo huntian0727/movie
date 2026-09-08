@@ -120,6 +120,19 @@ describe("IPC_CHANNELS", () => {
     expect(ipc).toContain("dependencies.assetCenterQueries.getSummary()");
   });
 
+  it("keeps large folder and navigation aggregates off the Electron main thread", () => {
+    const projectRoot = path.resolve(import.meta.dirname, "../..");
+    const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
+    const worker = readFileSync(path.join(projectRoot, "src/main/assetCenter/assetCenterWorker.ts"), "utf8");
+
+    expect(ipc).toContain("dependencies.assetCenterQueries.getLibraryNavigation()");
+    expect(ipc).toContain("dependencies.assetCenterQueries.listFolders()");
+    expect(ipc).not.toContain("IPC_CHANNELS.libraryNavigation, () => repo.getLibraryNavigation()");
+    expect(ipc).not.toContain("IPC_CHANNELS.folderList, () => repo.listSourceFoldersWithStats()");
+    expect(worker).toContain('request.operation === "navigation"');
+    expect(worker).toContain('request.operation === "folders"');
+  });
+
   it("keeps Playback Diagnostic search on its dedicated validated worker API", () => {
     const projectRoot = path.resolve(import.meta.dirname, "../..");
     const preload = readFileSync(path.join(projectRoot, "src/main/preload.cts"), "utf8");

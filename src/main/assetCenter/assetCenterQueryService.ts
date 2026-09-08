@@ -1,5 +1,10 @@
 import { Worker } from "node:worker_threads";
-import type { DuplicateGroupPage, DuplicateGroupPageQuery } from "../../shared/videoTypes.js";
+import type {
+  DuplicateGroupPage,
+  DuplicateGroupPageQuery,
+  LibraryNavigationSnapshot,
+  SourceFolder
+} from "../../shared/videoTypes.js";
 import type {
   AssetCenterSourcePage,
   AssetCenterSourceQuery,
@@ -17,6 +22,8 @@ export interface AssetCenterQueryWorker {
 
 export interface AssetCenterReadService {
   listDuplicates(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
+  listFolders(): Promise<SourceFolder[]>;
+  getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
   getSummary(): Promise<AssetCenterSummary>;
   listSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
 }
@@ -26,12 +33,21 @@ interface AssetCenterQueryServiceOptions {
 }
 
 interface PendingRequest {
-  resolve(value: AssetCenterSummary | AssetCenterSourcePage | DuplicateGroupPage): void;
+  resolve(value: AssetCenterQueryResult): void;
   reject(error: Error): void;
 }
 
+type AssetCenterQueryResult =
+  | AssetCenterSummary
+  | AssetCenterSourcePage
+  | DuplicateGroupPage
+  | LibraryNavigationSnapshot
+  | SourceFolder[];
+
 type AssetCenterWorkerOperation =
   | { operation: "duplicates"; query: DuplicateGroupPageQuery }
+  | { operation: "folders" }
+  | { operation: "navigation" }
   | { operation: "summary" }
   | { operation: "sources"; query: AssetCenterSourceQuery };
 
@@ -54,6 +70,14 @@ export class AssetCenterQueryService implements AssetCenterReadService {
     return this.request<DuplicateGroupPage>({ operation: "duplicates", query });
   }
 
+  listFolders(): Promise<SourceFolder[]> {
+    return this.request<SourceFolder[]>({ operation: "folders" });
+  }
+
+  getLibraryNavigation(): Promise<LibraryNavigationSnapshot> {
+    return this.request<LibraryNavigationSnapshot>({ operation: "navigation" });
+  }
+
   listSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage> {
     return this.request<AssetCenterSourcePage>({ operation: "sources", query });
   }
@@ -67,7 +91,7 @@ export class AssetCenterQueryService implements AssetCenterReadService {
     if (worker) void worker.terminate();
   }
 
-  private request<Result extends AssetCenterSummary | AssetCenterSourcePage | DuplicateGroupPage>(
+  private request<Result extends AssetCenterQueryResult>(
     request: AssetCenterWorkerOperation
   ): Promise<Result> {
     if (this.disposed) {

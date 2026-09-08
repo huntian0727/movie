@@ -11,7 +11,7 @@ import {
 import { openAssetCenterReadonlyDatabase } from "../../src/main/assetCenter/assetCenterReadonlyDatabase.js";
 import type { AssetCenterWorkerRequest, AssetCenterWorkerResponse } from "../../src/main/assetCenter/assetCenterWorkerProtocol.js";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database.js";
-import type { AssetCenterSummary } from "../../src/shared/videoTypes.js";
+import type { AssetCenterSummary, LibraryNavigationSnapshot, SourceFolder } from "../../src/shared/videoTypes.js";
 
 let tempDirectory: string | undefined;
 let database: DatabaseConnection | undefined;
@@ -39,6 +39,23 @@ describe("AssetCenterQueryService", () => {
 
     worker.emitMessage({ id: 1, ok: true, result: SUMMARY });
     await expect(result).resolves.toEqual(SUMMARY);
+  });
+
+  it("routes folder statistics and navigation snapshots through the read-only worker", async () => {
+    const worker = new FakeQueryWorker();
+    service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => worker });
+
+    const folders = service.listFolders();
+    const navigation = service.getLibraryNavigation();
+    expect(worker.messages).toEqual([
+      { id: 1, operation: "folders" },
+      { id: 2, operation: "navigation" }
+    ]);
+
+    worker.emitMessage({ id: 1, ok: true, result: FOLDERS });
+    worker.emitMessage({ id: 2, ok: true, result: NAVIGATION });
+    await expect(folders).resolves.toEqual(FOLDERS);
+    await expect(navigation).resolves.toEqual(NAVIGATION);
   });
 
   it("rejects pending work on worker failure and lazily replaces the worker", async () => {
@@ -146,4 +163,26 @@ const SUMMARY: AssetCenterSummary = {
   metadataIssueCount: 0,
   playbackRiskCount: 0,
   duplicateCandidateGroupCount: 0
+};
+
+const FOLDERS: SourceFolder[] = [{
+  id: "source-1",
+  path: "F:\\library",
+  recursive: true,
+  enabled: true,
+  lastScannedAt: null,
+  createdAt: "2026-09-08T00:00:00.000Z",
+  updatedAt: "2026-09-08T00:00:00.000Z",
+  scanError: null,
+  videoCount: 1
+}];
+
+const NAVIGATION: LibraryNavigationSnapshot = {
+  totalVideos: 1,
+  favoriteVideos: 0,
+  pendingDeleteVideos: 0,
+  pendingDeleteBytes: 0,
+  pendingMetadataVideos: 1,
+  scanFailureCount: 0,
+  directoryPaths: ["F:\\library"]
 };

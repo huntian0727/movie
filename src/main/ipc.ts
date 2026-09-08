@@ -468,7 +468,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return repo.listVideos(libraryQuerySchema.parse(query));
   });
   ipcMain.handle(IPC_CHANNELS.libraryPage, (_event, query) => repo.listVideoPage(libraryPageQuerySchema.parse(query)));
-  ipcMain.handle(IPC_CHANNELS.libraryNavigation, () => repo.getLibraryNavigation());
+  ipcMain.handle(IPC_CHANNELS.libraryNavigation, () => dependencies.assetCenterQueries.getLibraryNavigation());
   ipcMain.handle(IPC_CHANNELS.assetCenterSummary, () => dependencies.assetCenterQueries.getSummary());
   ipcMain.handle(IPC_CHANNELS.assetCenterSources, (_event, query) =>
     dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query))
@@ -661,7 +661,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return true;
   });
 
-  ipcMain.handle(IPC_CHANNELS.folderList, () => repo.listSourceFoldersWithStats());
+  ipcMain.handle(IPC_CHANNELS.folderList, () => dependencies.assetCenterQueries.listFolders());
 
   ipcMain.handle(IPC_CHANNELS.cloudDriveFolderRoots, () => listConfiguredCloudDriveFolderRoots());
   ipcMain.handle(IPC_CHANNELS.cloudDriveFolderBrowse, (_event, selection) =>

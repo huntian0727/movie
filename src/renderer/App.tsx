@@ -66,6 +66,33 @@ export function UnsupportedRuntime() {
   );
 }
 
+const SOURCE_FOLDER_SNAPSHOT_KEYS = [
+  "id", "path", "recursive", "enabled", "lastScannedAt", "createdAt", "updatedAt", "scanError",
+  "providerType", "providerRootPath", "providerName", "providerReadOnly", "videoCount",
+  "providerIdentityCount", "duplicateSizeCandidateCount", "duplicateDurationReadyCount"
+] as const satisfies readonly (keyof SourceFolder)[];
+
+function areSourceFolderSnapshotsEqual(left: SourceFolder[], right: SourceFolder[]): boolean {
+  return left.length === right.length && left.every((folder, index) => {
+    const candidate = right[index];
+    return candidate !== undefined && SOURCE_FOLDER_SNAPSHOT_KEYS.every((key) => Object.is(folder[key], candidate[key]));
+  });
+}
+
+function areLibraryNavigationSnapshotsEqual(
+  left: LibraryNavigationSnapshot,
+  right: LibraryNavigationSnapshot
+): boolean {
+  return left.totalVideos === right.totalVideos
+    && left.favoriteVideos === right.favoriteVideos
+    && left.pendingDeleteVideos === right.pendingDeleteVideos
+    && left.pendingDeleteBytes === right.pendingDeleteBytes
+    && left.pendingMetadataVideos === right.pendingMetadataVideos
+    && left.scanFailureCount === right.scanFailureCount
+    && left.directoryPaths.length === right.directoryPaths.length
+    && left.directoryPaths.every((directoryPath, index) => directoryPath === right.directoryPaths[index]);
+}
+
 export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [folders, setFolders] = useState<SourceFolder[]>([]);
@@ -102,6 +129,12 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const getCoverUrl = useCallback((video: VideoRecord) =>
     getStableCoverUrl(video, settings.coverFrameTimeSeconds),
   [settings.coverFrameTimeSeconds]);
+  const applyFolders = useCallback((nextFolders: SourceFolder[]) => {
+    setFolders((current) => areSourceFolderSnapshotsEqual(current, nextFolders) ? current : nextFolders);
+  }, []);
+  const applyNavigation = useCallback((nextNavigation: LibraryNavigationSnapshot) => {
+    setNavigation((current) => areLibraryNavigationSnapshotsEqual(current, nextNavigation) ? current : nextNavigation);
+  }, []);
 
   const reload = useCallback(async (providedSnapshot?: WindowSyncSnapshot) => {
     if (!initialized.current) setLoading(true);
@@ -129,8 +162,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
           api.listPlayHistory(),
           api.getLibraryNavigation()
         ]);
-        setFolders(nextFolders);
-        setNavigation(nextNavigation);
+        applyFolders(nextFolders);
+        applyNavigation(nextNavigation);
         setSettings(settingsSnapshot.settings);
         setCacheLocation(settingsSnapshot.cacheLocation);
         setCacheStatus(settingsSnapshot.cacheStatus);
@@ -142,7 +175,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       initialized.current = true;
       setLoading(false);
     }
-  }, [api, isPlayerWindow]);
+  }, [api, applyFolders, applyNavigation, isPlayerWindow]);
 
   useEffect(() => {
     playerVideoIds.current = new Set(videos.map((video) => video.id));
@@ -184,7 +217,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       if (sourceFolderRefreshTimer.current) clearTimeout(sourceFolderRefreshTimer.current);
       sourceFolderRefreshTimer.current = setTimeout(() => {
         sourceFolderRefreshTimer.current = null;
-        void api.listFolders().then(setFolders).catch((cause) => setError(toMessage(cause)));
+        void api.listFolders().then(applyFolders).catch((cause) => setError(toMessage(cause)));
       }, 750);
       return;
     }
@@ -202,7 +235,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
         const sequence = pendingRemovalSequence.current;
         setLibraryRefreshSequence(sequence);
         setDuplicateRefreshSequence(sequence);
-        void api.getLibraryNavigation().then(setNavigation);
+        void api.getLibraryNavigation().then(applyNavigation);
       }, 500);
       return;
     }
@@ -224,8 +257,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       await reload();
       return;
     }
-    setNavigation(await api.getLibraryNavigation());
-  }, [api, isPlayerWindow, reload]);
+    applyNavigation(await api.getLibraryNavigation());
+  }, [api, applyFolders, applyNavigation, isPlayerWindow, reload]);
 
   useEffect(() => () => {
     if (duplicateRemovalRefreshTimer.current) {
@@ -314,7 +347,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const toggleFavorite = async (video: VideoRecord) => {
     const favorite = !video.isFavorite;
     await api.setFavorite(video.id, favorite);
-    setNavigation(await api.getLibraryNavigation());
+    applyNavigation(await api.getLibraryNavigation());
     setVideos((current) => current.map((item) => (item.id === video.id ? { ...item, isFavorite: favorite } : item)));
     setDirectoryPlaybackQueue((current) => current.map((item) => (item.id === video.id ? { ...item, isFavorite: favorite } : item)));
   };
@@ -322,7 +355,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const togglePendingDelete = async (video: VideoRecord) => {
     const pendingDelete = !video.isPendingDelete;
     await api.setPendingDelete(video.id, pendingDelete);
-    setNavigation(await api.getLibraryNavigation());
+    applyNavigation(await api.getLibraryNavigation());
     setVideos((current) => current.map((item) => (item.id === video.id ? { ...item, isPendingDelete: pendingDelete } : item)));
     setDirectoryPlaybackQueue((current) => current.map((item) => (item.id === video.id ? { ...item, isPendingDelete: pendingDelete } : item)));
   };

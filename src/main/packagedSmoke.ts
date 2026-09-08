@@ -110,11 +110,14 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
     checks.videoCount = videos.length;
   }
 
-  const [assetSummary, diagnosticPage] = await Promise.all([
+  const [assetSummary, diagnosticPage, folders, navigation] = await Promise.all([
     context.assetCenterQueries.getSummary(),
-    context.playbackDiagnosticQueries.search({ search: "packaged-smoke-fixture", page: 1, pageSize: 30 })
+    context.playbackDiagnosticQueries.search({ search: "packaged-smoke-fixture", page: 1, pageSize: 30 }),
+    context.assetCenterQueries.listFolders(),
+    context.assetCenterQueries.getLibraryNavigation()
   ]);
   checks.assetCenterWorkerQuery = assetSummary.totalVideoCount === 1;
+  checks.libraryOverviewWorkerQuery = folders.length === 1 && navigation.totalVideos === 1;
   const dataPage = await context.videoDataQueries.page(videoDataQuerySchema.parse({ search: "packaged-smoke-fixture" }));
   checks.videoDataWorkerQuery = dataPage.totalCount === 1 && dataPage.items[0]?.filename === "sample.mp4";
   const exportCount = await context.videoDataQueries.export(videoDataQuerySchema.parse({}), { all: true, ids: [], excludedIds: [] }, path.join(context.userDataPath, `video-data-${context.phase}.csv`));
