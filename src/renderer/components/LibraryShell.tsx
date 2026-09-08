@@ -4,6 +4,7 @@ import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMove
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { AssetCenterPage } from "./AssetCenterPage";
+import { VideoDataPage } from "./VideoDataPage";
 import { PlaybackDiagnosticPage } from "./PlaybackDiagnosticPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
 import { MissingVideosPage } from "./MissingVideosPage";
@@ -77,6 +78,7 @@ interface LibraryShellProps {
   onSearchPlaybackDiagnosticVideos?: VideoManagerApi["searchPlaybackDiagnosticVideos"];
   playbackPreference?: PlaybackPreference;
   onLoadAssetCenterSummary?(): Promise<AssetCenterSummary>;
+  videoDataApi?: Pick<VideoManagerApi, "listVideoData" | "exportVideoData">;
   onLoadAssetCenterSources?: VideoManagerApi["listAssetCenterSources"];
   duplicateGroups?: DuplicateGroup[];
   onLoadDuplicateGroups?(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
@@ -144,6 +146,7 @@ export function LibraryShell({
   onSearchPlaybackDiagnosticVideos,
   playbackPreference = "auto",
   onLoadAssetCenterSummary,
+  videoDataApi,
   onLoadAssetCenterSources,
   duplicateGroups = EMPTY_DUPLICATE_GROUPS,
   onLoadDuplicateGroups,
@@ -268,9 +271,9 @@ export function LibraryShell({
   const favoriteCount = useMemo(() => navigation?.favoriteVideos ?? videos.reduce((count, video) => count + (video.isFavorite ? 1 : 0), 0), [navigation?.favoriteVideos, videos]);
   const pendingDeleteCount = navigation?.pendingDeleteVideos ?? videos.reduce((count, video) => count + (video.isPendingDelete ? 1 : 0), 0);
   const pendingDeleteBytes = navigation?.pendingDeleteBytes ?? videos.reduce((total, video) => total + (video.isPendingDelete ? video.sizeBytes : 0), 0);
-  const isStandaloneView = view === "assetCenter" || view === "playbackDiagnostic" || view === "duplicates" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
+  const isStandaloneView = view === "videoData" || view === "assetCenter" || view === "playbackDiagnostic" || view === "duplicates" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const isVideoBrowseView = !isStandaloneView;
-  const usesCommonToolbar = view !== "assetCenter" && view !== "playbackDiagnostic";
+  const usesCommonToolbar = view !== "videoData" && view !== "assetCenter" && view !== "playbackDiagnostic";
 
   useEffect(() => {
     setPage(1);
@@ -678,6 +681,9 @@ export function LibraryShell({
           <div><strong>映匣</strong><small>本地视频库</small></div>
         </div>
         <nav className="primary-nav" aria-label="视频库导航">
+          <button aria-label="查看视频数据表" className={view === "videoData" ? "active" : undefined} onClick={() => { setView("videoData"); setSelectedFolderPath(null); }}>
+            <Database size={18} /><span>视频数据表</span>
+          </button>
           <button aria-label="查看资产中心" className={view === "assetCenter" ? "active" : undefined} onClick={() => { setView("assetCenter"); setSelectedFolderPath(null); }}>
             <PieChart size={18} /><span>资产中心</span>
           </button>
@@ -895,7 +901,10 @@ export function LibraryShell({
         )}
 
         {usesCommonToolbar && (error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
-        {view === "assetCenter" ? (
+        {view === "folder" && videoDataApi && <button className="secondary-button" onClick={() => setView("videoData")}>在视频数据表中查看此目录</button>}
+        {view === "videoData" ? (
+          videoDataApi ? <VideoDataPage load={videoDataApi.listVideoData} exportCsv={videoDataApi.exportVideoData} folders={folders} initialDirectory={selectedFolderPath ?? ""} onDetails={setDetailsTarget} onDiagnostic={video => { setDiagnosticVideoId(video.id); setDiagnosticInitialVideo(video); setView("playbackDiagnostic"); }} /> : <div className="empty-state">视频数据表服务未连接</div>
+        ) : view === "assetCenter" ? (
           onLoadAssetCenterSummary && onLoadAssetCenterSources
             ? <AssetCenterPage
                 scanStatuses={scanStatuses}
@@ -906,7 +915,7 @@ export function LibraryShell({
                   setSelectedFolderPath(null);
                   if (nextView === "scanFailures") setScanFailureSourceFolderId(undefined);
                   if (nextView === "duplicates") setDuplicatePageNumber(1);
-                  setView(nextView);
+                  setView(nextView === "all" ? "videoData" : nextView);
                 }}
                 onOpenMissing={(sourceFolderId) => {
                   setSelectedFolderPath(null);

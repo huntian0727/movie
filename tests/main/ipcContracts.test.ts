@@ -12,6 +12,8 @@ describe("IPC_CHANNELS", () => {
       assetCenterSummary: "asset-center:summary",
       assetCenterSources: "asset-center:sources",
       playbackDiagnosticSearch: "playback-diagnostic:search",
+      videoDataPage: "video-data:page",
+      videoDataExport: "video-data:export",
       libraryMissingList: "library:missing-list",
       libraryMissingPage: "library:missing-page",
       libraryMissingRecheck: "library:missing-recheck",

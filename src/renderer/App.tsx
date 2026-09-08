@@ -492,6 +492,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       onLoadVideosByIds={api.listVideosByIds}
       playbackPreference={settings.playbackPreference}
       onLoadAssetCenterSummary={api.getAssetCenterSummary}
+      videoDataApi={api}
       onLoadAssetCenterSources={api.listAssetCenterSources}
       scanStatuses={scanStatuses}
       loading={loading}

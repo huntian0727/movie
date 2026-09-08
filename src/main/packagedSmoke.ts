@@ -12,6 +12,8 @@ import { MEDIA_SCHEME } from "./media/mediaProtocol.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
 import { resolvePackagedExecutablePath } from "./media/packagedExecutable.js";
 import type { PlaybackDiagnosticReadService } from "./playbackDiagnostic/playbackDiagnosticQueryService.js";
+import type { VideoDataService } from "./videoData/videoDataService.js";
+import { videoDataQuerySchema } from "../shared/videoDataTable.js";
 import { configureWindowSecurity } from "./security.js";
 
 interface PackagedSmokeContext {
@@ -25,6 +27,7 @@ interface PackagedSmokeContext {
   metadataQueue: MetadataQueue;
   assetCenterQueries: AssetCenterReadService;
   playbackDiagnosticQueries: PlaybackDiagnosticReadService;
+  videoDataQueries: VideoDataService;
 }
 
 interface StaticBinaryModule {
@@ -112,6 +115,10 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
     context.playbackDiagnosticQueries.search({ search: "packaged-smoke-fixture", page: 1, pageSize: 30 })
   ]);
   checks.assetCenterWorkerQuery = assetSummary.totalVideoCount === 1;
+  const dataPage = await context.videoDataQueries.page(videoDataQuerySchema.parse({ search: "packaged-smoke-fixture" }));
+  checks.videoDataWorkerQuery = dataPage.totalCount === 1 && dataPage.items[0]?.filename === "sample.mp4";
+  const exportCount = await context.videoDataQueries.export(videoDataQuerySchema.parse({}), { all: true, ids: [], excludedIds: [] }, path.join(context.userDataPath, `video-data-${context.phase}.csv`));
+  checks.videoDataWorkerExport = exportCount === 1;
   const duplicateQuery = { page: 1, pageSize: 20, sortDirection: "desc" } as const;
   const duplicatePage = await context.assetCenterQueries.listDuplicates(duplicateQuery);
   checks.duplicateWorkerQuery = JSON.stringify(duplicatePage) === JSON.stringify(context.repo.listDuplicateGroupsPage(duplicateQuery));

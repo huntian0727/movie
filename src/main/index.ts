@@ -8,6 +8,7 @@ import { createDatabase, DatabaseMigrationError } from "./db/database.js";
 import { VideoRepository } from "./db/videoRepository.js";
 import { AssetCenterQueryService } from "./assetCenter/assetCenterQueryService.js";
 import { PlaybackDiagnosticQueryService } from "./playbackDiagnostic/playbackDiagnosticQueryService.js";
+import { VideoDataService } from "./videoData/videoDataService.js";
 import { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { ScanManager } from "./media/scanManager.js";
@@ -53,6 +54,7 @@ let playerWindows: PlayerWindowCoordinator | undefined;
 let duplicateCleanup: DuplicateCleanupService | undefined;
 let assetCenterQueries: AssetCenterQueryService | undefined;
 let playbackDiagnosticQueries: PlaybackDiagnosticQueryService | undefined;
+let videoDataQueries: VideoDataService | undefined;
 let databaseOpened = false;
 
 protocol.registerSchemesAsPrivileged([
@@ -143,6 +145,7 @@ app.whenReady().then(async () => {
   const repo = new VideoRepository(database);
   assetCenterQueries = new AssetCenterQueryService(databasePath);
   playbackDiagnosticQueries = new PlaybackDiagnosticQueryService(databasePath);
+  videoDataQueries = new VideoDataService(databasePath);
   const settings = await createSettingsStore();
   configureCloudDriveRuntime(settings.get().cloudDrive, process.env);
   const userDataPath = app.getPath("userData");
@@ -186,6 +189,7 @@ app.whenReady().then(async () => {
     database,
     assetCenterQueries,
     playbackDiagnosticQueries,
+    videoDataQueries,
     logger,
     diagnosticEnvironment: createDiagnosticEnvironment({
       appVersion: app.getVersion(),
@@ -224,7 +228,8 @@ app.whenReady().then(async () => {
       scanManager,
       metadataQueue,
       assetCenterQueries,
-      playbackDiagnosticQueries
+      playbackDiagnosticQueries,
+      videoDataQueries
     });
     app.quit();
     return;
@@ -309,6 +314,8 @@ app.on("before-quit", () => {
     });
   });
   playbackDiagnosticQueries = undefined;
+  void videoDataQueries?.dispose();
+  videoDataQueries = undefined;
   assetCenterQueries?.dispose();
   assetCenterQueries = undefined;
   duplicateCleanup?.stop();

@@ -11,6 +11,8 @@ import type { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository
 import type { VideoRepository } from "./db/videoRepository.js";
 import type { AssetCenterReadService } from "./assetCenter/assetCenterQueryService.js";
 import type { PlaybackDiagnosticReadService } from "./playbackDiagnostic/playbackDiagnosticQueryService.js";
+import type { VideoDataService } from "./videoData/videoDataService.js";
+import { videoDataQuerySchema, videoDataSelectionSchema } from "../shared/videoDataTable.js";
 import {
   configureCloudDriveRuntime,
   browseConfiguredCloudDriveFolder,
@@ -307,6 +309,7 @@ interface IpcDependencies {
   database: DatabaseConnection;
   assetCenterQueries: AssetCenterReadService;
   playbackDiagnosticQueries: PlaybackDiagnosticReadService;
+  videoDataQueries?: VideoDataService;
   logger: StructuredLogger;
   diagnosticEnvironment: DiagnosticEnvironment;
   settings: SettingsStore;
@@ -474,6 +477,19 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     dependencies.playbackDiagnosticQueries.search(playbackDiagnosticSearchQuerySchema.parse(query))
   );
   ipcMain.handle(IPC_CHANNELS.libraryMissingList, () => repo.listMissingVideos());
+  ipcMain.handle(IPC_CHANNELS.videoDataPage, (_event, query) => {
+    if (!dependencies.videoDataQueries) throw new Error("数据表服务未连接");
+    return dependencies.videoDataQueries.page(videoDataQuerySchema.parse(query));
+  });
+  ipcMain.handle(IPC_CHANNELS.videoDataExport, async (_event, query, selection) => {
+    const parsed = videoDataQuerySchema.parse(query);
+    const selected = videoDataSelectionSchema.parse(selection);
+    if (!dependencies.videoDataQueries) throw new Error("数据表服务未连接");
+    const target = await dialog.showSaveDialog({ title: "导出视频数据表", defaultPath: "视频数据表.csv", filters: [{ name: "CSV", extensions: ["csv"] }] });
+    if (target.canceled || !target.filePath) return { cancelled: true, count: 0 };
+    const count = await dependencies.videoDataQueries.export(parsed, selected, target.filePath);
+    return { cancelled: false, count, path: target.filePath };
+  });
   ipcMain.handle(IPC_CHANNELS.libraryMissingPage, (_event, query) => repo.listMissingVideoPage(missingVideoPageQuerySchema.parse(query)));
   ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, (_event, query) => {
     const page = repo.listMetadataIssuePage(metadataIssuePageQuerySchema.parse(query));

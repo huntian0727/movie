@@ -6,7 +6,7 @@ export const DUPLICATE_PAGE_SIZES = [10, 20, 50, 100, 200, 300, 500] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 export type DuplicatePageSize = (typeof DUPLICATE_PAGE_SIZES)[number];
 export type SortDirection = "asc" | "desc";
-export type LibraryView = "assetCenter" | "playbackDiagnostic" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "missingVideos" | "metadataIssues" | "duplicates";
+export type LibraryView = "videoData" | "assetCenter" | "playbackDiagnostic" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "missingVideos" | "metadataIssues" | "duplicates";
 export type ViewMode = "grid" | "table";
 export type MetadataStatus = "pending" | "ready" | "failed";
 export type CodecProbeStatus = "unprobed" | "ready" | "failed";
@@ -967,6 +967,8 @@ export const IPC_CHANNELS = {
   assetCenterSummary: "asset-center:summary",
   assetCenterSources: "asset-center:sources",
   playbackDiagnosticSearch: "playback-diagnostic:search",
+  videoDataPage: "video-data:page",
+  videoDataExport: "video-data:export",
   libraryMissingList: "library:missing-list",
   libraryMissingPage: "library:missing-page",
   libraryMissingRecheck: "library:missing-recheck",
@@ -1054,6 +1056,8 @@ export interface VideoManagerApi {
   listVideoPage(query: LibraryPageQuery): Promise<LibraryPage>;
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
   getAssetCenterSummary(): Promise<AssetCenterSummary>;
+  listVideoData(query: import("./videoDataTable.js").VideoDataQuery): Promise<import("./videoDataTable.js").VideoDataPage>;
+  exportVideoData(query: import("./videoDataTable.js").VideoDataQuery, selection: import("./videoDataTable.js").VideoDataSelection): Promise<import("./videoDataTable.js").VideoDataExportResult>;
   listAssetCenterSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
   searchPlaybackDiagnosticVideos(query: PlaybackDiagnosticSearchQuery): Promise<LibraryPage>;
   listMissingVideos(): Promise<VideoRecord[]>;
