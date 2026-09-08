@@ -120,7 +120,7 @@ describe("LibraryShell", () => {
   it("shows a clear placeholder while background metadata analysis is pending", () => {
     render(<LibraryShell videos={[{ ...video, durationMs: null, width: null, height: null, metadataStatus: "pending" }]} />);
 
-    expect(screen.getByText("分析中")).toBeInTheDocument();
+    expect(screen.getByText("待分析")).toBeInTheDocument();
     expect(screen.getByText("分辨率未知")).toBeInTheDocument();
   });
 
@@ -598,7 +598,7 @@ describe("LibraryShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
 
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalledWith({ page: 1, pageSize: 20, sortDirection: "desc" }));
-    expect(screen.getAllByText("41")).toHaveLength(2);
+    expect(screen.getByLabelText("目录清理排行")).toHaveTextContent("41");
 
     fireEvent.change(screen.getByLabelText("候选项大小排序"), { target: { value: "asc" } });
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith({ page: 1, pageSize: 20, sortDirection: "asc" }));

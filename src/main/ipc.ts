@@ -508,7 +508,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.videoListByIds, (_event, videoIds) => repo.listVideosByIds(z.array(z.string().min(1)).max(300).parse(videoIds)));
 
   ipcMain.handle(IPC_CHANNELS.duplicateList, (_event, query) =>
-    repo.listDuplicateGroupsPage(duplicateGroupPageQuerySchema.parse(query))
+    dependencies.assetCenterQueries.listDuplicates(duplicateGroupPageQuerySchema.parse(query))
   );
 
   ipcMain.handle(IPC_CHANNELS.duplicatePreviewResolve, async (_event, payload) => {

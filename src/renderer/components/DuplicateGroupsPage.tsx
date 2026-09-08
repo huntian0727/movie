@@ -23,6 +23,7 @@ import type {
 } from "../../shared/videoTypes";
 import { formatBytes, formatDate, formatDuration } from "./formatters";
 import { DirectoryPicker } from "./DirectoryPicker";
+import { DuplicateDirectoryRanking } from "./DuplicateDirectoryRanking";
 import { DuplicateCleanupTasksPanel } from "./DuplicateCleanupTasksPanel";
 import { DuplicateCleanupButton } from "./DuplicateCleanupButton";
 
@@ -439,6 +440,7 @@ export function DuplicateGroupsPage({
             {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
           </div>
         </div>
+        <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={onPreferredDirectoryPathChange} />
         <div className="empty-state duplicate-empty-state">
           <div><Trash2 size={36} /></div>
           <h3>{filterDirectoryPath && overallTotalGroups > 0 ? "该目录当前没有重复项" : totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}</h3>
@@ -605,6 +607,7 @@ export function DuplicateGroupsPage({
         </div>
       </div>
 
+      <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={onPreferredDirectoryPathChange} />
       <div className="duplicate-groups">
         {!filteredSubmissionHidden && sortedGroups.map((group, index) => (
           <DuplicateGroupCard

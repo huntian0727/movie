@@ -606,6 +606,19 @@ button.asset-health-row:hover { background: #1d1f1d; }
 .duplicate-summary-actions > .verification-action:hover,
 .dialog-actions .verification-primary:hover { border-color: var(--workflow-accent-strong); background: #315a72; }
 .duplicate-groups { display: grid; gap: 16px; }
+.duplicate-directory-ranking { margin: 0 0 16px; padding: 16px; border: 1px solid #343834; border-radius: 10px; background: #191c19; }
+.duplicate-directory-ranking header, .duplicate-directory-ranking footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+.duplicate-directory-ranking h3 { margin: 0; font-size: 15px; }
+.duplicate-directory-ranking p { color: #a0aaa0; font-size: 12px; }
+.duplicate-directory-ranking input { min-width: 230px; padding: 8px; color: #eef0ed; background: #202420; border: 1px solid #485148; border-radius: 6px; }
+.duplicate-ranking-scroll { overflow-x: auto; }
+.duplicate-directory-ranking table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.duplicate-directory-ranking th, .duplicate-directory-ranking td { padding: 10px; text-align: left; border-bottom: 1px solid #303630; }
+.duplicate-directory-ranking td:first-child { min-width: 220px; max-width: 550px; overflow-wrap: anywhere; }
+.duplicate-directory-ranking td:not(:first-child) { white-space: nowrap; }
+.duplicate-directory-ranking button { padding: 7px 10px; color: #c2dec9; border: 1px solid #46644e; border-radius: 5px; background: #223427; cursor: pointer; }
+.duplicate-directory-ranking button:disabled { opacity: .45; cursor: default; }
+.duplicate-directory-ranking footer { margin-top: 12px; color: #a0aaa0; font-size: 12px; }
 .duplicate-pagination { margin: 0; }
 .duplicate-group-card { border: 1px solid #2a2c2a; border-radius: 12px; overflow: hidden; background: #171817; }
 .duplicate-group-header { padding: 16px 18px; border-bottom: 1px solid #252625; }

@@ -1,4 +1,5 @@
 import { Worker } from "node:worker_threads";
+import type { DuplicateGroupPage, DuplicateGroupPageQuery } from "../../shared/videoTypes.js";
 import type {
   AssetCenterSourcePage,
   AssetCenterSourceQuery,
@@ -15,6 +16,7 @@ export interface AssetCenterQueryWorker {
 }
 
 export interface AssetCenterReadService {
+  listDuplicates(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   getSummary(): Promise<AssetCenterSummary>;
   listSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
 }
@@ -24,11 +26,12 @@ interface AssetCenterQueryServiceOptions {
 }
 
 interface PendingRequest {
-  resolve(value: AssetCenterSummary | AssetCenterSourcePage): void;
+  resolve(value: AssetCenterSummary | AssetCenterSourcePage | DuplicateGroupPage): void;
   reject(error: Error): void;
 }
 
 type AssetCenterWorkerOperation =
+  | { operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { operation: "summary" }
   | { operation: "sources"; query: AssetCenterSourceQuery };
 
@@ -47,6 +50,10 @@ export class AssetCenterQueryService implements AssetCenterReadService {
     return this.request<AssetCenterSummary>({ operation: "summary" });
   }
 
+  listDuplicates(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage> {
+    return this.request<DuplicateGroupPage>({ operation: "duplicates", query });
+  }
+
   listSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage> {
     return this.request<AssetCenterSourcePage>({ operation: "sources", query });
   }
@@ -60,7 +67,7 @@ export class AssetCenterQueryService implements AssetCenterReadService {
     if (worker) void worker.terminate();
   }
 
-  private request<Result extends AssetCenterSummary | AssetCenterSourcePage>(
+  private request<Result extends AssetCenterSummary | AssetCenterSourcePage | DuplicateGroupPage>(
     request: AssetCenterWorkerOperation
   ): Promise<Result> {
     if (this.disposed) {

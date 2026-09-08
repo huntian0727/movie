@@ -112,6 +112,9 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
     context.playbackDiagnosticQueries.search({ search: "packaged-smoke-fixture", page: 1, pageSize: 30 })
   ]);
   checks.assetCenterWorkerQuery = assetSummary.totalVideoCount === 1;
+  const duplicateQuery = { page: 1, pageSize: 20, sortDirection: "desc" } as const;
+  const duplicatePage = await context.assetCenterQueries.listDuplicates(duplicateQuery);
+  checks.duplicateWorkerQuery = JSON.stringify(duplicatePage) === JSON.stringify(context.repo.listDuplicateGroupsPage(duplicateQuery));
   checks.playbackDiagnosticWorkerQuery =
     diagnosticPage.totalCount === 1 && diagnosticPage.videos[0]?.filename === "sample.mp4";
 
@@ -158,6 +161,10 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
       });
       const assetCenterHeading = await waitForSelector('.asset-center-page h1', 'Default Asset Center view was not found');
       const defaultAssetCenter = assetCenterHeading.textContent?.trim() === '资产中心';
+      const duplicatesButton = await waitForSelector('button[aria-label="查看重复项"]', 'Duplicates navigation control was not found');
+      duplicatesButton.click();
+      await waitForSelector('[aria-label="目录清理排行"]', 'Directory ranking was not found');
+      const directoryRankingVisible = true;
       const allVideosButton = await waitForSelector('button[aria-label="查看所有视频"]', 'All Videos navigation control was not found');
       allVideosButton.click();
       await waitForSelector('.video-cover', 'All Videos view did not render after navigation');
@@ -202,6 +209,7 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
       const afterPolling = document.querySelector('.video-cover img');
       return {
         defaultAssetCenter,
+        directoryRankingVisible,
         previewGeneratedBeforeMetadata: before[0].metadataStatus === 'pending' && bytes?.length > 0,
         previewDecodedInRenderer: visibleCover.complete && visibleCover.naturalWidth > 0,
         previewCacheHit: cached?.length > 0,

@@ -48,6 +48,13 @@ function cleanupJob(overrides: Partial<DuplicateCleanupJob> = {}): DuplicateClea
 }
 
 describe("DuplicateGroupsPage staged safety flow", () => {
+  it("selects a directory directly from the visible ranking without opening the picker", () => {
+    const onPreferredDirectoryPathChange = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} onPreferredDirectoryPathChange={onPreferredDirectoryPathChange}
+      directoryOptions={[{ path: "D:\\Ranked", groupCount: 2, estimatedCleanupFileCount: 3, estimatedReclaimableBytes: 4096 }]} />);
+    fireEvent.click(screen.getByRole("button", { name: "从排行优先保留 D:\\Ranked" }));
+    expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("D:\\Ranked");
+  });
   it("keeps candidate browsing metadata-only and explains verified one-click deletion", () => {
     const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
     expect(screen.getByText("候选组 01")).toBeInTheDocument();

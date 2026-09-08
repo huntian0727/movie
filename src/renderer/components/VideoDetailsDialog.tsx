@@ -96,7 +96,7 @@ export function VideoDetailsDialog({ video, onClose, onOpenDiagnostic }: VideoDe
             <DetailItem label="收藏状态" value={video.isFavorite ? "已收藏" : "未收藏"} />
             <DetailItem label="待删除状态" value={video.isPendingDelete ? "已标记待删除" : "未标记"} />
             <DetailItem label="文件状态" value={video.isMissing ? "文件缺失" : "文件正常"} />
-            <DetailItem label="元数据状态" value={formatStatus(video.metadataStatus)} />
+            <DetailItem label="元数据状态" value={video.metadataStatus === "pending" ? "待分析（可能尚未入队）" : formatStatus(video.metadataStatus)} />
             <DetailItem label="封面状态" value={formatStatus(video.thumbnailStatus)} />
             <DetailItem label="时间轴预览" value={formatStatus(video.timelinePreviewStatus)} />
           </DetailSection>

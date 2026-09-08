@@ -72,7 +72,7 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  onOpen(video);
+                  selectionMode ? onToggleSelection?.(video) : onOpen(video);
                 }
               }}
             >
@@ -91,7 +91,7 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
               <span className="format-badge">{video.extension.slice(1).toUpperCase()}</span>
               <span className="duration-badge">
                 {video.metadataStatus === "pending"
-                  ? "分析中"
+                  ? "待分析"
                   : video.metadataStatus === "failed"
                     ? "元数据失败"
                     : video.thumbnailStatus === "failed"

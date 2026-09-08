@@ -1,4 +1,5 @@
 import { parentPort, workerData } from "node:worker_threads";
+import { VideoRepository } from "../db/videoRepository.js";
 import { getAssetCenterSummary, listAssetCenterSources } from "./assetCenterQueries.js";
 import { openAssetCenterReadonlyDatabase } from "./assetCenterReadonlyDatabase.js";
 import type { AssetCenterWorkerRequest, AssetCenterWorkerResponse } from "./assetCenterWorkerProtocol.js";
@@ -18,11 +19,20 @@ if (typeof data.databasePath !== "string" || data.databasePath.length === 0) {
 }
 
 const database = openAssetCenterReadonlyDatabase(data.databasePath);
+let repository = new VideoRepository(database);
+let dataVersion = database.pragma("data_version", { simple: true });
 
 port.on("message", (request: AssetCenterWorkerRequest) => {
   let response: AssetCenterWorkerResponse;
   try {
-    if (request.operation === "summary") {
+    if (request.operation === "duplicates") {
+      const nextVersion = database.pragma("data_version", { simple: true });
+      if (nextVersion !== dataVersion) {
+        repository = new VideoRepository(database);
+        dataVersion = nextVersion;
+      }
+      response = { id: request.id, ok: true, result: repository.listDuplicateGroupsPage(request.query) };
+    } else if (request.operation === "summary") {
       response = { id: request.id, ok: true, result: getAssetCenterSummary(database) };
     } else {
       response = { id: request.id, ok: true, result: listAssetCenterSources(database, request.query) };
