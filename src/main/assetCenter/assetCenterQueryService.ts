@@ -3,6 +3,8 @@ import type {
   DuplicateGroupPage,
   DuplicateGroupPageQuery,
   LibraryNavigationSnapshot,
+  MetadataIssuePage,
+  MetadataIssuePageQuery,
   SourceFolder
 } from "../../shared/videoTypes.js";
 import type {
@@ -23,6 +25,7 @@ export interface AssetCenterQueryWorker {
 export interface AssetCenterReadService {
   listDuplicates(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   listFolders(): Promise<SourceFolder[]>;
+  listMetadataIssues(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
   getSummary(): Promise<AssetCenterSummary>;
   listSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
@@ -42,11 +45,13 @@ type AssetCenterQueryResult =
   | AssetCenterSourcePage
   | DuplicateGroupPage
   | LibraryNavigationSnapshot
+  | MetadataIssuePage
   | SourceFolder[];
 
 type AssetCenterWorkerOperation =
   | { operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { operation: "folders" }
+  | { operation: "metadataIssues"; query: MetadataIssuePageQuery }
   | { operation: "navigation" }
   | { operation: "summary" }
   | { operation: "sources"; query: AssetCenterSourceQuery };
@@ -72,6 +77,10 @@ export class AssetCenterQueryService implements AssetCenterReadService {
 
   listFolders(): Promise<SourceFolder[]> {
     return this.request<SourceFolder[]>({ operation: "folders" });
+  }
+
+  listMetadataIssues(query: MetadataIssuePageQuery): Promise<MetadataIssuePage> {
+    return this.request<MetadataIssuePage>({ operation: "metadataIssues", query });
   }
 
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot> {

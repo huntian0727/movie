@@ -11,7 +11,7 @@ import {
 import { openAssetCenterReadonlyDatabase } from "../../src/main/assetCenter/assetCenterReadonlyDatabase.js";
 import type { AssetCenterWorkerRequest, AssetCenterWorkerResponse } from "../../src/main/assetCenter/assetCenterWorkerProtocol.js";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database.js";
-import type { AssetCenterSummary, LibraryNavigationSnapshot, SourceFolder } from "../../src/shared/videoTypes.js";
+import type { AssetCenterSummary, LibraryNavigationSnapshot, MetadataIssuePage, SourceFolder } from "../../src/shared/videoTypes.js";
 
 let tempDirectory: string | undefined;
 let database: DatabaseConnection | undefined;
@@ -56,6 +56,18 @@ describe("AssetCenterQueryService", () => {
     worker.emitMessage({ id: 2, ok: true, result: NAVIGATION });
     await expect(folders).resolves.toEqual(FOLDERS);
     await expect(navigation).resolves.toEqual(NAVIGATION);
+  });
+
+  it("routes metadata issue pages through the read-only worker", async () => {
+    const worker = new FakeQueryWorker();
+    service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => worker });
+
+    const query = { status: "all", zeroBytesOnly: false, search: "", page: 1, pageSize: 30 } as const;
+    const result = service.listMetadataIssues(query);
+    expect(worker.messages).toEqual([{ id: 1, operation: "metadataIssues", query }]);
+
+    worker.emitMessage({ id: 1, ok: true, result: METADATA_PAGE });
+    await expect(result).resolves.toEqual(METADATA_PAGE);
   });
 
   it("rejects pending work on worker failure and lazily replaces the worker", async () => {
@@ -185,4 +197,18 @@ const NAVIGATION: LibraryNavigationSnapshot = {
   pendingMetadataVideos: 1,
   scanFailureCount: 0,
   directoryPaths: ["F:\\library"]
+};
+
+const METADATA_PAGE: MetadataIssuePage = {
+  items: [],
+  page: 1,
+  pageSize: 30,
+  totalPages: 1,
+  totalCount: 0,
+  automaticCount: 0,
+  deferredCount: 0,
+  failedCount: 0,
+  zeroByteCount: 0,
+  queuedCount: 0,
+  activeCount: 0
 };

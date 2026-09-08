@@ -99,6 +99,6 @@ describe("MetadataIssuesPage", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("database busy"));
 
     rerender(<MetadataIssuesPage {...props} refreshSequence={1} />);
-    await waitFor(() => expect(screen.getByText("当前筛选下没有元数据异常")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("当前筛选下没有元数据异常")).toBeInTheDocument(), { timeout: 2_500 });
   });
 });

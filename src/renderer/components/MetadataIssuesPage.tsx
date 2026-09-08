@@ -29,6 +29,8 @@ const EMPTY_PAGE: MetadataIssuePage = {
   queuedCount: 0, activeCount: 0
 };
 
+const BACKGROUND_REFRESH_DEBOUNCE_MS = 1_200;
+
 export function MetadataIssuesPage({
   folders, initialSourceFolderId, refreshSequence, loadPage, onRetry, onRefreshSizes, onOpenLocation, onTotalCount
 }: MetadataIssuesPageProps) {
@@ -47,6 +49,7 @@ export function MetadataIssuesPage({
   const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
   const [actionDetails, setActionDetails] = useState<Array<{ path: string; message: string }>>([]);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [coalescedRefreshSequence, setCoalescedRefreshSequence] = useState(refreshSequence);
   const requestRef = useRef(0);
 
   useEffect(() => {
@@ -58,6 +61,15 @@ export function MetadataIssuesPage({
     const timer = window.setTimeout(() => setSearch(searchDraft.trim()), 250);
     return () => window.clearTimeout(timer);
   }, [searchDraft]);
+
+  useEffect(() => {
+    if (refreshSequence === coalescedRefreshSequence) return;
+    const timer = window.setTimeout(
+      () => setCoalescedRefreshSequence(refreshSequence),
+      BACKGROUND_REFRESH_DEBOUNCE_MS
+    );
+    return () => window.clearTimeout(timer);
+  }, [coalescedRefreshSequence, refreshSequence]);
 
   useEffect(() => {
     setPageNumber(1);
@@ -79,7 +91,7 @@ export function MetadataIssuesPage({
       })
       .catch((cause) => { if (request === requestRef.current) setError(toMessage(cause)); })
       .finally(() => { if (request === requestRef.current) setLoading(false); });
-  }, [loadPage, onTotalCount, pageNumber, pageSize, refreshSequence, refreshVersion, search, sourceFolderId, status, zeroBytesOnly]);
+  }, [coalescedRefreshSequence, loadPage, onTotalCount, pageNumber, pageSize, refreshVersion, search, sourceFolderId, status, zeroBytesOnly]);
 
   const selectedFolder = useMemo(() => folders.find((folder) => folder.id === sourceFolderId), [folders, sourceFolderId]);
   const allCurrentPageSelected = result.items.length > 0 && result.items.every((item) => selectedIds.has(item.video.id));

@@ -110,11 +110,13 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
     checks.videoCount = videos.length;
   }
 
-  const [assetSummary, diagnosticPage, folders, navigation] = await Promise.all([
+  const metadataQuery = { status: "all", zeroBytesOnly: false, search: "", page: 1, pageSize: 30 } as const;
+  const [assetSummary, diagnosticPage, folders, navigation, metadataPage] = await Promise.all([
     context.assetCenterQueries.getSummary(),
     context.playbackDiagnosticQueries.search({ search: "packaged-smoke-fixture", page: 1, pageSize: 30 }),
     context.assetCenterQueries.listFolders(),
-    context.assetCenterQueries.getLibraryNavigation()
+    context.assetCenterQueries.getLibraryNavigation(),
+    context.assetCenterQueries.listMetadataIssues(metadataQuery)
   ]);
   checks.assetCenterWorkerQuery = assetSummary.totalVideoCount === 1;
   checks.libraryOverviewWorkerQuery = folders.length === 1 && navigation.totalVideos === 1;
@@ -125,6 +127,7 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
   const duplicateQuery = { page: 1, pageSize: 20, sortField: "duplicateCount", sortDirection: "desc" } as const;
   const duplicatePage = await context.assetCenterQueries.listDuplicates(duplicateQuery);
   checks.duplicateWorkerQuery = JSON.stringify(duplicatePage) === JSON.stringify(context.repo.listDuplicateGroupsPage(duplicateQuery));
+  checks.metadataIssuesWorkerQuery = JSON.stringify(metadataPage) === JSON.stringify(context.repo.listMetadataIssuePage(metadataQuery));
   checks.playbackDiagnosticWorkerQuery =
     diagnosticPage.totalCount === 1 && diagnosticPage.videos[0]?.filename === "sample.mp4";
 

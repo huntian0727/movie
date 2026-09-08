@@ -45,6 +45,7 @@ describe("resolvePackagedExecutablePath", () => {
     expect(source).toContain("context.playbackDiagnosticQueries.search");
     expect(source).toContain("assetCenterWorkerQuery");
     expect(source).toContain("libraryOverviewWorkerQuery");
+    expect(source).toContain("metadataIssuesWorkerQuery");
     expect(source).toContain("defaultAssetCenter");
     expect(source).toContain("default-asset-center-verified");
     expect(source).toContain("playbackDiagnosticWorkerQuery");

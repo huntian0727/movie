@@ -1492,18 +1492,33 @@ export class VideoRepository {
         AND metadata_failure.failure_stage = 'metadata'
         AND metadata_failure.status != 'resolved'
       WHERE ${baseWhere}`;
-    const counts = this.db.prepare(`${duplicateSizeCte}
-      SELECT
-        COALESCE(SUM(CASE WHEN (${analysisStateExpression}) = 'automatic' THEN 1 ELSE 0 END), 0) AS automatic_count,
-        COALESCE(SUM(CASE WHEN (${analysisStateExpression}) = 'deferred' THEN 1 ELSE 0 END), 0) AS deferred_count,
-        COALESCE(SUM(CASE WHEN (${analysisStateExpression}) = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count,
-        COALESCE(SUM(CASE WHEN videos.size_bytes = 0 THEN 1 ELSE 0 END), 0) AS zero_byte_count
-      ${fromClause}
-    `).get(params) as { automatic_count: number; deferred_count: number; failed_count: number; zero_byte_count: number };
     const statusClause = query.status === "all" ? "" : ` AND (${analysisStateExpression}) = @status`;
     if (query.status !== "all") params.status = query.status;
     const zeroByteClause = query.zeroBytesOnly ? " AND videos.size_bytes = 0" : "";
-    const totalCount = (this.db.prepare(`${duplicateSizeCte} SELECT COUNT(*) AS count ${fromClause}${statusClause}${zeroByteClause}`).get(params) as CountRow).count;
+    const selectedCountClause = [
+      query.status === "all" ? "1 = 1" : "analysis_state = @status",
+      query.zeroBytesOnly ? "size_bytes = 0" : "1 = 1"
+    ].join(" AND ");
+    const counts = this.db.prepare(`${duplicateSizeCte},
+      classified_issues AS MATERIALIZED (
+        SELECT videos.size_bytes, ${analysisStateExpression} AS analysis_state
+        ${fromClause}
+      )
+      SELECT
+        COALESCE(SUM(CASE WHEN analysis_state = 'automatic' THEN 1 ELSE 0 END), 0) AS automatic_count,
+        COALESCE(SUM(CASE WHEN analysis_state = 'deferred' THEN 1 ELSE 0 END), 0) AS deferred_count,
+        COALESCE(SUM(CASE WHEN analysis_state = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count,
+        COALESCE(SUM(CASE WHEN size_bytes = 0 THEN 1 ELSE 0 END), 0) AS zero_byte_count,
+        COALESCE(SUM(CASE WHEN ${selectedCountClause} THEN 1 ELSE 0 END), 0) AS total_count
+      FROM classified_issues
+    `).get(params) as {
+      automatic_count: number;
+      deferred_count: number;
+      failed_count: number;
+      zero_byte_count: number;
+      total_count: number;
+    };
+    const totalCount = counts.total_count;
     const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
     const page = Math.min(query.page, totalPages);
     const rows = this.db.prepare(`${duplicateSizeCte}

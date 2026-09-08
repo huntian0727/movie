@@ -97,13 +97,44 @@ describe("Asset Center performance gate", () => {
     expect(elapsedMs).toBeLessThan(SOURCE_PAGE_BUDGET_MS);
 
     database.prepare("UPDATE videos SET metadata_status = CASE WHEN rowid % 4 = 0 THEN 'failed' ELSE 'pending' END").run();
+    const insertFailure = database.prepare(`
+      INSERT INTO scan_failures (
+        id, source_folder_id, scan_task_id, object_type, object_path, normalized_path,
+        failure_stage, error_code, error_summary, first_failed_at, last_failed_at,
+        retry_count, status, resolved_at
+      ) VALUES (
+        @id, @sourceFolderId, @scanTaskId, 'file', @objectPath, @normalizedPath,
+        'metadata', 'EPROBE', 'ffprobe failed', @timestamp, @timestamp,
+        1, 'unresolved', NULL
+      )
+    `);
+    database.transaction(() => {
+      for (let failureIndex = 0; failureIndex < 5_000; failureIndex += 1) {
+        const videoIndex = failureIndex * 64 + 3;
+        const source = sources[videoIndex % SOURCE_COUNT]!;
+        const filename = `video-${String(videoIndex).padStart(6, "0")}.mp4`;
+        const directory = `${source.path}\\bucket-${Math.floor(videoIndex / 10_000)}`;
+        const objectPath = `${directory}\\${filename}`;
+        insertFailure.run({
+          id: `metadata-failure-${failureIndex}`,
+          sourceFolderId: source.id,
+          scanTaskId: `metadata:asset-video-${videoIndex}`,
+          objectPath,
+          normalizedPath: objectPath.toLocaleLowerCase(),
+          timestamp
+        });
+      }
+    })();
+    statementCount = 0;
+    const measuredRepository = new VideoRepository(measuredDatabase);
     const metadataStartedAt = performance.now();
-    const metadataPage = repo.listMetadataIssuePage({ status: "all", zeroBytesOnly: false, search: "", page: 1, pageSize: 100 });
+    const metadataPage = measuredRepository.listMetadataIssuePage({ status: "all", zeroBytesOnly: false, search: "", page: 1, pageSize: 100 });
     const metadataElapsedMs = performance.now() - metadataStartedAt;
-    console.info(`Metadata issues 320k page: ${metadataElapsedMs.toFixed(2)} ms`);
+    console.info(`Metadata issues 320k/5k-failure page: ${metadataElapsedMs.toFixed(2)} ms, ${statementCount} statements`);
 
     expect(metadataPage).toMatchObject({ totalCount: VIDEO_COUNT, automaticCount: 240_000, deferredCount: 0, failedCount: 80_000 });
     expect(metadataPage.items).toHaveLength(100);
+    expect(statementCount).toBe(2);
     expect(metadataElapsedMs).toBeLessThan(METADATA_PAGE_BUDGET_MS);
   }, 60_000);
 });

@@ -33,6 +33,8 @@ port.on("message", (request: AssetCenterWorkerRequest) => {
     } else if (request.operation === "folders") {
       cachedFolders ??= repository.listSourceFoldersWithStats();
       response = { id: request.id, ok: true, result: cachedFolders };
+    } else if (request.operation === "metadataIssues") {
+      response = { id: request.id, ok: true, result: repository.listMetadataIssuePage(request.query) };
     } else if (request.operation === "navigation") {
       cachedNavigation ??= repository.getLibraryNavigation();
       response = { id: request.id, ok: true, result: cachedNavigation };

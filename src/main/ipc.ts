@@ -492,8 +492,8 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return { cancelled: false, count, path: target.filePath };
   });
   ipcMain.handle(IPC_CHANNELS.libraryMissingPage, (_event, query) => repo.listMissingVideoPage(missingVideoPageQuerySchema.parse(query)));
-  ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, (_event, query) => {
-    const page = repo.listMetadataIssuePage(metadataIssuePageQuerySchema.parse(query));
+  ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, async (_event, query) => {
+    const page = await dependencies.assetCenterQueries.listMetadataIssues(metadataIssuePageQuerySchema.parse(query));
     const queueStatus = dependencies.metadataQueue.getStatus();
     return {
       ...page,

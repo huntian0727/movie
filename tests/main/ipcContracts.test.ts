@@ -169,7 +169,7 @@ describe("IPC_CHANNELS", () => {
     expect(preload).toContain("listMetadataIssuePage: (query: MetadataIssuePageQuery) => ipcRenderer.invoke(channels.libraryMetadataIssuePage, query)");
     expect(preload).toContain("refreshMetadataFileSizes: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMetadataRefreshSizes, videoIds)");
     expect(ipc).toMatch(/const metadataIssuePageQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
-    expect(ipc).toContain("repo.listMetadataIssuePage(metadataIssuePageQuerySchema.parse(query))");
+    expect(ipc).toContain("dependencies.assetCenterQueries.listMetadataIssues(metadataIssuePageQuerySchema.parse(query))");
     expect(ipc).toContain("metadataFileRefresh.refreshZeroByteFiles(videoIdsSchema.parse(videoIds))");
   });
 });

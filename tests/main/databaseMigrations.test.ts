@@ -99,7 +99,8 @@ describe("versioned database migrations", () => {
       expect(indexes.map((row) => row.name)).toEqual(expect.arrayContaining([
         "idx_videos_size_bytes", "idx_videos_fingerprint_status", "idx_videos_is_pending_delete",
         "idx_videos_library_modified", "idx_videos_library_size", "idx_videos_library_duration",
-        "idx_videos_cover_cache_path", "idx_timeline_previews_cache_path"
+        "idx_videos_cover_cache_path", "idx_timeline_previews_cache_path",
+        "idx_scan_failures_active_object_path"
       ]));
       const defaultRow = db.prepare(`
         SELECT dflt_value FROM pragma_table_info('videos') WHERE name = 'is_pending_delete'
