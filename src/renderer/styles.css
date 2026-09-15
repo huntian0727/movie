@@ -610,6 +610,9 @@ button.asset-health-row:hover { background: #1d1f1d; }
 .duplicate-directory-ranking header, .duplicate-directory-ranking footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
 .duplicate-directory-ranking h3 { margin: 0; font-size: 15px; }
 .duplicate-directory-ranking p { color: #a0aaa0; font-size: 12px; }
+.duplicate-directory-ranking-content { display: grid; gap: 12px; margin-top: 14px; }
+.duplicate-directory-ranking-content > input { justify-self: end; }
+.duplicate-directory-ranking .duplicate-directory-ranking-toggle { min-width: 142px; }
 .duplicate-directory-ranking input { min-width: 230px; padding: 8px; color: #eef0ed; background: #202420; border: 1px solid #485148; border-radius: 6px; }
 .duplicate-ranking-scroll { overflow-x: auto; }
 .duplicate-directory-ranking table { width: 100%; border-collapse: collapse; font-size: 12px; }

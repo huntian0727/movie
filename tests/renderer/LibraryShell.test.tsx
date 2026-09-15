@@ -598,6 +598,8 @@ describe("LibraryShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
 
     await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalledWith({ page: 1, pageSize: 20, sortField: "sizeBytes", sortDirection: "desc" }));
+    expect(screen.getByRole("button", { name: "展开（1 个目录）" })).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: "展开（1 个目录）" }));
     expect(screen.getByLabelText("目录清理排行")).toHaveTextContent("41");
 
     fireEvent.change(screen.getByLabelText("候选组排序依据"), { target: { value: "duplicateCount" } });

@@ -48,10 +48,18 @@ function cleanupJob(overrides: Partial<DuplicateCleanupJob> = {}): DuplicateClea
 }
 
 describe("DuplicateGroupsPage staged safety flow", () => {
-  it("selects a directory directly from the visible ranking without opening the picker", () => {
+  it("keeps the directory ranking collapsed by default and expands it on demand", () => {
     const onPreferredDirectoryPathChange = vi.fn();
     render(<DuplicateGroupsPage {...baseProps()} onPreferredDirectoryPathChange={onPreferredDirectoryPathChange}
       directoryOptions={[{ path: "D:\\Ranked", groupCount: 2, estimatedCleanupFileCount: 3, estimatedReclaimableBytes: 4096 }]} />);
+
+    expect(screen.getByRole("button", { name: "展开（1 个目录）" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("搜索排行目录")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "从排行优先保留 D:\\Ranked" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "展开（1 个目录）" }));
+    expect(screen.getByRole("button", { name: "收起（1 个目录）" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("搜索排行目录")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "从排行优先保留 D:\\Ranked" }));
     expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("D:\\Ranked");
   });
