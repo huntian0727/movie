@@ -40,6 +40,7 @@ it("deletes all filtered results after confirmation and removes visible rows imm
   fireEvent.click(screen.getByRole("button", { name: "选择全部筛选结果" }));
   fireEvent.click(screen.getByRole("button", { name: "批量永久删除" }));
   expect(screen.getByRole("alertdialog")).toHaveTextContent("12 个视频");
+  expect(screen.getByRole("alertdialog")).toHaveTextContent("不进行重复判定或 SHA-256 内容验证");
   fireEvent.click(screen.getByRole("button", { name: "确认永久删除" }));
 
   expect(deleteSelection).toHaveBeenCalledWith(expect.objectContaining({ page: 1 }), { all: true, ids: [], excludedIds: [] });

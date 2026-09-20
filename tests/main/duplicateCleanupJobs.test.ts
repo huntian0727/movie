@@ -381,6 +381,7 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
+    expect(() => jobs.assertVideosAvailable([deleteVideo.id])).not.toThrow();
     expect(() => jobs.assertGenericPermanentDeleteAllowed([deleteVideo.id])).toThrow(/full SHA-256 verification/);
     const accepted = jobs.submit({ requestId: "direct-bypass", plan });
     const job = jobs.getJob(accepted.jobId);

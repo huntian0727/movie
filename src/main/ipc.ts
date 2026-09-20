@@ -498,7 +498,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     if (!dependencies.videoDataQueries) throw new Error("数据表服务未连接");
     const videoIds = await dependencies.videoDataQueries.selectIds(parsed, selected);
     if (videoIds.length === 0) return { successCount: 0, failureCount: 0, reclaimedBytes: 0, failures: [] };
-    dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(videoIds);
+    dependencies.duplicateCleanupJobs.assertVideosAvailable(videoIds);
     const result = await permanentlyDeleteVideos(repo, videoIds);
     if (result.successCount > 0) {
       dependencies.cacheManager.scheduleMaintenance(true);

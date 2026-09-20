@@ -150,7 +150,7 @@ export function VideoDataPage({ load, exportCsv, deleteSelection, folders, initi
       <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="video-data-delete-title">
         <h3 id="video-data-delete-title">确认批量永久删除？</h3>
         <p>将永久删除 {selectedCount.toLocaleString()} 个视频{selection.all ? "（全部筛选结果，已排除手动取消勾选的记录）" : ""}。文件会从磁盘中移除，此操作无法撤销。</p>
-        <p>如果选中内容包含重复候选，现有重复文件安全规则会阻止本次操作，并且不会删除任何文件。</p>
+        <p>这是按你的明确选择执行的普通批量删除，不进行重复判定或 SHA-256 内容验证。</p>
         <div className="dialog-actions"><button type="button" onClick={() => setDeleteOpen(false)}>取消</button><button className="danger" type="button" onClick={() => void deleteSelected()}>确认永久删除</button></div>
       </section>
     </div>}
