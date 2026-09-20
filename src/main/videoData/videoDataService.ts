@@ -49,6 +49,14 @@ export class VideoDataService {
       return result.count;
     } finally { await worker.terminate(); await rm(tempPath, { force: true }); this.exporting = false; }
   }
+  async selectIds(query: VideoDataQuery, selection: VideoDataSelection): Promise<string[]> {
+    if (this.disposed) throw new Error("数据服务已停止");
+    const worker = this.createWorker();
+    try {
+      const result = await this.request<{ ids: string[] }>(worker, { query, selection, selectIds: true });
+      return result.ids;
+    } finally { await worker.terminate(); }
+  }
   async dispose(): Promise<void> {
     this.disposed = true;
     this.queued?.reject(new Error("数据服务已停止")); this.queued = undefined;

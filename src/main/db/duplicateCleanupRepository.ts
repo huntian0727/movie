@@ -183,15 +183,18 @@ export class DuplicateCleanupRepository {
     this.assertVideosAvailable(videoIds);
     const ids = [...new Set(videoIds)];
     if (ids.length === 0) return;
-    const placeholders = ids.map(() => "?").join(",");
-    const rows = this.db.prepare(`SELECT candidate.id FROM videos candidate
-      WHERE candidate.id IN (${placeholders}) AND candidate.is_missing = 0
-        AND candidate.metadata_status = 'ready' AND candidate.duration_ms IS NOT NULL AND candidate.duration_ms > 0
-        AND EXISTS (SELECT 1 FROM videos peer WHERE peer.id <> candidate.id AND peer.is_missing = 0
-          AND peer.metadata_status = 'ready' AND peer.duration_ms = candidate.duration_ms
-          AND peer.size_bytes = candidate.size_bytes)`).all(...ids) as Array<{ id: string }>;
-    if (rows.length > 0) {
-      throw new Error("A selected video is a duplicate candidate. Permanent deletion requires full SHA-256 verification and separate confirmation.");
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      const chunk = ids.slice(offset, offset + 500);
+      const placeholders = chunk.map(() => "?").join(",");
+      const row = this.db.prepare(`SELECT candidate.id FROM videos candidate
+        WHERE candidate.id IN (${placeholders}) AND candidate.is_missing = 0
+          AND candidate.metadata_status = 'ready' AND candidate.duration_ms IS NOT NULL AND candidate.duration_ms > 0
+          AND EXISTS (SELECT 1 FROM videos peer WHERE peer.id <> candidate.id AND peer.is_missing = 0
+            AND peer.metadata_status = 'ready' AND peer.duration_ms = candidate.duration_ms
+            AND peer.size_bytes = candidate.size_bytes) LIMIT 1`).get(...chunk) as { id: string } | undefined;
+      if (row) {
+        throw new Error("A selected video is a duplicate candidate. Permanent deletion requires full SHA-256 verification and separate confirmation.");
+      }
     }
   }
 

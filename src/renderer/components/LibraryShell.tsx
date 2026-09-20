@@ -78,7 +78,7 @@ interface LibraryShellProps {
   onSearchPlaybackDiagnosticVideos?: VideoManagerApi["searchPlaybackDiagnosticVideos"];
   playbackPreference?: PlaybackPreference;
   onLoadAssetCenterSummary?(): Promise<AssetCenterSummary>;
-  videoDataApi?: Pick<VideoManagerApi, "listVideoData" | "exportVideoData">;
+  videoDataApi?: Pick<VideoManagerApi, "listVideoData" | "exportVideoData" | "deleteVideoData">;
   onLoadAssetCenterSources?: VideoManagerApi["listAssetCenterSources"];
   duplicateGroups?: DuplicateGroup[];
   onLoadDuplicateGroups?(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
@@ -905,7 +905,7 @@ export function LibraryShell({
         {usesCommonToolbar && (error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
         {view === "folder" && videoDataApi && <button className="secondary-button" onClick={() => setView("videoData")}>在视频数据表中查看此目录</button>}
         {view === "videoData" ? (
-          videoDataApi ? <VideoDataPage load={videoDataApi.listVideoData} exportCsv={videoDataApi.exportVideoData} folders={folders} initialDirectory={selectedFolderPath ?? ""} onDetails={setDetailsTarget} onDiagnostic={video => { setDiagnosticVideoId(video.id); setDiagnosticInitialVideo(video); setView("playbackDiagnostic"); }} /> : <div className="empty-state">视频数据表服务未连接</div>
+          videoDataApi ? <VideoDataPage load={videoDataApi.listVideoData} exportCsv={videoDataApi.exportVideoData} deleteSelection={videoDataApi.deleteVideoData} folders={folders} initialDirectory={selectedFolderPath ?? ""} onDetails={setDetailsTarget} onDiagnostic={video => { setDiagnosticVideoId(video.id); setDiagnosticInitialVideo(video); setView("playbackDiagnostic"); }} /> : <div className="empty-state">视频数据表服务未连接</div>
         ) : view === "assetCenter" ? (
           onLoadAssetCenterSummary && onLoadAssetCenterSources
             ? <AssetCenterPage

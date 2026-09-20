@@ -79,6 +79,7 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.videoRename,
   IPC_CHANNELS.videoDelete,
   IPC_CHANNELS.videoBatchDelete,
+  IPC_CHANNELS.videoDataDelete,
   IPC_CHANNELS.videoBatchMove,
   IPC_CHANNELS.videoForget,
   IPC_CHANNELS.libraryMissingRecheck,
@@ -490,6 +491,20 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     if (target.canceled || !target.filePath) return { cancelled: true, count: 0 };
     const count = await dependencies.videoDataQueries.export(parsed, selected, target.filePath);
     return { cancelled: false, count, path: target.filePath };
+  });
+  ipcMain.handle(IPC_CHANNELS.videoDataDelete, async (_event, query, selection) => {
+    const parsed = videoDataQuerySchema.parse(query);
+    const selected = videoDataSelectionSchema.parse(selection);
+    if (!dependencies.videoDataQueries) throw new Error("数据表服务未连接");
+    const videoIds = await dependencies.videoDataQueries.selectIds(parsed, selected);
+    if (videoIds.length === 0) return { successCount: 0, failureCount: 0, reclaimedBytes: 0, failures: [] };
+    dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed(videoIds);
+    const result = await permanentlyDeleteVideos(repo, videoIds);
+    if (result.successCount > 0) {
+      dependencies.cacheManager.scheduleMaintenance(true);
+      dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
+    }
+    return result;
   });
   ipcMain.handle(IPC_CHANNELS.libraryMissingPage, (_event, query) => repo.listMissingVideoPage(missingVideoPageQuerySchema.parse(query)));
   ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, async (_event, query) => {

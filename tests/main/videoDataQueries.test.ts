@@ -5,7 +5,7 @@ import path from "node:path";
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database.js";
 import { VideoRepository } from "../../src/main/db/videoRepository.js";
-import { queryVideoData, iterateVideoData, csvCell } from "../../src/main/videoData/videoDataQueries.js";
+import { queryVideoData, iterateVideoData, selectVideoDataIds, csvCell } from "../../src/main/videoData/videoDataQueries.js";
 import { videoDataQuerySchema } from "../../src/shared/videoDataTable.js";
 let directory: string, db: DatabaseConnection, repo: VideoRepository, source: string;
 beforeEach(() => { directory = mkdtempSync(path.join(tmpdir(), "video-data-test-")); db = createDatabase(path.join(directory, "library.sqlite")); repo = new VideoRepository(db); source = repo.addSourceFolder("F:\\Videos", true).id; });
@@ -42,6 +42,12 @@ describe("video data table queries", () => {
     expect([...iterateVideoData(db, query, { all: false, ids: [a.id], excludedIds: [] })].map(v => v.id)).toEqual([a.id]);
     expect(csvCell('=HYPERLINK("x")')).toBe('"\'=HYPERLINK(""x"")"');
     expect(csvCell("a,\nb")).toBe('"a,\nb"');
+  });
+  it("resolves delete selections against the complete filtered result", () => {
+    const a = add("a.mp4"), b = add("b.mp4"); add("outside.mp4", "F:\\Other");
+    const query = videoDataQuerySchema.parse({ directory: "F:\\Videos" });
+    expect(selectVideoDataIds(db, query, { all: true, ids: [], excludedIds: [b.id] })).toEqual([a.id]);
+    expect(selectVideoDataIds(db, query, { all: false, ids: [b.id], excludedIds: [] })).toEqual([b.id]);
   });
   it("rejects invalid query sort and unbounded page sizes", () => {
     expect(() => videoDataQuerySchema.parse({ sort: "DROP TABLE videos" })).toThrow();

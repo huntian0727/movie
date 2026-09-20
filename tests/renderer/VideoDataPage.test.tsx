@@ -31,3 +31,21 @@ it("clears selection when filters change and opens details", async () => {
   await waitFor(() => expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ status: "missing", page: 1 })));
   expect(screen.getByRole("button", { name: "导出选中 CSV" })).toBeDisabled();
 });
+it("deletes all filtered results after confirmation and removes visible rows immediately", async () => {
+  const load = vi.fn(async (query: VideoDataQuery) => ({ items: [video], totalCount: 12, totalBytes: 1200, totalPages: 1, page: query.page, pageSize: query.pageSize }));
+  let finish!: (value: { successCount: number; failureCount: number; reclaimedBytes: number; failures: [] }) => void;
+  const deleteSelection = vi.fn(() => new Promise<{ successCount: number; failureCount: number; reclaimedBytes: number; failures: [] }>(resolve => { finish = resolve; }));
+  render(<VideoDataPage load={load} exportCsv={vi.fn()} deleteSelection={deleteSelection} folders={[]} onDetails={vi.fn()} onDiagnostic={vi.fn()} />);
+  await screen.findByText("one.mp4");
+  fireEvent.click(screen.getByRole("button", { name: "选择全部筛选结果" }));
+  fireEvent.click(screen.getByRole("button", { name: "批量永久删除" }));
+  expect(screen.getByRole("alertdialog")).toHaveTextContent("12 个视频");
+  fireEvent.click(screen.getByRole("button", { name: "确认永久删除" }));
+
+  expect(deleteSelection).toHaveBeenCalledWith(expect.objectContaining({ page: 1 }), { all: true, ids: [], excludedIds: [] });
+  expect(screen.queryByText("one.mp4")).not.toBeInTheDocument();
+  expect(screen.getByText(/正在永久删除 12 条选中记录/)).toBeInTheDocument();
+
+  finish({ successCount: 12, failureCount: 0, reclaimedBytes: 1200, failures: [] });
+  await waitFor(() => expect(screen.getByText(/批量删除完成：成功 12 条/)).toBeInTheDocument());
+});

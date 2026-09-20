@@ -972,6 +972,7 @@ export const IPC_CHANNELS = {
   playbackDiagnosticSearch: "playback-diagnostic:search",
   videoDataPage: "video-data:page",
   videoDataExport: "video-data:export",
+  videoDataDelete: "video-data:delete",
   libraryMissingList: "library:missing-list",
   libraryMissingPage: "library:missing-page",
   libraryMissingRecheck: "library:missing-recheck",
@@ -1061,6 +1062,7 @@ export interface VideoManagerApi {
   getAssetCenterSummary(): Promise<AssetCenterSummary>;
   listVideoData(query: import("./videoDataTable.js").VideoDataQuery): Promise<import("./videoDataTable.js").VideoDataPage>;
   exportVideoData(query: import("./videoDataTable.js").VideoDataQuery, selection: import("./videoDataTable.js").VideoDataSelection): Promise<import("./videoDataTable.js").VideoDataExportResult>;
+  deleteVideoData(query: import("./videoDataTable.js").VideoDataQuery, selection: import("./videoDataTable.js").VideoDataSelection): Promise<BatchDeleteResult>;
   listAssetCenterSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
   searchPlaybackDiagnosticVideos(query: PlaybackDiagnosticSearchQuery): Promise<LibraryPage>;
   listMissingVideos(): Promise<VideoRecord[]>;

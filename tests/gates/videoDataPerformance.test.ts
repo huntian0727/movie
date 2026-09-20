@@ -30,5 +30,15 @@ it("queries 320k records using the actual built worker with bounded payload and 
     expect(result.error).toBeUndefined(); expect(result.result.totalCount).toBe(319999); expect(result.result.items).toHaveLength(100);
     expect(elapsed).toBeLessThan(5000); expect(maxGap).toBeLessThan(150);
     console.info(`Video data 320k worker page: ${elapsed.toFixed(2)} ms; main-loop gap: ${maxGap.toFixed(2)} ms`);
+    maxGap = 0; previous = performance.now();
+    const selectionStart = performance.now();
+    const selected = await new Promise<any>((resolve, reject) => {
+      worker!.once("message", resolve); worker!.once("error", reject);
+      worker!.postMessage({ id: 2, query: videoDataQuerySchema.parse({ search: "video", sort: "sizeBytes" }), selection: { all: true, ids: [], excludedIds: ["perf-1"] }, selectIds: true });
+    });
+    const selectionElapsed = performance.now() - selectionStart;
+    expect(selected.error).toBeUndefined(); expect(selected.result.ids).toHaveLength(319998); expect(selected.result.ids).not.toContain("perf-1");
+    expect(selectionElapsed).toBeLessThan(5000); expect(maxGap).toBeLessThan(150);
+    console.info(`Video data 320k delete selection: ${selectionElapsed.toFixed(2)} ms; main-loop gap: ${maxGap.toFixed(2)} ms`);
   } finally { if (timer) clearInterval(timer); await worker?.terminate(); db.close(); rmSync(temp, { recursive: true, force: true }); }
 }, 90000);

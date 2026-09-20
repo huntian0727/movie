@@ -7,6 +7,7 @@ import "./videoDataPage.css";
 interface Props {
   load: VideoManagerApi["listVideoData"];
   exportCsv: VideoManagerApi["exportVideoData"];
+  deleteSelection?: VideoManagerApi["deleteVideoData"];
   folders: SourceFolder[];
   initialDirectory?: string;
   onDetails(video: VideoRecord): void;
@@ -19,7 +20,8 @@ function preferences(): { pageSize: 50 | 100 | 200; extra: boolean } {
 }
 const emptySelection = (): VideoDataSelection => ({ all: false, ids: [], excludedIds: [] });
 const sourceLabel = { local: "本地 / 挂载盘", nas: "NAS / SMB", clouddrive: "CloudDrive" };
-export function VideoDataPage({ load, exportCsv, folders, initialDirectory = "", onDetails, onDiagnostic }: Props) {
+const selectionIncludes = (selection: VideoDataSelection, id: string) => selection.all ? !selection.excludedIds.includes(id) : selection.ids.includes(id);
+export function VideoDataPage({ load, exportCsv, deleteSelection, folders, initialDirectory = "", onDetails, onDiagnostic }: Props) {
   const [query, setQuery] = useState<VideoDataQuery>(() => videoDataQuerySchema.parse({ pageSize: preferences().pageSize, directory: initialDirectory }));
   const [search, setSearch] = useState("");
   const [extra, setExtra] = useState(() => preferences().extra);
@@ -29,6 +31,8 @@ export function VideoDataPage({ load, exportCsv, folders, initialDirectory = "",
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [revision, setRevision] = useState(0);
   const [jump, setJump] = useState("1");
   const request = useRef(0);
@@ -56,7 +60,7 @@ export function VideoDataPage({ load, exportCsv, folders, initialDirectory = "",
       .finally(() => { if (id === request.current) setLoading(false); });
     return () => { request.current++; };
   }, [load, query, revision]);
-  const isSelected = (id: string) => selection.all ? !selection.excludedIds.includes(id) : selection.ids.includes(id);
+  const isSelected = (id: string) => selectionIncludes(selection, id);
   const selectedCount = selection.all ? Math.max(0, (result?.totalCount ?? 0) - selection.excludedIds.length) : selection.ids.length;
   const toggle = (ids: string[], checked: boolean) => setSelection(old => {
     const values = new Set(old.all ? old.excludedIds : old.ids);
@@ -80,6 +84,26 @@ export function VideoDataPage({ load, exportCsv, folders, initialDirectory = "",
     catch (reason) { setNotice(`导出失败：${reason instanceof Error ? reason.message : String(reason)}`); }
     finally { setExporting(false); }
   };
+  const deleteSelected = async () => {
+    if (!deleteSelection || selectedCount === 0 || deleting) return;
+    const targetSelection = selection;
+    const targetCount = selectedCount;
+    setDeleteOpen(false);
+    setDeleting(true);
+    setNotice(`正在永久删除 ${targetCount.toLocaleString()} 条选中记录，可继续浏览其他页面。`);
+    setSelection(emptySelection());
+    setResult(current => current ? { ...current, items: current.items.filter(video => !selectionIncludes(targetSelection, video.id)) } : current);
+    try {
+      const result = await deleteSelection(query, targetSelection);
+      const failure = result.failures[0];
+      setNotice(`批量删除完成：成功 ${result.successCount.toLocaleString()} 条，失败 ${result.failureCount.toLocaleString()} 条，释放 ${formatBytes(result.reclaimedBytes)}。${failure ? ` 首个失败：${failure.path || failure.videoId}，${failure.message}` : ""}`);
+    } catch (reason) {
+      setNotice(`批量删除失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      setDeleting(false);
+      setRevision(value => value + 1);
+    }
+  };
   const sort = (field: VideoDataQuery["sort"]) => patch({ sort: field, direction: query.sort === field && query.direction === "desc" ? "asc" : "desc" }, false);
   const heading = (label: string, field: VideoDataQuery["sort"]) => <th aria-sort={query.sort === field ? query.direction === "asc" ? "ascending" : "descending" : "none"}><button onClick={() => sort(field)}>{label}{query.sort === field ? query.direction === "asc" ? " ↑" : " ↓" : ""}</button></th>;
   return <section className="video-data-page" aria-label="视频数据表">
@@ -101,6 +125,7 @@ export function VideoDataPage({ load, exportCsv, folders, initialDirectory = "",
       <button disabled={loading || !!error || !result?.totalCount} onClick={() => setSelection({ all: true, ids: [], excludedIds: [] })}>选择全部筛选结果</button>
       <button onClick={() => setSelection(emptySelection())} disabled={!selectedCount}>取消选择</button>
       <button onClick={() => void exportSelected()} disabled={loading || !!error || !selectedCount || exporting}>{exporting ? "正在后台导出…" : "导出选中 CSV"}</button>
+      {deleteSelection && <button className="danger" onClick={() => setDeleteOpen(true)} disabled={loading || !!error || !selectedCount || deleting}>{deleting ? "正在后台删除…" : "批量永久删除"}</button>}
       <label><input type="checkbox" checked={extra} onChange={event => setExtra(event.target.checked)} />显示编码、分辨率和修改时间</label>
     </div>
     {notice && <p role="status" className="video-data-notice">{notice}</p>}
@@ -120,6 +145,14 @@ export function VideoDataPage({ load, exportCsv, folders, initialDirectory = "",
     <footer className="video-data-pagination"><label>每页<select value={query.pageSize} onChange={event => patch({ pageSize: Number(event.target.value) as 50 | 100 | 200 }, false)}>{[50, 100, 200].map(size => <option key={size}>{size}</option>)}</select></label>
       <button disabled={loading || !result || result.page <= 1} onClick={() => patch({ page: (result?.page ?? 1) - 1 }, false)}>上一页</button><span>{result?.page ?? 1} / {result?.totalPages ?? 1} 页</span><button disabled={loading || !result || result.page >= result.totalPages} onClick={() => patch({ page: (result?.page ?? 1) + 1 }, false)}>下一页</button>
       <form onSubmit={event => { event.preventDefault(); const page = Number(jump); if (Number.isInteger(page) && page > 0) patch({ page: Math.min(page, result?.totalPages ?? 1) }, false); }}><input aria-label="跳转页码" type="number" min="1" max={result?.totalPages ?? 1} value={jump} onChange={event => setJump(event.target.value)} /><button disabled={loading}>跳转</button></form>
-    </footer><p className="video-data-footnote">添加时间指加入映匣的时间。状态来自最近保存的记录；导出按执行时的数据生成。映射盘的实际来源无法确定时显示“本地 / 挂载盘”。</p>
+    </footer><p className="video-data-footnote">添加时间指加入映匣的时间。状态来自最近保存的记录；导出和批量删除均按执行时的数据与筛选条件处理。映射盘的实际来源无法确定时显示“本地 / 挂载盘”。</p>
+    {deleteOpen && <div className="dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setDeleteOpen(false); }}>
+      <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="video-data-delete-title">
+        <h3 id="video-data-delete-title">确认批量永久删除？</h3>
+        <p>将永久删除 {selectedCount.toLocaleString()} 个视频{selection.all ? "（全部筛选结果，已排除手动取消勾选的记录）" : ""}。文件会从磁盘中移除，此操作无法撤销。</p>
+        <p>如果选中内容包含重复候选，现有重复文件安全规则会阻止本次操作，并且不会删除任何文件。</p>
+        <div className="dialog-actions"><button type="button" onClick={() => setDeleteOpen(false)}>取消</button><button className="danger" type="button" onClick={() => void deleteSelected()}>确认永久删除</button></div>
+      </section>
+    </div>}
   </section>;
 }

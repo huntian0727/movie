@@ -46,6 +46,15 @@ export function* iterateVideoData(database: DatabaseConnection, query: VideoData
     if (selection.all ? !excluded.has(row.id) : ids.has(row.id)) yield map(row);
   }
 }
+export function selectVideoDataIds(database: DatabaseConnection, query: VideoDataQuery, selection: VideoDataSelection): string[] {
+  const { from, params, order } = build(query);
+  const ids = new Set(selection.ids), excluded = new Set(selection.excludedIds);
+  const selected: string[] = [];
+  for (const row of database.prepare(`SELECT v.id ${from} ORDER BY ${order}`).iterate(params) as Iterable<{ id: string }>) {
+    if (selection.all ? !excluded.has(row.id) : ids.has(row.id)) selected.push(row.id);
+  }
+  return selected;
+}
 export function csvCell(value: unknown): string {
   let text = value == null ? "" : String(value);
   if (/^[\s]*[=+@-]/.test(text)) text = `'${text}`;

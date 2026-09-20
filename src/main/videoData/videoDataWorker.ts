@@ -1,14 +1,16 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { openSync, writeSync, closeSync, unlinkSync } from "node:fs";
 import { openAssetCenterReadonlyDatabase } from "../assetCenter/assetCenterReadonlyDatabase.js";
-import { iterateVideoData, queryVideoData, videoDataCsvHeader, videoDataCsvRow } from "./videoDataQueries.js";
+import { iterateVideoData, queryVideoData, selectVideoDataIds, videoDataCsvHeader, videoDataCsvRow } from "./videoDataQueries.js";
 import type { VideoDataQuery, VideoDataSelection } from "../../shared/videoDataTable.js";
 
 const database = openAssetCenterReadonlyDatabase(workerData.databasePath as string);
-parentPort!.on("message", (request: { id: number; query: VideoDataQuery; outputPath?: string; selection?: VideoDataSelection }) => {
+parentPort!.on("message", (request: { id: number; query: VideoDataQuery; outputPath?: string; selection?: VideoDataSelection; selectIds?: boolean }) => {
   try {
     let result;
-    if (request.outputPath && request.selection) {
+    if (request.selectIds && request.selection) {
+      result = { ids: selectVideoDataIds(database, request.query, request.selection) };
+    } else if (request.outputPath && request.selection) {
       const fd = openSync(request.outputPath, "wx");
       let count = 0;
       try {
