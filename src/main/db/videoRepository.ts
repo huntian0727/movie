@@ -268,6 +268,11 @@ interface LibraryNavigationRow {
   pending_delete_bytes: number;
   pending_metadata_videos: number;
   scan_failure_count: number;
+  health_issue_count: number;
+}
+
+interface ScanFailureReviewRow extends ScanFailureRow {
+  joined_video_id: string | null;
 }
 
 interface ExistingVideoRow {
@@ -858,16 +863,20 @@ export class VideoRepository {
     const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
     const page = Math.min(Math.max(1, query.page), totalPages);
     const rows = this.db.prepare(`
-      SELECT failures.*
+      SELECT failures.*, videos.id AS joined_video_id
       ${joinedFrom}${kindWhere}
       ORDER BY failures.last_failed_at DESC, failures.id ASC
       LIMIT @limit OFFSET @offset
-    `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as ScanFailureRow[];
+    `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as ScanFailureReviewRow[];
+    const videosById = new Map(
+      this.listVideosByIds(rows.map((row) => row.joined_video_id).filter((id): id is string => Boolean(id)))
+        .map((video) => [video.id, video])
+    );
 
     return {
       items: rows.map((row) => {
         const failure = mapScanFailure(row);
-        const video = failure.objectType === "file" ? this.getVideoByPath(failure.objectPath) : null;
+        const video = row.joined_video_id ? videosById.get(row.joined_video_id) ?? null : null;
         return {
           failure,
           video,
@@ -1399,13 +1408,40 @@ export class VideoRepository {
   getLibraryNavigation(): LibraryNavigationSnapshot {
     const counts = this.db
       .prepare(
-        `SELECT
+        `WITH latest_source_scan AS (
+           SELECT source_folder_id, status,
+             ROW_NUMBER() OVER (PARTITION BY source_folder_id ORDER BY started_at DESC, id DESC) AS row_number
+           FROM scan_tasks
+           WHERE source_folder_id IS NOT NULL
+             AND status IN ('completed', 'completed-with-errors', 'offline', 'error')
+         ), health_objects AS (
+           SELECT 'video:' || videos.id AS issue_key
+           FROM videos
+           WHERE videos.is_missing = 1
+              OR (videos.is_missing = 0 AND videos.metadata_status IN ('pending', 'failed'))
+           UNION
+           SELECT CASE
+             WHEN latest.status = 'offline' THEN 'source:' || failures.source_folder_id
+             WHEN videos.id IS NOT NULL THEN 'video:' || videos.id
+             ELSE 'failure:' || failures.source_folder_id || ':' || failures.normalized_path
+           END AS issue_key
+           FROM scan_failures failures
+           JOIN source_folders sources ON sources.id = failures.source_folder_id
+           LEFT JOIN latest_source_scan latest
+             ON latest.source_folder_id = failures.source_folder_id AND latest.row_number = 1
+           LEFT JOIN videos
+             ON videos.source_folder_id = failures.source_folder_id
+             AND videos.path = failures.object_path COLLATE NOCASE
+           WHERE failures.status != 'resolved' AND sources.enabled = 1
+         )
+         SELECT
            COUNT(*) AS total_videos,
            COALESCE(SUM(CASE WHEN is_favorite = 1 THEN 1 ELSE 0 END), 0) AS favorite_videos,
            COALESCE(SUM(CASE WHEN is_pending_delete = 1 THEN 1 ELSE 0 END), 0) AS pending_delete_videos,
            COALESCE(SUM(CASE WHEN is_pending_delete = 1 THEN size_bytes ELSE 0 END), 0) AS pending_delete_bytes,
            COALESCE(SUM(CASE WHEN metadata_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_metadata_videos,
-           (SELECT COUNT(*) FROM scan_failures failures JOIN source_folders sources ON sources.id = failures.source_folder_id WHERE failures.status != 'resolved' AND sources.enabled = 1) AS scan_failure_count
+           (SELECT COUNT(*) FROM scan_failures failures JOIN source_folders sources ON sources.id = failures.source_folder_id WHERE failures.status != 'resolved' AND sources.enabled = 1) AS scan_failure_count,
+           (SELECT COUNT(*) FROM health_objects) AS health_issue_count
          FROM videos
          WHERE is_missing = 0`
       )
@@ -1421,6 +1457,7 @@ export class VideoRepository {
       pendingDeleteBytes: counts.pending_delete_bytes,
       pendingMetadataVideos: counts.pending_metadata_videos,
       scanFailureCount: counts.scan_failure_count,
+      healthIssueCount: counts.health_issue_count,
       directoryPaths
     };
   }
@@ -1467,17 +1504,17 @@ export class VideoRepository {
       params.search = `%${escapeSqlLike(normalizedSearch)}%`;
     }
     const baseWhere = baseClauses.join(" AND ");
-    const duplicateSizeCte = `WITH duplicate_sizes AS MATERIALIZED (
-      SELECT size_bytes FROM videos
-      WHERE is_missing = 0 AND size_bytes > 0
-      GROUP BY size_bytes
-      HAVING COUNT(*) >= 2
-    )`;
     const automaticClause = `videos.metadata_status = 'pending'
       AND videos.size_bytes > 0
       AND (
         videos.provider_file_id IS NULL
-        OR EXISTS (SELECT 1 FROM duplicate_sizes WHERE duplicate_sizes.size_bytes = videos.size_bytes)
+        OR EXISTS (
+          SELECT 1 FROM videos duplicate_peer
+          WHERE duplicate_peer.is_missing = 0
+            AND duplicate_peer.size_bytes = videos.size_bytes
+            AND duplicate_peer.id != videos.id
+          LIMIT 1
+        )
       )`;
     const accessibleDeferredClause = "videos.metadata_status = 'failed' AND metadata_failure.error_code = 'ACCESSIBLE'";
     const analysisStateExpression = `CASE
@@ -1499,8 +1536,7 @@ export class VideoRepository {
       query.status === "all" ? "1 = 1" : "analysis_state = @status",
       query.zeroBytesOnly ? "size_bytes = 0" : "1 = 1"
     ].join(" AND ");
-    const counts = this.db.prepare(`${duplicateSizeCte},
-      classified_issues AS MATERIALIZED (
+    const counts = this.db.prepare(`WITH classified_issues AS MATERIALIZED (
         SELECT videos.size_bytes, ${analysisStateExpression} AS analysis_state
         ${fromClause}
       )
@@ -1521,8 +1557,7 @@ export class VideoRepository {
     const totalCount = counts.total_count;
     const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
     const page = Math.min(query.page, totalPages);
-    const rows = this.db.prepare(`${duplicateSizeCte}
-      SELECT videos.*,
+    const rows = this.db.prepare(`SELECT videos.*,
         ${analysisStateExpression} AS metadata_analysis_state,
         metadata_failure.error_code AS metadata_error_code,
         metadata_failure.error_summary AS metadata_error_summary,
@@ -1650,7 +1685,12 @@ export class VideoRepository {
         AND size_bytes = @expectedSizeBytes
         AND modified_at = @expectedModifiedAt
     `).run({ videoId, expectedPath, expectedSizeBytes, expectedModifiedAt, updatedAt: new Date().toISOString() });
-    return result.changes > 0;
+    if (result.changes > 0) {
+      const video = this.getVideo(videoId);
+      this.resolveScanFailuresForObject(video.sourceFolderId, video.path);
+      return true;
+    }
+    return false;
   }
 
   markMissingIfVersion(videoId: string, expectedPath: string, expectedSizeBytes: number, expectedModifiedAt: string): boolean {
@@ -1710,7 +1750,11 @@ export class VideoRepository {
         currentModifiedAt,
         updatedAt: new Date().toISOString()
       });
-      if (result.changes > 0) this.deleteTimelinePreviews(videoId);
+      if (result.changes > 0) {
+        this.deleteTimelinePreviews(videoId);
+        const video = this.getVideo(videoId);
+        this.resolveScanFailuresForObject(video.sourceFolderId, video.path);
+      }
       return result.changes > 0;
     })();
   }

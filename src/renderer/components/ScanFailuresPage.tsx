@@ -78,6 +78,7 @@ export function ScanFailuresPage({
   }, [kind, pageNumber, pageSize, refreshSequence, refreshVersion, sourceFolderId]);
 
   const selectedFolder = useMemo(() => folders.find((folder) => folder.id === sourceFolderId), [folders, sourceFolderId]);
+  const sourceAlerts = useMemo(() => folders.filter((folder) => folder.enabled && Boolean(folder.scanError)), [folders]);
   const visibleItems = useMemo(() => result.items.filter((item) => cleanupFilter === "all" || classifyScanFailureForCleanup(item.failure).category === cleanupFilter), [cleanupFilter, result.items]);
   const selectableIds = useMemo(() => visibleItems.filter((item) => item.failure.objectType === "file").map((item) => item.failure.id), [visibleItems]);
   const selectedCorruptCount = result.items.filter((item) => selectedFailureIds.has(item.failure.id) && Boolean(item.video) && classifyScanFailureForCleanup(item.failure).category === "confirmed-corrupt").length;
@@ -196,6 +197,16 @@ export function ScanFailuresPage({
         </label>
         <button className="icon-button" title="刷新异常列表" onClick={() => setRefreshVersion((current) => current + 1)}><RotateCw size={18} /></button>
       </div>
+
+      {sourceAlerts.length > 0 && <details className="scan-failure-source-alerts">
+        <summary><AlertTriangle size={17} />{sourceAlerts.length} 个资料库当前存在来源级异常</summary>
+        <p>来源离线或目录不可访问时，优先处理资料库本身；不要把同一来源下的大量文件记录当成独立损坏文件。</p>
+        <div>
+          {sourceAlerts.map((folder) => <button key={folder.id} type="button" onClick={() => { setSourceFolderId(folder.id); setPageNumber(1); }}>
+            <span title={folder.path}>{folder.path}</span><small>{folder.scanError}</small>
+          </button>)}
+        </div>
+      </details>}
 
       <div className="scan-failure-cleanup-bar">
         <strong>{allFilteredSelected ? "已选择全部筛选结果（不限当前页）" : `已选 ${selectedFailureIds.size} 个可处理项`}</strong>

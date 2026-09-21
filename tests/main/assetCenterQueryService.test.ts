@@ -196,6 +196,7 @@ const NAVIGATION: LibraryNavigationSnapshot = {
   pendingDeleteBytes: 0,
   pendingMetadataVideos: 1,
   scanFailureCount: 0,
+  healthIssueCount: 1,
   directoryPaths: ["F:\\library"]
 };
 

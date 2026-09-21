@@ -746,6 +746,8 @@ export interface LibraryNavigationSnapshot {
   pendingDeleteBytes: number;
   pendingMetadataVideos: number;
   scanFailureCount: number;
+  /** Unique active health incidents after collapsing repeated stages and offline sources. */
+  healthIssueCount: number;
   directoryPaths: string[];
 }
 

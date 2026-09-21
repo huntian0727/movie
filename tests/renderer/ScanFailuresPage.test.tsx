@@ -28,6 +28,17 @@ const page: ScanFailureReviewPage = {
 };
 
 describe("ScanFailuresPage", () => {
+  it("groups source-level failures in a collapsed summary and scopes the list on demand", async () => {
+    const loadPage = vi.fn().mockResolvedValue(page);
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={loadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);
+    await screen.findByText("clip.mp4");
+
+    const summary = screen.getByText("1 个资料库当前存在来源级异常");
+    expect(summary.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: /D:\\Movies/ }));
+    await waitFor(() => expect(loadPage).toHaveBeenLastCalledWith(expect.objectContaining({ sourceFolderId: folder.id, page: 1 })));
+  });
+
   it("does not reload merely because the parent passes a new callback instance", async () => {
     const firstLoadPage = vi.fn().mockResolvedValue(page);
     const { rerender } = render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={firstLoadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);

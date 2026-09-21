@@ -97,6 +97,57 @@ describe("scan failure review", () => {
     expect(repo.getScanFailure(failure.id)?.status).toBe("unresolved");
   });
 
+  it("loads indexed videos in one batch instead of querying once per failure row", () => {
+    const { repo, source, sourcePath } = setup();
+    for (let index = 0; index < 4; index += 1) {
+      const videoPath = path.join(sourcePath, `indexed-${index}.mp4`);
+      repo.upsertVideo({ sourceFolderId: source.id, path: videoPath, directory: sourcePath, filename: `indexed-${index}.mp4`, basename: `indexed-${index}`, extension: ".mp4", sizeBytes: 10, durationMs: 1000, width: 10, height: 10, format: "mp4", modifiedAt: new Date().toISOString() });
+      record(repo, source.id, videoPath);
+    }
+    const perPathLookup = vi.spyOn(repo, "getVideoByPath");
+
+    const page = repo.listScanFailureReviewPage({ kind: "video", page: 1, pageSize: 30 });
+
+    expect(page.items).toHaveLength(4);
+    expect(perPathLookup).not.toHaveBeenCalled();
+  });
+
+  it("counts one health incident when one indexed file has multiple active states", () => {
+    const { repo, source, sourcePath } = setup();
+    const videoPath = path.join(sourcePath, "multi-state.mp4");
+    const video = repo.upsertVideo({ sourceFolderId: source.id, path: videoPath, directory: sourcePath, filename: "multi-state.mp4", basename: "multi-state", extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt: new Date().toISOString() });
+    repo.markMissing(video.id, true);
+    record(repo, source.id, videoPath);
+    repo.recordScanFailure({
+      sourceFolderId: source.id,
+      scanTaskId: "review-test",
+      objectType: "file",
+      objectPath: videoPath,
+      failureStage: "metadata",
+      errorCode: "EPROBE",
+      errorSummary: "probe failed"
+    });
+
+    expect(repo.getLibraryNavigation()).toMatchObject({ scanFailureCount: 2, healthIssueCount: 1 });
+    expect(repo.restoreMissingIfVersion(video.id, video.path, video.sizeBytes, video.modifiedAt)).toBe(true);
+    expect(repo.getLibraryNavigation()).toMatchObject({ scanFailureCount: 0, healthIssueCount: 0 });
+  });
+
+  it("collapses repeated failures from an offline source into one health incident", () => {
+    const { repo, source, sourcePath } = setup();
+    record(repo, source.id, path.join(sourcePath, "offline-a.mp4"));
+    record(repo, source.id, path.join(sourcePath, "offline-b.mp4"));
+    repo.createScanTask("offline-task", source.id, "scan-all");
+    repo.completeScanTask("offline-task", "offline", {
+      totalFolders: 1, currentFolderIndex: 1, completedFolders: 0, failedFolders: 1,
+      checkedDirectories: 0, changedDirectories: 0, skippedDirectories: 0,
+      processedVideos: 0, skippedVideos: 0, addedVideos: 0, updatedVideos: 0, missingVideos: 0,
+      fileFailures: 2, directoryFailures: 0, pendingFailures: 2, retriedFailures: 0, resolvedFailures: 0
+    }, "source offline");
+
+    expect(repo.getLibraryNavigation()).toMatchObject({ scanFailureCount: 2, healthIssueCount: 1 });
+  });
+
   it("removes only local records after CloudDrive confirms the remote file is missing", async () => {
     const { repo, source, sourcePath } = setup();
     const filePath = path.join(sourcePath, "remote-gone.mp4");
@@ -150,6 +201,23 @@ describe("scan failure review", () => {
     expect(classifyScanFailureForCleanup(corrupt).category).toBe("confirmed-corrupt");
     expect(classifyScanFailureForCleanup(offline).category).toBe("transient");
     expect(classifyScanFailureForCleanup(unknown).category).toBe("manual-review");
+  });
+
+  it("prefers structured missing and transient error codes over ambiguous diagnostic text", () => {
+    const { repo, source, sourcePath } = setup();
+    const missing = repo.recordScanFailure({
+      sourceFolderId: source.id, scanTaskId: "review-test", objectType: "file",
+      objectPath: path.join(sourcePath, "missing.mp4"), failureStage: "file-processing",
+      errorCode: "ENOENT", errorSummary: "moov atom not found"
+    });
+    const timeout = repo.recordScanFailure({
+      sourceFolderId: source.id, scanTaskId: "review-test", objectType: "file",
+      objectPath: path.join(sourcePath, "timeout.mp4"), failureStage: "file-processing",
+      errorCode: "ETIMEDOUT", errorSummary: "invalid data found when processing input"
+    });
+
+    expect(classifyScanFailureForCleanup(missing).category).toBe("missing");
+    expect(classifyScanFailureForCleanup(timeout).category).toBe("transient");
   });
 
   it("batch marks confirmed corrupt videos but skips transient failures", async () => {

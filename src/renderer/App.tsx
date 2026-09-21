@@ -34,6 +34,7 @@ const emptyNavigation: LibraryNavigationSnapshot = {
   pendingDeleteBytes: 0,
   pendingMetadataVideos: 0,
   scanFailureCount: 0,
+  healthIssueCount: 0,
   directoryPaths: []
 };
 
@@ -89,6 +90,7 @@ function areLibraryNavigationSnapshotsEqual(
     && left.pendingDeleteBytes === right.pendingDeleteBytes
     && left.pendingMetadataVideos === right.pendingMetadataVideos
     && left.scanFailureCount === right.scanFailureCount
+    && left.healthIssueCount === right.healthIssueCount
     && left.directoryPaths.length === right.directoryPaths.length
     && left.directoryPaths.every((directoryPath, index) => directoryPath === right.directoryPaths[index]);
 }

@@ -169,6 +169,7 @@ function createDesktopApi(): DesktopVideoManagerApi {
       pendingDeleteBytes: 0,
       pendingMetadataVideos: 0,
       scanFailureCount: 0,
+      healthIssueCount: 0,
       directoryPaths: []
     })),
     listFolderScanStatuses: vi.fn(async () => []),

@@ -202,7 +202,7 @@ describe("LibraryShell", () => {
     render(
       <LibraryShell
         videos={[]}
-        navigation={{ totalVideos: 10, favoriteVideos: 0, pendingDeleteVideos: 2, pendingDeleteBytes: 3072, pendingMetadataVideos: 0, scanFailureCount: 0, directoryPaths: [] }}
+        navigation={{ totalVideos: 10, favoriteVideos: 0, pendingDeleteVideos: 2, pendingDeleteBytes: 3072, pendingMetadataVideos: 0, scanFailureCount: 0, healthIssueCount: 0, directoryPaths: [] }}
         onDeleteAllPending={onDeleteAllPending}
       />
     );
@@ -888,7 +888,7 @@ describe("LibraryShell", () => {
       <LibraryShell
         videos={[]}
         folders={[folder]}
-        navigation={{ totalVideos: 101, favoriteVideos: 1, pendingDeleteVideos: 0, pendingDeleteBytes: 0, pendingMetadataVideos: 0, scanFailureCount: 0, directoryPaths: ["D:\\Movies", "D:\\Movies\\Drama"] }}
+        navigation={{ totalVideos: 101, favoriteVideos: 1, pendingDeleteVideos: 0, pendingDeleteBytes: 0, pendingMetadataVideos: 0, scanFailureCount: 0, healthIssueCount: 0, directoryPaths: ["D:\\Movies", "D:\\Movies\\Drama"] }}
         onLoadVideoPage={onLoadVideoPage}
       />
     );

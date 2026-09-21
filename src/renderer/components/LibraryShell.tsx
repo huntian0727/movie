@@ -443,7 +443,8 @@ export function LibraryShell({
   }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
 
   const isHealthView = view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
-  const healthIssueCount = (navigation?.scanFailureCount ?? 0) + missingVideoCount + (navigation?.pendingMetadataVideos ?? metadataIssueCount);
+  const healthIssueCount = navigation?.healthIssueCount
+    ?? ((navigation?.scanFailureCount ?? 0) + missingVideoCount + (navigation?.pendingMetadataVideos ?? metadataIssueCount));
   const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : isHealthView ? "异常中心" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复文件" : "视频浏览";
   const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : view === "missingVideos" ? missingVideoCount : view === "metadataIssues" ? metadataIssueCount : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
   const totalPages = onLoadVideoPage ? videoPage.totalPages : Math.max(1, Math.ceil(visibleVideos.length / pageSize));

@@ -15,6 +15,13 @@
 .scan-failure-filters label { display: grid; gap: 6px; color: #8b8f89; font-size: 13px; }
 .scan-failure-filters select { min-width: 180px; max-width: 420px; height: 40px; padding: 0 34px 0 12px; border: 1px solid #343734; border-radius: 8px; background: #181a18; color: #f4f4f2; }
 .scan-failure-scope { margin: 0; color: #e8a744; overflow-wrap: anywhere; }
+.scan-failure-source-alerts { border: 1px solid #604b27; border-radius: 10px; background: #211d15; }
+.scan-failure-source-alerts > summary { display: flex; align-items: center; gap: 8px; padding: 12px 14px; color: #efb95e; cursor: pointer; font-weight: 700; }
+.scan-failure-source-alerts > p { margin: 0; padding: 0 14px 10px; color: #a99f8d; font-size: 12px; }
+.scan-failure-source-alerts > div { display: grid; gap: 8px; padding: 0 14px 14px; }
+.scan-failure-source-alerts button { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 0.7fr); gap: 16px; text-align: left; }
+.scan-failure-source-alerts button span, .scan-failure-source-alerts button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scan-failure-source-alerts button small { color: #cf9e50; }
 .scan-failure-list { display: grid; gap: 12px; }
 .scan-failure-card { display: grid; grid-template-columns: 24px 170px minmax(0, 1fr) 150px; gap: 14px; padding: 16px; border: 1px solid #343734; border-radius: 12px; background: #181a18; }
 .scan-failure-select { padding-top: 4px; }
