@@ -573,13 +573,13 @@ export function DuplicateGroupsPage({
             </div>
           )}
           {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
+          {onAutoDelete && <button className="danger current-page-delete" type="button" title={`只删除当前第 ${page} 页中可通过 CloudDrive API 处理的候选项`} disabled={actionPending || fastDeleteCount === 0} onClick={() => void handleAutoDelete(plan, `当前第 ${page} 页清理`)}>
+            {actionPending ? "正在创建删除任务..." : `批量删除当前页（${groups.length} 组）`}
+          </button>}
           {onAutoDeleteFiltered && <button className="danger" type="button" title={filteredDeleteDisabledReason ?? "通过 CloudDrive API 删除全部筛选结果中的候选项"} aria-describedby={filteredDeleteDisabledReason ? "filtered-delete-disabled-reason" : undefined} disabled={actionPending || filteredDeleteDisabledReason !== null} onClick={() => void handleFilteredAutoDelete()}>
             {actionPending ? "正在创建删除任务..." : `批量删除全部筛选结果（${totalGroups} 组）`}
           </button>}
           {onAutoDeleteFiltered && filteredDeleteDisabledReason && <p id="filtered-delete-disabled-reason" className="duplicate-delete-disabled-reason" role="status">批量删除暂不可用：{filteredDeleteDisabledReason}</p>}
-          {!onAutoDeleteFiltered && onAutoDelete && <button className="danger" type="button" disabled={actionPending || fastDeleteCount === 0} onClick={() => void handleAutoDelete(plan, "批量清理")}>
-            {actionPending ? "正在创建删除任务..." : `批量删除候选项（${fastDeleteCount}）`}
-          </button>}
           {onSubmitCleanup ? (
             <DuplicateCleanupButton
               plan={plan}

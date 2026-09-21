@@ -1019,8 +1019,8 @@ export function LibraryShell({
             onClearCleanup={duplicateCleanupApi?.clearDuplicateCleanup}
             onOpenCleanupItem={duplicateCleanupApi?.openDuplicateCleanupItem}
             onCleanupFinished={async (job) => {
-              if (job.sourceView !== "duplicates-all-filtered") return;
               setDuplicateRefreshVersion((current) => current + 1);
+              if (job.sourceView !== "duplicates-all-filtered") return;
               if (job.status !== "completed" || job.failedItems > 0 || job.skippedItems > 0) return;
               const currentDirectory = duplicatePreferredDirectories[0];
               if (currentDirectory && duplicateCleanupApi?.removeDuplicatePreferredDirectory) {

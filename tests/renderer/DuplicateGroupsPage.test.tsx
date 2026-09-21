@@ -78,14 +78,39 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     const onAutoDelete = vi.fn().mockResolvedValue({ jobId: "job-1", requestId: "request-1", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
     render(<DuplicateGroupsPage {...baseProps()} preferredDirectories={[preferredDirectory]} onAutoDelete={onAutoDelete} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "批量删除候选项（1）" }));
+    fireEvent.click(screen.getByRole("button", { name: "批量删除当前页（1 组）" }));
 
     await waitFor(() => expect(onAutoDelete).toHaveBeenCalledOnce());
     expect(onAutoDelete).toHaveBeenCalledWith({
       groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }]
     });
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.getByText(/批量清理：已启动 CloudDrive API批量删除任务/)).toBeInTheDocument();
+    expect(screen.getByText(/当前第 1 页清理：已启动 CloudDrive API批量删除任务/)).toBeInTheDocument();
+  });
+
+  it("submits exactly the duplicate groups displayed on the current page", async () => {
+    const pageGroups = Array.from({ length: 20 }, (_, index) => ({
+      ...groups[0],
+      groupKey: `page-group-${index}`,
+      recommendedKeepVideoId: `keep-${index}`,
+      items: [
+        { ...groups[0].items[0], video: { ...video, id: `keep-${index}`, path: `D:\\Movies\\keep-${index}.mp4`, filename: `keep-${index}.mp4` } },
+        { ...groups[0].items[1], video: { ...duplicateVideo, id: `delete-${index}`, path: `D:\\Backup\\delete-${index}.mp4`, filename: `delete-${index}.mp4` } }
+      ]
+    }));
+    const onAutoDelete = vi.fn().mockResolvedValue({ jobId: "job-page", requestId: "request-page", status: "queued", totalGroups: 20, totalItems: 20, plannedReclaimableBytes: 81920 });
+    render(<DuplicateGroupsPage {...baseProps()} groups={pageGroups} page={3} pageSize={20} totalPages={8} totalGroups={153} onAutoDelete={onAutoDelete} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "批量删除当前页（20 组）" }));
+
+    await waitFor(() => expect(onAutoDelete).toHaveBeenCalledOnce());
+    expect(onAutoDelete.mock.calls[0][0].groups).toHaveLength(20);
+    expect(onAutoDelete.mock.calls[0][0].groups[0]).toEqual({
+      groupKey: "page-group-0",
+      keepVideoId: "keep-0",
+      deleteVideoIds: ["delete-0"]
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(/当前第 3 页清理/);
   });
 
   it("clears the submitted cleanup banner as soon as that background job finishes", async () => {
