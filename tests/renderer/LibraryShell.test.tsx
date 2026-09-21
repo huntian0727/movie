@@ -104,9 +104,23 @@ function makeVideo(index: number): VideoRecord {
 
 beforeEach(() => {
   window.localStorage.clear();
+  window.localStorage.setItem("video-manager:folder-section-expanded", "true");
 });
 
 describe("LibraryShell", () => {
+  it("keeps the large directory tree collapsed until the user opens it", () => {
+    window.localStorage.removeItem("video-manager:folder-section-expanded");
+    render(<LibraryShell videos={[video]} folders={[folder]} />);
+
+    const toggle = screen.getByRole("button", { name: /资料库目录/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Movies" })).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Movies" })).toBeInTheDocument();
+  });
+
   it("renders navigation, toolbar, and video metadata", () => {
     render(<LibraryShell videos={[video]} folders={[folder]} />);
     expect(screen.getByRole("button", { name: "查看所有视频" })).toBeInTheDocument();
@@ -115,6 +129,20 @@ describe("LibraryShell", () => {
     expect(screen.getByText("clip.mp4")).toBeInTheDocument();
     expect(screen.getByText("1 KB")).toBeInTheDocument();
     expect(screen.getByText("01:30")).toBeInTheDocument();
+  });
+
+  it("groups scan, missing-file, and metadata issues under one health center", () => {
+    render(<LibraryShell videos={[video]} folders={[folder]} />);
+
+    expect(screen.queryByRole("button", { name: "查看文件缺失记录" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "查看元数据异常" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看异常中心" }));
+
+    expect(screen.getByRole("heading", { name: "异常中心" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "异常类型" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /扫描失败/ })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("button", { name: /文件缺失/ }));
+    expect(screen.getByRole("button", { name: /文件缺失/ })).toHaveAttribute("aria-current", "page");
   });
 
   it("shows a clear placeholder while background metadata analysis is pending", () => {
@@ -814,7 +842,7 @@ describe("LibraryShell", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "查看 Movies 扫描异常" }));
     fireEvent.click(await screen.findByRole("button", { name: "查看异常项" }));
-    expect(await screen.findByRole("heading", { name: "扫描异常" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "异常中心" })).toBeInTheDocument();
     await waitFor(() => expect(loadReview).toHaveBeenCalledWith(expect.objectContaining({ sourceFolderId: folder.id })));
     expect(screen.getByRole("button", { name: "返回全部视频" })).toBeInTheDocument();
   });

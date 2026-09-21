@@ -25,7 +25,7 @@ describe("SettingsPage", () => {
     expect(screen.getByText("快进与快退秒数")).toBeInTheDocument();
     expect(screen.getByText("播放策略")).toBeInTheDocument();
     expect(screen.getByText("封面截帧位置")).toBeInTheDocument();
-    expect(screen.getByText("快捷键")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "快捷键" })).toBeInTheDocument();
     expect(screen.getByLabelText("播放或暂停快捷键")).toHaveTextContent("空格");
     expect(screen.queryByText("缺失文件")).not.toBeInTheDocument();
     expect(screen.getByLabelText("缓存使用情况")).toHaveTextContent("3 项");

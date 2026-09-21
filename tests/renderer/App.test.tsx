@@ -51,7 +51,7 @@ describe("desktop-only renderer runtime", () => {
     await waitFor(() => expect(api.getWindowSyncSnapshot).toHaveBeenCalled());
     await waitFor(() => expect(api.listVideoPage).toHaveBeenCalled());
     expect(screen.queryByText("映匣仅支持 Windows 桌面应用运行")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "所有视频" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "视频浏览" })).toBeInTheDocument();
   });
 
   it("requests a cover for an API video whose metadata is still pending", async () => {

@@ -405,7 +405,10 @@ export function DuplicateGroupsPage({
     return (
       <section className="duplicate-page">
         <div className="duplicate-summary">
-          <p className="duplicate-size-warning">候选发现只使用精确文件大小和整秒时长，不读取视频内容、不计算 SHA-256。</p>
+          <details className="duplicate-rule-note">
+            <summary>候选判定规则</summary>
+            <p>候选发现只使用精确文件大小和整秒时长，不读取视频内容、不计算 SHA-256。</p>
+          </details>
           <div className="duplicate-summary-card">
             <strong>{overallTotalGroups}</strong>
             <span>资料库全部重复组</span>
@@ -459,7 +462,10 @@ export function DuplicateGroupsPage({
       {missingCheckMessage && <div className="success-banner" role="status">{missingCheckMessage}</div>}
 
       <div className="duplicate-summary">
-        <p className="duplicate-size-warning">候选发现只使用精确文件大小和整秒时长，不读取视频内容、不计算 SHA-256。批量删除只处理具有 CloudDrive 远端身份的候选项，并通过 API执行。</p>
+        <details className="duplicate-rule-note">
+          <summary>候选判定规则</summary>
+          <p>候选发现只使用精确文件大小和整秒时长，不读取视频内容、不计算 SHA-256。批量删除只处理具有 CloudDrive 远端身份的候选项，并通过 API 执行。</p>
+        </details>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
           <span>{filterDirectoryPath ? "当前显示" : "大小＋时长匹配组"}</span>

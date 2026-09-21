@@ -154,13 +154,22 @@ export function SettingsPage({
   return (
     <section className="settings-page">
       <header className="settings-topbar"><button aria-label="返回视频库" onClick={onBack}><ArrowLeft size={20} /></button><div><h1>设置</h1><p>资料库、播放、快捷键和本地缓存</p></div></header>
-      <div className="settings-content">
-        <section className="settings-section"><div className="section-title"><FolderSearch size={20} /><div><h2>资料库</h2><p>控制新文件夹和启动扫描行为</p></div></div>
+      <div className="settings-layout">
+        <nav className="settings-category-nav" aria-label="设置分类">
+          <a href="#settings-library">资料库</a>
+          <a href="#settings-clouddrive">CloudDrive API</a>
+          <a href="#settings-playback">播放</a>
+          <a href="#settings-shortcuts">快捷键</a>
+          <a href="#settings-cache">缓存</a>
+          <a href="#settings-diagnostics">诊断与日志</a>
+        </nav>
+        <div className="settings-content">
+        <section id="settings-library" className="settings-section"><div className="section-title"><FolderSearch size={20} /><div><h2>资料库</h2><p>控制新文件夹和启动扫描行为</p></div></div>
           <label className="setting-row"><div><strong>默认递归扫描</strong><span>添加文件夹时扫描所有子文件夹</span></div><input aria-label="默认递归扫描" type="checkbox" checked={settings.defaultRecursiveScan} onChange={(event) => update({ defaultRecursiveScan: event.target.checked })} /></label>
           <label className="setting-row"><div><strong>启动时自动同步</strong><span>打开应用后检查已添加的文件夹</span></div><input aria-label="启动时自动同步" type="checkbox" checked={settings.startupSync} onChange={(event) => update({ startupSync: event.target.checked })} /></label>
         </section>
 
-        <section className="settings-section">
+        <section id="settings-clouddrive" className="settings-section">
           <div className="section-title"><Cloud size={20} /><div><h2>CloudDrive API</h2><p>用于低带宽扫描、旧资料库绑定和批量远端删除</p></div></div>
           <div className="clouddrive-settings-grid">
             <label>
@@ -188,13 +197,13 @@ export function SettingsPage({
           {cloudDriveMessage && <p className={cloudDriveMessage.kind === "success" ? "settings-success" : "settings-warning"} role="status">{cloudDriveMessage.text}</p>}
         </section>
 
-        <section className="settings-section"><div className="section-title"><RotateCcw size={20} /><div><h2>播放</h2><p>调整播放器控制和格式选择</p></div></div>
+        <section id="settings-playback" className="settings-section"><div className="section-title"><RotateCcw size={20} /><div><h2>播放</h2><p>调整播放器控制和格式选择</p></div></div>
           <label className="setting-row"><div><strong>打开视频后自动播放</strong><span>进入播放器时自动开始播放当前视频</span></div><input aria-label="打开视频后自动播放" type="checkbox" checked={settings.autoPlayOnOpen} onChange={(event) => update({ autoPlayOnOpen: event.target.checked })} /></label>
           <label className="setting-row"><div><strong>快进与快退秒数</strong><span>播放器按钮和方向键每次跳转的时间</span></div><input className="number-input" aria-label="快进与快退秒数" type="number" min="1" max="120" value={settings.seekStepSeconds} onChange={(event) => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 1 && value <= 120) update({ seekStepSeconds: value }); }} /></label>
           <label className="setting-row"><div><strong>播放策略</strong><span>不兼容格式会自动交给外部播放器</span></div><select aria-label="播放策略" value={settings.playbackPreference} onChange={(event) => update({ playbackPreference: event.target.value as PlaybackPreference })}><option value="auto">自动选择</option><option value="native-first">内置播放器优先</option><option value="mpv-first">mpv 优先</option></select></label>
         </section>
 
-        <section className="settings-section">
+        <section id="settings-shortcuts" className="settings-section">
           <div className="section-title settings-section-title-actions">
             <Keyboard size={20} />
             <div><h2>快捷键</h2><p>点击快捷键后直接按下新的组合；同一页面内不能重复</p></div>
@@ -249,7 +258,7 @@ export function SettingsPage({
           {shortcutMessage && <p className={shortcutMessage.startsWith("不能保存") ? "settings-warning" : "settings-hint"}>{shortcutMessage}</p>}
         </section>
 
-        <section className="settings-section"><div className="section-title"><Database size={20} /><div><h2>缓存</h2><p>封面和进度预览图片</p></div></div>
+        <section id="settings-cache" className="settings-section"><div className="section-title"><Database size={20} /><div><h2>缓存</h2><p>封面和进度预览图片</p></div></div>
           <label className="setting-row"><div><strong>封面截帧位置</strong><span>从视频开始后的指定秒数取一帧；短视频自动取中间位置</span></div><select aria-label="封面截帧位置" value={settings.coverFrameTimeSeconds} onChange={(event) => update({ coverFrameTimeSeconds: Number(event.target.value) as AppSettings["coverFrameTimeSeconds"] })}><option value={0}>开头（0 秒）</option><option value={3}>3 秒</option><option value={5}>5 秒（推荐）</option><option value={10}>10 秒</option><option value={15}>15 秒</option></select></label>
           <div className="setting-row"><div className="cache-path"><strong>缓存位置</strong><span title={cacheLocation}>{cacheLocation}</span></div><button className="secondary-button" onClick={() => setConfirmClear(true)}>清理缓存</button></div>
           <div className="cache-usage" aria-label="缓存使用情况">
@@ -261,7 +270,7 @@ export function SettingsPage({
           {cacheMessage && <p className="settings-success">{cacheMessage}</p>}
         </section>
 
-        <section className="settings-section"><div className="section-title"><FileDown size={20} /><div><h2>诊断与日志</h2><p>预览并导出脱敏运行信息，便于定位扫描、数据库和媒体问题</p></div></div>
+        <section id="settings-diagnostics" className="settings-section"><div className="section-title"><FileDown size={20} /><div><h2>诊断与日志</h2><p>预览并导出脱敏运行信息，便于定位扫描、数据库和媒体问题</p></div></div>
           <label className="setting-row"><div><strong>导出应用数据目录完整路径</strong><span>默认关闭；即使开启，也不会包含视频路径、文件名、数据库正文、令牌或环境变量值。</span></div><input aria-label="导出应用数据目录完整路径" type="checkbox" checked={includeFullPaths} onChange={(event) => { setIncludeFullPaths(event.target.checked); setDiagnosticsPreview(null); }} /></label>
           <div className="diagnostics-actions">
             <button className="secondary-button" disabled={diagnosticsBusy} onClick={() => void previewDiagnostics()}>{diagnosticsBusy ? "处理中…" : "预览诊断内容"}</button>
@@ -270,6 +279,7 @@ export function SettingsPage({
           {diagnosticsPreview && <pre className="diagnostics-preview" aria-label="诊断内容预览">{JSON.stringify(diagnosticsPreview, null, 2)}</pre>}
           {diagnosticsMessage && <p className={diagnosticsMessage.includes("已导出") || diagnosticsMessage.includes("取消") ? "settings-success" : "settings-warning"}>{diagnosticsMessage}</p>}
         </section>
+        </div>
       </div>
 
       {confirmClear && <div className="dialog-backdrop" role="presentation"><section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-cache-title"><h3 id="clear-cache-title">清理全部缓存？</h3><p>封面和进度预览会在需要时重新生成，原始视频不会被删除。</p><div className="dialog-actions"><button onClick={() => setConfirmClear(false)}>取消</button><button className="danger" onClick={() => void clearCache()}>清理缓存</button></div></section></div>}

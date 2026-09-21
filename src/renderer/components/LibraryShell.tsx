@@ -21,6 +21,7 @@ const GRID_CARD_WIDTH_OPTIONS = [180, 220, 260, 320, 400] as const;
 const GRID_CARD_WIDTH_STORAGE_KEY = "video-manager:grid-card-width";
 const PAGE_SIZE_STORAGE_KEY = "video-manager:library-page-size";
 const SIDEBAR_WIDTH_STORAGE_KEY = "video-manager:sidebar-width";
+const FOLDER_SECTION_EXPANDED_STORAGE_KEY = "video-manager:folder-section-expanded";
 const DEFAULT_SIDEBAR_WIDTH = 300;
 const MIN_SIDEBAR_WIDTH = 250;
 const MAX_SIDEBAR_WIDTH = 460;
@@ -196,6 +197,7 @@ export function LibraryShell({
   const [gridCardWidth, setGridCardWidth] = useState<(typeof GRID_CARD_WIDTH_OPTIONS)[number]>(readStoredGridCardWidth);
   const [expandedFolderPaths, setExpandedFolderPaths] = useState<string[]>([]);
   const [folderQuery, setFolderQuery] = useState("");
+  const [folderSectionExpanded, setFolderSectionExpanded] = useState(readStoredFolderSectionExpanded);
   const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [duplicatePageNumber, setDuplicatePageNumber] = useState(1);
@@ -336,6 +338,14 @@ export function LibraryShell({
   }, [sidebarWidth]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(FOLDER_SECTION_EXPANDED_STORAGE_KEY, String(folderSectionExpanded));
+    } catch {
+      // Renderer storage can be unavailable in hardened or test environments.
+    }
+  }, [folderSectionExpanded]);
+
+  useEffect(() => {
     if (!isResizingSidebar) return;
     const onPointerMove = (event: PointerEvent) => {
       const start = sidebarResizeStartRef.current;
@@ -432,7 +442,9 @@ export function LibraryShell({
     return () => { disposed = true; };
   }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
 
-  const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : view === "scanFailures" ? "扫描异常" : view === "missingVideos" ? "文件缺失" : view === "metadataIssues" ? "元数据异常" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复项" : "所有视频";
+  const isHealthView = view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
+  const healthIssueCount = (navigation?.scanFailureCount ?? 0) + missingVideoCount + (navigation?.pendingMetadataVideos ?? metadataIssueCount);
+  const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : isHealthView ? "异常中心" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复文件" : "视频浏览";
   const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : view === "missingVideos" ? missingVideoCount : view === "metadataIssues" ? metadataIssueCount : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
   const totalPages = onLoadVideoPage ? videoPage.totalPages : Math.max(1, Math.ceil(visibleVideos.length / pageSize));
   const currentPage = onLoadVideoPage ? videoPage.page : Math.min(page, totalPages);
@@ -683,46 +695,58 @@ export function LibraryShell({
           <div><strong>映匣</strong><small>本地视频库</small></div>
         </div>
         <nav className="primary-nav" aria-label="视频库导航">
-          <button aria-label="查看视频数据表" className={view === "videoData" ? "active" : undefined} onClick={() => { setView("videoData"); setSelectedFolderPath(null); }}>
-            <Database size={18} /><span>视频数据表</span>
-          </button>
+          <span className="primary-nav-group">概览</span>
           <button aria-label="查看资产中心" className={view === "assetCenter" ? "active" : undefined} onClick={() => { setView("assetCenter"); setSelectedFolderPath(null); }}>
             <PieChart size={18} /><span>资产中心</span>
           </button>
+
+          <span className="primary-nav-group">资料库</span>
           <button aria-label="查看所有视频" className={view === "all" ? "active" : undefined} onClick={() => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); }}>
-            <Library size={18} /><span>所有视频</span><em>{navigation?.totalVideos ?? videos.length}</em>
+            <Library size={18} /><span>视频浏览</span><em>{navigation?.totalVideos ?? videos.length}</em>
           </button>
-          <button aria-label="查看收藏视频" className={view === "favorites" ? "active" : undefined} onClick={() => { setView("favorites"); setSelectedFolderPath(null); }}>
+          <button aria-label="查看视频数据表" className={view === "videoData" ? "active" : undefined} onClick={() => { setView("videoData"); setSelectedFolderPath(null); }}>
+            <Database size={18} /><span>视频数据</span>
+          </button>
+          <button aria-label="查看收藏视频" className={`secondary-nav-item${view === "favorites" ? " active" : ""}`} onClick={() => { setView("favorites"); setSelectedFolderPath(null); }}>
             <Heart size={18} /><span>收藏</span><em>{favoriteCount}</em>
+          </button>
+          <button aria-label="查看最近播放" className={`secondary-nav-item${view === "recent" ? " active" : ""}`} onClick={() => { setView("recent"); setSelectedFolderPath(null); }}>
+            <Clock3 size={18} /><span>最近播放</span><em>{recentVideoIds.length}</em>
+          </button>
+
+          <span className="primary-nav-group">清理与健康</span>
+          <button aria-label="查看重复项" className={view === "duplicates" ? "active" : undefined} onClick={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}>
+            <CopyMinus size={18} /><span>重复文件</span><em>{duplicatePage.overallTotalGroups}</em>
+          </button>
+          <button aria-label="查看异常中心" className={isHealthView ? "active" : undefined} onClick={() => { setView("scanFailures"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); }}>
+            <AlertTriangle size={18} /><span>异常中心</span><em>{healthIssueCount}</em>
           </button>
           <button aria-label="查看待删除视频" className={view === "pendingDelete" ? "active" : undefined} onClick={() => { setView("pendingDelete"); setSelectedFolderPath(null); }}>
             <BookmarkX size={18} /><span>待删除</span><em>{pendingDeleteCount}</em>
           </button>
-          <button aria-label="查看最近播放" className={view === "recent" ? "active" : undefined} onClick={() => { setView("recent"); setSelectedFolderPath(null); }}>
-            <Clock3 size={18} /><span>最近播放</span><em>{recentVideoIds.length}</em>
-          </button>
+
+          <span className="primary-nav-group">工具</span>
           <button aria-label="查看播放诊断" className={view === "playbackDiagnostic" ? "active" : undefined} onClick={() => { setView("playbackDiagnostic"); setSelectedFolderPath(null); }}>
             <CircleGauge size={18} /><span>播放诊断</span>
           </button>
-          <button aria-label="查看扫描异常" className={view === "scanFailures" ? "active" : undefined} onClick={() => { setView("scanFailures"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); }}>
-            <AlertTriangle size={18} /><span>扫描异常</span><em>{navigation?.scanFailureCount ?? 0}</em>
-          </button>
-          <button aria-label="查看文件缺失记录" className={view === "missingVideos" ? "active" : undefined} onClick={() => { setView("missingVideos"); setSelectedFolderPath(null); setMissingVideoSourceFolderId(undefined); }}>
-            <FileQuestion size={18} /><span>文件缺失</span>
-          </button>
-          <button aria-label="查看元数据异常" className={view === "metadataIssues" ? "active" : undefined} onClick={() => { setView("metadataIssues"); setSelectedFolderPath(null); setMetadataIssueSourceFolderId(undefined); }}>
-            <Database size={18} /><span>元数据异常</span>
-          </button>
-          <button aria-label="查看重复项" className={view === "duplicates" ? "active" : undefined} onClick={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}>
-                <CopyMinus size={18} /><span>重复项</span><em>{duplicatePage.overallTotalGroups}</em>
-          </button>
         </nav>
         <div className="sidebar-heading">
-          <span>文件夹 <small>{directoryEntries.length}</small></span>
+          <button
+            type="button"
+            className="sidebar-folder-toggle"
+            aria-expanded={folderSectionExpanded}
+            aria-controls="library-folder-navigation"
+            onClick={() => setFolderSectionExpanded((current) => !current)}
+          >
+            {folderSectionExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span>资料库目录</span>
+            <small>{directoryEntries.length}</small>
+          </button>
           <button aria-label="通过 API 添加网盘目录" title="通过 CloudDrive API 添加网盘目录" onClick={() => void onAddCloudDriveFolder?.()}><Cloud size={17} /></button>
           <button aria-label="添加文件夹" title="添加文件夹" onClick={() => void onAddFolder?.()}><FolderPlus size={17} /></button>
         </div>
-        <label className="folder-search">
+        {folderSectionExpanded && <div id="library-folder-navigation" className="sidebar-folder-section">
+          <label className="folder-search">
           <Search size={15} aria-hidden="true" />
           <input
             ref={folderSearchRef}
@@ -745,13 +769,13 @@ export function LibraryShell({
               <X size={14} />
             </button>
           )}
-        </label>
-        {folderQuery.trim() && folderSearchMatches.length > MAX_FOLDER_SEARCH_RESULTS && (
-          <p className="folder-search-summary" role="status">
-            找到 {folderSearchMatches.length.toLocaleString("zh-CN")} 个目录，先显示前 {MAX_FOLDER_SEARCH_RESULTS} 个；继续输入可缩小范围。
-          </p>
-        )}
-        <nav ref={folderNavRef} className={`folder-nav${folderQuery.trim() ? " search-results" : ""}`} aria-label="视频文件夹">
+          </label>
+          {folderQuery.trim() && folderSearchMatches.length > MAX_FOLDER_SEARCH_RESULTS && (
+            <p className="folder-search-summary" role="status">
+              找到 {folderSearchMatches.length.toLocaleString("zh-CN")} 个目录，先显示前 {MAX_FOLDER_SEARCH_RESULTS} 个；继续输入可缩小范围。
+            </p>
+          )}
+          <nav ref={folderNavRef} className={`folder-nav${folderQuery.trim() ? " search-results" : ""}`} aria-label="视频文件夹">
           {displayedDirectoryEntries.map((entry) => {
             const normalizedPath = normalizeDirectoryPath(entry.path);
             const isExpanded = expandedFolderPaths.includes(normalizedPath);
@@ -837,7 +861,8 @@ export function LibraryShell({
           })}
           {directoryEntries.length === 0 && <p className="folder-empty">还没有添加文件夹</p>}
           {directoryEntries.length > 0 && displayedDirectoryEntries.length === 0 && <p className="folder-empty">没有匹配的已入库目录</p>}
-        </nav>
+          </nav>
+        </div>}
         <div className="sidebar-footer">
           <button onClick={onOpenSettings}><Settings size={17} /><span>设置</span></button>
           <div className="storage-note"><span>本地资料库</span><small>文件保留在原位置</small></div>
@@ -866,7 +891,7 @@ export function LibraryShell({
         {usesCommonToolbar && <Toolbar
           title={title}
           count={toolbarCount}
-          countLabel={view === "duplicates" ? "组重复" : view === "scanFailures" ? "项异常" : view === "missingVideos" || view === "metadataIssues" ? "条记录" : "部视频"}
+          countLabel={view === "duplicates" ? "组重复" : isHealthView ? "项待处理" : "部视频"}
           search={search}
           sortField={sortField}
           sortDirection={sortDirection}
@@ -875,7 +900,7 @@ export function LibraryShell({
           gridCardSizeMaxIndex={GRID_CARD_WIDTH_OPTIONS.length - 1}
           loading={loading}
           showBrowseControls={view !== "duplicates" && view !== "scanFailures" && view !== "missingVideos" && view !== "metadataIssues"}
-          onBack={view === "folder" ? () => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); } : view === "scanFailures" ? () => { setView("all"); setScanFailureSourceFolderId(undefined); } : view === "missingVideos" ? () => { setView("assetCenter"); setMissingVideoSourceFolderId(undefined); } : view === "metadataIssues" ? () => { setView("assetCenter"); setMetadataIssueSourceFolderId(undefined); } : undefined}
+          onBack={view === "folder" ? () => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); } : isHealthView ? () => { setView("assetCenter"); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); } : undefined}
           onSearch={setSearch}
           onSortField={setSortField}
           onToggleDirection={() => setSortDirection((current) => (current === "asc" ? "desc" : "asc"))}
@@ -886,6 +911,20 @@ export function LibraryShell({
           }}
           onRefresh={() => void onRefresh?.()}
         />}
+
+        {isHealthView && (
+          <nav className="health-center-tabs" aria-label="异常类型">
+            <button type="button" aria-current={view === "scanFailures" ? "page" : undefined} onClick={() => { setView("scanFailures"); setScanFailureSourceFolderId(undefined); }}>
+              <AlertTriangle size={16} /><span>扫描失败</span><em>{navigation?.scanFailureCount ?? 0}</em>
+            </button>
+            <button type="button" aria-current={view === "missingVideos" ? "page" : undefined} onClick={() => { setView("missingVideos"); setMissingVideoSourceFolderId(undefined); }}>
+              <FileQuestion size={16} /><span>文件缺失</span>{missingVideoCount > 0 && <em>{missingVideoCount}</em>}
+            </button>
+            <button type="button" aria-current={view === "metadataIssues" ? "page" : undefined} onClick={() => { setView("metadataIssues"); setMetadataIssueSourceFolderId(undefined); }}>
+              <Database size={16} /><span>元数据异常</span><em>{navigation?.pendingMetadataVideos ?? metadataIssueCount}</em>
+            </button>
+          </nav>
+        )}
 
         {isVideoBrowseView && (
           <div className="batch-toolbar">
@@ -1436,6 +1475,14 @@ function readStoredSidebarWidth(): number {
     // Fall through to the default when storage is unavailable.
   }
   return DEFAULT_SIDEBAR_WIDTH;
+}
+
+function readStoredFolderSectionExpanded(): boolean {
+  try {
+    return window.localStorage.getItem(FOLDER_SECTION_EXPANDED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
 }
 
 function clampSidebarWidth(value: number): number {
