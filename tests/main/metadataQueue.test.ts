@@ -45,6 +45,29 @@ describe("MetadataQueue", () => {
     expect(described.summary).toMatch(/Invalid data found when processing input$/);
   });
 
+  it("records a known archive signature as a content mismatch instead of corrupt video", async () => {
+    const video = createVideo("v1", "Z:\\Cloud\\archive-disguised-as-video.mp4");
+    const repo = createRepo(new Map([[video.id, video]]));
+    const queue = new MetadataQueue(
+      repo.value,
+      async () => { throw new Error("moov atom not found; Invalid data found when processing input"); },
+      1,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      async () => ({ kind: "zip", label: "ZIP 压缩包" })
+    );
+
+    queue.enqueue(video.id);
+    await queue.whenIdle();
+
+    expect(repo.recordScanFailure).toHaveBeenCalledWith(expect.objectContaining({
+      errorCode: "CONTENT_TYPE_MISMATCH",
+      errorSummary: expect.stringContaining("ZIP 压缩包")
+    }));
+  });
+
   it("runs FFprobe with bounded concurrency and writes ready metadata", async () => {
     const videos = new Map([
       ["v1", createVideo("v1", "Z:\\Cloud\\one.mp4")],

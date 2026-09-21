@@ -3,9 +3,11 @@ import type { StructuredLogger } from "../logging/logger.js";
 import { readDuration, readMetadata, type MediaMetadata } from "./metadataService.js";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
+import { detectKnownNonVideoContent, type KnownNonVideoContent } from "./fileSignature.js";
 
 type MetadataReader = (filePath: string) => Promise<MediaMetadata>;
 type DurationReader = (filePath: string) => Promise<number | null>;
+type ContentInspector = (filePath: string) => Promise<KnownNonVideoContent | null>;
 
 export interface MetadataQueueStatus {
   queued: number;
@@ -35,7 +37,8 @@ export class MetadataQueue {
     private readonly logger?: StructuredLogger,
     private readonly onVideoUpdated?: (videoId: string) => void,
     private readonly onSourceFolderUpdated?: (sourceFolderId: string) => void,
-    private readonly durationReader: DurationReader = readDuration
+    private readonly durationReader: DurationReader = readDuration,
+    private readonly contentInspector: ContentInspector = detectKnownNonVideoContent
   ) {
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("Metadata queue concurrency must be at least 1");
   }
@@ -193,7 +196,7 @@ export class MetadataQueue {
         if (missingResult.error) failureError = missingResult.error;
       }
       if (this.repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt)) {
-        const failure = describeMetadataFailure(failureError);
+        const failure = await this.describeFailureWithContentInspection(video.path, failureError);
         this.repo.recordScanFailure?.({
           sourceFolderId: video.sourceFolderId,
           scanTaskId: `metadata:${video.id}`,
@@ -264,6 +267,24 @@ export class MetadataQueue {
   private resolveIdleWaiters(): void {
     for (const resolve of this.idleWaiters) resolve();
     this.idleWaiters.clear();
+  }
+
+  private async describeFailureWithContentInspection(filePath: string, error: unknown): Promise<{ code: string; summary: string }> {
+    const failure = describeMetadataFailure(error);
+    if (failure.code !== "INVALID_MEDIA") return failure;
+    try {
+      const detected = await withTimeout(
+        this.contentInspector(filePath),
+        5_000,
+        "File signature inspection timed out"
+      );
+      if (!detected) return failure;
+      const prefix = `文件扩展名与实际内容不一致：检测到 ${detected.label}（${detected.kind}），未判定为视频损坏。FFprobe：`;
+      const remainingLength = Math.max(0, 500 - prefix.length);
+      return { code: "CONTENT_TYPE_MISMATCH", summary: `${prefix}${failure.summary.slice(-remainingLength)}` };
+    } catch {
+      return failure;
+    }
   }
 
   private recordSourceFolderProgress(sourceFolderId: string): void {

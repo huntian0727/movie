@@ -35,15 +35,10 @@ const TRANSIENT_ERROR_CODES = new Set([
   "EAI_AGAIN"
 ]);
 
-// Keep this list deliberately narrow. A metadata error is not proof that a file is
-// unplayable; only signatures emitted by ffprobe for a structurally invalid container
-// are eligible for the high-frequency cleanup flow.
-const CONFIRMED_CORRUPT_PATTERNS = [
-  /moov atom not found/i,
-  /invalid data found when processing input/i,
-  /error reading header/i,
-  /invalid (?:nal|packet|chunk|box) (?:size|data)/i
-];
+// Permanent deletion must never be enabled from FFprobe text alone. Messages such as
+// "moov atom not found" can also mean that a playable archive or another container was
+// given a video extension, or that a mounted remote file returned incomplete data.
+const CONFIRMED_CORRUPT_ERROR_CODES = new Set(["CONFIRMED_CORRUPT"]);
 
 export function classifyScanFailureForCleanup(failure: ScanFailure): ScanFailureCleanupClassification {
   const errorCode = failure.errorCode?.trim().toUpperCase() ?? "";
@@ -63,8 +58,14 @@ export function classifyScanFailureForCleanup(failure: ScanFailure): ScanFailure
   if (TRANSIENT_PATTERNS.some((pattern) => pattern.test(diagnostic))) {
     return { category: "transient", label: "访问异常，不可清理", reason: "可能是网盘、权限或临时占用问题，不能据此判断文件损坏。" };
   }
-  if (CONFIRMED_CORRUPT_PATTERNS.some((pattern) => pattern.test(diagnostic))) {
-    return { category: "confirmed-corrupt", label: "确认损坏，可清理", reason: "FFprobe 返回了明确的容器损坏特征。" };
+  if (errorCode === "CONTENT_TYPE_MISMATCH") {
+    return { category: "manual-review", label: "扩展名与内容不一致", reason: "文件头显示它不是当前扩展名所代表的视频容器；可能是可正常使用的压缩包或其他文件，不允许自动删除。" };
+  }
+  if (CONFIRMED_CORRUPT_ERROR_CODES.has(errorCode)) {
+    return { category: "confirmed-corrupt", label: "复核确认损坏，可清理", reason: "该文件已通过独立复核流程确认损坏；普通 FFprobe 解析失败不会进入此分类。" };
+  }
+  if (errorCode === "INVALID_MEDIA" || /moov atom not found|invalid data found when processing input|error reading header/i.test(diagnostic)) {
+    return { category: "manual-review", label: "媒体解析失败，需复核", reason: "FFprobe 解析失败不能单独证明文件损坏；可能是扩展名不符、特殊封装、远端读取不完整或播放器兼容性差异。" };
   }
   return { category: "manual-review", label: "需要人工确认", reason: "扫描失败不足以证明视频无法播放。" };
 }

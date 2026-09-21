@@ -28,14 +28,14 @@ function setup() {
   return { repo, source, sourcePath };
 }
 
-function record(repo: VideoRepository, sourceFolderId: string, objectPath: string, objectType: "file" | "directory" = "file", errorSummary = "network read failed") {
+function record(repo: VideoRepository, sourceFolderId: string, objectPath: string, objectType: "file" | "directory" = "file", errorSummary = "network read failed", errorCode = "EIO") {
   return repo.recordScanFailure({
     sourceFolderId,
     scanTaskId: "review-test",
     objectType,
     objectPath,
     failureStage: objectType === "directory" ? "directory-enumeration" : "file-processing",
-    errorCode: "EIO",
+    errorCode,
     errorSummary
   });
 }
@@ -68,7 +68,7 @@ describe("scan failure review", () => {
     const filePath = path.join(sourcePath, "broken.mp4");
     const modifiedAt = new Date(0).toISOString();
     const video = repo.upsertVideo({ sourceFolderId: source.id, path: filePath, directory: sourcePath, filename: "broken.mp4", basename: "broken", extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt });
-    const failure = record(repo, source.id, filePath, "file", "moov atom not found; Invalid data found when processing input");
+    const failure = record(repo, source.id, filePath, "file", "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     const deleteImpl = vi.fn().mockResolvedValue(undefined);
 
     await expect(deleteScanFailureFile(repo, failure.id, {
@@ -81,7 +81,7 @@ describe("scan failure review", () => {
 
     const directoryFailure = record(repo, source.id, path.join(sourcePath, "folder"), "directory");
     await expect(deleteScanFailureFile(repo, directoryFailure.id)).rejects.toThrow("Directories cannot be deleted");
-    const outsideFailure = record(repo, source.id, path.join(tempDir, "outside.mp4"), "file", "moov atom not found");
+    const outsideFailure = record(repo, source.id, path.join(tempDir, "outside.mp4"), "file", "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     await expect(deleteScanFailureFile(repo, outsideFailure.id)).rejects.toThrow("outside its source folder");
   });
 
@@ -89,7 +89,7 @@ describe("scan failure review", () => {
     const { repo, source, sourcePath } = setup();
     const filePath = path.join(sourcePath, "gone.mp4");
     repo.upsertVideo({ sourceFolderId: source.id, path: filePath, directory: sourcePath, filename: "gone.mp4", basename: "gone", extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt: new Date(0).toISOString() });
-    const failure = record(repo, source.id, filePath, "file", "moov atom not found");
+    const failure = record(repo, source.id, filePath, "file", "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     const deleteImpl = vi.fn();
     const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
     await expect(deleteScanFailureFile(repo, failure.id, { statImpl: async () => { throw missing; }, deleteImpl })).rejects.toThrow("清理网盘失效记录");
@@ -193,11 +193,15 @@ describe("scan failure review", () => {
     expect(repo.getScanFailure(failure.id)?.status).toBe("unresolved");
   });
 
-  it("classifies only strong corruption signatures as eligible for cleanup", () => {
+  it("does not treat FFprobe text alone as proof of corruption", () => {
     const { repo, source, sourcePath } = setup();
-    const corrupt = record(repo, source.id, path.join(sourcePath, "corrupt.mp4"), "file", "moov atom not found");
+    const legacyInvalid = record(repo, source.id, path.join(sourcePath, "legacy.mp4"), "file", "moov atom not found", "INVALID_MEDIA");
+    const mismatch = record(repo, source.id, path.join(sourcePath, "archive.mp4"), "file", "detected ZIP archive", "CONTENT_TYPE_MISMATCH");
+    const corrupt = record(repo, source.id, path.join(sourcePath, "corrupt.mp4"), "file", "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     const offline = record(repo, source.id, path.join(sourcePath, "offline.mp4"), "file", "network read failed: ETIMEDOUT");
     const unknown = record(repo, source.id, path.join(sourcePath, "unknown.mp4"), "file", "Command failed with exit code 1");
+    expect(classifyScanFailureForCleanup(legacyInvalid)).toMatchObject({ category: "manual-review", label: "媒体解析失败，需复核" });
+    expect(classifyScanFailureForCleanup(mismatch)).toMatchObject({ category: "manual-review", label: "扩展名与内容不一致" });
     expect(classifyScanFailureForCleanup(corrupt).category).toBe("confirmed-corrupt");
     expect(classifyScanFailureForCleanup(offline).category).toBe("transient");
     expect(classifyScanFailureForCleanup(unknown).category).toBe("manual-review");
@@ -226,7 +230,7 @@ describe("scan failure review", () => {
     const offlinePath = path.join(sourcePath, "offline.mp4");
     repo.upsertVideo({ sourceFolderId: source.id, path: corruptPath, directory: sourcePath, filename: "corrupt.mp4", basename: "corrupt", extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt: new Date(0).toISOString() });
     repo.upsertVideo({ sourceFolderId: source.id, path: offlinePath, directory: sourcePath, filename: "offline.mp4", basename: "offline", extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt: new Date(0).toISOString() });
-    const corrupt = record(repo, source.id, corruptPath, "file", "Invalid data found when processing input");
+    const corrupt = record(repo, source.id, corruptPath, "file", "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     const offline = record(repo, source.id, offlinePath, "file", "network read failed: ETIMEDOUT");
 
     const result = await cleanupScanFailures(repo, [corrupt.id, offline.id], "mark-pending-delete");
@@ -239,7 +243,7 @@ describe("scan failure review", () => {
     const { repo, source, sourcePath } = setup();
     const filePath = path.join(sourcePath, "changed.mp4");
     const video = repo.upsertVideo({ sourceFolderId: source.id, path: filePath, directory: sourcePath, filename: "changed.mp4", basename: "changed", extension: ".mp4", sizeBytes: 10, durationMs: null, width: null, height: null, format: null, modifiedAt: new Date(0).toISOString() });
-    const failure = record(repo, source.id, filePath, "file", "moov atom not found");
+    const failure = record(repo, source.id, filePath, "file", "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     const deleteImpl = vi.fn();
 
     await expect(deleteScanFailureFile(repo, failure.id, {
@@ -269,7 +273,7 @@ describe("scan failure review", () => {
       basename: "peer", extension: ".mp4", sizeBytes: peerStat.size, durationMs: 5000,
       width: 1920, height: 1080, format: "mp4", modifiedAt: peerStat.mtime.toISOString()
     });
-    const failure = record(repo, source.id, candidatePath, "file", "moov atom not found");
+    const failure = record(repo, source.id, candidatePath, "file", "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     const deleteImpl = vi.fn().mockResolvedValue(undefined);
 
     await expect(deleteScanFailureFile(repo, failure.id, { deleteImpl })).rejects.toThrow(/full SHA-256 verification/i);
@@ -289,7 +293,7 @@ describe("scan failure review", () => {
         basename: path.parse(filename).name, extension: ".mp4", sizeBytes: fileStat.size, durationMs: 5000,
         width: 1920, height: 1080, format: "mp4", modifiedAt: fileStat.mtime.toISOString() });
     }
-    const failure = record(repo, source.id, candidatePath, "file", "moov atom not found");
+    const failure = record(repo, source.id, candidatePath, "file", "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     const deleteImpl = vi.fn();
     const jobs = new DuplicateCleanupRepository(db!, repo);
 

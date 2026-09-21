@@ -217,7 +217,7 @@ export function ScanFailuresPage({
         <button disabled={(!allFilteredSelected && selectedFailureIds.size === 0) || !onSubmitBatch || batchActive} onClick={() => void startBatch("recheck-accessibility")}>复查可访问性</button>
         <button disabled={(!allFilteredSelected && selectedFailureIds.size === 0) || !onSubmitBatch || batchActive} onClick={() => void startBatch("analyze-metadata")}>分析元数据</button>
         {(selectedFailureIds.size > 0 || allFilteredSelected) && <button disabled={bulkBusy || batchActive} onClick={() => { setAllFilteredSelected(false); setSelectedFailureIds(new Set()); }}>取消选择</button>}
-        <span>损坏项会永久删除原文件；网盘已删除项只清理本地记录，并在操作时在线强制刷新确认。超时、断线、权限异常不会清理。</span>
+        <span>只有独立复核明确确认损坏的项目才允许永久删除；普通 FFprobe 解析失败、格式不匹配、超时、断线和权限异常均不会删除。网盘已删除项只清理本地记录，并在操作时在线强制刷新确认。</span>
       </div>
 
       {batchJob && <div className="scan-failure-batch-status" role="status">

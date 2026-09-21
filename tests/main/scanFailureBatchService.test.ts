@@ -21,7 +21,7 @@ describe("ScanFailureBatchService", () => {
   it("runs an operation against every matching filtered result, not only the visible page", async () => {
     const { repo, source } = setup();
     for (let index = 0; index < 135; index += 1) {
-      record(repo, source.id, path.join(source.path, `broken-${index}.mp4`), "moov atom not found");
+      record(repo, source.id, path.join(source.path, `broken-${index}.mp4`), "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     }
     const analyzeFailure = vi.fn(async (failureId: string) => { repo.resolveScanFailure(failureId); });
     const service = createService(repo, { analyzeFailure });
@@ -200,10 +200,10 @@ function setup() {
   return { repo, source: repo.addSourceFolder(sourcePath, true) };
 }
 
-function record(repo: VideoRepository, sourceFolderId: string, objectPath: string, errorSummary: string) {
+function record(repo: VideoRepository, sourceFolderId: string, objectPath: string, errorSummary: string, errorCode = "EIO") {
   return repo.recordScanFailure({
     sourceFolderId, scanTaskId: "batch-test", objectType: "file", objectPath,
-    failureStage: "file-processing", errorCode: "EIO", errorSummary
+    failureStage: "file-processing", errorCode, errorSummary
   });
 }
 

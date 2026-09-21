@@ -18,7 +18,7 @@ function item(kind: ScanFailureReviewItem["kind"]): ScanFailureReviewItem {
   return {
     kind,
     video: kind === "video" ? video : null,
-    failure: { id: `failure-${kind}`, sourceFolderId: folder.id, scanTaskId: "task", objectType: kind === "directory" ? "directory" : "file", objectPath, normalizedPath: objectPath.toLowerCase(), failureStage: "file-processing", errorCode: "EIO", errorSummary: kind === "video" ? "moov atom not found" : "network read failed: ETIMEDOUT", firstFailedAt: "2026-01-01", lastFailedAt: "2026-01-02", retryCount: 2, status: "unresolved", resolvedAt: null }
+    failure: { id: `failure-${kind}`, sourceFolderId: folder.id, scanTaskId: "task", objectType: kind === "directory" ? "directory" : "file", objectPath, normalizedPath: objectPath.toLowerCase(), failureStage: "file-processing", errorCode: kind === "video" ? "CONFIRMED_CORRUPT" : "EIO", errorSummary: kind === "video" ? "independent validation confirmed structural corruption" : "network read failed: ETIMEDOUT", firstFailedAt: "2026-01-01", lastFailedAt: "2026-01-02", retryCount: 2, status: "unresolved", resolvedAt: null }
   };
 }
 
@@ -66,7 +66,7 @@ describe("ScanFailuresPage", () => {
     const onCleanup = vi.fn().mockResolvedValue({ action: "permanent-delete", successCount: 1, skippedCount: 0, failureCount: 0, reclaimedBytes: 1024, items: [] });
     render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onCleanup={onCleanup} onOpenLocation={vi.fn()} />);
     await screen.findByText("clip.mp4");
-    expect(screen.getByText("确认损坏，可清理")).toBeInTheDocument();
+    expect(screen.getByText("复核确认损坏，可清理")).toBeInTheDocument();
     expect(screen.getAllByText("访问异常，不可清理")).toHaveLength(1);
     expect(screen.getByText("目录访问异常")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "全选当前页可清理项" }));
@@ -84,6 +84,16 @@ describe("ScanFailuresPage", () => {
     fireEvent.click(screen.getAllByTitle("永久删除文件")[0]);
     await waitFor(() => expect(onDeleteFile).toHaveBeenCalledWith("failure-video"));
     await waitFor(() => expect(loadPage.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it("does not offer permanent deletion for legacy FFprobe parse errors", async () => {
+    const legacy = item("video");
+    legacy.failure.errorCode = "INVALID_MEDIA";
+    legacy.failure.errorSummary = "moov atom not found; Invalid data found when processing input";
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue({ ...page, items: [legacy], totalCount: 1 })} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);
+
+    expect(await screen.findByText("媒体解析失败，需复核")).toBeInTheDocument();
+    expect(screen.queryByTitle("永久删除文件")).not.toBeInTheDocument();
   });
 
   it("cleans a missing CloudDrive record without offering permanent file deletion", async () => {

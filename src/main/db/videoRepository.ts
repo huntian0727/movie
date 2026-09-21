@@ -2638,7 +2638,7 @@ function mapSourceFolder(row: SourceFolderRow, stats?: SourceFolderStatsRow): So
 }
 
 function normalizeMetadataFailureCode(code: string | null, summary: string | null): string | null {
-  if (code === "ACCESSIBLE" || code === "EMPTY_FILE" || code === "INVALID_MEDIA" || code === "TIMEOUT" || code === "ENOENT" || code === "CLOUD_UNAVAILABLE") return code;
+  if (code === "ACCESSIBLE" || code === "EMPTY_FILE" || code === "INVALID_MEDIA" || code === "CONTENT_TYPE_MISMATCH" || code === "CONFIRMED_CORRUPT" || code === "TIMEOUT" || code === "ENOENT" || code === "CLOUD_UNAVAILABLE") return code;
   const message = summary ?? "";
   if (/\b0B\b|empty (?:file|input)|zero[- ]byte/i.test(message)) return "EMPTY_FILE";
   if (/\bENOENT\b|no such file/i.test(message)) return "ENOENT";
