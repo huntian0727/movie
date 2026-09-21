@@ -39,6 +39,10 @@
 - Renderer 针对性测试通过。
 - Node 完整测试通过：72 个测试文件，661 项测试。
 - Production renderer/main 构建通过。
+- Windows 安装包重新生成：`release/Local-Video-Manager-0.1.15-x64-Setup.exe`。
+- 制品检查通过：3982 个 ASAR 条目，无禁入开发文件。
+- 打包程序冒烟测试通过；资产中心、资料库、视频数据、重复项、元数据和播放诊断 worker 均通过。
+- 桌面快捷方式仍指向最新 `release/win-unpacked/Local Video Manager.exe`。
 
 ## 后续建议
 
