@@ -1,6 +1,6 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { VideoRepository } from "../db/videoRepository.js";
-import { getAssetCenterSummary, listAssetCenterSources } from "./assetCenterQueries.js";
+import { getAssetCenterSummary, listAssetCenterSources, listDirectoryBrowserItems } from "./assetCenterQueries.js";
 import { openAssetCenterReadonlyDatabase } from "./assetCenterReadonlyDatabase.js";
 import type { AssetCenterWorkerRequest, AssetCenterWorkerResponse } from "./assetCenterWorkerProtocol.js";
 
@@ -28,7 +28,9 @@ port.on("message", (request: AssetCenterWorkerRequest) => {
   let response: AssetCenterWorkerResponse;
   try {
     refreshRepositoryIfChanged();
-    if (request.operation === "duplicates") {
+    if (request.operation === "directories") {
+      response = { id: request.id, ok: true, result: listDirectoryBrowserItems(database, request.query) };
+    } else if (request.operation === "duplicates") {
       response = { id: request.id, ok: true, result: repository.listDuplicateGroupsPage(request.query) };
     } else if (request.operation === "folders") {
       cachedFolders ??= repository.listSourceFoldersWithStats();

@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
+import { listDirectoryBrowserItems } from "../../src/main/assetCenter/assetCenterQueries";
 import type { ScanCounters } from "../../src/shared/videoTypes";
 
 let tempDir: string;
@@ -160,6 +161,46 @@ describe("Asset Center repository", () => {
 
     const empty = repo.listAssetCenterSources({ ...defaultQuery(), search: "does-not-exist" });
     expect(empty).toMatchObject({ page: 1, totalPages: 1, totalCount: 0, items: [] });
+  });
+
+  it("lists immediate child directories from cached database rows without walking the filesystem", () => {
+    const source = repo.addSourceFolder("D:\\Movies", true);
+    createVideo(source.id, "D:\\Movies\\root.mp4", 100, 1_000);
+    createVideo(source.id, "D:\\Movies\\Drama\\one.mp4", 200, 2_000);
+    createVideo(source.id, "D:\\Movies\\Drama\\Season 1\\two.mp4", 300, 3_000);
+    createVideo(source.id, "D:\\Movies\\Comedy\\three.mp4", 400, 4_000);
+    const missing = createVideo(source.id, "D:\\Movies\\Hidden\\gone.mp4", 500, 5_000);
+    repo.markMissing(missing.id, true);
+
+    const root = listDirectoryBrowserItems(db!, {
+      sourceFolderId: source.id,
+      parentPath: source.path,
+      search: "",
+      limit: 100
+    });
+
+    expect(root).toMatchObject({ totalCount: 2, truncated: false });
+    expect(root.items).toEqual([
+      expect.objectContaining({ name: "Comedy", path: "D:\\Movies\\Comedy", videoCount: 1, sizeBytes: 400 }),
+      expect.objectContaining({ name: "Drama", path: "D:\\Movies\\Drama", videoCount: 2, sizeBytes: 500 })
+    ]);
+
+    const drama = listDirectoryBrowserItems(db!, {
+      sourceFolderId: source.id,
+      parentPath: "D:\\Movies\\Drama",
+      search: "",
+      limit: 100
+    });
+    expect(drama.items).toEqual([
+      expect.objectContaining({ name: "Season 1", path: "D:\\Movies\\Drama\\Season 1", videoCount: 1, sizeBytes: 300 })
+    ]);
+
+    const search = listDirectoryBrowserItems(db!, {
+      search: "season",
+      limit: 50
+    });
+    expect(search).toMatchObject({ totalCount: 1, truncated: false });
+    expect(search.items[0]).toMatchObject({ name: "Season 1", path: "D:\\Movies\\Drama\\Season 1" });
   });
 });
 

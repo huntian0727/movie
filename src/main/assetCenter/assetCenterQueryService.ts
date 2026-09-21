@@ -2,6 +2,8 @@ import { Worker } from "node:worker_threads";
 import type {
   DuplicateGroupPage,
   DuplicateGroupPageQuery,
+  DirectoryBrowserQuery,
+  DirectoryBrowserResult,
   LibraryNavigationSnapshot,
   MetadataIssuePage,
   MetadataIssuePageQuery,
@@ -23,6 +25,7 @@ export interface AssetCenterQueryWorker {
 }
 
 export interface AssetCenterReadService {
+  listDirectories(query: DirectoryBrowserQuery): Promise<DirectoryBrowserResult>;
   listDuplicates(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   listFolders(): Promise<SourceFolder[]>;
   listMetadataIssues(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
@@ -41,6 +44,7 @@ interface PendingRequest {
 }
 
 type AssetCenterQueryResult =
+  | DirectoryBrowserResult
   | AssetCenterSummary
   | AssetCenterSourcePage
   | DuplicateGroupPage
@@ -49,6 +53,7 @@ type AssetCenterQueryResult =
   | SourceFolder[];
 
 type AssetCenterWorkerOperation =
+  | { operation: "directories"; query: DirectoryBrowserQuery }
   | { operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { operation: "folders" }
   | { operation: "metadataIssues"; query: MetadataIssuePageQuery }
@@ -69,6 +74,10 @@ export class AssetCenterQueryService implements AssetCenterReadService {
 
   getSummary(): Promise<AssetCenterSummary> {
     return this.request<AssetCenterSummary>({ operation: "summary" });
+  }
+
+  listDirectories(query: DirectoryBrowserQuery): Promise<DirectoryBrowserResult> {
+    return this.request<DirectoryBrowserResult>({ operation: "directories", query });
   }
 
   listDuplicates(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage> {

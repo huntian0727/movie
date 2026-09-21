@@ -222,6 +222,47 @@ button { color: inherit; }
 .folder-nav-row.source-folder:hover .folder-source-actions, .folder-source-actions:focus-within { opacity: 1; }
 .folder-source-actions button { width: 24px; height: 28px; padding: 0; border: 0; border-radius: 5px; display: grid; place-items: center; color: #777b75; background: transparent; cursor: pointer; }
 .folder-source-actions button:hover { color: #fff; background: #30332f; }
+.sidebar-library-sources { min-height: 0; margin-top: 22px; flex: 1 1 auto; display: flex; flex-direction: column; }
+.sidebar-library-sources > header { height: 30px; padding: 0 3px 0 9px; display: flex; align-items: center; justify-content: space-between; color: #858981; }
+.sidebar-library-sources > header > div { min-width: 0; display: flex; align-items: baseline; gap: 7px; }
+.sidebar-library-sources > header strong { color: #8f938c; font-size: 10px; letter-spacing: .06em; }
+.sidebar-library-sources > header small { color: #636760; font-size: 9px; }
+.sidebar-add-source { position: relative; }
+.sidebar-add-source summary, .source-root-menu summary { width: 26px; height: 26px; border-radius: 5px; display: grid; place-items: center; color: #9ba098; cursor: pointer; list-style: none; }
+.sidebar-add-source summary::-webkit-details-marker, .source-root-menu summary::-webkit-details-marker { display: none; }
+.sidebar-add-source summary:hover, .source-root-menu summary:hover { color: #fff; background: #2b2d2b; }
+.sidebar-add-source[open] summary, .source-root-menu[open] summary { color: #fff; background: #303330; }
+.sidebar-add-source > div, .source-root-menu > div { position: absolute; z-index: 12; padding: 5px; border: 1px solid #41443f; border-radius: 6px; display: grid; gap: 2px; background: #202220; box-shadow: 0 12px 34px #0008; }
+.sidebar-add-source > div { top: 29px; right: 0; width: 230px; }
+.source-root-menu > div { top: 29px; right: 0; width: 170px; }
+.sidebar-add-source button, .source-root-menu button { height: 34px; padding: 0 9px; border: 0; border-radius: 4px; display: flex; align-items: center; gap: 8px; color: #b9bdb6; background: transparent; text-align: left; cursor: pointer; }
+.sidebar-add-source button:hover, .source-root-menu button:hover { color: #fff; background: #303330; }
+.source-root-menu button.danger:hover { color: #ff9b8c; background: #382521; }
+.directory-launcher { width: 100%; height: 38px; margin: 2px 0 7px; padding: 0 9px; border: 0; border-radius: 6px; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; color: #b3b7b0; background: #232523; text-align: left; cursor: pointer; }
+.directory-launcher:hover { color: #fff; background: #2a2d2a; }
+.directory-launcher.active { color: #fff; background: #c94f3b; }
+.directory-launcher kbd { color: #747970; font-family: inherit; font-size: 9px; }
+.directory-launcher.active kbd { color: #ffd9d1; }
+.source-root-list { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #4d514c transparent; }
+.source-root-row { position: relative; min-width: 0; min-height: 50px; border-radius: 6px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; }
+.source-root-row:hover { background: #242624; }
+.source-root-row.active { background: #2c2e2c; box-shadow: inset 2px 0 #e2634b; }
+.source-root-main { min-width: 0; min-height: 50px; padding: 5px 5px 5px 9px; border: 0; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; color: #83b8df; background: transparent; text-align: left; cursor: pointer; }
+.source-root-main > span { min-width: 0; display: grid; gap: 2px; }
+.source-root-main strong, .source-root-main small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.source-root-main strong { color: #e2e5df; font-size: 11px; }
+.source-root-main small { color: #71766f; font-size: 9px; }
+.source-provider-badge { display: inline-flex; margin-left: 7px; padding: 1px 6px; border-radius: 999px; background: rgba(61, 196, 151, 0.15); color: #79d6b7; font-size: 10px; font-style: normal; font-weight: 700; line-height: 16px; vertical-align: 1px; }
+.source-root-row.has-warning .source-root-main small { color: #c99745; }
+.source-root-warning { width: 26px; height: 28px; padding: 0; border: 0; border-radius: 4px; display: grid; place-items: center; color: #e6a83e; background: transparent; cursor: pointer; }
+.source-root-warning:hover { color: #ffd06f; background: #3b3020; }
+.source-root-menu { position: relative; margin-right: 2px; }
+.source-root-empty { margin: 9px; color: #70746e; font-size: 10px; }
+.sidebar-recent-directories { margin-top: 9px; padding-top: 9px; border-top: 1px solid #2b2d2b; display: grid; gap: 2px; }
+.sidebar-recent-directories > strong { padding: 0 9px 4px; color: #747871; font-size: 9px; letter-spacing: .05em; }
+.sidebar-recent-directories > button { min-width: 0; height: 31px; padding: 0 9px; border: 0; border-radius: 5px; display: flex; align-items: center; gap: 8px; color: #90948d; background: transparent; text-align: left; cursor: pointer; }
+.sidebar-recent-directories > button:hover { color: #fff; background: #242624; }
+.sidebar-recent-directories > button span { overflow: hidden; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
 .folder-remove { width: 26px; height: 30px; margin-right: 3px; border: 0; border-radius: 5px; display: grid; place-items: center; color: #6f736d; background: transparent; cursor: pointer; opacity: 0; }
 .folder-nav-row.source-folder:hover .folder-remove, .folder-remove:focus-visible { opacity: 1; }
 .folder-remove:hover { color: #ff7b68; background: #392522; }
@@ -879,6 +920,10 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
   .folder-source-actions { display: none; }
   .folder-entry { grid-template-columns: 1fr; justify-items: center; padding: 0; }
   .sidebar-heading { justify-content: center; margin-inline: 0; }
+  .sidebar-library-sources > header > div, .sidebar-add-source, .directory-launcher span, .directory-launcher kbd, .source-root-main span, .source-root-warning, .source-root-menu, .sidebar-recent-directories { display: none; }
+  .directory-launcher { grid-template-columns: 1fr; justify-items: center; padding: 0; }
+  .source-root-row { grid-template-columns: 1fr; }
+  .source-root-main { grid-template-columns: 1fr; justify-items: center; padding: 0; }
   .toolbar { align-items: flex-start; flex-direction: column; gap: 12px; }
   .toolbar-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
   .search-field { width: min(100%, 300px); flex: 1; }

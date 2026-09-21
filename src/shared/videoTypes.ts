@@ -6,7 +6,7 @@ export const DUPLICATE_PAGE_SIZES = [10, 20, 50, 100, 200, 300, 500] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 export type DuplicatePageSize = (typeof DUPLICATE_PAGE_SIZES)[number];
 export type SortDirection = "asc" | "desc";
-export type LibraryView = "videoData" | "assetCenter" | "playbackDiagnostic" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "missingVideos" | "metadataIssues" | "duplicates";
+export type LibraryView = "videoData" | "assetCenter" | "playbackDiagnostic" | "directoryBrowser" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "missingVideos" | "metadataIssues" | "duplicates";
 export type ViewMode = "grid" | "table";
 export type MetadataStatus = "pending" | "ready" | "failed";
 export type CodecProbeStatus = "unprobed" | "ready" | "failed";
@@ -751,6 +751,28 @@ export interface LibraryNavigationSnapshot {
   directoryPaths: string[];
 }
 
+export interface DirectoryBrowserQuery {
+  sourceFolderId?: string;
+  parentPath?: string;
+  search: string;
+  limit: 50 | 100 | 200;
+}
+
+export interface DirectoryBrowserItem {
+  sourceFolderId: string;
+  path: string;
+  name: string;
+  videoCount: number;
+  sizeBytes: number;
+  modifiedAt: string | null;
+}
+
+export interface DirectoryBrowserResult {
+  items: DirectoryBrowserItem[];
+  totalCount: number;
+  truncated: boolean;
+}
+
 export interface AppSettings {
   defaultRecursiveScan: boolean;
   startupSync: boolean;
@@ -968,6 +990,7 @@ export interface WindowSyncSnapshot {
 export const IPC_CHANNELS = {
   libraryList: "library:list",
   libraryPage: "library:page",
+  libraryDirectoryBrowser: "library:directory-browser",
   libraryNavigation: "library:navigation",
   assetCenterSummary: "asset-center:summary",
   assetCenterSources: "asset-center:sources",
@@ -1060,6 +1083,7 @@ export const IPC_CHANNELS = {
 export interface VideoManagerApi {
   listVideos(query: LibraryQuery): Promise<VideoRecord[]>;
   listVideoPage(query: LibraryPageQuery): Promise<LibraryPage>;
+  listDirectoryBrowser(query: DirectoryBrowserQuery): Promise<DirectoryBrowserResult>;
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
   getAssetCenterSummary(): Promise<AssetCenterSummary>;
   listVideoData(query: import("./videoDataTable.js").VideoDataQuery): Promise<import("./videoDataTable.js").VideoDataPage>;

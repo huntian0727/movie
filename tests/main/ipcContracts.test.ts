@@ -8,6 +8,7 @@ describe("IPC_CHANNELS", () => {
     expect(IPC_CHANNELS).toEqual({
       libraryList: "library:list",
       libraryPage: "library:page",
+      libraryDirectoryBrowser: "library:directory-browser",
       libraryNavigation: "library:navigation",
       assetCenterSummary: "asset-center:summary",
       assetCenterSources: "asset-center:sources",

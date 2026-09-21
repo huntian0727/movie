@@ -28,6 +28,7 @@ const playerAllowedChannels = new Set<string>([
   IPC_CHANNELS.previewImageLoad,
   IPC_CHANNELS.previewImageCancel,
   IPC_CHANNELS.libraryPage,
+  IPC_CHANNELS.libraryDirectoryBrowser,
   IPC_CHANNELS.libraryNavigation,
   IPC_CHANNELS.libraryMissingList,
   IPC_CHANNELS.videoListByIds,

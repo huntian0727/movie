@@ -155,6 +155,13 @@ const libraryPageQuerySchema = z.object({
   pageSize: z.union([z.literal(30), z.literal(50), z.literal(100), z.literal(200), z.literal(300)])
 }).strict();
 
+const directoryBrowserQuerySchema = z.object({
+  sourceFolderId: z.string().min(1).optional(),
+  parentPath: z.string().min(1).max(32767).optional(),
+  search: z.string().trim().max(500),
+  limit: z.union([z.literal(50), z.literal(100), z.literal(200)])
+}).strict();
+
 const videoIdSchema = z.object({ videoId: z.string().min(1) }).strict();
 const cloudDriveSourceSelectionSchema = z.object({
   mountPoint: z.string().min(1).max(32767),
@@ -470,6 +477,9 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return repo.listVideos(libraryQuerySchema.parse(query));
   });
   ipcMain.handle(IPC_CHANNELS.libraryPage, (_event, query) => repo.listVideoPage(libraryPageQuerySchema.parse(query)));
+  ipcMain.handle(IPC_CHANNELS.libraryDirectoryBrowser, (_event, query) =>
+    dependencies.assetCenterQueries.listDirectories(directoryBrowserQuerySchema.parse(query))
+  );
   ipcMain.handle(IPC_CHANNELS.libraryNavigation, () => dependencies.assetCenterQueries.getLibraryNavigation());
   ipcMain.handle(IPC_CHANNELS.assetCenterSummary, () => dependencies.assetCenterQueries.getSummary());
   ipcMain.handle(IPC_CHANNELS.assetCenterSources, (_event, query) =>

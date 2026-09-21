@@ -2,6 +2,8 @@ import type {
   AssetCenterSourcePage,
   AssetCenterSourceQuery,
   AssetCenterSummary,
+  DirectoryBrowserQuery,
+  DirectoryBrowserResult,
   LibraryNavigationSnapshot,
   MetadataIssuePage,
   MetadataIssuePageQuery,
@@ -10,6 +12,7 @@ import type {
 import type { DuplicateGroupPage, DuplicateGroupPageQuery } from "../../shared/videoTypes.js";
 
 export type AssetCenterWorkerRequest =
+  | { id: number; operation: "directories"; query: DirectoryBrowserQuery }
   | { id: number; operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { id: number; operation: "folders" }
   | { id: number; operation: "metadataIssues"; query: MetadataIssuePageQuery }
@@ -22,6 +25,7 @@ export type AssetCenterWorkerResponse =
       id: number;
       ok: true;
       result:
+        | DirectoryBrowserResult
         | AssetCenterSummary
         | AssetCenterSourcePage
         | DuplicateGroupPage

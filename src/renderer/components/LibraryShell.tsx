@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { AlertTriangle, BookmarkX, ChevronDown, ChevronRight, CircleGauge, Clock3, Cloud, CopyMinus, Database, FileQuestion, Folder, FolderInput, FolderPlus, Heart, Library, ListChecks, LoaderCircle, Pause, PieChart, Play, PlaySquare, RotateCw, Search, Settings, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type FormEvent, type PointerEvent as ReactPointerEvent, type SetStateAction } from "react";
+import { AlertTriangle, BookmarkX, CircleGauge, Clock3, Cloud, CopyMinus, Database, FileQuestion, FolderInput, FolderPlus, FolderSearch, HardDrive, Heart, Library, ListChecks, LoaderCircle, MoreHorizontal, Pause, PieChart, Play, PlaySquare, RotateCw, Server, Settings, Trash2 } from "lucide-react";
 import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, PlaybackPreference, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
@@ -9,6 +9,7 @@ import { PlaybackDiagnosticPage } from "./PlaybackDiagnosticPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
 import { MissingVideosPage } from "./MissingVideosPage";
 import { MetadataIssuesPage } from "./MetadataIssuesPage";
+import { DirectoryBrowserPage } from "./DirectoryBrowserPage";
 import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 import { VideoGrid } from "./VideoGrid";
@@ -16,12 +17,11 @@ import { VideoTable } from "./VideoTable";
 import { formatBytes } from "./formatters";
 
 const PAGE_SIZE_OPTIONS = [30, 50, 100, 200, 300] as const;
-const MAX_FOLDER_SEARCH_RESULTS = 200;
 const GRID_CARD_WIDTH_OPTIONS = [180, 220, 260, 320, 400] as const;
 const GRID_CARD_WIDTH_STORAGE_KEY = "video-manager:grid-card-width";
 const PAGE_SIZE_STORAGE_KEY = "video-manager:library-page-size";
 const SIDEBAR_WIDTH_STORAGE_KEY = "video-manager:sidebar-width";
-const FOLDER_SECTION_EXPANDED_STORAGE_KEY = "video-manager:folder-section-expanded";
+const RECENT_DIRECTORY_PATHS_STORAGE_KEY = "video-manager:recent-directory-paths";
 const DEFAULT_SIDEBAR_WIDTH = 300;
 const MIN_SIDEBAR_WIDTH = 250;
 const MAX_SIDEBAR_WIDTH = 460;
@@ -75,6 +75,7 @@ interface LibraryShellProps {
   getCoverUrl?(video: VideoRecord): string | null;
   navigation?: LibraryNavigationSnapshot;
   onLoadVideoPage?(query: LibraryPageQuery): Promise<LibraryPage>;
+  onLoadDirectoryBrowser?: VideoManagerApi["listDirectoryBrowser"];
   onLoadVideosByIds?(videoIds: string[]): Promise<VideoRecord[]>;
   onSearchPlaybackDiagnosticVideos?: VideoManagerApi["searchPlaybackDiagnosticVideos"];
   playbackPreference?: PlaybackPreference;
@@ -143,6 +144,7 @@ export function LibraryShell({
   getCoverUrl,
   navigation,
   onLoadVideoPage,
+  onLoadDirectoryBrowser,
   onLoadVideosByIds,
   onSearchPlaybackDiagnosticVideos,
   playbackPreference = "auto",
@@ -162,6 +164,9 @@ export function LibraryShell({
 }: LibraryShellProps) {
   const [view, setView] = useState<LibraryView>(() => onLoadAssetCenterSummary && onLoadAssetCenterSources ? "assetCenter" : "all");
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
+  const [directoryBrowserSourceId, setDirectoryBrowserSourceId] = useState<string | undefined>();
+  const [directoryBrowserFocusSequence, setDirectoryBrowserFocusSequence] = useState(0);
+  const [recentDirectoryPaths, setRecentDirectoryPaths] = useState<string[]>(readStoredRecentDirectoryPaths);
   const [scanFailureSourceFolderId, setScanFailureSourceFolderId] = useState<string | undefined>();
   const [missingVideoSourceFolderId, setMissingVideoSourceFolderId] = useState<string | undefined>();
   const [missingVideoCount, setMissingVideoCount] = useState(0);
@@ -195,9 +200,6 @@ export function LibraryShell({
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(readStoredPageSize);
   const [page, setPage] = useState(1);
   const [gridCardWidth, setGridCardWidth] = useState<(typeof GRID_CARD_WIDTH_OPTIONS)[number]>(readStoredGridCardWidth);
-  const [expandedFolderPaths, setExpandedFolderPaths] = useState<string[]>([]);
-  const [folderQuery, setFolderQuery] = useState("");
-  const [folderSectionExpanded, setFolderSectionExpanded] = useState(readStoredFolderSectionExpanded);
   const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [duplicatePageNumber, setDuplicatePageNumber] = useState(1);
@@ -223,30 +225,8 @@ export function LibraryShell({
   const [batchMovePreview, setBatchMovePreview] = useState<BatchMovePreview | null>(null);
   const [batchResult, setBatchResult] = useState<BatchDeleteResult | BatchMoveResult | null>(null);
   const contentRef = useRef<HTMLElement>(null);
-  const folderSearchRef = useRef<HTMLInputElement>(null);
-  const folderNavRef = useRef<HTMLElement>(null);
   const sidebarResizeStartRef = useRef<{ pointerX: number; width: number } | null>(null);
-  const directoryPaths = useMemo(() => navigation?.directoryPaths ?? videos.map((video) => video.directory), [navigation?.directoryPaths, videos]);
-  const directoryEntries = useMemo(() => buildDirectoryEntries(folders, directoryPaths), [directoryPaths, folders]);
   const scanStatusByFolder = useMemo(() => new Map(scanStatuses.map((status) => [status.folderId, status])), [scanStatuses]);
-  const directoryEntryByPath = useMemo(
-    () => new Map(directoryEntries.map((entry) => [normalizeDirectoryPath(entry.path), entry])),
-    [directoryEntries]
-  );
-  const expandedFolderPathSet = useMemo(() => new Set(expandedFolderPaths), [expandedFolderPaths]);
-  const visibleDirectoryEntries = useMemo(
-    () => directoryEntries.filter((entry) => isDirectoryEntryVisible(entry, expandedFolderPathSet, directoryEntryByPath)),
-    [directoryEntries, directoryEntryByPath, expandedFolderPathSet]
-  );
-  const folderSearchMatches = useMemo(() => {
-    const query = folderQuery.trim().toLocaleLowerCase();
-    if (!query) return [];
-    return directoryEntries.filter((entry) => entry.path.toLocaleLowerCase().includes(query));
-  }, [directoryEntries, folderQuery]);
-  const displayedDirectoryEntries = useMemo(() => {
-    if (!folderQuery.trim()) return visibleDirectoryEntries;
-    return folderSearchMatches.slice(0, MAX_FOLDER_SEARCH_RESULTS);
-  }, [folderQuery, folderSearchMatches, visibleDirectoryEntries]);
 
   const visibleVideos = useMemo(() => {
     if (onLoadVideoPage) return videoPage.videos;
@@ -274,9 +254,9 @@ export function LibraryShell({
   const favoriteCount = useMemo(() => navigation?.favoriteVideos ?? videos.reduce((count, video) => count + (video.isFavorite ? 1 : 0), 0), [navigation?.favoriteVideos, videos]);
   const pendingDeleteCount = navigation?.pendingDeleteVideos ?? videos.reduce((count, video) => count + (video.isPendingDelete ? 1 : 0), 0);
   const pendingDeleteBytes = navigation?.pendingDeleteBytes ?? videos.reduce((total, video) => total + (video.isPendingDelete ? video.sizeBytes : 0), 0);
-  const isStandaloneView = view === "videoData" || view === "assetCenter" || view === "playbackDiagnostic" || view === "duplicates" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
+  const isStandaloneView = view === "videoData" || view === "assetCenter" || view === "playbackDiagnostic" || view === "directoryBrowser" || view === "duplicates" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const isVideoBrowseView = !isStandaloneView;
-  const usesCommonToolbar = view !== "videoData" && view !== "assetCenter" && view !== "playbackDiagnostic";
+  const usesCommonToolbar = view !== "videoData" && view !== "assetCenter" && view !== "playbackDiagnostic" && view !== "directoryBrowser";
 
   useEffect(() => {
     setPage(1);
@@ -339,11 +319,11 @@ export function LibraryShell({
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(FOLDER_SECTION_EXPANDED_STORAGE_KEY, String(folderSectionExpanded));
+      window.localStorage.setItem(RECENT_DIRECTORY_PATHS_STORAGE_KEY, JSON.stringify(recentDirectoryPaths));
     } catch {
       // Renderer storage can be unavailable in hardened or test environments.
     }
-  }, [folderSectionExpanded]);
+  }, [recentDirectoryPaths]);
 
   useEffect(() => {
     if (!isResizingSidebar) return;
@@ -367,34 +347,18 @@ export function LibraryShell({
   }, [isResizingSidebar]);
 
   useEffect(() => {
-    const focusFolderSearch = (event: KeyboardEvent) => {
-      if (!isVideoBrowseView) return;
-      if (!event.ctrlKey || event.altKey || event.metaKey || event.code !== "KeyF") return;
+    const openDirectoryLauncher = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.altKey || event.metaKey || (event.code !== "KeyK" && event.key.toLowerCase() !== "k")) return;
       if (renameTarget || deleteTarget || detailsTarget || removeFolderTarget || folderIssueTarget) return;
       const target = event.target;
       if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], [role='alertdialog']")) return;
       event.preventDefault();
-      folderSearchRef.current?.focus();
+      setView("directoryBrowser");
+      setDirectoryBrowserFocusSequence((value) => value + 1);
     };
-    window.addEventListener("keydown", focusFolderSearch);
-    return () => window.removeEventListener("keydown", focusFolderSearch);
-  }, [deleteTarget, detailsTarget, folderIssueTarget, isVideoBrowseView, removeFolderTarget, renameTarget]);
-
-  useEffect(() => {
-    const existingPaths = new Set(directoryEntries.map((entry) => normalizeDirectoryPath(entry.path)));
-    setExpandedFolderPaths((current) => {
-      const next = current.filter((path) => existingPaths.has(path));
-      return areStringArraysEqual(current, next) ? current : next;
-    });
-  }, [directoryEntries]);
-
-  useEffect(() => {
-    if (selectedFolderPath && !directoryEntryByPath.has(normalizeDirectoryPath(selectedFolderPath))) {
-      setView("all");
-      setSelectedFolderPath(null);
-      setFolderScope("recursive");
-    }
-  }, [directoryEntryByPath, selectedFolderPath]);
+    window.addEventListener("keydown", openDirectoryLauncher);
+    return () => window.removeEventListener("keydown", openDirectoryLauncher);
+  }, [deleteTarget, detailsTarget, folderIssueTarget, removeFolderTarget, renameTarget]);
 
   useEffect(() => {
     if (onLoadDuplicateGroups || view === "duplicates") return;
@@ -462,6 +426,10 @@ export function LibraryShell({
     });
   }, [renderedVideos]);
   const gridCardSizeIndex = GRID_CARD_WIDTH_OPTIONS.indexOf(gridCardWidth);
+  const sidebarRecentDirectories = recentDirectoryPaths
+    .map((path) => ({ path, folder: folders.find((folder) => isPathWithin(path, folder.path)) }))
+    .filter((entry): entry is { path: string; folder: SourceFolder } => Boolean(entry.folder))
+    .slice(0, 5);
 
   useEffect(() => {
     contentRef.current?.scrollTo?.({ top: 0, behavior: "auto" });
@@ -515,18 +483,25 @@ export function LibraryShell({
     setDetailsTarget(video);
   };
   const selectDirectory = (directoryPath: string, scope: "recursive" | "exact" = "recursive") => {
-    const normalizedPath = normalizeDirectoryPath(directoryPath);
-    const pathsToExpand: string[] = [];
-    let parentPath = directoryEntryByPath.get(normalizedPath)?.parentPath ?? null;
-    while (parentPath) {
-      pathsToExpand.push(parentPath);
-      parentPath = directoryEntryByPath.get(parentPath)?.parentPath ?? null;
-    }
-    setExpandedFolderPaths((current) => [...new Set([...current, ...pathsToExpand])]);
     setSearch("");
     setFolderScope(scope);
     setSelectedFolderPath(directoryPath);
     setView("folder");
+    rememberDirectory(directoryPath, setRecentDirectoryPaths);
+  };
+  const browseDirectory = (directoryPath: string, sourceFolderId: string) => {
+    setDirectoryBrowserSourceId(sourceFolderId || folders.find((folder) => isPathWithin(directoryPath, folder.path))?.id);
+    setSelectedFolderPath(directoryPath);
+    setView("directoryBrowser");
+    rememberDirectory(directoryPath, setRecentDirectoryPaths);
+  };
+  const openDirectoryBrowser = (folder?: SourceFolder) => {
+    const target = folder ?? folders.find((item) => item.id === directoryBrowserSourceId) ?? folders[0];
+    if (target) {
+      setDirectoryBrowserSourceId(target.id);
+      setSelectedFolderPath((current) => current && isPathWithin(current, target.path) ? current : target.path);
+    }
+    setView("directoryBrowser");
   };
   const showVideoDirectory = (video: VideoRecord) => selectDirectory(video.directory, "exact");
   const openFolderIssueDialog = async (
@@ -651,40 +626,6 @@ export function LibraryShell({
     setIsResizingSidebar(true);
     event.preventDefault();
   };
-  const handleFolderKeyDown = (
-    event: ReactKeyboardEvent<HTMLButtonElement>,
-    entry: DirectoryEntry,
-    isExpanded: boolean,
-    toggleExpanded: () => void
-  ) => {
-    const folderButtons = [...(folderNavRef.current?.querySelectorAll<HTMLButtonElement>(".folder-entry") ?? [])];
-    const currentIndex = folderButtons.indexOf(event.currentTarget);
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      const offset = event.key === "ArrowDown" ? 1 : -1;
-      folderButtons[Math.max(0, Math.min(folderButtons.length - 1, currentIndex + offset))]?.focus();
-      event.preventDefault();
-      return;
-    }
-    if (event.key === "ArrowRight" && entry.hasChildren && !isExpanded) {
-      toggleExpanded();
-      event.preventDefault();
-      return;
-    }
-    if (event.key === "ArrowLeft") {
-      if (entry.hasChildren && isExpanded) {
-        toggleExpanded();
-      } else if (entry.parentPath) {
-        folderButtons.find((button) => normalizeDirectoryPath(button.dataset.folderPath ?? "") === entry.parentPath)?.focus();
-      }
-      event.preventDefault();
-      return;
-    }
-    if (event.key === "Enter") {
-      selectDirectory(entry.path);
-      event.preventDefault();
-    }
-  };
-
   return (
     <main
       className={`app-shell${isResizingSidebar ? " is-resizing-sidebar" : ""}`}
@@ -731,139 +672,55 @@ export function LibraryShell({
             <CircleGauge size={18} /><span>播放诊断</span>
           </button>
         </nav>
-        <div className="sidebar-heading">
-          <button
-            type="button"
-            className="sidebar-folder-toggle"
-            aria-expanded={folderSectionExpanded}
-            aria-controls="library-folder-navigation"
-            onClick={() => setFolderSectionExpanded((current) => !current)}
-          >
-            {folderSectionExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <span>资料库目录</span>
-            <small>{directoryEntries.length}</small>
-          </button>
-          <button aria-label="通过 API 添加网盘目录" title="通过 CloudDrive API 添加网盘目录" onClick={() => void onAddCloudDriveFolder?.()}><Cloud size={17} /></button>
-          <button aria-label="添加文件夹" title="添加文件夹" onClick={() => void onAddFolder?.()}><FolderPlus size={17} /></button>
-        </div>
-        {folderSectionExpanded && <div id="library-folder-navigation" className="sidebar-folder-section">
-          <label className="folder-search">
-          <Search size={15} aria-hidden="true" />
-          <input
-            ref={folderSearchRef}
-            aria-label="搜索文件夹名称或路径"
-            placeholder="搜索文件夹名称或路径"
-            value={folderQuery}
-            onChange={(event) => setFolderQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                setFolderQuery("");
-                event.currentTarget.blur();
-              }
-            }}
-          />
-          {folderQuery && (
-            <button type="button" aria-label="清除文件夹搜索" title="清除搜索" onClick={() => {
-              setFolderQuery("");
-              folderSearchRef.current?.focus();
-            }}>
-              <X size={14} />
-            </button>
-          )}
-          </label>
-          {folderQuery.trim() && folderSearchMatches.length > MAX_FOLDER_SEARCH_RESULTS && (
-            <p className="folder-search-summary" role="status">
-              找到 {folderSearchMatches.length.toLocaleString("zh-CN")} 个目录，先显示前 {MAX_FOLDER_SEARCH_RESULTS} 个；继续输入可缩小范围。
-            </p>
-          )}
-          <nav ref={folderNavRef} className={`folder-nav${folderQuery.trim() ? " search-results" : ""}`} aria-label="视频文件夹">
-          {displayedDirectoryEntries.map((entry) => {
-            const normalizedPath = normalizeDirectoryPath(entry.path);
-            const isExpanded = expandedFolderPaths.includes(normalizedPath);
-            const isSelected = view === "folder" && normalizeDirectoryPath(selectedFolderPath ?? "") === normalizedPath;
-            const scanStatus = entry.sourceFolder ? scanStatusByFolder.get(entry.sourceFolder.id) : undefined;
-            const warning = getFolderWarning(entry, scanStatus);
-            const isScanning = scanStatus?.state === "queued" || scanStatus?.state === "scanning";
-            const toggleExpanded = () => {
-              setExpandedFolderPaths((current) =>
-                current.includes(normalizedPath)
-                  ? current.filter((path) => path !== normalizedPath)
-                  : [...current, normalizedPath]
-              );
-            };
-
-            return (
-              <div
-                key={entry.path}
-                className={`folder-nav-row${isSelected ? " active" : ""}${entry.sourceFolder ? " source-folder" : ""}${warning ? " has-warning" : ""}${isScanning ? " is-scanning" : ""}`}
-                style={{ "--folder-depth": folderQuery.trim() ? 0 : entry.depth } as CSSProperties}
-              >
-                {entry.hasChildren ? (
-                  <button
-                    type="button"
-                    className="folder-toggle"
-                    aria-label={`${isExpanded ? "折叠" : "展开"} ${folderName(entry.path)}`}
-                    aria-expanded={isExpanded}
-                    title={isExpanded ? "折叠子目录" : "展开子目录"}
-                    onClick={toggleExpanded}
-                  >
-                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </button>
-                ) : (
-                  <span className="folder-toggle-spacer" aria-hidden="true" />
-                )}
-                <button
-                  type="button"
-                  className={`folder-entry${isSelected ? " active" : ""}`}
-                  data-folder-path={entry.path}
-                  aria-label={folderName(entry.path)}
-                  title={entry.path}
-                  onClick={() => selectDirectory(entry.path)}
-                  onKeyDown={(event) => handleFolderKeyDown(event, entry, isExpanded, toggleExpanded)}
-                >
-                  <Folder size={18} />
-                  <span className="folder-entry-label">
-                    <span className="folder-entry-title">
-                      <span className="folder-entry-name">{folderName(entry.path)}</span>
-                      {entry.sourceFolder?.providerType === "clouddrive" && (
-                        <span
-                          className="folder-provider-badge"
-                          title={`CloudDrive API 来源：${entry.sourceFolder.providerRootPath ?? entry.path}`}
-                        >API</span>
-                      )}
-                    </span>
-                    <small title={folderEntryTitle(entry, scanStatus)}>
-                      {folderEntryMeta(entry, scanStatus, Boolean(folderQuery.trim()))}
-                    </small>
-                  </span>
-                  {isScanning && <LoaderCircle className="folder-scan-spinner" size={15} aria-label={`正在扫描 ${folderName(entry.path)}`} />}
-                </button>
-                {warning && entry.sourceFolder && (
-                  <button
-                    type="button"
-                    className="folder-warning-button"
-                    aria-label={`查看 ${folderName(entry.path)} 扫描异常`}
-                    title={warning.message}
-                    onClick={() => void openFolderIssueDialog(entry.sourceFolder!, warning)}
-                  >
-                    <AlertTriangle size={16} />
-                  </button>
-                )}
-                {entry.sourceFolder && (
-                  <span className="folder-source-actions">
-                    {(scanStatus?.state === "queued" || scanStatus?.state === "scanning") && onPauseFolderScan && <button type="button" aria-label={`暂停扫描 ${folderName(entry.path)}`} title="暂停扫描" onClick={() => void onPauseFolderScan(entry.sourceFolder!)}><Pause size={13} /></button>}
-                    {scanStatus?.state === "paused" && onResumeFolderScan && <button type="button" aria-label={`继续扫描 ${folderName(entry.path)}`} title="继续扫描" onClick={() => void onResumeFolderScan(entry.sourceFolder!)}><Play size={13} /></button>}
-                    {(!scanStatus || scanStatus.state === "completed" || scanStatus.state === "completed-with-errors" || scanStatus.state === "offline" || scanStatus.state === "error") && onScanFolder && <button type="button" aria-label={`扫描当前文件夹 ${folderName(entry.path)}`} title="扫描当前文件夹" onClick={() => void onScanFolder(entry.sourceFolder!)}><RotateCw size={13} /></button>}
-                    {onRemoveFolder && (!scanStatus || scanStatus.state === "completed" || scanStatus.state === "completed-with-errors" || scanStatus.state === "offline" || scanStatus.state === "error") && <button type="button" className="folder-remove" aria-label={`移除源目录 ${folderName(entry.path)}`} title="从资料库移除源目录（不会删除磁盘文件）" onClick={() => void openRemoveFolderDialog(entry.sourceFolder!)}><Trash2 size={14} /></button>}
-                  </span>
-                )}
+        <section className="sidebar-library-sources">
+          <header>
+            <div><strong>资料库</strong><small>{folders.length}</small></div>
+            <details className="sidebar-add-source">
+              <summary aria-label="添加资料库" title="添加资料库"><FolderPlus size={16} /></summary>
+              <div>
+                <button type="button" onClick={() => void onAddCloudDriveFolder?.()}><Cloud size={15} />通过 CloudDrive API 添加</button>
+                <button type="button" onClick={() => void onAddFolder?.()}><HardDrive size={15} />添加本地或挂载目录</button>
               </div>
-            );
-          })}
-          {directoryEntries.length === 0 && <p className="folder-empty">还没有添加文件夹</p>}
-          {directoryEntries.length > 0 && displayedDirectoryEntries.length === 0 && <p className="folder-empty">没有匹配的已入库目录</p>}
+            </details>
+          </header>
+          <button type="button" className={`directory-launcher${view === "directoryBrowser" ? " active" : ""}`} onClick={() => openDirectoryBrowser()}>
+            <FolderSearch size={17} /><span>浏览目录</span><kbd>Ctrl+K</kbd>
+          </button>
+          <nav className="source-root-list" aria-label="资料库来源">
+            {folders.map((folder) => {
+              const scanStatus = scanStatusByFolder.get(folder.id);
+              const warning = getSourceWarning(folder, scanStatus);
+              const isScanning = scanStatus?.state === "queued" || scanStatus?.state === "scanning";
+              const selected = view === "directoryBrowser" && directoryBrowserSourceId === folder.id;
+              return <div
+                key={folder.id}
+                className={`source-root-row${selected ? " active" : ""}${warning ? " has-warning" : ""}`}
+                aria-label={isScanning ? `正在扫描 ${folderName(folder.path)}` : undefined}
+              >
+                <button type="button" className="source-root-main" title={folder.path} onClick={() => openDirectoryBrowser(folder)}>
+                  <SourceFolderIcon folder={folder} />
+                  <span><strong>{folderName(folder.path)}{folder.providerType === "clouddrive" && <em className="source-provider-badge">API</em>}</strong><small>{sourceFolderMeta(folder, scanStatus)}</small></span>
+                  {isScanning && <LoaderCircle className="spin" size={14} />}
+                </button>
+                {warning && <button type="button" className="source-root-warning" title={warning.message} aria-label={`查看 ${folderName(folder.path)} 扫描异常`} onClick={() => void openFolderIssueDialog(folder, warning)}><AlertTriangle size={15} /></button>}
+                <details className="source-root-menu">
+                  <summary aria-label={`${folderName(folder.path)} 更多操作`}><MoreHorizontal size={16} /></summary>
+                  <div>
+                    {(scanStatus?.state === "queued" || scanStatus?.state === "scanning") && onPauseFolderScan && <button type="button" aria-label={`暂停扫描 ${folderName(folder.path)}`} onClick={() => void onPauseFolderScan(folder)}><Pause size={14} />暂停扫描</button>}
+                    {scanStatus?.state === "paused" && onResumeFolderScan && <button type="button" aria-label={`继续扫描 ${folderName(folder.path)}`} onClick={() => void onResumeFolderScan(folder)}><Play size={14} />继续扫描</button>}
+                    {(!scanStatus || scanStatus.state === "completed" || scanStatus.state === "completed-with-errors" || scanStatus.state === "offline" || scanStatus.state === "error") && onScanFolder && <button type="button" onClick={() => void onScanFolder(folder)}><RotateCw size={14} />重新扫描</button>}
+                    {onRemoveFolder && (!scanStatus || scanStatus.state === "completed" || scanStatus.state === "completed-with-errors" || scanStatus.state === "offline" || scanStatus.state === "error") && <button type="button" className="danger" aria-label={`移除源目录 ${folderName(folder.path)}`} onClick={() => void openRemoveFolderDialog(folder)}><Trash2 size={14} />从资料库移除</button>}
+                  </div>
+                </details>
+              </div>;
+            })}
+            {folders.length === 0 && <p className="source-root-empty">还没有添加资料库</p>}
           </nav>
-        </div>}
+          {sidebarRecentDirectories.length > 0 && <div className="sidebar-recent-directories">
+            <strong>最近目录</strong>
+            {sidebarRecentDirectories.map(({ path, folder }) => <button type="button" key={path} title={path} onClick={() => browseDirectory(path, folder.id)}><Clock3 size={14} /><span>{folderName(path)}</span></button>)}
+          </div>}
+        </section>
         <div className="sidebar-footer">
           <button onClick={onOpenSettings}><Settings size={17} /><span>设置</span></button>
           <div className="storage-note"><span>本地资料库</span><small>文件保留在原位置</small></div>
@@ -944,7 +801,26 @@ export function LibraryShell({
 
         {usesCommonToolbar && (error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
         {view === "folder" && videoDataApi && <button className="secondary-button" onClick={() => setView("videoData")}>在视频数据表中查看此目录</button>}
-        {view === "videoData" ? (
+        {view === "directoryBrowser" ? (
+          onLoadDirectoryBrowser && onLoadVideoPage
+            ? <DirectoryBrowserPage
+                folders={folders}
+                selectedSourceId={directoryBrowserSourceId}
+                currentPath={selectedFolderPath ?? undefined}
+                scope={folderScope}
+                focusSequence={directoryBrowserFocusSequence}
+                refreshSequence={refreshSequence}
+                loadDirectories={onLoadDirectoryBrowser}
+                loadVideos={onLoadVideoPage}
+                getCoverUrl={getCoverUrl}
+                onNavigate={browseDirectory}
+                onScopeChange={setFolderScope}
+                onViewAll={() => selectedFolderPath && selectDirectory(selectedFolderPath, folderScope)}
+                onOpenVideo={(video, queue) => void openVideo(video, queue)}
+                onVideoDetails={viewVideoDetails}
+              />
+            : <div className="empty-state"><h3>目录浏览服务未连接</h3></div>
+        ) : view === "videoData" ? (
           videoDataApi ? <VideoDataPage load={videoDataApi.listVideoData} exportCsv={videoDataApi.exportVideoData} deleteSelection={videoDataApi.deleteVideoData} folders={folders} initialDirectory={selectedFolderPath ?? ""} onDetails={setDetailsTarget} onDiagnostic={video => { setDiagnosticVideoId(video.id); setDiagnosticInitialVideo(video); setView("playbackDiagnostic"); }} /> : <div className="empty-state">视频数据表服务未连接</div>
         ) : view === "assetCenter" ? (
           onLoadAssetCenterSummary && onLoadAssetCenterSources
@@ -1478,11 +1354,12 @@ function readStoredSidebarWidth(): number {
   return DEFAULT_SIDEBAR_WIDTH;
 }
 
-function readStoredFolderSectionExpanded(): boolean {
+function readStoredRecentDirectoryPaths(): string[] {
   try {
-    return window.localStorage.getItem(FOLDER_SECTION_EXPANDED_STORAGE_KEY) === "true";
+    const parsed = JSON.parse(window.localStorage.getItem(RECENT_DIRECTORY_PATHS_STORAGE_KEY) ?? "[]") as unknown;
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string").slice(0, 8) : [];
   } catch {
-    return false;
+    return [];
   }
 }
 
@@ -1494,23 +1371,34 @@ function folderName(folderPath: string): string {
   return folderPath.split(/[\\/]/).filter(Boolean).at(-1) ?? folderPath;
 }
 
-function folderEntryMeta(entry: DirectoryEntry, scanStatus: FolderScanStatus | undefined, isSearchResult: boolean): string {
-  if (isSearchResult) return entry.path;
-  if (scanStatus && scanStatus.state !== "completed") return formatScanStatus(scanStatus);
-  if (entry.sourceFolder?.providerType === "clouddrive") return formatCloudDriveSourceMeta(entry.sourceFolder);
-  if (scanStatus) return formatScanStatus(scanStatus);
-  if (entry.sourceFolder) return "已添加目录";
-  return entry.parentPath ?? entry.path;
+function getSourceWarning(
+  folder: SourceFolder,
+  scanStatus: FolderScanStatus | undefined
+): { message: string; state: "offline" | "error" | "previous" } | null {
+  if (scanStatus?.state === "offline") {
+    return { message: scanStatus.message?.trim() || "目录目前无法访问，可能是磁盘或网盘暂时离线。", state: "offline" };
+  }
+  if (scanStatus?.state === "error") {
+    return { message: scanStatus.message?.trim() || folder.scanError?.trim() || "目录扫描失败，请检查目录访问状态后重试。", state: "error" };
+  }
+  if (scanStatus?.state === "completed-with-errors") {
+    return { message: scanStatus.message?.trim() || folder.scanError?.trim() || "扫描完成，但仍有尚未解决的异常项。", state: "error" };
+  }
+  if (scanStatus && (scanStatus.state === "queued" || scanStatus.state === "scanning" || scanStatus.state === "paused")) {
+    // Only an active task temporarily supersedes a persisted warning.
+    return null;
+  }
+  if (folder.scanError?.trim()) {
+    return { message: folder.scanError.trim(), state: "previous" };
+  }
+  return null;
 }
 
-function folderEntryTitle(entry: DirectoryEntry, scanStatus: FolderScanStatus | undefined): string {
-  if (scanStatus?.currentPath) return scanStatus.currentPath;
-  if (scanStatus?.message) return scanStatus.message;
-  const folder = entry.sourceFolder;
-  if (folder?.providerType === "clouddrive") {
-    return `${formatCloudDriveSourceMeta(folder)}\n远端路径：${folder.providerRootPath ?? "未知"}\n本地播放路径：${folder.path}`;
-  }
-  return entry.path;
+function sourceFolderMeta(folder: SourceFolder, scanStatus: FolderScanStatus | undefined): string {
+  if (scanStatus && scanStatus.state !== "completed") return formatScanStatus(scanStatus);
+  if (folder.providerType === "clouddrive") return formatCloudDriveSourceMeta(folder);
+  const type = /^(\\\\|\/\/)/.test(folder.path) ? "NAS" : "本地";
+  return `${type} · ${(folder.videoCount ?? 0).toLocaleString("zh-CN")} 个视频`;
 }
 
 function formatCloudDriveSourceMeta(folder: SourceFolder): string {
@@ -1518,34 +1406,24 @@ function formatCloudDriveSourceMeta(folder: SourceFolder): string {
   const identityCount = folder.providerIdentityCount ?? 0;
   const candidateCount = folder.duplicateSizeCandidateCount ?? 0;
   const durationReadyCount = folder.duplicateDurationReadyCount ?? 0;
-  const identityMeta = identityCount === videoCount ? `${videoCount.toLocaleString("zh-CN")} 项已绑定` : `${identityCount.toLocaleString("zh-CN")}/${videoCount.toLocaleString("zh-CN")} 项已绑定`;
+  const identityMeta = identityCount === videoCount
+    ? `${videoCount.toLocaleString("zh-CN")} 项已绑定`
+    : `${identityCount.toLocaleString("zh-CN")}/${videoCount.toLocaleString("zh-CN")} 项已绑定`;
   const durationMeta = candidateCount > 0
     ? `候选时长 ${durationReadyCount.toLocaleString("zh-CN")}/${candidateCount.toLocaleString("zh-CN")}`
     : "暂无同大小候选";
   return `API · ${identityMeta} · ${durationMeta}`;
 }
 
-function getFolderWarning(
-  entry: DirectoryEntry,
-  scanStatus: FolderScanStatus | undefined
-): { message: string; state: "offline" | "error" | "previous" } | null {
-  if (scanStatus?.state === "offline") {
-    return { message: scanStatus.message?.trim() || "目录目前无法访问，可能是磁盘或网盘暂时离线。", state: "offline" };
-  }
-  if (scanStatus?.state === "error") {
-    return { message: scanStatus.message?.trim() || entry.scanError?.trim() || "目录扫描失败，请检查目录访问状态后重试。", state: "error" };
-  }
-  if (scanStatus?.state === "completed-with-errors") {
-    return { message: scanStatus.message?.trim() || entry.scanError?.trim() || "扫描完成，但仍有尚未解决的异常项。", state: "error" };
-  }
-  if (scanStatus && (scanStatus.state === "queued" || scanStatus.state === "scanning" || scanStatus.state === "paused")) {
-    // Only an active task temporarily supersedes a persisted warning.
-    return null;
-  }
-  if (entry.scanError?.trim()) {
-    return { message: entry.scanError.trim(), state: "previous" };
-  }
-  return null;
+function SourceFolderIcon({ folder }: { folder: SourceFolder }) {
+  if (folder.providerType === "clouddrive") return <Cloud size={18} />;
+  if (/^(\\\\|\/\/)/.test(folder.path)) return <Server size={18} />;
+  return <HardDrive size={18} />;
+}
+
+function rememberDirectory(path: string, setPaths: Dispatch<SetStateAction<string[]>>): void {
+  const normalized = normalizeDirectoryPath(path);
+  setPaths((current) => [path, ...current.filter((item) => normalizeDirectoryPath(item) !== normalized)].slice(0, 8));
 }
 
 function formatScanStatus(status: FolderScanStatus): string {
@@ -1589,152 +1467,6 @@ function sourceFolderCoversVideo(folder: SourceFolder, video: VideoRecord): bool
     : normalizeDirectoryPath(video.directory) === normalizeDirectoryPath(folder.path);
 }
 
-interface DirectoryEntry {
-  path: string;
-  depth: number;
-  parentPath: string | null;
-  hasChildren: boolean;
-  hasScanError: boolean;
-  scanError: string | null;
-  sourceFolder: SourceFolder | null;
-}
-
-function buildDirectoryEntries(folders: SourceFolder[], directoryPaths: string[]): DirectoryEntry[] {
-  const rootByPath = new Map<string, SourceFolder>();
-  const childrenByParent = new Map<string, Set<string>>();
-
-  for (const folder of folders) {
-    rootByPath.set(normalizeDirectoryPath(folder.path), folder);
-    ensureDirectoryNode(childrenByParent, folder.path);
-  }
-
-  for (const directoryPath of directoryPaths) {
-    const root = folders.find((folder) => isPathWithin(directoryPath, folder.path));
-    if (!root) {
-      continue;
-    }
-
-    for (const expandedPath of expandDirectoryPath(directoryPath, root.path)) {
-      ensureDirectoryNode(childrenByParent, expandedPath);
-    }
-  }
-
-  const entries: DirectoryEntry[] = [];
-  const sortedRoots = getTopLevelRoots(folders);
-  const visitedDirectories = new Set<string>();
-
-  for (const folder of sortedRoots) {
-    appendDirectoryEntries(folder.path, 0, null, childrenByParent, rootByPath, entries, visitedDirectories);
-  }
-
-  return entries;
-}
-
-function appendDirectoryEntries(
-  directoryPath: string,
-  depth: number,
-  parentPath: string | null,
-  childrenByParent: Map<string, Set<string>>,
-  rootByPath: Map<string, SourceFolder>,
-  entries: DirectoryEntry[],
-  visitedDirectories: Set<string>
-): void {
-  const normalizedPath = normalizeDirectoryPath(directoryPath);
-  if (visitedDirectories.has(normalizedPath)) {
-    return;
-  }
-  visitedDirectories.add(normalizedPath);
-
-  const rootFolder = rootByPath.get(normalizedPath);
-  const children = [...(childrenByParent.get(normalizedPath) ?? [])].sort(compareDirectoryPaths);
-  entries.push({
-    path: directoryPath,
-    depth,
-    parentPath,
-    hasChildren: children.length > 0,
-    hasScanError: Boolean(rootFolder?.scanError),
-    scanError: rootFolder?.scanError ?? null,
-    sourceFolder: rootFolder ?? null
-  });
-  for (const childPath of children) {
-    appendDirectoryEntries(childPath, depth + 1, normalizedPath, childrenByParent, rootByPath, entries, visitedDirectories);
-  }
-}
-
-function getTopLevelRoots(folders: SourceFolder[]): SourceFolder[] {
-  const dedupedRoots: SourceFolder[] = [];
-  const seenPaths = new Set<string>();
-
-  for (const folder of [...folders].sort((left, right) => compareDirectoryPaths(left.path, right.path))) {
-    const normalizedPath = normalizeDirectoryPath(folder.path);
-    if (seenPaths.has(normalizedPath)) {
-      continue;
-    }
-
-    seenPaths.add(normalizedPath);
-    dedupedRoots.push(folder);
-  }
-
-  return dedupedRoots.filter((folder) => {
-    const normalizedPath = normalizeDirectoryPath(folder.path);
-    return !dedupedRoots.some((otherFolder) => {
-      const otherNormalizedPath = normalizeDirectoryPath(otherFolder.path);
-      return otherNormalizedPath !== normalizedPath && isPathWithin(folder.path, otherFolder.path);
-    });
-  });
-}
-
-function ensureDirectoryNode(childrenByParent: Map<string, Set<string>>, directoryPath: string): void {
-  const normalizedPath = normalizeDirectoryPath(directoryPath);
-  if (!childrenByParent.has(normalizedPath)) {
-    childrenByParent.set(normalizedPath, new Set());
-  }
-
-  const parentPath = getParentDirectory(directoryPath);
-  if (!parentPath) {
-    return;
-  }
-
-  const normalizedParentPath = normalizeDirectoryPath(parentPath);
-  if (!childrenByParent.has(normalizedParentPath)) {
-    childrenByParent.set(normalizedParentPath, new Set());
-  }
-  childrenByParent.get(normalizedParentPath)?.add(directoryPath);
-}
-
-function expandDirectoryPath(directoryPath: string, rootPath: string): string[] {
-  const entries: string[] = [];
-  let currentPath = directoryPath;
-
-  while (isPathWithin(currentPath, rootPath)) {
-    entries.push(currentPath);
-    if (normalizeDirectoryPath(currentPath) === normalizeDirectoryPath(rootPath)) {
-      break;
-    }
-
-    const parentPath = getParentDirectory(currentPath);
-    if (!parentPath || normalizeDirectoryPath(parentPath) === normalizeDirectoryPath(currentPath)) {
-      break;
-    }
-    currentPath = parentPath;
-  }
-
-  return entries.reverse();
-}
-
-function getParentDirectory(directoryPath: string): string | null {
-  const normalizedSeparators = directoryPath.replace(/[\\/]+/g, "\\");
-  const trimmed = normalizedSeparators.replace(/\\+$/, "");
-  const match = /^([A-Za-z]:)$/.exec(trimmed);
-
-  if (match) {
-    return null;
-  }
-
-  const parentPath = trimmed.replace(/\\[^\\]+$/, "");
-  return parentPath && parentPath !== trimmed ? parentPath : null;
-}
-
 function isPathWithin(candidatePath: string, parentPath: string): boolean {
   const candidate = normalizeDirectoryPath(candidatePath);
   const parent = normalizeDirectoryPath(parentPath);
@@ -1744,31 +1476,6 @@ function isPathWithin(candidatePath: string, parentPath: string): boolean {
 
 function normalizeDirectoryPath(directoryPath: string): string {
   return directoryPath.replace(/[\\/]+/g, "\\").replace(/\\+$/, "").toLocaleLowerCase();
-}
-
-function compareDirectoryPaths(left: string, right: string): number {
-  return left.localeCompare(right, "zh-CN", { numeric: true });
-}
-
-function areStringArraysEqual(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function isDirectoryEntryVisible(
-  entry: DirectoryEntry,
-  expandedFolderPaths: ReadonlySet<string>,
-  directoryEntryByPath: Map<string, DirectoryEntry>
-): boolean {
-  let parentPath = entry.parentPath;
-
-  while (parentPath) {
-    if (!expandedFolderPaths.has(parentPath)) {
-      return false;
-    }
-    parentPath = directoryEntryByPath.get(parentPath)?.parentPath ?? null;
-  }
-
-  return true;
 }
 
 function compareVideos(left: VideoRecord, right: VideoRecord, field: SortField): number {

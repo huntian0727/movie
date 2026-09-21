@@ -104,21 +104,15 @@ function makeVideo(index: number): VideoRecord {
 
 beforeEach(() => {
   window.localStorage.clear();
-  window.localStorage.setItem("video-manager:folder-section-expanded", "true");
 });
 
 describe("LibraryShell", () => {
-  it("keeps the large directory tree collapsed until the user opens it", () => {
-    window.localStorage.removeItem("video-manager:folder-section-expanded");
-    render(<LibraryShell videos={[video]} folders={[folder]} />);
+  it("shows source roots without rendering the nested directory tree", () => {
+    render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]} />);
 
-    const toggle = screen.getByRole("button", { name: /资料库目录/ });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("button", { name: "Movies" })).not.toBeInTheDocument();
-
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("button", { name: "Movies" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /浏览目录/ })).toBeInTheDocument();
+    expect(screen.getByTitle(folder.path)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Drama" })).not.toBeInTheDocument();
   });
 
   it("renders navigation, toolbar, and video metadata", () => {
@@ -382,85 +376,72 @@ describe("LibraryShell", () => {
     expect(titles).toEqual(["second.mp4", "first.mp4"]);
   });
 
-  it("shows child directories collapsed by default and lets folders expand recursively", () => {
-    render(<LibraryShell videos={[video, nestedVideo, deepNestedVideo]} folders={[folder]} />);
-
-    expect(screen.getByRole("button", { name: "Movies" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Drama" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Season 1" })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "展开 Movies" }));
-    expect(screen.getByRole("button", { name: "Drama" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Season 1" })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "展开 Drama" }));
-    expect(screen.getByRole("button", { name: "Season 1" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Drama" }));
-
-    expect(screen.queryByText("clip.mp4")).not.toBeInTheDocument();
-    expect(screen.getByText("episode-01.mp4")).toBeInTheDocument();
-    expect(screen.getByText("episode-02.mp4")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Movies" }));
-
-    expect(screen.getByText("clip.mp4")).toBeInTheDocument();
-    expect(screen.getByText("episode-01.mp4")).toBeInTheDocument();
-    expect(screen.getByText("episode-02.mp4")).toBeInTheDocument();
-  });
-
-  it("does not duplicate nested source folders in the sidebar tree", () => {
-    render(<LibraryShell videos={[video, nestedVideo, deepNestedVideo]} folders={[folder, nestedFolder]} />);
-
-    expect(screen.getAllByRole("button", { name: "Movies" })).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "展开 Movies" }));
-    expect(screen.getAllByRole("button", { name: "Drama" })).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "展开 Drama" }));
-    expect(screen.getAllByRole("button", { name: "Season 1" })).toHaveLength(1);
-  });
-
-  it("supports collapsing expanded folders individually", () => {
-    render(<LibraryShell videos={[video, nestedVideo, deepNestedVideo]} folders={[folder]} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "展开 Movies" }));
-    fireEvent.click(screen.getByRole("button", { name: "展开 Drama" }));
-    expect(screen.getByRole("button", { name: "Season 1" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "折叠 Drama" }));
-    expect(screen.queryByRole("button", { name: "Season 1" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Drama" })).toBeInTheDocument();
-  });
-
-  it("searches known folder names and paths without requiring their parents to be expanded", () => {
-    render(<LibraryShell videos={[video, nestedVideo, deepNestedVideo]} folders={[folder]} />);
-
-    fireEvent.change(screen.getByRole("textbox", { name: "搜索文件夹名称或路径" }), {
-      target: { value: "Season 1" }
+  it("opens the directory browser from a source and loads only its immediate children", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({
+      items: [{
+        sourceFolderId: folder.id,
+        path: nestedVideo.directory,
+        name: "Drama",
+        videoCount: 2,
+        sizeBytes: nestedVideo.sizeBytes + deepNestedVideo.sizeBytes,
+        modifiedAt: nestedVideo.modifiedAt
+      }],
+      totalCount: 1,
+      truncated: false
+    });
+    const onLoadVideoPage = vi.fn().mockResolvedValue({
+      videos: [video],
+      page: 1,
+      pageSize: 30,
+      totalPages: 1,
+      totalCount: 1
     });
 
-    expect(screen.queryByRole("button", { name: "Movies" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Season 1" })).toBeInTheDocument();
-    expect(screen.getByText("D:\\Movies\\Drama\\Season 1")).toBeInTheDocument();
+    render(
+      <LibraryShell
+        videos={[video, nestedVideo, deepNestedVideo]}
+        folders={[folder]}
+        onLoadDirectoryBrowser={onLoadDirectoryBrowser}
+        onLoadVideoPage={onLoadVideoPage}
+      />
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: "清除文件夹搜索" }));
-    expect(screen.getByRole("button", { name: "Movies" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle(folder.path));
+
+    expect(await screen.findByRole("heading", { name: "目录浏览" })).toBeInTheDocument();
+    await waitFor(() => expect(onLoadDirectoryBrowser).toHaveBeenCalledWith({
+      sourceFolderId: folder.id,
+      parentPath: folder.path,
+      search: "",
+      limit: 100
+    }));
+    expect(await screen.findByText("Drama")).toBeInTheDocument();
+    expect(onLoadVideoPage).toHaveBeenCalledWith(expect.objectContaining({
+      view: "folder",
+      directoryPath: folder.path,
+      folderScope: "recursive",
+      page: 1,
+      pageSize: 30
+    }));
   });
 
-  it("supports keyboard navigation and expansion in the folder tree", () => {
-    render(<LibraryShell videos={[video, nestedVideo, deepNestedVideo]} folders={[folder]} />);
+  it("opens directory search with Ctrl+K without materializing the directory tree", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({ items: [], totalCount: 0, truncated: false });
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0 });
+    render(
+      <LibraryShell
+        videos={[video, nestedVideo, deepNestedVideo]}
+        folders={[folder, nestedFolder]}
+        onLoadDirectoryBrowser={onLoadDirectoryBrowser}
+        onLoadVideoPage={onLoadVideoPage}
+      />
+    );
 
-    const movies = screen.getByRole("button", { name: "Movies" });
-    movies.focus();
-    fireEvent.keyDown(movies, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
 
-    const drama = screen.getByRole("button", { name: "Drama" });
-    fireEvent.keyDown(movies, { key: "ArrowDown" });
-    expect(drama).toHaveFocus();
-
-    fireEvent.keyDown(drama, { key: "ArrowRight" });
-    expect(screen.getByRole("button", { name: "Season 1" })).toBeInTheDocument();
-    fireEvent.keyDown(drama, { key: "ArrowLeft" });
-    expect(screen.queryByRole("button", { name: "Season 1" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "目录浏览" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "搜索目录" })).toHaveFocus();
+    expect(onLoadDirectoryBrowser).not.toHaveBeenCalled();
   });
 
   it("remembers the resized sidebar width and supports keyboard resizing", () => {
@@ -542,8 +523,7 @@ describe("LibraryShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "查看最近播放" }));
     expectMasonryGrid();
 
-    fireEvent.click(screen.getByRole("button", { name: "展开 Movies" }));
-    fireEvent.click(screen.getByRole("button", { name: "Drama" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看 clip.mp4 同目录视频" }));
     expectMasonryGrid();
   });
 

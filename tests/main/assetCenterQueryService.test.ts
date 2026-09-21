@@ -11,7 +11,7 @@ import {
 import { openAssetCenterReadonlyDatabase } from "../../src/main/assetCenter/assetCenterReadonlyDatabase.js";
 import type { AssetCenterWorkerRequest, AssetCenterWorkerResponse } from "../../src/main/assetCenter/assetCenterWorkerProtocol.js";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database.js";
-import type { AssetCenterSummary, LibraryNavigationSnapshot, MetadataIssuePage, SourceFolder } from "../../src/shared/videoTypes.js";
+import type { AssetCenterSummary, DirectoryBrowserResult, LibraryNavigationSnapshot, MetadataIssuePage, SourceFolder } from "../../src/shared/videoTypes.js";
 
 let tempDirectory: string | undefined;
 let database: DatabaseConnection | undefined;
@@ -68,6 +68,18 @@ describe("AssetCenterQueryService", () => {
 
     worker.emitMessage({ id: 1, ok: true, result: METADATA_PAGE });
     await expect(result).resolves.toEqual(METADATA_PAGE);
+  });
+
+  it("routes directory browsing through the read-only worker", async () => {
+    const worker = new FakeQueryWorker();
+    service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => worker });
+
+    const query = { sourceFolderId: "source-1", parentPath: "F:\\library", search: "", limit: 100 } as const;
+    const result = service.listDirectories(query);
+    expect(worker.messages).toEqual([{ id: 1, operation: "directories", query }]);
+
+    worker.emitMessage({ id: 1, ok: true, result: DIRECTORY_RESULT });
+    await expect(result).resolves.toEqual(DIRECTORY_RESULT);
   });
 
   it("rejects pending work on worker failure and lazily replaces the worker", async () => {
@@ -212,4 +224,17 @@ const METADATA_PAGE: MetadataIssuePage = {
   zeroByteCount: 0,
   queuedCount: 0,
   activeCount: 0
+};
+
+const DIRECTORY_RESULT: DirectoryBrowserResult = {
+  items: [{
+    sourceFolderId: "source-1",
+    path: "F:\\library\\Drama",
+    name: "Drama",
+    videoCount: 2,
+    sizeBytes: 4096,
+    modifiedAt: "2026-09-08T00:00:00.000Z"
+  }],
+  totalCount: 1,
+  truncated: false
 };

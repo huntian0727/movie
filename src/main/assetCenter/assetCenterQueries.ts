@@ -4,6 +4,9 @@ import type {
   AssetCenterSourceQuery,
   AssetCenterSourceRow,
   AssetCenterSummary,
+  DirectoryBrowserItem,
+  DirectoryBrowserQuery,
+  DirectoryBrowserResult,
   ScanCounters,
   ScanMode
 } from "../../shared/videoTypes.js";
@@ -62,6 +65,15 @@ interface AssetCenterSourceDatabaseRow {
 
 interface CountRow {
   count: number;
+}
+
+interface DirectoryBrowserDatabaseRow {
+  source_folder_id: string;
+  directory: string;
+  video_count: number;
+  size_bytes: number;
+  modified_at: string | null;
+  total_count?: number;
 }
 
 export function getAssetCenterSummary(db: DatabaseConnection): AssetCenterSummary {
@@ -257,6 +269,76 @@ export function listAssetCenterSources(
   };
 }
 
+export function listDirectoryBrowserItems(
+  db: DatabaseConnection,
+  query: DirectoryBrowserQuery
+): DirectoryBrowserResult {
+  const params: Record<string, unknown> = { limit: query.limit + 1 };
+  const filters = ["videos.is_missing = 0", "videos.directory IS NOT NULL", "TRIM(videos.directory) != ''"];
+  if (query.sourceFolderId) {
+    params.sourceFolderId = query.sourceFolderId;
+    filters.push("videos.source_folder_id = @sourceFolderId");
+  }
+  const search = query.search.trim();
+  if (search) {
+    params.search = `%${escapeLikePattern(search)}%`;
+    filters.push("videos.directory LIKE @search ESCAPE '!' COLLATE NOCASE");
+  } else if (query.parentPath) {
+    const parentPath = trimDirectorySeparators(query.parentPath);
+    params.parentPath = parentPath;
+    params.parentPrefix = `${escapeLikePattern(parentPath)}\\%`;
+    filters.push("(videos.directory = @parentPath COLLATE NOCASE OR videos.directory LIKE @parentPrefix ESCAPE '!' COLLATE NOCASE)");
+  }
+
+  const limitClause = search ? "LIMIT @limit" : "";
+  const rows = db.prepare(`
+    SELECT videos.source_folder_id, videos.directory,
+      COUNT(*) AS video_count,
+      COALESCE(SUM(videos.size_bytes), 0) AS size_bytes,
+      MAX(videos.modified_at) AS modified_at
+    FROM videos
+    WHERE ${filters.join(" AND ")}
+    GROUP BY videos.source_folder_id, videos.directory
+    ORDER BY videos.directory COLLATE NOCASE ASC
+    ${limitClause}
+  `).all(params) as DirectoryBrowserDatabaseRow[];
+
+  if (search) {
+    const truncated = rows.length > query.limit;
+    const items = rows.slice(0, query.limit).map(mapDirectoryBrowserRow);
+    return { items, totalCount: truncated ? query.limit + 1 : items.length, truncated };
+  }
+
+  const parentPath = query.parentPath ? trimDirectorySeparators(query.parentPath) : "";
+  const grouped = new Map<string, DirectoryBrowserItem>();
+  for (const row of rows) {
+    const childPath = immediateChildPath(row.directory, parentPath);
+    if (!childPath) continue;
+    const key = `${row.source_folder_id}\u0000${normalizeDirectoryPath(childPath)}`;
+    const current = grouped.get(key);
+    if (!current) {
+      grouped.set(key, {
+        sourceFolderId: row.source_folder_id,
+        path: childPath,
+        name: directoryName(childPath),
+        videoCount: row.video_count,
+        sizeBytes: row.size_bytes,
+        modifiedAt: row.modified_at
+      });
+      continue;
+    }
+    current.videoCount += row.video_count;
+    current.sizeBytes += row.size_bytes;
+    if (row.modified_at && (!current.modifiedAt || row.modified_at > current.modifiedAt)) current.modifiedAt = row.modified_at;
+  }
+  const allItems = [...grouped.values()].sort((left, right) => left.name.localeCompare(right.name, "zh-CN", { numeric: true }));
+  return {
+    items: allItems.slice(0, query.limit),
+    totalCount: allItems.length,
+    truncated: allItems.length > query.limit
+  };
+}
+
 export function countAllDuplicateGroups(db: DatabaseConnection): number {
   return (db.prepare(`
     WITH active_reserved_identities AS MATERIALIZED (
@@ -333,4 +415,39 @@ function mapAssetCenterLatestScan(row: AssetCenterScanTaskRow): AssetCenterLates
 
 function escapeLikePattern(value: string): string {
   return value.replace(/!/g, "!!").replace(/%/g, "!%").replace(/_/g, "!_");
+}
+
+function mapDirectoryBrowserRow(row: DirectoryBrowserDatabaseRow): DirectoryBrowserItem {
+  return {
+    sourceFolderId: row.source_folder_id,
+    path: row.directory,
+    name: directoryName(row.directory),
+    videoCount: row.video_count,
+    sizeBytes: row.size_bytes,
+    modifiedAt: row.modified_at
+  };
+}
+
+function immediateChildPath(directoryPath: string, parentPath: string): string | null {
+  if (!parentPath) return trimDirectorySeparators(directoryPath);
+  const directory = trimDirectorySeparators(directoryPath);
+  const normalizedDirectory = normalizeDirectoryPath(directory);
+  const normalizedParent = normalizeDirectoryPath(parentPath);
+  if (normalizedDirectory === normalizedParent) return null;
+  if (!normalizedDirectory.startsWith(`${normalizedParent}\\`)) return null;
+  const relative = directory.slice(parentPath.length).replace(/^[\\/]+/, "");
+  const childName = relative.split(/[\\/]/)[0];
+  return childName ? `${trimDirectorySeparators(parentPath)}\\${childName}` : null;
+}
+
+function directoryName(directoryPath: string): string {
+  return trimDirectorySeparators(directoryPath).split(/[\\/]/).filter(Boolean).at(-1) ?? directoryPath;
+}
+
+function trimDirectorySeparators(value: string): string {
+  return value.replace(/[\\/]+$/, "");
+}
+
+function normalizeDirectoryPath(value: string): string {
+  return trimDirectorySeparators(value).replace(/[\\/]+/g, "\\").toLocaleLowerCase();
 }
