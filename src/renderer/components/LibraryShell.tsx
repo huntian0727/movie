@@ -709,9 +709,6 @@ export function LibraryShell({
             {folders.length === 0 && <p className="source-root-empty">还没有添加资料库</p>}
           </nav>
         </section>
-        <div className="sidebar-footer">
-          <div className="storage-note"><span>本地资料库</span><small>文件保留在原位置</small></div>
-        </div>
         <div
           className="sidebar-resizer"
           role="separator"

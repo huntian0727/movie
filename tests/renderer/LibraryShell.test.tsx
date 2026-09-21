@@ -135,6 +135,8 @@ describe("LibraryShell", () => {
     expect(topMenu).not.toBeNull();
     expect(within(sidebar as HTMLElement).queryByText("设置")).not.toBeInTheDocument();
     expect(within(sidebar as HTMLElement).queryByText("最近目录")).not.toBeInTheDocument();
+    expect(within(sidebar as HTMLElement).queryByText("本地资料库")).not.toBeInTheDocument();
+    expect(within(sidebar as HTMLElement).queryByText("文件保留在原位置")).not.toBeInTheDocument();
 
     fireEvent.click(within(topMenu as HTMLElement).getByRole("button", { name: "设置" }));
     expect(onOpenSettings).toHaveBeenCalledOnce();
