@@ -300,8 +300,20 @@ button { color: inherit; }
 .directory-picker-results > .directory-picker-clear { grid-template-columns: minmax(0, 1fr); color: #d5b978; }
 .directory-picker-note { margin: 0; padding: 8px 11px; border-top: 1px solid #343633; color: #777b75; background: #1a1b1a; font-size: 10px; }
 
-.content { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: #111212; }
-.health-center-tabs { position: sticky; top: 88px; z-index: 4; min-height: 48px; padding: 7px 26px 0; border-bottom: 1px solid #292b28; display: flex; align-items: end; gap: 4px; background: rgba(17, 18, 18, .97); }
+.content { --global-menu-height: 42px; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: #111212; }
+.global-top-menu { position: sticky; top: 0; z-index: 20; height: var(--global-menu-height); padding: 0 20px; border-bottom: 1px solid #292a29; display: flex; align-items: center; justify-content: flex-end; background: rgba(20, 21, 20, .98); backdrop-filter: blur(12px); }
+.global-top-menu nav { min-width: 0; display: flex; align-items: center; gap: 3px; }
+.global-top-menu button, .global-top-menu summary { height: 30px; padding: 0 9px; border: 0; border-radius: 5px; display: inline-flex; align-items: center; gap: 6px; color: #a8aca5; background: transparent; font-size: 11px; cursor: pointer; user-select: none; }
+.global-top-menu button:hover, .global-top-menu summary:hover, .global-top-menu button.active, .global-add-source[open] > summary { color: #fff; background: #2a2c2a; }
+.global-top-menu button.active { color: #f2b0a4; }
+.global-top-menu kbd { margin-left: 2px; color: #656a63; font-family: inherit; font-size: 9px; }
+.global-add-source { position: relative; }
+.global-add-source > summary { list-style: none; }
+.global-add-source > summary::-webkit-details-marker { display: none; }
+.global-add-source > div { position: absolute; z-index: 30; top: 34px; right: 0; width: 230px; padding: 5px; border: 1px solid #3b3e3a; border-radius: 7px; display: grid; gap: 2px; background: #202220; box-shadow: 0 14px 34px #0009; }
+.global-add-source > div button { width: 100%; height: 34px; justify-content: flex-start; color: #c8cbc5; }
+.global-add-source > div button:hover { color: #fff; background: #30332f; }
+.health-center-tabs { position: sticky; top: calc(var(--global-menu-height) + 88px); z-index: 4; min-height: 48px; padding: 7px 26px 0; border-bottom: 1px solid #292b28; display: flex; align-items: end; gap: 4px; background: rgba(17, 18, 18, .97); }
 .health-center-tabs button { height: 40px; padding: 0 13px; border: 0; border-bottom: 2px solid transparent; display: inline-flex; align-items: center; gap: 7px; color: #8f938c; background: transparent; cursor: pointer; }
 .health-center-tabs button:hover { color: #e5e7e3; background: #1a1c1a; }
 .health-center-tabs button[aria-current="page"] { border-bottom-color: #e2634b; color: #fff; }
@@ -311,7 +323,7 @@ button { color: inherit; }
 .batch-toolbar strong { margin-right: 8px; font-size: 12px; }
 .batch-toolbar button { height: 32px; padding: 0 10px; border: 1px solid #41443f; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; color: #d3d6d0; background: #242624; cursor: pointer; }
 .batch-toolbar .danger { border-color: #9e4236; color: #ffd8d2; }.batch-toolbar button:disabled { opacity: .5; cursor: default; }
-.toolbar { position: sticky; top: 0; z-index: 5; min-height: 88px; padding: 18px 26px; display: flex; align-items: center; justify-content: space-between; gap: 22px; border-bottom: 1px solid #252625; background: rgba(17, 18, 18, 0.96); }
+.toolbar { position: sticky; top: var(--global-menu-height); z-index: 5; min-height: 88px; padding: 18px 26px; display: flex; align-items: center; justify-content: space-between; gap: 22px; border-bottom: 1px solid #252625; background: rgba(17, 18, 18, 0.96); }
 .toolbar-title { min-width: 150px; display: flex; align-items: center; gap: 10px; }
 .toolbar-title h2 { margin: 0; font-size: 21px; line-height: 27px; font-weight: 650; }
 .toolbar-title span { color: #777a75; font-size: 12px; }
@@ -448,7 +460,7 @@ button { color: inherit; }
 @keyframes rotate { to { transform: rotate(360deg); } }
 
 .asset-center-page { min-height: 100%; background: #111212; }
-.asset-center-toolbar { position: sticky; top: 0; z-index: 5; min-height: 88px; padding: 17px 26px; border-bottom: 1px solid #252625; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(17, 18, 18, .97); }
+.asset-center-toolbar { position: sticky; top: var(--global-menu-height); z-index: 5; min-height: 88px; padding: 17px 26px; border-bottom: 1px solid #252625; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(17, 18, 18, .97); }
 .asset-center-toolbar h1 { margin: 0; font-size: 21px; line-height: 27px; font-weight: 650; }
 .asset-center-toolbar p { margin: 3px 0 0; color: #777a75; font-size: 11px; }
 .asset-center-toolbar button { height: 36px; padding: 0 11px; border: 1px solid #343634; border-radius: 6px; display: inline-flex; align-items: center; gap: 7px; color: #b9bcb6; background: #1b1c1b; cursor: pointer; }
@@ -564,7 +576,7 @@ button.asset-health-row:hover { background: #1d1f1d; }
 }
 
 .playback-diagnostic-page { min-height: 100%; color: #dfe2dc; background: #111212; }
-.playback-diagnostic-toolbar { position: sticky; top: 0; z-index: 5; min-height: 88px; padding: 17px 26px; border-bottom: 1px solid #252625; display: flex; align-items: center; justify-content: space-between; gap: 18px; background: rgba(17, 18, 18, .97); }
+.playback-diagnostic-toolbar { position: sticky; top: var(--global-menu-height); z-index: 5; min-height: 88px; padding: 17px 26px; border-bottom: 1px solid #252625; display: flex; align-items: center; justify-content: space-between; gap: 18px; background: rgba(17, 18, 18, .97); }
 .playback-diagnostic-toolbar h1 { margin: 0; font-size: 21px; line-height: 27px; font-weight: 650; }
 .playback-diagnostic-toolbar p { margin: 3px 0 0; color: #777a75; font-size: 11px; }
 .playback-diagnostic-toolbar > div:last-child { display: flex; gap: 7px; }

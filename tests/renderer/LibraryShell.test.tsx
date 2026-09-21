@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryShell } from "../../src/renderer/components/LibraryShell";
 import type { DuplicateGroup, DuplicateGroupPageQuery, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
@@ -113,6 +113,38 @@ describe("LibraryShell", () => {
     expect(screen.getByRole("button", { name: /浏览目录/ })).toBeInTheDocument();
     expect(screen.getByTitle(folder.path)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Drama" })).not.toBeInTheDocument();
+  });
+
+  it("keeps global utilities in the top menu instead of the sidebar", () => {
+    const onOpenSettings = vi.fn();
+    const onAddFolder = vi.fn();
+    const onAddCloudDriveFolder = vi.fn();
+    const { container } = render(
+      <LibraryShell
+        videos={[video]}
+        folders={[folder]}
+        onOpenSettings={onOpenSettings}
+        onAddFolder={onAddFolder}
+        onAddCloudDriveFolder={onAddCloudDriveFolder}
+      />
+    );
+
+    const sidebar = container.querySelector(".sidebar");
+    const topMenu = container.querySelector(".global-top-menu");
+    expect(sidebar).not.toBeNull();
+    expect(topMenu).not.toBeNull();
+    expect(within(sidebar as HTMLElement).queryByText("设置")).not.toBeInTheDocument();
+    expect(within(sidebar as HTMLElement).queryByText("最近目录")).not.toBeInTheDocument();
+
+    fireEvent.click(within(topMenu as HTMLElement).getByRole("button", { name: "设置" }));
+    expect(onOpenSettings).toHaveBeenCalledOnce();
+
+    fireEvent.click(within(topMenu as HTMLElement).getByText("添加资料库"));
+    fireEvent.click(within(topMenu as HTMLElement).getByRole("button", { name: /CloudDrive API/ }));
+    fireEvent.click(within(topMenu as HTMLElement).getByText("添加资料库"));
+    fireEvent.click(within(topMenu as HTMLElement).getByRole("button", { name: /添加本地或挂载目录/ }));
+    expect(onAddCloudDriveFolder).toHaveBeenCalledOnce();
+    expect(onAddFolder).toHaveBeenCalledOnce();
   });
 
   it("renders navigation, toolbar, and video metadata", () => {
@@ -449,6 +481,31 @@ describe("LibraryShell", () => {
     expect(await screen.findByRole("heading", { name: "目录浏览" })).toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: "搜索目录" })).toHaveFocus();
     expect(onLoadDirectoryBrowser).not.toHaveBeenCalled();
+  });
+
+  it("shows recently visited directories on the directory browser home", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({ items: [], totalCount: 0, truncated: false });
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0 });
+    const { container } = render(
+      <LibraryShell
+        videos={[video]}
+        folders={[folder]}
+        onLoadDirectoryBrowser={onLoadDirectoryBrowser}
+        onLoadVideoPage={onLoadVideoPage}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /浏览目录/ }));
+    const sourceCard = container.querySelector(".directory-source-grid > button");
+    expect(sourceCard).not.toBeNull();
+    fireEvent.click(sourceCard as HTMLElement);
+    expect(await screen.findByRole("navigation", { name: "当前目录路径" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /浏览目录/ }));
+    expect(await screen.findByRole("heading", { name: "最近目录" })).toBeInTheDocument();
+    const recentGrid = container.querySelector(".directory-recent-grid");
+    expect(recentGrid).not.toBeNull();
+    expect(within(recentGrid as HTMLElement).getByTitle(folder.path)).toBeInTheDocument();
   });
 
   it("remembers the resized sidebar width and supports keyboard resizing", () => {

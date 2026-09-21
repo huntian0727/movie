@@ -426,9 +426,9 @@ export function LibraryShell({
     });
   }, [renderedVideos]);
   const gridCardSizeIndex = GRID_CARD_WIDTH_OPTIONS.indexOf(gridCardWidth);
-  const sidebarRecentDirectories = recentDirectoryPaths
-    .map((path) => ({ path, folder: folders.find((folder) => isPathWithin(path, folder.path)) }))
-    .filter((entry): entry is { path: string; folder: SourceFolder } => Boolean(entry.folder))
+  const recentDirectories = recentDirectoryPaths
+    .map((path) => ({ path, sourceFolderId: folders.find((folder) => isPathWithin(path, folder.path))?.id }))
+    .filter((entry): entry is { path: string; sourceFolderId: string } => Boolean(entry.sourceFolderId))
     .slice(0, 5);
 
   useEffect(() => {
@@ -496,10 +496,12 @@ export function LibraryShell({
     rememberDirectory(directoryPath, setRecentDirectoryPaths);
   };
   const openDirectoryBrowser = (folder?: SourceFolder) => {
-    const target = folder ?? folders.find((item) => item.id === directoryBrowserSourceId) ?? folders[0];
-    if (target) {
-      setDirectoryBrowserSourceId(target.id);
-      setSelectedFolderPath((current) => current && isPathWithin(current, target.path) ? current : target.path);
+    if (!folder) {
+      setDirectoryBrowserSourceId(undefined);
+      setSelectedFolderPath(null);
+    } else {
+      setDirectoryBrowserSourceId(folder.id);
+      setSelectedFolderPath(folder.path);
     }
     setView("directoryBrowser");
   };
@@ -675,17 +677,7 @@ export function LibraryShell({
         <section className="sidebar-library-sources">
           <header>
             <div><strong>资料库</strong><small>{folders.length}</small></div>
-            <details className="sidebar-add-source">
-              <summary aria-label="添加资料库" title="添加资料库"><FolderPlus size={16} /></summary>
-              <div>
-                <button type="button" onClick={() => void onAddCloudDriveFolder?.()}><Cloud size={15} />通过 CloudDrive API 添加</button>
-                <button type="button" onClick={() => void onAddFolder?.()}><HardDrive size={15} />添加本地或挂载目录</button>
-              </div>
-            </details>
           </header>
-          <button type="button" className={`directory-launcher${view === "directoryBrowser" ? " active" : ""}`} onClick={() => openDirectoryBrowser()}>
-            <FolderSearch size={17} /><span>浏览目录</span><kbd>Ctrl+K</kbd>
-          </button>
           <nav className="source-root-list" aria-label="资料库来源">
             {folders.map((folder) => {
               const scanStatus = scanStatusByFolder.get(folder.id);
@@ -716,13 +708,8 @@ export function LibraryShell({
             })}
             {folders.length === 0 && <p className="source-root-empty">还没有添加资料库</p>}
           </nav>
-          {sidebarRecentDirectories.length > 0 && <div className="sidebar-recent-directories">
-            <strong>最近目录</strong>
-            {sidebarRecentDirectories.map(({ path, folder }) => <button type="button" key={path} title={path} onClick={() => browseDirectory(path, folder.id)}><Clock3 size={14} /><span>{folderName(path)}</span></button>)}
-          </div>}
         </section>
         <div className="sidebar-footer">
-          <button onClick={onOpenSettings}><Settings size={17} /><span>设置</span></button>
           <div className="storage-note"><span>本地资料库</span><small>文件保留在原位置</small></div>
         </div>
         <div
@@ -746,6 +733,21 @@ export function LibraryShell({
       </aside>
 
       <section className="content" ref={contentRef}>
+        <header className="global-top-menu" aria-label="全局菜单栏">
+          <nav aria-label="全局操作">
+            <button type="button" className={view === "directoryBrowser" ? "active" : undefined} onClick={() => openDirectoryBrowser()}>
+              <FolderSearch size={15} /><span>浏览目录</span><kbd>Ctrl+K</kbd>
+            </button>
+            <details className="global-add-source">
+              <summary><FolderPlus size={15} /><span>添加资料库</span></summary>
+              <div>
+                <button type="button" onClick={() => void onAddCloudDriveFolder?.()}><Cloud size={15} />通过 CloudDrive API 添加</button>
+                <button type="button" onClick={() => void onAddFolder?.()}><HardDrive size={15} />添加本地或挂载目录</button>
+              </div>
+            </details>
+            <button type="button" onClick={onOpenSettings}><Settings size={15} /><span>设置</span></button>
+          </nav>
+        </header>
         {usesCommonToolbar && <Toolbar
           title={title}
           count={toolbarCount}
@@ -806,6 +808,7 @@ export function LibraryShell({
             ? <DirectoryBrowserPage
                 key={selectedFolderPath ?? "directory-browser-root"}
                 folders={folders}
+                recentDirectories={recentDirectories}
                 selectedSourceId={directoryBrowserSourceId}
                 currentPath={selectedFolderPath ?? undefined}
                 scope={folderScope}

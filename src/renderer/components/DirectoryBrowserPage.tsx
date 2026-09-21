@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronRight, Cloud, Folder, HardDrive, LoaderCircle, RefreshCw, Search, Server, X } from "lucide-react";
+import { AlertTriangle, ChevronRight, Clock3, Cloud, Folder, HardDrive, LoaderCircle, RefreshCw, Search, Server, X } from "lucide-react";
 import type { DirectoryBrowserResult, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
 import "./directoryBrowserPage.css";
 
 interface DirectoryBrowserPageProps {
   folders: SourceFolder[];
+  recentDirectories: Array<{ path: string; sourceFolderId: string }>;
   selectedSourceId?: string;
   currentPath?: string;
   scope: "recursive" | "exact";
@@ -26,6 +27,7 @@ const EMPTY_VIDEOS: LibraryPage = { videos: [], page: 1, pageSize: 30, totalPage
 
 export function DirectoryBrowserPage({
   folders,
+  recentDirectories,
   selectedSourceId,
   currentPath,
   scope,
@@ -162,6 +164,19 @@ export function DirectoryBrowserPage({
         </button>)}
         {folders.length === 0 && <p className="directory-browser-empty">还没有添加资料库。</p>}
       </div>}
+
+      {!search && !currentPath && recentDirectories.length > 0 && <section className="directory-recent-section">
+        <div className="directory-section-title">
+          <div><h2>最近目录</h2><small>最近访问的资料库位置</small></div>
+        </div>
+        <div className="directory-recent-grid">
+          {recentDirectories.map((directory) => <button type="button" key={directory.path} title={directory.path} onClick={() => onNavigate(directory.path, directory.sourceFolderId)}>
+            <Clock3 size={17} />
+            <span><strong>{folderName(directory.path)}</strong><small>{directory.path}</small></span>
+            <ChevronRight size={16} />
+          </button>)}
+        </div>
+      </section>}
 
       {(search || currentPath) && <section className="directory-list-section">
         <button
