@@ -804,6 +804,7 @@ export function LibraryShell({
         {view === "directoryBrowser" ? (
           onLoadDirectoryBrowser && onLoadVideoPage
             ? <DirectoryBrowserPage
+                key={selectedFolderPath ?? "directory-browser-root"}
                 folders={folders}
                 selectedSourceId={directoryBrowserSourceId}
                 currentPath={selectedFolderPath ?? undefined}

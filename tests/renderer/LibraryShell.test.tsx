@@ -376,7 +376,7 @@ describe("LibraryShell", () => {
     expect(titles).toEqual(["second.mp4", "first.mp4"]);
   });
 
-  it("opens the directory browser from a source and loads only its immediate children", async () => {
+  it("keeps the current-directory list collapsed until the user expands it", async () => {
     const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({
       items: [{
         sourceFolderId: folder.id,
@@ -409,12 +409,19 @@ describe("LibraryShell", () => {
     fireEvent.click(screen.getByTitle(folder.path));
 
     expect(await screen.findByRole("heading", { name: "目录浏览" })).toBeInTheDocument();
+    const currentDirectory = screen.getByRole("button", { name: /当前目录.*展开查看/ });
+    expect(currentDirectory).toHaveAttribute("aria-expanded", "false");
+    expect(onLoadDirectoryBrowser).not.toHaveBeenCalled();
+
+    fireEvent.click(currentDirectory);
+
     await waitFor(() => expect(onLoadDirectoryBrowser).toHaveBeenCalledWith({
       sourceFolderId: folder.id,
       parentPath: folder.path,
       search: "",
       limit: 100
     }));
+    expect(currentDirectory).toHaveAttribute("aria-expanded", "true");
     expect(await screen.findByText("Drama")).toBeInTheDocument();
     expect(onLoadVideoPage).toHaveBeenCalledWith(expect.objectContaining({
       view: "folder",

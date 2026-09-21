@@ -45,6 +45,7 @@ export function DirectoryBrowserPage({
   const [directories, setDirectories] = useState(EMPTY_RESULT);
   const [videos, setVideos] = useState(EMPTY_VIDEOS);
   const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryListExpanded, setDirectoryListExpanded] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -66,7 +67,7 @@ export function DirectoryBrowserPage({
   }, [focusSequence]);
 
   useEffect(() => {
-    if (!search && !currentPath) {
+    if (!search && (!currentPath || !directoryListExpanded)) {
       setDirectories(EMPTY_RESULT);
       setDirectoryLoading(false);
       return;
@@ -88,7 +89,7 @@ export function DirectoryBrowserPage({
       if (!disposed) setDirectoryLoading(false);
     });
     return () => { disposed = true; };
-  }, [currentPath, loadDirectories, refreshSequence, revision, search, selectedSource?.id]);
+  }, [currentPath, directoryListExpanded, loadDirectories, refreshSequence, revision, search, selectedSource?.id]);
 
   useEffect(() => {
     if (!currentPath) {
@@ -163,8 +164,20 @@ export function DirectoryBrowserPage({
       </div>}
 
       {(search || currentPath) && <section className="directory-list-section">
-        <div className="directory-section-title"><div><h2>{heading}</h2>{directories.truncated && <small>结果较多，继续输入可缩小范围</small>}</div><strong>{directories.totalCount.toLocaleString("zh-CN")}</strong></div>
-        <div className="directory-list" aria-busy={directoryLoading}>
+        <button
+          type="button"
+          className="directory-section-title directory-section-toggle"
+          aria-expanded={Boolean(search) || directoryListExpanded}
+          onClick={() => { if (!search) setDirectoryListExpanded((value) => !value); }}
+          disabled={Boolean(search)}
+        >
+          <div>
+            <ChevronRight className={search || directoryListExpanded ? "expanded" : undefined} size={17} />
+            <span><h2>{heading}</h2>{directories.truncated && <small>结果较多，继续输入可缩小范围</small>}</span>
+          </div>
+          <strong>{search || directoryListExpanded ? directories.totalCount.toLocaleString("zh-CN") : "展开查看"}</strong>
+        </button>
+        {(search || directoryListExpanded) && <div className="directory-list" aria-busy={directoryLoading}>
           <div className="directory-list-head"><span>目录</span><span>视频</span><span>最后更新</span><span /></div>
           {directoryLoading ? <div className="directory-list-loading"><LoaderCircle className="spin" size={18} />正在读取资料库</div> : directories.items.map((item) => <button type="button" key={`${item.sourceFolderId}:${item.path}`} onClick={() => { setSearchText(""); onNavigate(item.path, item.sourceFolderId); }}>
             <span className="directory-list-name"><Folder size={18} /><span><strong>{item.name}</strong>{search && <small>{item.path}</small>}</span></span>
@@ -173,7 +186,7 @@ export function DirectoryBrowserPage({
             <ChevronRight size={17} />
           </button>)}
           {!directoryLoading && directories.items.length === 0 && <p className="directory-browser-empty">{search ? "没有匹配的目录，请尝试其他关键词。" : "当前目录没有下一级目录。"}</p>}
-        </div>
+        </div>}
       </section>}
 
       {!search && currentPath && <section className="directory-video-section">

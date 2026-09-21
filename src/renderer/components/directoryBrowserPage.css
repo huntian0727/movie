@@ -34,6 +34,14 @@
 .directory-section-title h2 { margin: 0; color: #e9ebe7; font-size: 16px; }
 .directory-section-title small { color: #777b75; font-size: 10px; }
 .directory-section-title > strong { color: #757a73; font-size: 11px; font-weight: 600; }
+.directory-section-toggle { width: 100%; padding: 0 4px; border: 0; border-radius: 5px; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+.directory-section-toggle:hover { background: #1d1f1d; }
+.directory-section-toggle:disabled { opacity: 1; cursor: default; }
+.directory-section-toggle:disabled:hover { background: transparent; }
+.directory-section-toggle > div { align-items: center; }
+.directory-section-toggle > div > svg { flex: 0 0 auto; color: #747972; transition: transform 140ms ease; }
+.directory-section-toggle > div > svg.expanded { transform: rotate(90deg); }
+.directory-section-toggle > div > span { min-width: 0; display: flex; align-items: baseline; gap: 9px; }
 .directory-section-title > button { height: 30px; padding: 0 7px; border: 0; display: inline-flex; align-items: center; gap: 4px; color: #a6aaa3; background: transparent; cursor: pointer; }
 .directory-section-title > button:hover { color: #fff; }
 .directory-list { min-width: 0; border: 1px solid #303230; border-radius: 6px; overflow: hidden; background: #171817; }
