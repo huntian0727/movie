@@ -9,6 +9,7 @@
 3. 每项新任务优先创建独立功能分支，使用 `ai/<task-name>`，例如 `ai/scan-fix`、`ai/preview-fix`。
 4. `main` 和 `master` 默认是受保护分支，不在这些分支上直接开发。用户已明确授权自动交付脚本在全部检查通过后，以普通快进推送更新 `main`；禁止强制推送。
 5. 不访问其他仓库，不重新 clone；需要同步时只使用当前仓库已配置的 `origin`。
+6. 工作区干净并确认开发基准后、创建功能分支和修改文件前，必须运行 `powershell -ExecutionPolicy Bypass -File scripts/project-backup.ps1 -Action Create -Label "<task-name>"`。命令必须成功生成 Git checkpoint、源码 bundle、SQLite 一致性快照、设置备份和 manifest；失败时停止开发并报告，不得跳过。已有未提交修改时禁止用新快照覆盖其归属，应先确认并保留这些修改。
 
 ## 开发与验证
 
@@ -33,7 +34,7 @@ powershell -ExecutionPolicy Bypass -File scripts/finish-and-push.ps1 -Message "<
 
 回滚不得强制把 `main` 指针倒退。应从对应 `backup-main-*` 标签创建修复分支，或对问题提交执行 `git revert`，通过新的正常提交恢复。
 
-以后每次开发固定执行：阅读 `AGENTS.md`（首次接手再读 `docs/ai/START_HERE.md`）→ 检查工作区 → 创建功能分支 → 完成开发 → 写交付记录 → 运行测试 → 运行 `finish-and-push.ps1` → 备份旧 `main` → 更新 GitHub `main` → 只报告关键结果和备份标签。
+以后每次开发固定执行：阅读 `AGENTS.md`（首次接手再读 `docs/ai/START_HERE.md`）→ 检查工作区 → 运行 `project-backup.ps1` 创建开发前快照 → 创建功能分支 → 完成开发 → 写交付记录 → 运行测试 → 运行 `finish-and-push.ps1` → 备份旧 `main` → 更新 GitHub `main` → 只报告关键结果和备份标签、数据快照 ID。
 
 ## 桌面端可用性交付（强制）
 

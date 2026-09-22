@@ -7,6 +7,7 @@
 - Git 仓库根目录：`C:\Users\test\Documents\视频管理\movie`
 - 本地工作区是开发基准；不要重新 clone，也不要覆盖或丢弃未提交修改。
 - 开始任务先运行 `git branch --show-current`、`git status --short`、`git remote -v`。
+- 工作区干净后、创建功能分支和修改文件前，运行 `scripts/project-backup.ps1 -Action Create -Label "<task-name>"`；快照失败时停止开发。
 - 完整安全与交付规则见根目录 `AGENTS.md`，它的约束高于本目录中的说明。
 - 本地运行状态、任务包、角色职责和 Agent handoff 见 `.agent/`；可复用角色流程见 `skills/movie-*`。`docs/ai/` 继续保存长期项目事实，两者不要混用。
 
@@ -43,7 +44,7 @@ React renderer
 
 ## 开始修改前如何验证事实
 
-1. 用 `rg` 搜索实际类型、IPC channel、handler、repository 方法和测试，不能仅按文档猜测。
+1. 在任何修改前确认本轮开发 checkpoint 已成功，记录快照 ID 和 Git 标签；再用 `rg` 搜索实际类型、IPC channel、handler、repository 方法和测试，不能仅按文档猜测。
 2. 查看 `src/main/db/migrations/index.ts` 的 `LATEST_SCHEMA_VERSION`，不要引用旧文档中的版本号。
 3. 查看 `package.json` 的实际脚本和固定 Node/npm 版本；不要假定本机全局版本可用。
 4. 查看最近提交和 `docs/ai/deliveries/`，区分“已合并代码”“已自动测试”和“已真实桌面验证”。

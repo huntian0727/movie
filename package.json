@@ -41,7 +41,8 @@
     "verify:artifact": "node scripts/verify-packaged-artifact.mjs",
     "test:packaged-smoke": "npm run verify:environment && node scripts/run-packaged-smoke.mjs",
     "test:installer-smoke": "npm run verify:environment && node scripts/run-installer-smoke.mjs",
-    "release:metadata": "node scripts/write-release-metadata.mjs"
+    "release:metadata": "node scripts/write-release-metadata.mjs",
+    "backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/project-backup.ps1"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
