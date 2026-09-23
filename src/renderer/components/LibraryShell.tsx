@@ -44,6 +44,7 @@ interface LibraryShellProps {
   onAddFolder?(): void | Promise<void>;
   onAddCloudDriveFolder?(): void | Promise<void>;
   onRemoveFolder?(folder: SourceFolder): void | Promise<void>;
+  removingFolderIds?: Set<string>;
   onPauseFolderScan?(folder: SourceFolder): void | Promise<unknown>;
   onResumeFolderScan?(folder: SourceFolder): void | Promise<unknown>;
   onScanFolder?(folder: SourceFolder): void | Promise<unknown>;
@@ -113,6 +114,7 @@ export function LibraryShell({
   onAddFolder,
   onAddCloudDriveFolder,
   onRemoveFolder,
+  removingFolderIds,
   onPauseFolderScan,
   onResumeFolderScan,
   onScanFolder,
@@ -229,7 +231,7 @@ export function LibraryShell({
   const scanStatusByFolder = useMemo(() => new Map(scanStatuses.map((status) => [status.folderId, status])), [scanStatuses]);
 
   const visibleVideos = useMemo(() => {
-    if (onLoadVideoPage) return videoPage.videos;
+    if (onLoadVideoPage) return videoPage.videos.filter((video) => !removingFolderIds?.has(video.sourceFolderId));
     if (view === "recent") {
       const byId = new Map(videos.map((video) => [video.id, video]));
       return recentVideoIds
@@ -250,7 +252,7 @@ export function LibraryShell({
       return video.filename.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
     });
     return result.sort((left, right) => compareVideos(left, right, sortField) * (sortDirection === "asc" ? 1 : -1));
-  }, [folderScope, onLoadVideoPage, recentVideoIds, search, selectedFolderPath, sortDirection, sortField, videoPage.videos, videos, view]);
+  }, [folderScope, onLoadVideoPage, recentVideoIds, removingFolderIds, search, selectedFolderPath, sortDirection, sortField, videoPage.videos, videos, view]);
   const favoriteCount = useMemo(() => navigation?.favoriteVideos ?? videos.reduce((count, video) => count + (video.isFavorite ? 1 : 0), 0), [navigation?.favoriteVideos, videos]);
   const pendingDeleteCount = navigation?.pendingDeleteVideos ?? videos.reduce((count, video) => count + (video.isPendingDelete ? 1 : 0), 0);
   const pendingDeleteBytes = navigation?.pendingDeleteBytes ?? videos.reduce((total, video) => total + (video.isPendingDelete ? video.sizeBytes : 0), 0);
@@ -577,12 +579,15 @@ export function LibraryShell({
     }
   };
 
-  const confirmRemoveFolder = async () => {
+  const confirmRemoveFolder = () => {
     if (!removeFolderTarget) return;
-    if (await runAction(() => onRemoveFolder?.(removeFolderTarget))) {
-      setRemoveFolderTarget(null);
-      setRemoveFolderImpact(null);
-    }
+    const folder = removeFolderTarget;
+    setRemoveFolderTarget(null);
+    setRemoveFolderImpact(null);
+    setView("assetCenter");
+    void Promise.resolve(onRemoveFolder?.(folder)).catch((cause) => {
+      setActionError(cause instanceof Error ? cause.message : String(cause));
+    });
   };
   const selectedVideos = renderedVideos.filter((video) => selectedVideoIds.has(video.id));
   const toggleSelectedVideo = (video: VideoRecord) => setSelectedVideoIds((current) => {
@@ -798,7 +803,9 @@ export function LibraryShell({
           </div>
         )}
 
-        {usesCommonToolbar && (error || actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{error ?? actionError ?? duplicateLoadError ?? videoPageError}</div>}
+        {Boolean(removingFolderIds?.size) && <div className="success-banner" role="status">正在后台移除 {removingFolderIds?.size} 个资料库来源。视频文件保留原位，可继续使用其他页面。</div>}
+        {error && <div className="error-banner" role="alert">{error}</div>}
+        {usesCommonToolbar && !error && (actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{actionError ?? duplicateLoadError ?? videoPageError}</div>}
         {view === "folder" && videoDataApi && <button className="secondary-button" onClick={() => setView("videoData")}>在视频数据表中查看此目录</button>}
         {view === "directoryBrowser" ? (
           onLoadDirectoryBrowser && onLoadVideoPage

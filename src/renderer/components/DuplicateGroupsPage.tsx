@@ -25,6 +25,7 @@ import type {
 import { formatBytes, formatDate, formatDuration } from "./formatters";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { DuplicateDirectoryRanking } from "./DuplicateDirectoryRanking";
+import { useProgressiveRenderCount } from "./useProgressiveRenderCount";
 import { DuplicateCleanupTasksPanel } from "./DuplicateCleanupTasksPanel";
 import { DuplicateCleanupButton } from "./DuplicateCleanupButton";
 
@@ -243,6 +244,8 @@ export function DuplicateGroupsPage({
     };
   }, [bindingPending, onGetLegacyCloudDriveBindingStatus]);
 
+  const renderKey = groups.map((group) => group.groupKey).join("|");
+  const visibleGroupCount = useProgressiveRenderCount(renderKey, groups.length, 16, 20);
   const plan = useMemo<DuplicateResolvePlan>(
     () => {
       const resolutions = groups.map((group) => {
@@ -627,7 +630,7 @@ export function DuplicateGroupsPage({
 
       <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={onPreferredDirectoryPathChange} />
       <div className="duplicate-groups">
-        {!filteredSubmissionHidden && groups.map((group, index) => (
+        {!filteredSubmissionHidden && groups.slice(0, visibleGroupCount).map((group, index) => (
           <DuplicateGroupCard
             key={group.groupKey}
             group={group}
@@ -650,6 +653,9 @@ export function DuplicateGroupsPage({
             }}
           />
         ))}
+        {!filteredSubmissionHidden && visibleGroupCount < groups.length && (
+          <p role="status">正在显示当前页候选组：{visibleGroupCount} / {groups.length}</p>
+        )}
       </div>
 
       <div className="pagination-bar duplicate-pagination" aria-label="候选项分页">

@@ -289,7 +289,7 @@ describe("LibraryShell", () => {
     expect(onOpen).toHaveBeenCalledWith(video, [video]);
   });
 
-  it("paginates videos with configurable page sizes", () => {
+  it("paginates videos with configurable page sizes", async () => {
     const videos = Array.from({ length: 121 }, (_, index) => makeVideo(index + 1));
     render(<LibraryShell videos={videos} />);
 
@@ -302,9 +302,18 @@ describe("LibraryShell", () => {
     expect(screen.getByText("clip-101.mp4")).toBeInTheDocument();
 
     fireEvent.change(screen.getAllByRole("combobox").at(-1)!, { target: { value: "200" } });
-    expect(screen.getByText("clip-121.mp4")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("clip-121.mp4")).toBeInTheDocument());
     expect(screen.getByLabelText("跳转页码")).toHaveValue("1");
     expect(screen.getByText("/ 1")).toBeInTheDocument();
+  });
+
+  it("shows a large video page progressively while retaining access to every item", async () => {
+    const videos = Array.from({ length: 200 }, (_, index) => makeVideo(index + 1));
+    const { container } = render(<LibraryShell videos={videos} />);
+    fireEvent.change(screen.getAllByRole("combobox").at(-1)!, { target: { value: "200" } });
+    expect(container.querySelectorAll(".video-card").length).toBeLessThan(200);
+    await waitFor(() => expect(container.querySelectorAll(".video-card")).toHaveLength(200));
+    expect(screen.getByText("clip-200.mp4")).toBeInTheDocument();
   });
 
   it("offers 30 and 50 item page sizes and jumps directly to a validated page", () => {
@@ -729,6 +738,18 @@ describe("LibraryShell", () => {
     expect(screen.getByText(/另有 2 条记录/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "从资料库移除" }));
     await waitFor(() => expect(onRemoveFolder).toHaveBeenCalledWith(folder));
+  });
+
+  it("closes the source removal dialog before a background removal finishes", async () => {
+    let completeRemoval!: () => void;
+    const onRemoveFolder = vi.fn(() => new Promise<void>((resolve) => { completeRemoval = resolve; }));
+    render(<LibraryShell videos={[video]} folders={[folder]} onRemoveFolder={onRemoveFolder} />);
+    fireEvent.click(screen.getByRole("button", { name: "移除源目录 Movies" }));
+    await waitFor(() => expect(screen.getByText(/预计移除 1 条视频记录/)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "从资料库移除" }));
+    expect(screen.queryByRole("alertdialog", { name: "从资料库移除此文件夹？" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看所有视频" })).toBeEnabled();
+    completeRemoval();
   });
 
   it("shows folder scan progress and supports pause and resume", async () => {

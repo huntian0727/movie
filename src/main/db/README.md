@@ -1,5 +1,11 @@
 # 数据库模块
 
+`libraryPage/libraryPageQueryService.ts` executes library pagination on a
+persistent read-only worker connection. `sourceFolderRemoval/sourceFolderRemovalService.ts`
+executes source-folder preview and transactional index removal on a separate
+worker connection. Neither worker changes the database schema or deletes video
+files from disk.
+
 本模块管理 SQLite 生命周期与资料库查询。`database.ts` 负责连接、版本识别、备份、迁移和完整性检查；`migrations/` 保存有序 schema 变更；`videoRepository.ts` 封装文件夹、视频、缺失、收藏、待删除标记、重命名路径、播放历史、后台元数据状态和分页查询。上层不应散写 SQL。
 
 路径使用 `COLLATE NOCASE UNIQUE` 适配 Windows。upsert 必须保持既有 id、收藏和待删除标记；后台元数据更新必须同时匹配 id、path、size 和 modifiedAt，防止慢任务覆盖已重命名或已变化文件。

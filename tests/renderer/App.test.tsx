@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppSettings, DomainEvent, MediaCacheStatus, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
@@ -64,6 +64,30 @@ describe("desktop-only renderer runtime", () => {
     vi.mocked(api.listVideoPage).mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 });
     const { container } = render(<DesktopApp api={api} />);
     await waitFor(() => expect(container.querySelector(".video-cover img")).toHaveAttribute("src", expect.stringContaining("local-video://cover/pending-api-video")));
+  });
+
+  it("hides a source immediately during background removal and restores it on failure", async () => {
+    const api = createDesktopApi();
+    const source = {
+      id: "bulk-source", path: "D:\\Bulk", recursive: true, enabled: true,
+      videoCount: 10, sizeBytes: 1000
+    };
+    vi.mocked(api.listFolders).mockResolvedValue([source] as never);
+    vi.mocked(api.previewRemoveFolder).mockResolvedValue({ removedVideoCount: 10, retainedVideoCount: 0 });
+    let failRemoval!: (error: Error) => void;
+    vi.mocked(api.removeFolder).mockImplementation(() => new Promise((_, reject) => { failRemoval = reject; }));
+
+    render(<DesktopApp api={api} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "移除源目录 Bulk" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "移除源目录 Bulk" }));
+    await waitFor(() => expect(screen.getByText(/预计移除 10 条视频记录/)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "从资料库移除" }));
+
+    expect(screen.queryByRole("button", { name: "移除源目录 Bulk" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("正在后台移除 1 个资料库来源");
+    await act(async () => failRemoval(new Error("database busy")));
+    await waitFor(() => expect(screen.getByRole("button", { name: "移除源目录 Bulk" })).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent("database busy");
   });
 
   it("keeps cleanup progress lightweight and coalesces removal refreshes", async () => {
@@ -173,6 +197,8 @@ function createDesktopApi(): DesktopVideoManagerApi {
       directoryPaths: []
     })),
     listFolderScanStatuses: vi.fn(async () => []),
+    previewRemoveFolder: vi.fn(async () => ({ removedVideoCount: 0, retainedVideoCount: 0 })),
+    removeFolder: vi.fn(async () => ({ removedVideoCount: 0, retainedVideoCount: 0, reassignedVideoCount: 0 })),
     listVideoPage: vi.fn(async (query: { page: number; pageSize: 30 | 50 | 100 | 200 | 300 }) => ({
       videos: [],
       page: query.page,

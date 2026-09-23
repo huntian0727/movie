@@ -1,5 +1,10 @@
 # UI 组件模块
 
+Large grid and duplicate-group pages use `useProgressiveRenderCount` to split
+initial React mounting into small batches. The full current page still becomes
+available; filtering, selection, and cleanup planning continue to use the full
+query result rather than only the mounted subset.
+
 - 完整桌面 API 可用时，`LibraryShell` 默认进入资产中心；精简或降级桥接缺少资产中心查询能力时回退到“所有视频”。
 - `LibraryShell.tsx`：侧栏、筛选、30/50/100/200/300 分页、页码输入、可配置快捷键翻页、网格大小偏好与单项收藏、重命名、删除、打开播放等操作编排。键盘翻页必须排除输入控件和弹窗；页码变化必须把内容区滚回顶部。
 - `Toolbar.tsx`：搜索、排序、网格/表格切换与五档预览卡片大小；`LibraryShell.tsx` 同时持久化预览卡片大小和资料库每页数量。

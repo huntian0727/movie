@@ -29,7 +29,7 @@
     "test:node": "npm run verify:native:node && vitest run",
     "test:windows-files": "vitest run tests/main/fileOperations.test.ts tests/main/contentFingerprint.test.ts tests/main/libraryScanner.network.test.ts tests/gates/syntheticLibrary.test.ts",
     "test:migrations": "vitest run tests/main/databaseMigrations.test.ts",
-    "test:release-performance": "vitest run tests/gates/performanceBaselines.test.ts tests/main/cacheManager.test.ts tests/main/playerWindow.test.ts",
+    "test:release-performance": "vitest run tests/gates/performanceBaselines.test.ts tests/gates/uiPerformanceWorkers.test.ts tests/main/cacheManager.test.ts tests/main/playerWindow.test.ts",
     "test:release-gate": "npm run lint && npm run build && npm run test:windows-files && npm run test:migrations && npm run test:release-performance && npm run test:node",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",

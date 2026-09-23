@@ -12,6 +12,8 @@ import type { VideoRepository } from "./db/videoRepository.js";
 import type { AssetCenterReadService } from "./assetCenter/assetCenterQueryService.js";
 import type { PlaybackDiagnosticReadService } from "./playbackDiagnostic/playbackDiagnosticQueryService.js";
 import type { VideoDataService } from "./videoData/videoDataService.js";
+import type { LibraryPageQueryService } from "./libraryPage/libraryPageQueryService.js";
+import type { SourceFolderRemovalService } from "./sourceFolderRemoval/sourceFolderRemovalService.js";
 import { videoDataQuerySchema, videoDataSelectionSchema } from "../shared/videoDataTable.js";
 import {
   configureCloudDriveRuntime,
@@ -319,6 +321,8 @@ interface IpcDependencies {
   assetCenterQueries: AssetCenterReadService;
   playbackDiagnosticQueries: PlaybackDiagnosticReadService;
   videoDataQueries?: VideoDataService;
+  libraryPageQueries: LibraryPageQueryService;
+  sourceFolderRemoval: SourceFolderRemovalService;
   logger: StructuredLogger;
   diagnosticEnvironment: DiagnosticEnvironment;
   settings: SettingsStore;
@@ -476,7 +480,9 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.libraryList, (_event, query) => {
     return repo.listVideos(libraryQuerySchema.parse(query));
   });
-  ipcMain.handle(IPC_CHANNELS.libraryPage, (_event, query) => repo.listVideoPage(libraryPageQuerySchema.parse(query)));
+  ipcMain.handle(IPC_CHANNELS.libraryPage, (_event, query) =>
+    dependencies.libraryPageQueries.page(libraryPageQuerySchema.parse(query))
+  );
   ipcMain.handle(IPC_CHANNELS.libraryDirectoryBrowser, (_event, query) =>
     dependencies.assetCenterQueries.listDirectories(directoryBrowserQuerySchema.parse(query))
   );
@@ -817,16 +823,18 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return true;
   });
 
-  ipcMain.handle(IPC_CHANNELS.folderRemove, (_event, folderId: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.folderRemove, async (_event, folderId: unknown) => {
     const parsedFolderId = z.string().min(1).parse(folderId);
     dependencies.duplicateCleanup.assertSourceFolderVideosAvailable(parsedFolderId);
     dependencies.scanManager.forget(parsedFolderId);
-    const result = repo.removeSourceFolder(parsedFolderId);
+    const result = await dependencies.sourceFolderRemoval.remove(parsedFolderId);
     dependencies.cacheManager.scheduleMaintenance(true);
     dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
     return result;
   });
-  ipcMain.handle(IPC_CHANNELS.folderRemovePreview, (_event, folderId: unknown) => repo.previewRemoveSourceFolder(z.string().min(1).parse(folderId)));
+  ipcMain.handle(IPC_CHANNELS.folderRemovePreview, (_event, folderId: unknown) =>
+    dependencies.sourceFolderRemoval.preview(z.string().min(1).parse(folderId))
+  );
 
   ipcMain.handle(IPC_CHANNELS.folderScanStatusList, () => dependencies.scanManager.listStatuses());
   ipcMain.handle(IPC_CHANNELS.folderScanPause, (_event, folderId: unknown) => dependencies.scanManager.pause(z.string().min(1).parse(folderId)));

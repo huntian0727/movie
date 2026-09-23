@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AppSettings, DomainEvent, DuplicateResolvePlan, FolderScanStatus, LibraryNavigationSnapshot, MediaCacheStatus, PlayerSessionSnapshot, PlayHistoryEntry, SourceFolder, VideoRecord, WindowSyncSnapshot } from "../shared/videoTypes";
+import type { AppSettings, AssetCenterSourceQuery, DomainEvent, DuplicateResolvePlan, FolderScanStatus, LibraryNavigationSnapshot, MediaCacheStatus, PlayerSessionSnapshot, PlayHistoryEntry, SourceFolder, VideoRecord, WindowSyncSnapshot } from "../shared/videoTypes";
 import { getVideoManagerApi, type DesktopVideoManagerApi } from "./api/client";
 import { LibraryShell } from "./components/LibraryShell";
 import { CloudDriveFolderDialog } from "./components/CloudDriveFolderDialog";
@@ -98,6 +98,7 @@ function areLibraryNavigationSnapshotsEqual(
 export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [folders, setFolders] = useState<SourceFolder[]>([]);
+  const [removingFolderIds, setRemovingFolderIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
@@ -131,6 +132,12 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const getCoverUrl = useCallback((video: VideoRecord) =>
     getStableCoverUrl(video, settings.coverFrameTimeSeconds),
   [settings.coverFrameTimeSeconds]);
+  const loadAssetCenterSources = useCallback(async (query: AssetCenterSourceQuery) => {
+    const result = await api.listAssetCenterSources(query);
+    return removingFolderIds.size === 0
+      ? result
+      : { ...result, items: result.items.filter((item) => !removingFolderIds.has(item.id)) };
+  }, [api, removingFolderIds]);
   const applyFolders = useCallback((nextFolders: SourceFolder[]) => {
     setFolders((current) => areSourceFolderSnapshotsEqual(current, nextFolders) ? current : nextFolders);
   }, []);
@@ -330,9 +337,20 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     void api.scanFolder(folder.id).then(() => reload()).catch((cause) => setError(toMessage(cause)));
   };
 
-  const removeFolder = async (folder: SourceFolder) => {
-    await api.removeFolder(folder.id);
-    await reload();
+  const removeFolder = (folder: SourceFolder) => {
+    setRemovingFolderIds((current) => new Set(current).add(folder.id));
+    void api.removeFolder(folder.id).then(async () => {
+      await reload();
+    }).catch(async (cause) => {
+      await reload();
+      setError(`移除资料库失败：${toMessage(cause)}`);
+    }).finally(() => {
+      setRemovingFolderIds((current) => {
+        const next = new Set(current);
+        next.delete(folder.id);
+        return next;
+      });
+    });
   };
 
   const refresh = async () => {
@@ -515,7 +533,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     <>
     <LibraryShell
       videos={videos}
-      folders={folders}
+      folders={folders.filter((folder) => !removingFolderIds.has(folder.id))}
+      removingFolderIds={removingFolderIds}
       navigation={navigation}
       refreshSequence={libraryRefreshSequence}
       duplicateRefreshSequence={duplicateRefreshSequence}
@@ -529,7 +548,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       playbackPreference={settings.playbackPreference}
       onLoadAssetCenterSummary={api.getAssetCenterSummary}
       videoDataApi={api}
-      onLoadAssetCenterSources={api.listAssetCenterSources}
+      onLoadAssetCenterSources={loadAssetCenterSources}
       scanStatuses={scanStatuses}
       loading={loading}
       error={error}

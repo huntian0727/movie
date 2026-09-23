@@ -9,6 +9,8 @@ import { VideoRepository } from "./db/videoRepository.js";
 import { AssetCenterQueryService } from "./assetCenter/assetCenterQueryService.js";
 import { PlaybackDiagnosticQueryService } from "./playbackDiagnostic/playbackDiagnosticQueryService.js";
 import { VideoDataService } from "./videoData/videoDataService.js";
+import { LibraryPageQueryService } from "./libraryPage/libraryPageQueryService.js";
+import { SourceFolderRemovalService } from "./sourceFolderRemoval/sourceFolderRemovalService.js";
 import { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import { registerIpcHandlers } from "./ipc.js";
 import { ScanManager } from "./media/scanManager.js";
@@ -55,6 +57,8 @@ let duplicateCleanup: DuplicateCleanupService | undefined;
 let assetCenterQueries: AssetCenterQueryService | undefined;
 let playbackDiagnosticQueries: PlaybackDiagnosticQueryService | undefined;
 let videoDataQueries: VideoDataService | undefined;
+let libraryPageQueries: LibraryPageQueryService | undefined;
+let sourceFolderRemoval: SourceFolderRemovalService | undefined;
 let databaseOpened = false;
 
 protocol.registerSchemesAsPrivileged([
@@ -146,6 +150,8 @@ app.whenReady().then(async () => {
   assetCenterQueries = new AssetCenterQueryService(databasePath);
   playbackDiagnosticQueries = new PlaybackDiagnosticQueryService(databasePath);
   videoDataQueries = new VideoDataService(databasePath);
+  libraryPageQueries = new LibraryPageQueryService(databasePath);
+  sourceFolderRemoval = new SourceFolderRemovalService(databasePath);
   const settings = await createSettingsStore();
   configureCloudDriveRuntime(settings.get().cloudDrive, process.env);
   const userDataPath = app.getPath("userData");
@@ -190,6 +196,8 @@ app.whenReady().then(async () => {
     assetCenterQueries,
     playbackDiagnosticQueries,
     videoDataQueries,
+    libraryPageQueries,
+    sourceFolderRemoval,
     logger,
     diagnosticEnvironment: createDiagnosticEnvironment({
       appVersion: app.getVersion(),
@@ -316,6 +324,10 @@ app.on("before-quit", () => {
   playbackDiagnosticQueries = undefined;
   void videoDataQueries?.dispose();
   videoDataQueries = undefined;
+  libraryPageQueries?.dispose();
+  libraryPageQueries = undefined;
+  sourceFolderRemoval?.dispose();
+  sourceFolderRemoval = undefined;
   assetCenterQueries?.dispose();
   assetCenterQueries = undefined;
   duplicateCleanup?.stop();

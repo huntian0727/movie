@@ -3,6 +3,7 @@ import { BookmarkX, Film, FolderOpen, FolderSearch, Heart, Info, Pencil, Play, R
 import type { VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDuration } from "./formatters";
 import { PreviewImage } from "./PreviewImage";
+import { useProgressiveRenderCount } from "./useProgressiveRenderCount";
 
 interface VideoGridProps {
   videos: VideoRecord[];
@@ -29,6 +30,8 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
   const [previewAttempts, setPreviewAttempts] = useState<Record<string, number>>({});
   const [resettingIds, setResettingIds] = useState<Set<string>>(() => new Set());
   const [resetFailedIds, setResetFailedIds] = useState<Set<string>>(() => new Set());
+  const pageKey = videos.map((video) => video.id).join("|");
+  const visibleCount = useProgressiveRenderCount(pageKey, videos.length, 48, 40);
 
   const retryPreview = async (video: VideoRecord, url: string | null) => {
     if (!onRegenerateCover || resettingIds.has(video.id)) return;
@@ -53,7 +56,7 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
       className="video-grid video-grid--masonry"
       style={cardWidth ? ({ "--video-card-width": `${cardWidth}px` } as React.CSSProperties) : undefined}
     >
-      {videos.map((video, index) => {
+      {videos.slice(0, visibleCount).map((video, index) => {
         const requestedCoverUrl = getCoverUrl?.(video) ?? video.coverCachePath;
         const coverUrl = requestedCoverUrl && !failedCoverUrls.has(requestedCoverUrl) ? requestedCoverUrl : null;
         const coverAspectRatio = getAspectRatioValue(video.width, video.height);

@@ -48,6 +48,25 @@ function cleanupJob(overrides: Partial<DuplicateCleanupJob> = {}): DuplicateClea
 }
 
 describe("DuplicateGroupsPage staged safety flow", () => {
+  it("renders a large page in batches while the cleanup plan still covers every group", async () => {
+    const pageGroups = Array.from({ length: 100 }, (_, index) => ({
+      ...groups[0],
+      groupKey: `large-group-${index}`,
+      recommendedKeepVideoId: `keep-${index}`,
+      items: [
+        { ...groups[0].items[0], video: { ...video, id: `keep-${index}` } },
+        { ...groups[0].items[1], video: { ...duplicateVideo, id: `delete-${index}` } }
+      ]
+    }));
+    const onAutoDelete = vi.fn().mockResolvedValue({ jobId: "job-large", requestId: "request-large", status: "queued", totalGroups: 100, totalItems: 100, plannedReclaimableBytes: 409600 });
+    const { container } = render(<DuplicateGroupsPage {...baseProps()} groups={pageGroups} pageSize={100} onAutoDelete={onAutoDelete} />);
+    expect(container.querySelectorAll(".duplicate-group-card").length).toBeLessThan(100);
+    fireEvent.click(screen.getByRole("button", { name: "批量删除当前页（100 组）" }));
+    await waitFor(() => expect(onAutoDelete).toHaveBeenCalledOnce());
+    expect(onAutoDelete.mock.calls[0][0].groups).toHaveLength(100);
+    await waitFor(() => expect(container.querySelectorAll(".duplicate-group-card")).toHaveLength(100), { timeout: 5000 });
+  });
+
   it("keeps the directory ranking collapsed by default and expands it on demand", () => {
     const onPreferredDirectoryPathChange = vi.fn();
     render(<DuplicateGroupsPage {...baseProps()} onPreferredDirectoryPathChange={onPreferredDirectoryPathChange}
