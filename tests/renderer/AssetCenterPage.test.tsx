@@ -31,6 +31,8 @@ const summary: AssetCenterSummary = {
   scanFailureCount: 1,
   missingVideoCount: 2,
   metadataIssueCount: 4,
+  metadataPendingCount: 3,
+  metadataFailedCount: 1,
   playbackRiskCount: 7,
   duplicateCandidateGroupCount: 12
 };
@@ -103,6 +105,7 @@ describe("AssetCenterPage", () => {
     expect(screen.getAllByText("最近可访问").length).toBeGreaterThan(0);
     expect(screen.getByText("Cloud archive")).toBeInTheDocument();
     expect(screen.getByText(/问题数量与可访问性分别统计/)).toBeInTheDocument();
+    expect(screen.getByText("待分析 3 · 分析失败 1")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /重复候选/ }));
     expect(onNavigate).toHaveBeenCalledWith("duplicates");

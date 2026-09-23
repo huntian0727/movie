@@ -17,6 +17,8 @@ interface AssetCenterSummaryRow {
   total_size_bytes: number;
   missing_video_count: number;
   metadata_issue_count: number;
+  metadata_pending_count: number;
+  metadata_failed_count: number;
   playback_risk_count: number;
   latest_scanned_at: string | null;
   scan_failure_count: number;
@@ -86,6 +88,12 @@ export function getAssetCenterSummary(db: DatabaseConnection): AssetCenterSummar
         WHEN videos.is_missing = 0 AND videos.metadata_status IN ('pending', 'failed') THEN 1 ELSE 0
       END), 0) AS metadata_issue_count,
       COALESCE(SUM(CASE
+        WHEN videos.is_missing = 0 AND videos.metadata_status = 'pending' THEN 1 ELSE 0
+      END), 0) AS metadata_pending_count,
+      COALESCE(SUM(CASE
+        WHEN videos.is_missing = 0 AND videos.metadata_status = 'failed' THEN 1 ELSE 0
+      END), 0) AS metadata_failed_count,
+      COALESCE(SUM(CASE
         WHEN videos.is_missing = 1 THEN 0
         WHEN videos.metadata_status = 'pending'
           AND LOWER(videos.extension) IN ('.mp4', '.m4v', '.mov', '.webm') THEN 0
@@ -153,6 +161,8 @@ export function getAssetCenterSummary(db: DatabaseConnection): AssetCenterSummar
     scanFailureCount: library.scan_failure_count,
     missingVideoCount: library.missing_video_count,
     metadataIssueCount: library.metadata_issue_count,
+    metadataPendingCount: library.metadata_pending_count,
+    metadataFailedCount: library.metadata_failed_count,
     playbackRiskCount: library.playback_risk_count,
     duplicateCandidateGroupCount: countAllDuplicateGroups(db)
   };

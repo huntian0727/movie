@@ -414,6 +414,35 @@ describe("VideoRepository", () => {
     });
   });
 
+  it("fills a page across failure and automatic-analysis category boundaries", () => {
+    const { repo, folderId } = createRepo();
+    const failedIds: string[] = [];
+    for (let index = 0; index < 2; index += 1) {
+      const video = createVideo(repo, folderId, {
+        path: `D:\\Movies\\failed-${index}.mp4`, filename: `failed-${index}.mp4`, basename: `failed-${index}`,
+        sizeBytes: 10_000 + index, metadataStatus: "pending"
+      });
+      repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt);
+      failedIds.push(video.id);
+    }
+    for (let index = 0; index < 30; index += 1) {
+      createVideo(repo, folderId, {
+        path: `D:\\Movies\\pending-${index}.mp4`, filename: `pending-${index}.mp4`, basename: `pending-${index}`,
+        sizeBytes: 20_000 + index, metadataStatus: "pending"
+      });
+    }
+
+    const firstPage = repo.listMetadataIssuePage({ status: "all", zeroBytesOnly: false, search: "", page: 1, pageSize: 30 });
+    const secondPage = repo.listMetadataIssuePage({ status: "all", zeroBytesOnly: false, search: "", page: 2, pageSize: 30 });
+
+    expect(firstPage).toMatchObject({ totalCount: 32, totalPages: 2, automaticCount: 30, failedCount: 2 });
+    expect(firstPage.items).toHaveLength(30);
+    expect(firstPage.items.slice(0, 2).map((item) => item.video.id).sort()).toEqual(failedIds.sort());
+    expect(firstPage.items.slice(2).every((item) => item.analysisState === "automatic")).toBe(true);
+    expect(secondPage.items).toHaveLength(2);
+    expect(secondPage.items.every((item) => item.analysisState === "automatic")).toBe(true);
+  });
+
   it("persists codec metadata and clears it when the file version changes", () => {
     const { repo, folderId } = createRepo();
     const video = createVideo(repo, folderId, {

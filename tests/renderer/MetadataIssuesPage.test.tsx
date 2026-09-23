@@ -55,7 +55,7 @@ describe("MetadataIssuesPage", () => {
 
     await waitFor(() => expect(screen.getByText("failed.mp4")).toBeInTheDocument());
     expect(screen.getAllByText("分析失败").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("策略暂缓").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("暂缓分析").length).toBeGreaterThan(0);
     expect(screen.getByText("0B 待确认")).toBeInTheDocument();
     expect(screen.getByText("ffprobe timed out")).toBeInTheDocument();
     expect(screen.getByText(/读取超时，重试 2 次/)).toBeInTheDocument();

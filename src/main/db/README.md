@@ -6,7 +6,7 @@
 
 需求定位：新增普通资料库排序/筛选/分页看 `SORT_COLUMNS`/`listVideoPage`；目录侧栏看 `getLibraryNavigation`；重复项看大小+时长查询；扫描快照/异常看 `get/upsertDirectorySnapshot`、`record/list/resolveScanFailure`、v5 建表迁移和 v6 旧异常回填迁移；断点续播/历史看 play history；改字段先新增 migration，再同步 row 类型、映射、shared 类型和测试。
 
-`listMetadataIssuePage` 只查询 `is_missing = 0` 且 `metadata_status IN ('pending', 'failed')` 的记录，在 SQLite 内完成来源、真实处理状态、0B、文件名/路径筛选与分页。状态分为自动分析候选、策略暂缓和分析失败；`ACCESSIBLE` 复查记录归入策略暂缓。当前页通过 `source_folder_id + object_path + failure_stage = metadata` 关联活动 `scan_failures`，并将历史超时、无效媒体等错误码在读取时归一化。
+`listMetadataIssuePage` 只查询 `is_missing = 0` 且 `metadata_status IN ('pending', 'failed')` 的记录，在 SQLite 内完成来源、真实处理状态、0B、文件名/路径筛选与分页。状态分为待自动分析、暂缓分析和分析失败；`ACCESSIBLE` 复查记录归入暂缓分析。统计阶段只构建一次重复大小集合；明细阶段按“失败、待自动分析、暂缓”顺序只查询当前页实际覆盖的类别，避免为每次翻页重复分类并排序全部记录。当前页通过 `source_folder_id + object_path + failure_stage = metadata` 关联活动 `scan_failures`，并将历史超时、无效媒体等错误码在读取时归一化。
 
 自动分析候选必须大于 0B。CloudDrive 文件仅在命中重复大小候选时自动读取，唯一大小文件归入策略暂缓；本地文件仍可自动分析。0B 不进入元数据或指纹重复候选队列，也不计入重复大小候选统计。
 

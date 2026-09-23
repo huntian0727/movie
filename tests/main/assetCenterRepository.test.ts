@@ -94,6 +94,8 @@ describe("Asset Center repository", () => {
       unknownSourceCount: 0,
       missingVideoCount: 1,
       metadataIssueCount: 1,
+      metadataPendingCount: 1,
+      metadataFailedCount: 0,
       playbackRiskCount: 1,
       duplicateCandidateGroupCount: 1,
       latestCompletedScan: {

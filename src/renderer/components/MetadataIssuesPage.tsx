@@ -160,12 +160,12 @@ export function MetadataIssuesPage({
   return (
     <section className="missing-video-page metadata-issues-page" aria-label="元数据异常明细">
       <div className="missing-video-intro metadata-issue-intro">
-        <div><CircleGauge size={22} /><span><strong>按真实处理状态查看元数据任务</strong><small>自动候选会分批入队；策略暂缓尚未排队；0B 文件必须先重新读取远端大小。</small></span></div>
+        <div><CircleGauge size={22} /><span><strong>按真实处理状态查看元数据任务</strong><small>待自动分析会分批入队；暂缓分析尚未排队；0B 文件必须先重新读取远端大小。</small></span></div>
         <div className="metadata-issue-counts">
           <span>全局正在分析 <b>{result.activeCount.toLocaleString("zh-CN")}</b></span>
           <span>全局已入队 <b>{result.queuedCount.toLocaleString("zh-CN")}</b></span>
-          <span>自动候选 <b>{result.automaticCount.toLocaleString("zh-CN")}</b></span>
-          <span>策略暂缓 <b>{result.deferredCount.toLocaleString("zh-CN")}</b></span>
+          <span>待自动分析 <b>{result.automaticCount.toLocaleString("zh-CN")}</b></span>
+          <span>暂缓分析 <b>{result.deferredCount.toLocaleString("zh-CN")}</b></span>
           <span>分析失败 <b>{result.failedCount.toLocaleString("zh-CN")}</b></span>
         </div>
       </div>
@@ -179,7 +179,7 @@ export function MetadataIssuesPage({
         </label>
         <label>分析状态
           <select value={status} onChange={(event) => setStatus(event.target.value as MetadataIssueStatusFilter)}>
-            <option value="all">全部异常</option><option value="automatic">自动分析候选</option><option value="deferred">策略暂缓</option><option value="failed">分析失败</option>
+            <option value="all">全部任务</option><option value="automatic">待自动分析</option><option value="deferred">暂缓分析</option><option value="failed">分析失败</option>
           </select>
         </label>
         <label className="missing-video-search">搜索
@@ -258,8 +258,8 @@ function statePresentation(item: MetadataIssueItem): { label: string; className:
   if (item.queueState === "active") return { label: "正在分析", className: "active", message: "媒体探测正在运行" };
   if (item.queueState === "queued") return { label: "已入队", className: "queued", message: "已进入本次运行队列，等待可用并发" };
   if (item.video.sizeBytes === 0) return { label: "0B 待确认", className: "zero", message: "0B 文件不会进入媒体分析，请先重新读取 CloudDrive 大小" };
-  if (item.analysisState === "automatic") return { label: "自动候选", className: "automatic", message: "符合自动分析策略，将按批次加入队列" };
-  if (item.analysisState === "deferred") return { label: "策略暂缓", className: "deferred", message: "尚未入队。CloudDrive 唯一大小文件默认暂缓，以避免大规模远端读取" };
+  if (item.analysisState === "automatic") return { label: "待自动分析", className: "automatic", message: "符合自动分析策略，将按批次加入队列" };
+  if (item.analysisState === "deferred") return { label: "暂缓分析", className: "deferred", message: "尚未入队。CloudDrive 唯一大小文件默认暂缓，以避免大规模远端读取" };
   return { label: "分析失败", className: "failed", message: item.errorSummary ?? "未记录错误摘要" };
 }
 
@@ -282,7 +282,7 @@ function emptyMessage(status: MetadataIssueStatusFilter, zeroBytesOnly: boolean)
   if (zeroBytesOnly) return "没有大小为 0B 的异常记录。";
   if (status === "failed") return "没有分析失败的视频。";
   if (status === "automatic") return "没有符合自动分析策略且尚未处理的视频。";
-  if (status === "deferred") return "没有被策略暂缓的视频。";
+  if (status === "deferred") return "没有被暂缓分析的视频。";
   return "所有可访问视频的元数据均已就绪。";
 }
 

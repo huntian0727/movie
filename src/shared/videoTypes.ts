@@ -818,6 +818,8 @@ export interface AssetCenterSummary {
   scanFailureCount: number;
   missingVideoCount: number;
   metadataIssueCount: number;
+  metadataPendingCount: number;
+  metadataFailedCount: number;
   playbackRiskCount: number | null;
   duplicateCandidateGroupCount: number;
 }

@@ -218,7 +218,12 @@ export function AssetCenterPage({
           <section className="asset-panel" aria-labelledby="asset-health-title">
             <header><h2 id="asset-health-title">需要关注</h2><span>只读提醒</span></header>
             <HealthRow label="播放风险" value={summary?.playbackRiskCount ?? null} note="按当前自动播放规则估算" />
-            <HealthRow label="元数据异常" value={summary?.metadataIssueCount ?? null} note="等待分析或分析失败的有效视频" onClick={() => onOpenMetadata()} />
+            <HealthRow
+              label="元数据待处理"
+              value={summary?.metadataIssueCount ?? null}
+              note={summary ? `待分析 ${summary.metadataPendingCount.toLocaleString("zh-CN")} · 分析失败 ${summary.metadataFailedCount.toLocaleString("zh-CN")}` : "待分析与分析失败分开统计"}
+              onClick={() => onOpenMetadata()}
+            />
             <HealthRow label="重复候选" value={summary?.duplicateCandidateGroupCount ?? null} note="按文件大小和整数秒时长匹配" onClick={() => onNavigate("duplicates")} />
             <HealthRow label="文件缺失" value={summary?.missingVideoCount ?? null} note="数据库记录保留，等待复查" onClick={() => onOpenMissing()} />
           </section>

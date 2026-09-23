@@ -1504,17 +1504,18 @@ export class VideoRepository {
       params.search = `%${escapeSqlLike(normalizedSearch)}%`;
     }
     const baseWhere = baseClauses.join(" AND ");
+    const duplicateSizesCte = `duplicate_sizes AS MATERIALIZED (
+      SELECT size_bytes
+      FROM videos
+      WHERE is_missing = 0 AND size_bytes > 0
+      GROUP BY size_bytes
+      HAVING COUNT(*) > 1
+    )`;
     const automaticClause = `videos.metadata_status = 'pending'
       AND videos.size_bytes > 0
       AND (
         videos.provider_file_id IS NULL
-        OR EXISTS (
-          SELECT 1 FROM videos duplicate_peer
-          WHERE duplicate_peer.is_missing = 0
-            AND duplicate_peer.size_bytes = videos.size_bytes
-            AND duplicate_peer.id != videos.id
-          LIMIT 1
-        )
+        OR duplicate_sizes.size_bytes IS NOT NULL
       )`;
     const accessibleDeferredClause = "videos.metadata_status = 'failed' AND metadata_failure.error_code = 'ACCESSIBLE'";
     const analysisStateExpression = `CASE
@@ -1522,52 +1523,93 @@ export class VideoRepository {
       WHEN videos.metadata_status = 'pending' OR (${accessibleDeferredClause}) THEN 'deferred'
       ELSE 'failed'
     END`;
-    const fromClause = `FROM videos
+    const joinedFromClause = `FROM videos
+      LEFT JOIN duplicate_sizes ON duplicate_sizes.size_bytes = videos.size_bytes
       LEFT JOIN scan_failures AS metadata_failure
         ON metadata_failure.source_folder_id = videos.source_folder_id
         AND metadata_failure.object_path = videos.path
         AND metadata_failure.failure_stage = 'metadata'
         AND metadata_failure.status != 'resolved'
       WHERE ${baseWhere}`;
-    const statusClause = query.status === "all" ? "" : ` AND (${analysisStateExpression}) = @status`;
-    if (query.status !== "all") params.status = query.status;
-    const zeroByteClause = query.zeroBytesOnly ? " AND videos.size_bytes = 0" : "";
-    const selectedCountClause = [
-      query.status === "all" ? "1 = 1" : "analysis_state = @status",
-      query.zeroBytesOnly ? "size_bytes = 0" : "1 = 1"
-    ].join(" AND ");
-    const counts = this.db.prepare(`WITH classified_issues AS MATERIALIZED (
+    const selectedSizeClause = query.zeroBytesOnly ? "size_bytes = 0" : "1 = 1";
+    const counts = this.db.prepare(`WITH ${duplicateSizesCte},
+      classified_issues AS MATERIALIZED (
         SELECT videos.size_bytes, ${analysisStateExpression} AS analysis_state
-        ${fromClause}
+        ${joinedFromClause}
       )
       SELECT
         COALESCE(SUM(CASE WHEN analysis_state = 'automatic' THEN 1 ELSE 0 END), 0) AS automatic_count,
         COALESCE(SUM(CASE WHEN analysis_state = 'deferred' THEN 1 ELSE 0 END), 0) AS deferred_count,
         COALESCE(SUM(CASE WHEN analysis_state = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count,
         COALESCE(SUM(CASE WHEN size_bytes = 0 THEN 1 ELSE 0 END), 0) AS zero_byte_count,
-        COALESCE(SUM(CASE WHEN ${selectedCountClause} THEN 1 ELSE 0 END), 0) AS total_count
+        COALESCE(SUM(CASE WHEN analysis_state = 'automatic' AND ${selectedSizeClause} THEN 1 ELSE 0 END), 0) AS selected_automatic_count,
+        COALESCE(SUM(CASE WHEN analysis_state = 'deferred' AND ${selectedSizeClause} THEN 1 ELSE 0 END), 0) AS selected_deferred_count,
+        COALESCE(SUM(CASE WHEN analysis_state = 'failed' AND ${selectedSizeClause} THEN 1 ELSE 0 END), 0) AS selected_failed_count
       FROM classified_issues
     `).get(params) as {
       automatic_count: number;
       deferred_count: number;
       failed_count: number;
       zero_byte_count: number;
-      total_count: number;
+      selected_automatic_count: number;
+      selected_deferred_count: number;
+      selected_failed_count: number;
     };
-    const totalCount = counts.total_count;
+    const selectedCounts: Record<MetadataIssueItem["analysisState"], number> = {
+      automatic: counts.selected_automatic_count,
+      deferred: counts.selected_deferred_count,
+      failed: counts.selected_failed_count
+    };
+    const categoryOrder: MetadataIssueItem["analysisState"][] = query.status === "all"
+      ? ["failed", "automatic", "deferred"]
+      : [query.status];
+    const totalCount = categoryOrder.reduce((total, category) => total + selectedCounts[category], 0);
     const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
     const page = Math.min(query.page, totalPages);
-    const rows = this.db.prepare(`SELECT videos.*,
-        ${analysisStateExpression} AS metadata_analysis_state,
+    let categoryOffset = (page - 1) * query.pageSize;
+    let remaining = query.pageSize;
+    const rows: MetadataIssueRow[] = [];
+    for (const category of categoryOrder) {
+      const categoryCount = selectedCounts[category];
+      if (categoryOffset >= categoryCount) {
+        categoryOffset -= categoryCount;
+        continue;
+      }
+      if (remaining <= 0) break;
+      const limit = Math.min(remaining, categoryCount - categoryOffset);
+      const needsDuplicateSizes = category !== "failed";
+      const duplicateJoin = needsDuplicateSizes
+        ? "LEFT JOIN duplicate_sizes ON duplicate_sizes.size_bytes = videos.size_bytes"
+        : "";
+      const categoryPredicate = category === "automatic"
+        ? automaticClause
+        : category === "deferred"
+          ? `videos.metadata_status = 'pending' AND NOT (${automaticClause}) OR (${accessibleDeferredClause})`
+          : `videos.metadata_status = 'failed' AND (metadata_failure.error_code IS NULL OR metadata_failure.error_code != 'ACCESSIBLE')`;
+      const categoryRows = this.db.prepare(`${needsDuplicateSizes ? `WITH ${duplicateSizesCte}` : ""}
+        SELECT videos.*,
+        '${category}' AS metadata_analysis_state,
         metadata_failure.error_code AS metadata_error_code,
         metadata_failure.error_summary AS metadata_error_summary,
         metadata_failure.last_failed_at AS metadata_last_failed_at,
         metadata_failure.retry_count AS metadata_retry_count
-      ${fromClause}${statusClause}${zeroByteClause}
-      ORDER BY CASE (${analysisStateExpression}) WHEN 'failed' THEN 0 WHEN 'automatic' THEN 1 ELSE 2 END,
-        videos.updated_at DESC, videos.filename COLLATE NOCASE ASC
+      FROM videos
+      ${duplicateJoin}
+      LEFT JOIN scan_failures AS metadata_failure
+        ON metadata_failure.source_folder_id = videos.source_folder_id
+        AND metadata_failure.object_path = videos.path
+        AND metadata_failure.failure_stage = 'metadata'
+        AND metadata_failure.status != 'resolved'
+      WHERE ${baseWhere}
+        AND (${categoryPredicate})
+        ${query.zeroBytesOnly ? "AND videos.size_bytes = 0" : ""}
+      ORDER BY videos.updated_at DESC, videos.filename COLLATE NOCASE ASC
       LIMIT @limit OFFSET @offset
-    `).all({ ...params, limit: query.pageSize, offset: (page - 1) * query.pageSize }) as MetadataIssueRow[];
+      `).all({ ...params, limit, offset: categoryOffset }) as MetadataIssueRow[];
+      rows.push(...categoryRows);
+      remaining -= categoryRows.length;
+      categoryOffset = 0;
+    }
     return {
       items: rows.map((row) => ({
         video: mapVideo(row),

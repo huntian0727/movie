@@ -778,7 +778,7 @@ export function LibraryShell({
               <FileQuestion size={16} /><span>文件缺失</span>{missingVideoCount > 0 && <em>{missingVideoCount}</em>}
             </button>
             <button type="button" aria-current={view === "metadataIssues" ? "page" : undefined} onClick={() => { setView("metadataIssues"); setMetadataIssueSourceFolderId(undefined); }}>
-              <Database size={16} /><span>元数据异常</span><em>{navigation?.pendingMetadataVideos ?? metadataIssueCount}</em>
+              <Database size={16} /><span>元数据任务</span><em>{navigation?.pendingMetadataVideos ?? metadataIssueCount}</em>
             </button>
           </nav>
         )}
@@ -891,7 +891,7 @@ export function LibraryShell({
                 onOpenLocation={onRevealInFolder}
                 onTotalCount={setMetadataIssueCount}
               />
-            : <div className="empty-state"><AlertTriangle size={36} /><h3>元数据异常明细能力未连接</h3></div>
+            : <div className="empty-state"><AlertTriangle size={36} /><h3>元数据任务明细能力未连接</h3></div>
         ) : view === "missingVideos" ? (
           onLoadMissingVideoPage && onRecheckMissingVideos && onForgetMissingVideos
             ? <MissingVideosPage

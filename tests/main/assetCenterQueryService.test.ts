@@ -185,6 +185,8 @@ const SUMMARY: AssetCenterSummary = {
   scanFailureCount: 0,
   missingVideoCount: 0,
   metadataIssueCount: 0,
+  metadataPendingCount: 0,
+  metadataFailedCount: 0,
   playbackRiskCount: 0,
   duplicateCandidateGroupCount: 0
 };
