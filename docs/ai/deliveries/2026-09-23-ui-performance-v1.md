@@ -36,7 +36,12 @@ pagination on Electron's main process. The pre-change backup is
   one timing-only miss in an existing 320k-record asset-center gate; isolated
   rerun passed at 1.31 s, and the second complete run passed at 1.73 s.
 - Electron native preparation and main-process smoke: PASS (ABI 130).
-- Packaged desktop launch and shortcut: pending final verification.
+- `verify:artifact`, packaged smoke, and isolated installer upgrade/uninstall
+  smoke: PASS. The installed app was opened from its registered desktop app
+  entry and its video browsing and duplicate pages were inspected.
+- Installed shortcut target:
+  `C:\Users\test\AppData\Local\Programs\Local Video Manager\Local Video Manager.exe`.
+  Installed and packaged `app.asar` SHA-256 values match.
 
 ## Risks and follow-up
 
