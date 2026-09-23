@@ -25,7 +25,7 @@ import type {
 import { formatBytes, formatDate, formatDuration } from "./formatters";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { DuplicateDirectoryRanking } from "./DuplicateDirectoryRanking";
-import { useProgressiveRenderCount } from "./useProgressiveRenderCount";
+import { WindowedDuplicateGroups } from "./WindowedDuplicateGroups";
 import { DuplicateCleanupTasksPanel } from "./DuplicateCleanupTasksPanel";
 import { DuplicateCleanupButton } from "./DuplicateCleanupButton";
 
@@ -244,8 +244,6 @@ export function DuplicateGroupsPage({
     };
   }, [bindingPending, onGetLegacyCloudDriveBindingStatus]);
 
-  const renderKey = groups.map((group) => group.groupKey).join("|");
-  const visibleGroupCount = useProgressiveRenderCount(renderKey, groups.length, 16, 20);
   const plan = useMemo<DuplicateResolvePlan>(
     () => {
       const resolutions = groups.map((group) => {
@@ -629,8 +627,7 @@ export function DuplicateGroupsPage({
       </div>
 
       <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={onPreferredDirectoryPathChange} />
-      <div className="duplicate-groups">
-        {!filteredSubmissionHidden && groups.slice(0, visibleGroupCount).map((group, index) => (
+      {!filteredSubmissionHidden && <WindowedDuplicateGroups groups={groups} renderGroup={(group, index) => (
           <DuplicateGroupCard
             key={group.groupKey}
             group={group}
@@ -652,11 +649,7 @@ export function DuplicateGroupsPage({
               void handleAutoDelete({ groups: [{ groupKey: group.groupKey, keepVideoId, deleteVideoIds: [videoId] }] }, "单项清理");
             }}
           />
-        ))}
-        {!filteredSubmissionHidden && visibleGroupCount < groups.length && (
-          <p role="status">正在显示当前页候选组：{visibleGroupCount} / {groups.length}</p>
-        )}
-      </div>
+        )} />}
 
       <div className="pagination-bar duplicate-pagination" aria-label="候选项分页">
         <span>共 {totalGroups} 个大小＋时长候选组</span>

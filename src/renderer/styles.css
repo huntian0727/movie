@@ -680,6 +680,7 @@ button.asset-health-row:hover { background: #1d1f1d; }
 .duplicate-summary-actions > .verification-action:hover,
 .dialog-actions .verification-primary:hover { border-color: var(--workflow-accent-strong); background: #315a72; }
 .duplicate-groups { display: grid; gap: 16px; }
+.duplicate-group-slot { min-width: 0; }
 .duplicate-directory-ranking { margin: 0 0 16px; padding: 16px; border: 1px solid #343834; border-radius: 10px; background: #191c19; }
 .duplicate-directory-ranking header, .duplicate-directory-ranking footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
 .duplicate-directory-ranking h3 { margin: 0; font-size: 15px; }

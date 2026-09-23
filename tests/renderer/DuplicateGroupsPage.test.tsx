@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DuplicateGroupsPage } from "../../src/renderer/components/DuplicateGroupsPage";
 import type { DuplicateCleanupJob, DuplicateGroup, VideoRecord } from "../../src/shared/videoTypes";
 
@@ -47,8 +47,17 @@ function cleanupJob(overrides: Partial<DuplicateCleanupJob> = {}): DuplicateClea
   };
 }
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe("DuplicateGroupsPage staged safety flow", () => {
-  it("renders a large page in batches while the cleanup plan still covers every group", async () => {
+  it("mounts only nearby large-page cards while the cleanup plan still covers every group", async () => {
+    let notifyVisibility: IntersectionObserverCallback | undefined;
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: IntersectionObserverCallback) { notifyVisibility = callback; }
+      observe() { /* controlled by this test */ }
+      disconnect() { /* controlled by this test */ }
+      unobserve() { /* controlled by this test */ }
+    });
     const pageGroups = Array.from({ length: 100 }, (_, index) => ({
       ...groups[0],
       groupKey: `large-group-${index}`,
@@ -60,11 +69,18 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     }));
     const onAutoDelete = vi.fn().mockResolvedValue({ jobId: "job-large", requestId: "request-large", status: "queued", totalGroups: 100, totalItems: 100, plannedReclaimableBytes: 409600 });
     const { container } = render(<DuplicateGroupsPage {...baseProps()} groups={pageGroups} pageSize={100} onAutoDelete={onAutoDelete} />);
-    expect(container.querySelectorAll(".duplicate-group-card").length).toBeLessThan(100);
+    expect(container.querySelectorAll(".duplicate-group-slot")).toHaveLength(100);
+    expect(container.querySelectorAll(".duplicate-group-card")).toHaveLength(4);
     fireEvent.click(screen.getByRole("button", { name: "批量删除当前页（100 组）" }));
     await waitFor(() => expect(onAutoDelete).toHaveBeenCalledOnce());
     expect(onAutoDelete.mock.calls[0][0].groups).toHaveLength(100);
-    await waitFor(() => expect(container.querySelectorAll(".duplicate-group-card")).toHaveLength(100), { timeout: 5000 });
+    const distantSlot = container.querySelector<HTMLElement>('[data-group-key="large-group-90"]');
+    expect(distantSlot).not.toBeNull();
+    act(() => notifyVisibility?.([{ target: distantSlot!, isIntersecting: true } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(distantSlot!.querySelector(".duplicate-group-card")).not.toBeNull();
+    expect(container.querySelectorAll(".duplicate-group-card").length).toBeLessThan(100);
+    act(() => notifyVisibility?.([{ target: distantSlot!, isIntersecting: false } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(distantSlot!.querySelector(".duplicate-group-card")).toBeNull();
   });
 
   it("keeps the directory ranking collapsed by default and expands it on demand", () => {
