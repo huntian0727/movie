@@ -7,7 +7,7 @@ beforeEach(() => localStorage.clear());
 it("selects all filtered results without loading all rows and exports exclusions", async () => {
   const load = vi.fn(async (query: VideoDataQuery) => ({ items: [{ ...video, id: `v${query.page}`, filename: `${query.page}.mp4` }], totalCount: 320000, totalBytes: 32000000, totalPages: 3200, page: query.page, pageSize: query.pageSize }));
   const exportCsv = vi.fn(async () => ({ cancelled: false, count: 319999, path: "test.csv" }));
-  render(<VideoDataPage load={load} exportCsv={exportCsv} folders={[]} onDetails={vi.fn()} onDiagnostic={vi.fn()} />);
+  render(<VideoDataPage load={load} exportCsv={exportCsv} folders={[]} onPlay={vi.fn()} onDetails={vi.fn()} onDiagnostic={vi.fn()} />);
   await screen.findByText("1.mp4");
   fireEvent.click(screen.getByRole("button", { name: "选择全部筛选结果" }));
   expect(load).toHaveBeenCalledTimes(1);
@@ -19,23 +19,44 @@ it("selects all filtered results without loading all rows and exports exclusions
   await waitFor(() => expect(exportCsv).toHaveBeenCalledWith(expect.objectContaining({ page: 2 }), { all: true, ids: [], excludedIds: ["v1"] }));
   expect(document.querySelector("img")).toBeNull();
 });
-it("clears selection when filters change and opens details", async () => {
+it("plays only the clicked video, keeps details separate, and clears selection when filters change", async () => {
   const load = vi.fn(async (query: VideoDataQuery) => ({ items: [video], totalCount: 1, totalBytes: 100, totalPages: 1, page: query.page, pageSize: query.pageSize }));
+  const play = vi.fn();
   const details = vi.fn();
-  render(<VideoDataPage load={load} exportCsv={vi.fn()} folders={[]} onDetails={details} onDiagnostic={vi.fn()} />);
+  render(<VideoDataPage load={load} exportCsv={vi.fn()} folders={[]} onPlay={play} onDetails={details} onDiagnostic={vi.fn()} />);
   await screen.findByText("one.mp4");
   fireEvent.click(screen.getByRole("checkbox", { name: "全选本页" }));
-  fireEvent.click(screen.getByRole("button", { name: "one.mp4" }));
+  fireEvent.click(screen.getByRole("button", { name: "播放 one.mp4" }));
+  expect(play).toHaveBeenCalledWith(video);
+  expect(details).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "详情" }));
   expect(details).toHaveBeenCalledWith(video);
   fireEvent.change(screen.getByLabelText("状态"), { target: { value: "missing" } });
   await waitFor(() => expect(load).toHaveBeenLastCalledWith(expect.objectContaining({ status: "missing", page: 1 })));
   expect(screen.getByRole("button", { name: "导出选中 CSV" })).toBeDisabled();
 });
+it("prevents repeat player opens and reports a launch failure without blocking table actions", async () => {
+  const load = vi.fn(async (query: VideoDataQuery) => ({ items: [video], totalCount: 1, totalBytes: 100, totalPages: 1, page: query.page, pageSize: query.pageSize }));
+  let rejectOpen!: (error: Error) => void;
+  const play = vi.fn(() => new Promise<void>((_resolve, reject) => { rejectOpen = reject; }));
+  const details = vi.fn();
+  render(<VideoDataPage load={load} exportCsv={vi.fn()} folders={[]} onPlay={play} onDetails={details} onDiagnostic={vi.fn()} />);
+  await screen.findByText("one.mp4");
+  fireEvent.click(screen.getByRole("button", { name: "播放 one.mp4" }));
+  expect(screen.getByRole("button", { name: "播放 one.mp4" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "详情" }));
+  expect(details).toHaveBeenCalledWith(video);
+  expect(play).toHaveBeenCalledTimes(1);
+
+  rejectOpen(new Error("文件暂不可访问"));
+  expect(await screen.findByText("打开播放窗口失败：文件暂不可访问")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "播放 one.mp4" })).toBeEnabled();
+});
 it("deletes all filtered results after confirmation and removes visible rows immediately", async () => {
   const load = vi.fn(async (query: VideoDataQuery) => ({ items: [video], totalCount: 12, totalBytes: 1200, totalPages: 1, page: query.page, pageSize: query.pageSize }));
   let finish!: (value: { successCount: number; failureCount: number; reclaimedBytes: number; failures: [] }) => void;
   const deleteSelection = vi.fn(() => new Promise<{ successCount: number; failureCount: number; reclaimedBytes: number; failures: [] }>(resolve => { finish = resolve; }));
-  render(<VideoDataPage load={load} exportCsv={vi.fn()} deleteSelection={deleteSelection} folders={[]} onDetails={vi.fn()} onDiagnostic={vi.fn()} />);
+  render(<VideoDataPage load={load} exportCsv={vi.fn()} deleteSelection={deleteSelection} folders={[]} onPlay={vi.fn()} onDetails={vi.fn()} onDiagnostic={vi.fn()} />);
   await screen.findByText("one.mp4");
   fireEvent.click(screen.getByRole("button", { name: "选择全部筛选结果" }));
   fireEvent.click(screen.getByRole("button", { name: "批量永久删除" }));

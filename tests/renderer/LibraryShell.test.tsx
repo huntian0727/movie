@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryShell } from "../../src/renderer/components/LibraryShell";
-import type { DuplicateGroup, DuplicateGroupPageQuery, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
+import type { DuplicateGroup, DuplicateGroupPageQuery, SourceFolder, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
 const folder: SourceFolder = {
@@ -157,6 +157,23 @@ describe("LibraryShell", () => {
     expect(screen.getByText("clip.mp4")).toBeInTheDocument();
     expect(screen.getByText("1 KB")).toBeInTheDocument();
     expect(screen.getByText("01:30")).toBeInTheDocument();
+  });
+
+  it("opens a video-data filename in the existing player with only that video queued", async () => {
+    const onOpen = vi.fn();
+    const videoDataApi: Pick<VideoManagerApi, "listVideoData" | "exportVideoData" | "deleteVideoData"> = {
+      listVideoData: vi.fn(async () => ({ items: [{ ...video, sourceType: "local" as const, sourcePath: folder.path }], page: 1, pageSize: 100, totalPages: 1, totalCount: 1, totalBytes: video.sizeBytes })),
+      exportVideoData: vi.fn(async () => ({ cancelled: false, count: 0 })),
+      deleteVideoData: vi.fn(async () => ({ successCount: 0, failureCount: 0, reclaimedBytes: 0, failures: [] }))
+    };
+    render(<LibraryShell videos={[video]} folders={[folder]} videoDataApi={videoDataApi} onOpen={onOpen} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "查看视频数据表" }));
+    fireEvent.click(await screen.findByRole("button", { name: "播放 clip.mp4" }));
+
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: video.id }), [expect.objectContaining({ id: video.id })]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "播放 clip.mp4" })).toBeEnabled());
+    expect(screen.getByRole("button", { name: "详情" })).toBeInTheDocument();
   });
 
   it("groups scan, missing-file, and metadata issues under one health center", () => {

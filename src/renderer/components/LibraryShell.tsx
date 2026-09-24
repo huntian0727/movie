@@ -850,7 +850,7 @@ export function LibraryShell({
               />
             : <div className="empty-state"><h3>目录浏览服务未连接</h3></div>
         ) : view === "videoData" ? (
-          videoDataApi ? <VideoDataPage load={videoDataApi.listVideoData} exportCsv={videoDataApi.exportVideoData} deleteSelection={videoDataApi.deleteVideoData} folders={folders} initialDirectory={selectedFolderPath ?? ""} onDetails={setDetailsTarget} onDiagnostic={video => { setDiagnosticVideoId(video.id); setDiagnosticInitialVideo(video); setView("playbackDiagnostic"); }} /> : <div className="empty-state">视频数据表服务未连接</div>
+          videoDataApi ? <VideoDataPage load={videoDataApi.listVideoData} exportCsv={videoDataApi.exportVideoData} deleteSelection={videoDataApi.deleteVideoData} folders={folders} initialDirectory={selectedFolderPath ?? ""} onPlay={video => openVideo(video, [video])} onDetails={setDetailsTarget} onDiagnostic={video => { setDiagnosticVideoId(video.id); setDiagnosticInitialVideo(video); setView("playbackDiagnostic"); }} /> : <div className="empty-state">视频数据表服务未连接</div>
         ) : view === "assetCenter" ? (
           onLoadAssetCenterSummary && onLoadAssetCenterSources
             ? <AssetCenterPage

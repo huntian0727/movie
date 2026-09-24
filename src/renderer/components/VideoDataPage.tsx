@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { LoaderCircle, Play } from "lucide-react";
 import type { SourceFolder, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { videoDataQuerySchema, videoDataStatus, type VideoDataPage as Page, type VideoDataQuery, type VideoDataSelection } from "../../shared/videoDataTable";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
@@ -10,6 +11,7 @@ interface Props {
   deleteSelection?: VideoManagerApi["deleteVideoData"];
   folders: SourceFolder[];
   initialDirectory?: string;
+  onPlay(video: VideoRecord): void | Promise<void>;
   onDetails(video: VideoRecord): void;
   onDiagnostic(video: VideoRecord): void;
 }
@@ -21,7 +23,7 @@ function preferences(): { pageSize: 50 | 100 | 200; extra: boolean } {
 const emptySelection = (): VideoDataSelection => ({ all: false, ids: [], excludedIds: [] });
 const sourceLabel = { local: "本地 / 挂载盘", nas: "NAS / SMB", clouddrive: "CloudDrive" };
 const selectionIncludes = (selection: VideoDataSelection, id: string) => selection.all ? !selection.excludedIds.includes(id) : selection.ids.includes(id);
-export function VideoDataPage({ load, exportCsv, deleteSelection, folders, initialDirectory = "", onDetails, onDiagnostic }: Props) {
+export function VideoDataPage({ load, exportCsv, deleteSelection, folders, initialDirectory = "", onPlay, onDetails, onDiagnostic }: Props) {
   const [query, setQuery] = useState<VideoDataQuery>(() => videoDataQuerySchema.parse({ pageSize: preferences().pageSize, directory: initialDirectory }));
   const [search, setSearch] = useState("");
   const [extra, setExtra] = useState(() => preferences().extra);
@@ -33,9 +35,11 @@ export function VideoDataPage({ load, exportCsv, deleteSelection, folders, initi
   const [exporting, setExporting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [openingVideoId, setOpeningVideoId] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [jump, setJump] = useState("1");
   const request = useRef(0);
+  const openingPlayer = useRef(false);
   const patch = (value: Partial<VideoDataQuery>, resetSelection = true) => {
     setQuery(old => ({ ...old, ...value, page: value.page ?? 1 }));
     if (resetSelection) setSelection(emptySelection());
@@ -104,6 +108,20 @@ export function VideoDataPage({ load, exportCsv, deleteSelection, folders, initi
       setRevision(value => value + 1);
     }
   };
+  const playVideo = async (video: VideoRecord) => {
+    if (openingPlayer.current) return;
+    openingPlayer.current = true;
+    setOpeningVideoId(video.id);
+    setNotice("");
+    try {
+      await onPlay(video);
+    } catch (reason) {
+      setNotice(`打开播放窗口失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      openingPlayer.current = false;
+      setOpeningVideoId(null);
+    }
+  };
   const sort = (field: VideoDataQuery["sort"]) => patch({ sort: field, direction: query.sort === field && query.direction === "desc" ? "asc" : "desc" }, false);
   const heading = (label: string, field: VideoDataQuery["sort"]) => <th aria-sort={query.sort === field ? query.direction === "asc" ? "ascending" : "descending" : "none"}><button onClick={() => sort(field)}>{label}{query.sort === field ? query.direction === "asc" ? " ↑" : " ↓" : ""}</button></th>;
   return <section className="video-data-page" aria-label="视频数据表">
@@ -135,10 +153,10 @@ export function VideoDataPage({ load, exportCsv, deleteSelection, folders, initi
       <table><thead><tr><th><input aria-label="全选本页" type="checkbox" disabled={loading || !!error || !result?.items.length} checked={!!result?.items.length && result.items.every(video => isSelected(video.id))} onChange={event => toggle(result?.items.map(video => video.id) ?? [], event.target.checked)} /></th>{heading("文件名", "filename")}<th>所在目录</th>{heading("大小", "sizeBytes")}{heading("时长", "durationMs")}{heading("添加时间", "importedAt")}<th>来源</th><th>状态</th>{extra && <><th>分辨率</th><th>编码</th>{heading("修改时间", "modifiedAt")}</>}<th>操作</th></tr></thead>
       <tbody>{!loading && !error && result?.items.map(video => <tr key={video.id} className={isSelected(video.id) ? "selected" : undefined}>
         <td><input aria-label={`选择 ${video.filename}`} type="checkbox" checked={isSelected(video.id)} onChange={event => toggle([video.id], event.target.checked)} /></td>
-        <td className="video-data-name"><button title={video.filename} onClick={() => onDetails(video)}>{video.filename}</button></td>
+        <td className="video-data-name"><button title={`播放 ${video.filename}`} aria-label={`播放 ${video.filename}`} disabled={openingVideoId !== null} onClick={() => void playVideo(video)}>{openingVideoId === video.id ? <LoaderCircle size={14} className="spin" aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}<span>{video.filename}</span></button></td>
         <td className="video-data-path" title={video.directory}>{video.directory}</td><td>{formatBytes(video.sizeBytes)}</td><td>{video.durationMs === null ? "未知" : formatDuration(video.durationMs)}</td><td>{video.importedAt ? formatDateTime(video.importedAt) : "未知"}</td><td title={video.sourcePath}>{sourceLabel[video.sourceType]}</td><td>{videoDataStatus(video)}</td>
         {extra && <><td>{video.width && video.height ? `${video.width} × ${video.height}` : "未知"}</td><td>{video.videoCodec ?? "未知"}</td><td>{formatDateTime(video.modifiedAt)}</td></>}
-        <td><button onClick={() => onDiagnostic(video)}>诊断</button><button onClick={() => { void navigator.clipboard.writeText(video.path).then(() => setNotice("已复制完整路径"), () => setNotice("复制失败，请在详情中复制路径")); }}>复制路径</button></td>
+        <td><button onClick={() => onDetails(video)}>详情</button><button onClick={() => onDiagnostic(video)}>诊断</button><button onClick={() => { void navigator.clipboard.writeText(video.path).then(() => setNotice("已复制完整路径"), () => setNotice("复制失败，请在详情中复制路径")); }}>复制路径</button></td>
       </tr>)}</tbody></table>
       {!loading && !error && !result?.items.length && <p className="video-data-empty">没有符合条件的视频记录，请调整筛选条件。</p>}
     </div>
