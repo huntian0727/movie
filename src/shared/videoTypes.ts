@@ -1013,6 +1013,7 @@ export const IPC_CHANNELS = {
   cloudDriveFolderBrowse: "clouddrive-folder:browse",
   cloudDriveFolderAdd: "clouddrive-folder:add",
   folderScan: "folder:scan",
+  folderScanDirectory: "folder:scan-directory",
   folderScanAll: "folder:scan-all",
   folderScanFailuresRetry: "folder-scan-failures:retry",
   folderScanFailureSummary: "folder-scan-failures:summary",
@@ -1128,6 +1129,7 @@ export interface VideoManagerApi {
   browseCloudDriveFolder(selection: CloudDriveSourceSelection): Promise<CloudDriveBrowseDirectory>;
   addCloudDriveFolder(selection: CloudDriveSourceSelection): Promise<SourceFolder>;
   scanFolder(folderId: string): Promise<boolean>;
+  scanDirectory(request: { sourceFolderId: string; directoryPath: string; scope: "exact" | "recursive" }): Promise<FolderScanStatus>;
   scanAllFolders(): Promise<boolean>;
   retryScanFailures(folderId: string): Promise<boolean>;
   getScanFailureSummary(folderId: string): Promise<ScanFailureSummary>;

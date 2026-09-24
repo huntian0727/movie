@@ -48,6 +48,7 @@ interface LibraryShellProps {
   onPauseFolderScan?(folder: SourceFolder): void | Promise<unknown>;
   onResumeFolderScan?(folder: SourceFolder): void | Promise<unknown>;
   onScanFolder?(folder: SourceFolder): void | Promise<unknown>;
+  onScanDirectory?: VideoManagerApi["scanDirectory"];
   onRetryFolderFailures?(folder: SourceFolder): void | Promise<unknown>;
   onLoadScanFailureSummary?(folder: SourceFolder): Promise<ScanFailureSummary>;
   onLoadScanFailures?(folder: SourceFolder): Promise<ScanFailure[]>;
@@ -118,6 +119,7 @@ export function LibraryShell({
   onPauseFolderScan,
   onResumeFolderScan,
   onScanFolder,
+  onScanDirectory,
   onRetryFolderFailures,
   onLoadScanFailureSummary,
   onLoadScanFailures,
@@ -493,9 +495,7 @@ export function LibraryShell({
   };
   const browseDirectory = (directoryPath: string, sourceFolderId: string) => {
     setDirectoryBrowserSourceId(sourceFolderId || folders.find((folder) => isPathWithin(directoryPath, folder.path))?.id);
-    setSelectedFolderPath(directoryPath);
-    setView("directoryBrowser");
-    rememberDirectory(directoryPath, setRecentDirectoryPaths);
+    selectDirectory(directoryPath, folderScope);
   };
   const openDirectoryBrowser = (folder?: SourceFolder) => {
     if (!folder) {
@@ -503,7 +503,8 @@ export function LibraryShell({
       setSelectedFolderPath(null);
     } else {
       setDirectoryBrowserSourceId(folder.id);
-      setSelectedFolderPath(folder.path);
+      selectDirectory(folder.path);
+      return;
     }
     setView("directoryBrowser");
   };
@@ -688,7 +689,7 @@ export function LibraryShell({
               const scanStatus = scanStatusByFolder.get(folder.id);
               const warning = getSourceWarning(folder, scanStatus);
               const isScanning = scanStatus?.state === "queued" || scanStatus?.state === "scanning";
-              const selected = view === "directoryBrowser" && directoryBrowserSourceId === folder.id;
+              const selected = (view === "directoryBrowser" || view === "folder") && directoryBrowserSourceId === folder.id;
               return <div
                 key={folder.id}
                 className={`source-root-row${selected ? " active" : ""}${warning ? " has-warning" : ""}`}
@@ -806,6 +807,26 @@ export function LibraryShell({
         {Boolean(removingFolderIds?.size) && <div className="success-banner" role="status">正在后台移除 {removingFolderIds?.size} 个资料库来源。视频文件保留原位，可继续使用其他页面。</div>}
         {error && <div className="error-banner" role="alert">{error}</div>}
         {usesCommonToolbar && !error && (actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{actionError ?? duplicateLoadError ?? videoPageError}</div>}
+        {view === "folder" && selectedFolderPath && onLoadDirectoryBrowser && onLoadVideoPage && <DirectoryBrowserPage
+          key={`folder-context:${selectedFolderPath}`}
+          compact
+          folders={folders}
+          recentDirectories={recentDirectories}
+          selectedSourceId={directoryBrowserSourceId}
+          currentPath={selectedFolderPath}
+          scope={folderScope}
+          focusSequence={0}
+          refreshSequence={refreshSequence}
+          loadDirectories={onLoadDirectoryBrowser}
+          loadVideos={onLoadVideoPage}
+          onScanDirectory={onScanDirectory}
+          scanStatus={scanStatuses.find((status) => status.folderId === (directoryBrowserSourceId ?? folders.find((folder) => isPathWithin(selectedFolderPath, folder.path))?.id))}
+          onNavigate={browseDirectory}
+          onScopeChange={setFolderScope}
+          onViewAll={() => undefined}
+          onOpenVideo={(video, queue) => void openVideo(video, queue)}
+          onVideoDetails={viewVideoDetails}
+        />}
         {view === "folder" && videoDataApi && <button className="secondary-button" onClick={() => setView("videoData")}>在视频数据表中查看此目录</button>}
         {view === "directoryBrowser" ? (
           onLoadDirectoryBrowser && onLoadVideoPage

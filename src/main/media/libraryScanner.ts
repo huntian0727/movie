@@ -49,6 +49,9 @@ export interface ScannerDependencies {
   isCancelled?(): boolean;
   taskId?: string;
   mode?: ScanMode;
+  /** Restrict a manual scan to one directory without changing source identity. */
+  scanRootPath?: string;
+  scanRecursive?: boolean;
   cloudDirectorySource?(
     sourceFolder: SourceFolder,
     isCancelled?: () => boolean,
@@ -75,6 +78,7 @@ interface ScanContext {
   dependencies: ScannerDependencies;
   taskId: string;
   mode: ScanMode;
+  scanRecursive: boolean;
   counters: ScanCounters;
   totalFiles: number;
   processedFiles: number;
@@ -152,8 +156,10 @@ export async function scanSourceFolder(
     false,
     cloudDirectorySource
   );
-  reportProgress(context, "discovering", sourceFolder.path);
-  const rootReadable = await scanDirectoryTree(context, sourceFolder.path, null, true);
+  const rootPath = normalizedDependencies.scanRootPath ?? sourceFolder.path;
+  const sourceRoot = !normalizedDependencies.scanRootPath;
+  reportProgress(context, "discovering", rootPath);
+  const rootReadable = await scanDirectoryTree(context, rootPath, sourceRoot ? null : path.dirname(rootPath), sourceRoot);
   return finalizeScan(context, rootReadable);
 }
 
@@ -364,7 +370,7 @@ async function scanDirectoryTree(
   const { entries, directoryMtime } = scannedDirectory;
 
   const directVideos = entries.filter((entry) => isAcceptedVideoEntry(entry));
-  const directChildren = context.sourceFolder.recursive
+  const directChildren = context.scanRecursive
     ? entries.filter((entry) => entry.isDirectory())
     : [];
   const directVideoPaths = directVideos.map((entry) => path.join(directoryPath, entry.name));
@@ -381,7 +387,9 @@ async function scanDirectoryTree(
     && context.mode === "current-folder"
     && !context.cloudDirectorySource;
 
-  reconcileDeletedChildDirectories(context, directoryPath, directChildPaths);
+  if (context.scanRecursive || !context.dependencies.scanRootPath) {
+    reconcileDeletedChildDirectories(context, directoryPath, directChildPaths);
+  }
   if (canSkip && !shouldReconcileUnchangedLocalVideos) {
     context.counters.skippedDirectories += 1;
     context.counters.skippedVideos += directVideos.length;
@@ -658,7 +666,13 @@ function queuePendingMetadata(context: ScanContext, existing: VideoRecord): void
 }
 
 function finalizeScan(context: ScanContext, rootReadable: boolean): ScanResult {
-  const failures = safeListFailures(context.repo, context.sourceFolder.id);
+  const failures = safeListFailures(context.repo, context.sourceFolder.id).filter((failure) => {
+    const root = context.dependencies.scanRootPath;
+    if (!root) return true;
+    if (!isManagedPathWithin(failure.objectPath, root)) return false;
+    return context.scanRecursive || normalizeManagedPath(failure.objectPath) === normalizeManagedPath(root)
+      || normalizeManagedPath(path.dirname(failure.objectPath)) === normalizeManagedPath(root);
+  });
   context.counters.pendingFailures = failures.length;
   const latest = failures[0];
   const localFailureCount = context.directoryFailureCount + context.fileFailureCount;
@@ -668,9 +682,9 @@ function finalizeScan(context: ScanContext, rootReadable: boolean): ScanResult {
       ? `${localFailureCount} ${context.lastFailure.objectType === "file" ? "file" : "folder"}${localFailureCount === 1 ? "" : "s"} failed: ${context.lastFailure.objectPath}: ${context.lastFailure.message}`
       : null;
   const now = new Date().toISOString();
-  context.repo.updateSourceFolderScanState(context.sourceFolder.id, now, message);
+  if (!context.dependencies.scanRootPath) context.repo.updateSourceFolderScanState(context.sourceFolder.id, now, message);
 
-  if (!(context.repo as Partial<VideoRepository>).reconcileDirectoryMissing && context.directoryFailureCount === 0) {
+  if (!context.dependencies.scanRootPath && !(context.repo as Partial<VideoRepository>).reconcileDirectoryMissing && context.directoryFailureCount === 0) {
     context.repo.reconcileSourceFolderMissing(context.sourceFolder.id, context.discoveredFilePaths);
   }
   return {
@@ -844,6 +858,7 @@ function createContext(
     dependencies,
     taskId: dependencies.taskId ?? crypto.randomUUID(),
     mode: dependencies.mode ?? "current-folder",
+    scanRecursive: dependencies.scanRecursive ?? sourceFolder.recursive,
     counters: createEmptyScanCounters(),
     totalFiles: 0,
     processedFiles: 0,
@@ -917,8 +932,8 @@ async function resolveCloudDirectorySource(
   dependencies: ScannerDependencies
 ): Promise<MountedCloudDriveDirectorySource | null> {
   const source = dependencies.cloudDirectorySource
-    ? await dependencies.cloudDirectorySource(sourceFolder, dependencies.isCancelled, dependencies.mode === "current-folder")
-    : await tryCreateMountedCloudDriveDirectorySource(sourceFolder, process.env, dependencies.isCancelled, dependencies.mode === "current-folder");
+    ? await dependencies.cloudDirectorySource(sourceFolder, dependencies.isCancelled, dependencies.mode === "current-folder" || Boolean(dependencies.scanRootPath))
+    : await tryCreateMountedCloudDriveDirectorySource(sourceFolder, process.env, dependencies.isCancelled, dependencies.mode === "current-folder" || Boolean(dependencies.scanRootPath));
   throwIfCancelled(dependencies);
   if (sourceFolder.providerType === "clouddrive" && !source) {
     throw new Error("CloudDrive API 资料来源当前不可用；已保留数据库中的原有文件索引，未执行缺失对账");

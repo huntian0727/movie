@@ -64,6 +64,7 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.cloudDriveFolderAdd,
   IPC_CHANNELS.folderAdd,
   IPC_CHANNELS.folderScan,
+  IPC_CHANNELS.folderScanDirectory,
   IPC_CHANNELS.folderScanAll,
   IPC_CHANNELS.folderScanFailuresRetry,
   IPC_CHANNELS.scanFailureReviewRetry,
@@ -162,6 +163,11 @@ const directoryBrowserQuerySchema = z.object({
   parentPath: z.string().min(1).max(32767).optional(),
   search: z.string().trim().max(500),
   limit: z.union([z.literal(50), z.literal(100), z.literal(200)])
+}).strict();
+const directoryScanRequestSchema = z.object({
+  sourceFolderId: z.string().min(1),
+  directoryPath: z.string().min(1).max(32767),
+  scope: z.enum(["exact", "recursive"])
 }).strict();
 
 const videoIdSchema = z.object({ videoId: z.string().min(1) }).strict();
@@ -831,6 +837,19 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     dependencies.cacheManager.scheduleMaintenance(true);
     dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
     return result;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.folderScanDirectory, async (_event, request: unknown) => {
+    const parsed = directoryScanRequestSchema.parse(request);
+    const folder = repo.listSourceFolders().find((candidate) => candidate.id === parsed.sourceFolderId);
+    if (!folder || !folder.enabled) throw new Error("Source folder is not available");
+    const directoryPath = path.win32.normalize(parsed.directoryPath.replaceAll("/", "\\"));
+    if (!isManagedPathWithin(directoryPath, folder.path)) throw new Error("Directory is outside the selected source");
+    await dependencies.scanManager.startDirectory(folder, directoryPath, parsed.scope === "recursive");
+    dependencies.domainEvents.publish({ type: "library:rescanned", videoIds: [] });
+    const status = dependencies.scanManager.getStatus(folder.id);
+    if (!status) throw new Error("Directory scan status is unavailable");
+    return status;
   });
   ipcMain.handle(IPC_CHANNELS.folderRemovePreview, (_event, folderId: unknown) =>
     dependencies.sourceFolderRemoval.preview(z.string().min(1).parse(folderId))

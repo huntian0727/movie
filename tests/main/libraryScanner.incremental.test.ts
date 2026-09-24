@@ -91,6 +91,71 @@ describe("directory snapshot incremental scanning", () => {
     expect(fs.fileStatCalls).toBe(2);
   });
 
+  it("limits an exact directory scan to direct videos without hiding indexed children", async () => {
+    const fs = new FakeFileSystem();
+    const series = `${ROOT}\\Series`;
+    const season = `${series}\\Season`;
+    fs.addDirectory(ROOT, [dir("Series")]);
+    fs.addDirectory(series, [file("one.mp4"), dir("Season")]);
+    fs.addDirectory(season, [file("two.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+
+    fs.resetCounters();
+    vi.mocked(repo.value.updateSourceFolderScanState).mockClear();
+    fs.setFileMetadata(`${series}\\one.mp4`, 200, "2026-08-01T02:00:00.000Z");
+    const result = await scanSourceFolder(repo.value, FOLDER, {
+      ...fs.dependencies(), mode: "current-folder", scanRootPath: series, scanRecursive: false
+    });
+
+    expect(result.counters).toMatchObject({ checkedDirectories: 1, updatedVideos: 1 });
+    expect(fs.directoryStatCalls).toBe(1);
+    expect(repo.videos.get(normalizeManagedPath(`${season}\\two.mp4`))?.isMissing).toBe(false);
+    expect(repo.snapshots.has(snapshotKey(FOLDER.id, season))).toBe(true);
+    expect(repo.value.updateSourceFolderScanState).not.toHaveBeenCalled();
+  });
+
+  it("recursively scans only the selected directory subtree", async () => {
+    const fs = new FakeFileSystem();
+    const series = `${ROOT}\\Series`;
+    const season = `${series}\\Season`;
+    const other = `${ROOT}\\Other`;
+    fs.addDirectory(ROOT, [dir("Series"), dir("Other")]);
+    fs.addDirectory(series, [dir("Season")]);
+    fs.addDirectory(season, [file("two.mp4")]);
+    fs.addDirectory(other, [file("untouched.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+
+    fs.resetCounters();
+    fs.setFileMetadata(`${season}\\two.mp4`, 200, "2026-08-01T02:00:00.000Z");
+    const result = await scanSourceFolder(repo.value, FOLDER, {
+      ...fs.dependencies(), mode: "current-folder", scanRootPath: series, scanRecursive: true
+    });
+
+    expect(result.counters).toMatchObject({ checkedDirectories: 2, updatedVideos: 1 });
+    expect(fs.directoryStatCalls).toBe(2);
+    expect(repo.videos.get(normalizeManagedPath(`${other}\\untouched.mp4`))?.isMissing).toBe(false);
+  });
+
+  it("keeps indexed videos when a scoped directory becomes unreadable", async () => {
+    const fs = new FakeFileSystem();
+    const series = `${ROOT}\\Series`;
+    const filePath = `${series}\\one.mp4`;
+    fs.addDirectory(ROOT, [dir("Series")]);
+    fs.addDirectory(series, [file("one.mp4")]);
+    const repo = new MemoryScanRepository();
+    await scanSourceFolder(repo.value, FOLDER, fs.dependencies());
+
+    fs.failDirectories.add(normalizeManagedPath(series));
+    const result = await scanSourceFolder(repo.value, FOLDER, {
+      ...fs.dependencies(), mode: "current-folder", scanRootPath: series, scanRecursive: true
+    });
+
+    expect(result.state).toBe("completed-with-errors");
+    expect(repo.videos.get(normalizeManagedPath(filePath))?.isMissing).toBe(false);
+  });
+
   it("uses an order-independent direct-entry digest", async () => {
     const fs = new FakeFileSystem();
     fs.addDirectory(ROOT, [file("b.mp4"), file("a.mp4"), dir("Child")]);

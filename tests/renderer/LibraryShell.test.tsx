@@ -451,8 +451,8 @@ describe("LibraryShell", () => {
 
     fireEvent.click(screen.getByTitle(folder.path));
 
-    expect(await screen.findByRole("heading", { name: "目录浏览" })).toBeInTheDocument();
-    const currentDirectory = screen.getByRole("button", { name: /当前目录.*展开查看/ });
+    expect(await screen.findByRole("navigation", { name: "当前目录路径" })).toBeInTheDocument();
+    const currentDirectory = screen.getByRole("button", { name: "子目录" });
     expect(currentDirectory).toHaveAttribute("aria-expanded", "false");
     expect(onLoadDirectoryBrowser).not.toHaveBeenCalled();
 
@@ -470,9 +470,25 @@ describe("LibraryShell", () => {
       view: "folder",
       directoryPath: folder.path,
       folderScope: "recursive",
-      page: 1,
-      pageSize: 30
+      page: 1
     }));
+    expect(onLoadVideoPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("scans the selected directory using the same scope as the video list", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({ items: [], totalCount: 0, truncated: false });
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0 });
+    const onScanDirectory = vi.fn().mockResolvedValue({ state: "completed", counters: { addedVideos: 0, updatedVideos: 0, fileFailures: 0, directoryFailures: 0 } });
+    render(<LibraryShell videos={[video]} folders={[folder]} onLoadDirectoryBrowser={onLoadDirectoryBrowser} onLoadVideoPage={onLoadVideoPage} onScanDirectory={onScanDirectory} />);
+
+    fireEvent.click(screen.getByTitle(folder.path));
+    expect(onScanDirectory).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "仅当前目录" }));
+    fireEvent.click(screen.getByRole("button", { name: "扫描此目录" }));
+    await waitFor(() => expect(onScanDirectory).toHaveBeenCalledWith({ sourceFolderId: folder.id, directoryPath: folder.path, scope: "exact" }));
+    fireEvent.click(screen.getByRole("button", { name: "包含子目录" }));
+    fireEvent.click(screen.getByRole("button", { name: "扫描此目录及子目录" }));
+    await waitFor(() => expect(onScanDirectory).toHaveBeenLastCalledWith({ sourceFolderId: folder.id, directoryPath: folder.path, scope: "recursive" }));
   });
 
   it("opens directory search with Ctrl+K without materializing the directory tree", async () => {

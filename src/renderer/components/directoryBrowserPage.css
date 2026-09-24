@@ -77,7 +77,28 @@
 .directory-video-name:hover { color: #fff; }
 .directory-video-preview article > small { overflow: hidden; color: #737771; font-size: 9px; white-space: nowrap; text-overflow: ellipsis; }
 .directory-browser-page :is(button, input):focus-visible { outline: 2px solid #e06a53; outline-offset: 2px; }
+.directory-browser-context { margin: 10px 24px 0; padding: 12px 14px; border: 1px solid #30332f; border-radius: 8px; background: #191b19; }
+.directory-context-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.directory-context-top nav { min-width: 0; display: flex; align-items: center; overflow: hidden; }
+.directory-context-top nav span { min-width: 0; display: inline-flex; align-items: center; color: #777b75; }
+.directory-context-top nav button { max-width: 200px; padding: 4px 6px; border: 0; border-radius: 4px; overflow: hidden; color: #bfc3bc; background: transparent; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.directory-context-top nav button:hover { color: #fff; background: #2a2d29; }
+.directory-context-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
+.directory-context-actions > button { min-height: 34px; padding: 0 11px; border: 1px solid #454943; border-radius: 5px; display: inline-flex; align-items: center; gap: 6px; color: #e0e4dc; background: #252825; cursor: pointer; }
+.directory-context-actions > button:hover:not(:disabled) { background: #303530; }
+.directory-context-actions > button:disabled { opacity: .5; cursor: default; }
+.directory-context-children-toggle { margin-top: 9px; padding: 5px 2px; border: 0; display: inline-flex; align-items: center; gap: 6px; color: #a4aaa1; background: transparent; cursor: pointer; }
+.directory-context-children-toggle .expanded { transform: rotate(90deg); }
+.directory-context-children { max-height: 220px; overflow-y: auto; padding: 6px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 5px; }
+.directory-context-children > button { min-width: 0; padding: 8px; border: 1px solid #353934; border-radius: 5px; display: flex; align-items: center; gap: 7px; overflow: hidden; color: #d8dcd5; background: #20231f; text-overflow: ellipsis; white-space: nowrap; text-align: left; cursor: pointer; }
+.directory-context-children > button:hover { background: #2b302a; }
+.directory-context-children > button small { margin-left: auto; color: #898f86; }
+.directory-context-children > span, .directory-context-children > small { padding: 7px; color: #858a82; }
+.directory-context-status { margin: 8px 0 0; color: #a8c9aa; font-size: 12px; }
+.directory-browser-context :is(button, input):focus-visible { outline: 2px solid #e06a53; outline-offset: 2px; }
 @media (max-width: 980px) {
+  .directory-context-top { align-items: stretch; flex-direction: column; }
+  .directory-context-actions { flex-wrap: wrap; }
   .directory-browser-location { align-items: stretch; flex-direction: column; }
   .directory-scope { width: fit-content; }
   .directory-list-head, .directory-list > button { grid-template-columns: minmax(200px, 1fr) 80px 30px; }

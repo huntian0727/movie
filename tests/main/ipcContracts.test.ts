@@ -29,6 +29,7 @@ describe("IPC_CHANNELS", () => {
       cloudDriveFolderBrowse: "clouddrive-folder:browse",
       cloudDriveFolderAdd: "clouddrive-folder:add",
       folderScan: "folder:scan",
+      folderScanDirectory: "folder:scan-directory",
       folderScanAll: "folder:scan-all",
       folderRemove: "folder:remove",
       folderRemovePreview: "folder:remove-preview",

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, Clock3, Cloud, Folder, HardDrive, LoaderCircle, RefreshCw, Search, Server, X } from "lucide-react";
-import type { DirectoryBrowserResult, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
+import type { DirectoryBrowserResult, FolderScanStatus, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
 import "./directoryBrowserPage.css";
 
 interface DirectoryBrowserPageProps {
+  compact?: boolean;
+  onScanDirectory?: VideoManagerApi["scanDirectory"];
+  scanStatus?: FolderScanStatus;
   folders: SourceFolder[];
   recentDirectories: Array<{ path: string; sourceFolderId: string }>;
   selectedSourceId?: string;
@@ -26,6 +29,9 @@ const EMPTY_RESULT: DirectoryBrowserResult = { items: [], totalCount: 0, truncat
 const EMPTY_VIDEOS: LibraryPage = { videos: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0 };
 
 export function DirectoryBrowserPage({
+  compact = false,
+  onScanDirectory,
+  scanStatus,
   folders,
   recentDirectories,
   selectedSourceId,
@@ -51,9 +57,12 @@ export function DirectoryBrowserPage({
   const [videoLoading, setVideoLoading] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [scanPending, setScanPending] = useState(false);
+  const [scanResult, setScanResult] = useState<FolderScanStatus | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const selectedSource = useMemo(
-    () => folders.find((folder) => folder.id === selectedSourceId) ?? folders.find((folder) => currentPath && isPathWithin(currentPath, folder.path)),
+    () => folders.find((folder) => folder.id === selectedSourceId && (!currentPath || isPathWithin(currentPath, folder.path)))
+      ?? folders.filter((folder) => currentPath && isPathWithin(currentPath, folder.path)).sort((a, b) => b.path.length - a.path.length)[0],
     [currentPath, folders, selectedSourceId]
   );
   const breadcrumb = useMemo(() => buildBreadcrumb(selectedSource, currentPath), [currentPath, selectedSource]);
@@ -94,7 +103,7 @@ export function DirectoryBrowserPage({
   }, [currentPath, directoryListExpanded, loadDirectories, refreshSequence, revision, search, selectedSource?.id]);
 
   useEffect(() => {
-    if (!currentPath) {
+    if (!currentPath || compact) {
       setVideos(EMPTY_VIDEOS);
       return;
     }
@@ -117,7 +126,54 @@ export function DirectoryBrowserPage({
       if (!disposed) setVideoLoading(false);
     });
     return () => { disposed = true; };
-  }, [currentPath, loadVideos, refreshSequence, revision, scope]);
+  }, [compact, currentPath, loadVideos, refreshSequence, revision, scope]);
+
+  const runDirectoryScan = async () => {
+    if (!currentPath || !selectedSource || !onScanDirectory || scanPending) return;
+    setScanPending(true);
+    setScanResult(null);
+    setError("");
+    try {
+      const result = await onScanDirectory({ sourceFolderId: selectedSource.id, directoryPath: currentPath, scope });
+      setScanResult(result);
+      setRevision((value) => value + 1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setScanPending(false);
+    }
+  };
+
+  if (compact && currentPath) return <section className="directory-browser-context" aria-label="当前目录">
+    <div className="directory-context-top">
+      <nav aria-label="当前目录路径">
+        {breadcrumb.map((entry, index) => <span key={entry.path}>
+          {index > 0 && <ChevronRight size={13} />}
+          <button type="button" title={entry.path} onClick={() => onNavigate(entry.path, selectedSource?.id ?? selectedSourceId ?? "")}>{entry.label}</button>
+        </span>)}
+      </nav>
+      <div className="directory-context-actions">
+        <div className="directory-scope" role="group" aria-label="视频与扫描范围">
+          <button type="button" className={scope === "exact" ? "active" : undefined} onClick={() => onScopeChange("exact")}>仅当前目录</button>
+          <button type="button" className={scope === "recursive" ? "active" : undefined} onClick={() => onScopeChange("recursive")}>包含子目录</button>
+        </div>
+        <button type="button" onClick={() => void runDirectoryScan()} disabled={!selectedSource || !onScanDirectory || scanPending}>
+          <RefreshCw size={16} className={scanPending ? "spin" : undefined} />{scope === "exact" ? "扫描此目录" : "扫描此目录及子目录"}
+        </button>
+      </div>
+    </div>
+    <button type="button" className="directory-context-children-toggle" aria-expanded={directoryListExpanded} onClick={() => setDirectoryListExpanded((value) => !value)}>
+      <ChevronRight size={15} className={directoryListExpanded ? "expanded" : undefined} />子目录{directoryListExpanded && !directoryLoading ? ` ${directories.totalCount}` : ""}
+    </button>
+    {directoryListExpanded && <div className="directory-context-children" aria-busy={directoryLoading}>
+      {directoryLoading ? <span><LoaderCircle size={15} className="spin" />正在读取子目录</span> : directories.items.map((item) => <button type="button" key={`${item.sourceFolderId}:${item.path}`} title={item.path} onClick={() => onNavigate(item.path, item.sourceFolderId)}><Folder size={15} />{item.name}<small>{item.videoCount}</small></button>)}
+      {!directoryLoading && directories.items.length === 0 && <span>当前没有已索引的子目录</span>}
+      {directories.truncated && <small>仅显示前 100 个子目录，请使用“浏览目录”搜索其他目录。</small>}
+    </div>}
+    {scanPending && <p className="directory-context-status" role="status">正在后台扫描当前范围…{scanStatus?.currentPath ? ` ${scanStatus.currentPath}` : ""}</p>}
+    {scanResult && <p className="directory-context-status" role="status">{scanResult.state === "completed" || scanResult.state === "completed-with-errors" ? `扫描结束：新增 ${scanResult.counters.addedVideos}，更新 ${scanResult.counters.updatedVideos}，异常 ${scanResult.counters.fileFailures + scanResult.counters.directoryFailures}` : `扫描状态：${scanResult.state}${scanResult.message ? ` · ${scanResult.message}` : ""}`}</p>}
+    {error && <p className="directory-browser-error" role="alert">{error}</p>}
+  </section>;
 
   const openSource = (folder: SourceFolder) => onNavigate(folder.path, folder.id);
   const heading = search ? "搜索结果" : currentPath ? "当前目录" : "资料库来源";

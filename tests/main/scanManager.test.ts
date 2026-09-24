@@ -135,6 +135,30 @@ describe("ScanManager", () => {
       .toMatchObject({ totalFolders: 2, completedFolders: 2, currentFolderIndex: 2 });
   });
 
+  it("does not coalesce different directory scopes and records them separately from whole-source scans", async () => {
+    const gate = deferred();
+    const scopes: Array<{ path?: string; recursive?: boolean }> = [];
+    const createScanTask = vi.fn();
+    const repo = { createScanTask } as unknown as VideoRepository;
+    const scan = vi.fn(async (_repo, _folder, dependencies) => {
+      scopes.push({ path: dependencies.scanRootPath, recursive: dependencies.scanRecursive });
+      if (scopes.length === 1) await gate.promise;
+      return completedResult();
+    });
+    const manager = new ScanManager(repo, scan);
+    const path = `${folder.path}\\Series`;
+
+    const exact = manager.startDirectory(folder, path, false);
+    await vi.waitFor(() => expect(scan).toHaveBeenCalledOnce());
+    const recursive = manager.startDirectory(folder, path, true);
+    gate.resolve();
+    await Promise.all([exact, recursive]);
+
+    expect(scopes).toEqual([{ path, recursive: false }, { path, recursive: true }]);
+    expect(createScanTask).toHaveBeenCalledTimes(2);
+    expect(createScanTask.mock.calls.every((call) => call[1] === null)).toBe(true);
+  });
+
   it("queues a reliable current-folder scan behind an active scan-all fast scan", async () => {
     const gate = deferred();
     const modes: ScanMode[] = [];

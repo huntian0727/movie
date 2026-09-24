@@ -19,6 +19,7 @@ type BatchProgress = { totalFolders: number; currentFolderIndex: number; complet
 interface ActiveFolderTask {
   mode: ScanMode;
   promise: Promise<void>;
+  scopeKey: string | null;
 }
 
 export class ScanManager {
@@ -50,6 +51,19 @@ export class ScanManager {
 
   start(folder: SourceFolder): Promise<void> {
     return this.requestTask(folder, "current-folder", this.scan);
+  }
+
+  startDirectory(folder: SourceFolder, directoryPath: string, recursive: boolean): Promise<void> {
+    const scopeKey = `${directoryPath.replaceAll("/", "\\").toLocaleLowerCase()}\u0000${recursive}`;
+    return this.requestTask(folder, "current-folder", (repo, source, dependencies) => this.scan(repo, source, {
+      ...dependencies,
+      scanRootPath: directoryPath,
+      scanRecursive: recursive
+    }), undefined, scopeKey, directoryPath);
+  }
+
+  getStatus(folderId: string): FolderScanStatus | null {
+    return this.statuses.get(folderId) ?? null;
   }
 
   retryFailures(folder: SourceFolder): Promise<void> {
@@ -155,32 +169,32 @@ export class ScanManager {
     return this.enqueueTask(folder, "retry-failures", scan);
   }
 
-  private requestTask(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress): Promise<void> {
+  private requestTask(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress, scopeKey: string | null = null, scopePath?: string): Promise<void> {
     const existing = this.tasks.get(folder.id);
     if (existing) {
-      if (canExistingTaskSatisfy(existing.mode, mode)) return existing.promise;
+      if (existing.scopeKey === scopeKey && canExistingTaskSatisfy(existing.mode, mode)) return existing.promise;
       return existing.promise.then(() => {
         this.clearActiveTask(folder.id, existing.promise);
-        return this.requestTask(folder, mode, scan, batch);
+        return this.requestTask(folder, mode, scan, batch, scopeKey, scopePath);
       });
     }
-    return this.enqueueTask(folder, mode, scan, batch);
+    return this.enqueueTask(folder, mode, scan, batch, scopeKey, scopePath);
   }
 
-  private enqueueTask(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress): Promise<void> {
+  private enqueueTask(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress, scopeKey: string | null = null, scopePath?: string): Promise<void> {
     this.setStatus(folder.id, {
       mode,
       state: "queued",
       phase: null,
       totalFiles: 0,
       processedFiles: 0,
-      currentPath: null,
+      currentPath: scopePath ?? null,
       message: null,
       counters: mergeBatchCounters(createEmptyScanCounters(), batch)
     });
-    const task = this.queue.then(() => this.run(folder, mode, scan, batch), () => this.run(folder, mode, scan, batch));
+    const task = this.queue.then(() => this.run(folder, mode, scan, batch, scopePath), () => this.run(folder, mode, scan, batch, scopePath));
     this.queue = task.catch(() => undefined);
-    this.tasks.set(folder.id, { mode, promise: task });
+    this.tasks.set(folder.id, { mode, promise: task, scopeKey });
     void task.finally(() => this.clearActiveTask(folder.id, task));
     return task;
   }
@@ -193,11 +207,12 @@ export class ScanManager {
     return this.repo.getScanFailureSummary?.(folderId).totalUnresolved > 0;
   }
 
-  private async run(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress): Promise<void> {
+  private async run(folder: SourceFolder, mode: ScanMode, scan: Scan, batch?: BatchProgress, scopePath?: string): Promise<void> {
     const operationId = this.logger?.createOperationId();
     const taskId = crypto.randomUUID();
     const startedAt = Date.now();
-    this.repo.createScanTask?.(taskId, folder.id, mode);
+    // A scoped task is not a whole-source availability or last-scan check.
+    this.repo.createScanTask?.(taskId, scopePath ? null : folder.id, mode);
     this.logger?.info({
       module: "library.scan",
       operationId,
@@ -211,7 +226,7 @@ export class ScanManager {
       phase: mode === "retry-failures" ? "retrying-failures" : "discovering",
       totalFiles: 0,
       processedFiles: 0,
-      currentPath: folder.path,
+      currentPath: scopePath ?? folder.path,
       message: null,
       counters: mergeBatchCounters(createEmptyScanCounters(), batch)
     });

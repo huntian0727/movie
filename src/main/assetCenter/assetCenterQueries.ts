@@ -141,7 +141,7 @@ export function getAssetCenterSummary(db: DatabaseConnection): AssetCenterSummar
   const latestScanRow = db.prepare(`
     SELECT id, source_folder_id, mode, status, started_at, completed_at, counters_json, error_summary
     FROM scan_tasks
-    WHERE completed_at IS NOT NULL AND status IN ('completed', 'completed-with-errors', 'offline', 'error')
+    WHERE source_folder_id IS NOT NULL AND completed_at IS NOT NULL AND status IN ('completed', 'completed-with-errors', 'offline', 'error')
     ORDER BY completed_at DESC, started_at DESC, id DESC
     LIMIT 1
   `).get() as AssetCenterScanTaskRow | undefined;

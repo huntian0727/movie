@@ -559,6 +559,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       onPauseFolderScan={(folder) => api.pauseFolderScan(folder.id)}
       onResumeFolderScan={(folder) => api.resumeFolderScan(folder.id)}
       onScanFolder={(folder) => api.scanFolder(folder.id)}
+      onScanDirectory={api.scanDirectory}
       onRetryFolderFailures={(folder) => api.retryScanFailures(folder.id)}
       onLoadScanFailureSummary={(folder) => api.getScanFailureSummary(folder.id)}
       onLoadScanFailures={(folder) => api.listScanFailures(folder.id)}
