@@ -157,7 +157,7 @@ describe("desktop-only renderer runtime", () => {
     const video = {
       id: "player-video", filename: "sample.mp4", basename: "sample", path: "F:\\sample.mp4", directory: "F:\\",
       extension: ".mp4", sizeBytes: 1024, durationMs: 1_000, width: 320, height: 240,
-      metadataStatus: "ready", thumbnailStatus: "pending", updatedAt: "2026-09-01", isMissing: false
+      metadataStatus: "ready", codecProbeStatus: "unprobed", thumbnailStatus: "pending", updatedAt: "2026-09-01", isMissing: false
     } as VideoRecord;
     vi.mocked(api.getWindowSyncSnapshot).mockResolvedValue({
       sequence: 0,
@@ -170,6 +170,7 @@ describe("desktop-only renderer runtime", () => {
 
     render(<DesktopApp api={api} />);
     await waitFor(() => expect(screen.getByText("sample.mp4")).toBeInTheDocument());
+    expect(document.querySelector("video")).toHaveAttribute("src", "local-video://media/player-video");
     expect(api.listFolders).not.toHaveBeenCalled();
     expect(api.getLibraryNavigation).not.toHaveBeenCalled();
 

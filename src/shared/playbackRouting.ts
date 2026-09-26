@@ -21,7 +21,14 @@ export function choosePlaybackRoute(video: PlaybackIdentity, preference: Playbac
   if (video.metadataStatus === "pending") {
     return CONTAINER_NATIVE_EXTENSIONS.has(extension) ? "native" : "mpv";
   }
-  if (video.metadataStatus !== "ready" || video.codecProbeStatus !== "ready") return "mpv";
+  if (video.metadataStatus !== "ready") return "mpv";
+  // CloudDrive/API imports can have usable container metadata without an
+  // expensive codec probe. Try the same native containers used for pending
+  // metadata; the player already falls back to mpv on an actual decode error.
+  if (video.codecProbeStatus === "unprobed" && !video.videoCodec && !video.audioCodec) {
+    return CONTAINER_NATIVE_EXTENSIONS.has(extension) ? "native" : "mpv";
+  }
+  if (video.codecProbeStatus !== "ready") return "mpv";
 
   const videoCodec = normalizeNullable(video.videoCodec);
   const audioCodec = normalizeNullable(video.audioCodec);

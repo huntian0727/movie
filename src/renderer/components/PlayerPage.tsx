@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, ExternalLink, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoRecord } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, formatShortcutBinding, matchesShortcut } from "../../shared/shortcuts";
 import { formatBytes, formatDuration } from "./formatters";
@@ -516,6 +516,17 @@ export function PlayerPage({
           >
             <Info size={18} />
           </button>
+          {!isExternalPlayback && onPlayExternal && (
+            <button
+              className="player-icon-button"
+              aria-label="使用外部播放器"
+              title="内置播放卡住或不兼容？使用外部播放器"
+              disabled={externalLaunching}
+              onClick={() => void launchExternalPlayback()}
+            >
+              <ExternalLink size={18} />
+            </button>
+          )}
           <button
             className={video.isFavorite ? "player-icon-button is-favorite" : "player-icon-button"}
             aria-label={video.isFavorite ? "取消收藏" : "收藏"}

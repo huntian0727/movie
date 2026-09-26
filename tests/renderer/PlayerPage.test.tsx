@@ -153,6 +153,15 @@ describe("PlayerPage", () => {
     await waitFor(() => expect(onPlayExternal).toHaveBeenCalledOnce());
   });
 
+  it("offers a manual external fallback if native playback stalls without an error", async () => {
+    const onPlayExternal = vi.fn().mockResolvedValue(undefined);
+    render(<PlayerPage video={video} mediaUrl="local-video://media/v1" onPlayExternal={onPlayExternal} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "使用外部播放器" }));
+
+    await waitFor(() => expect(onPlayExternal).toHaveBeenCalledOnce());
+  });
+
   it("marks the native player to autoplay when the setting is enabled", () => {
     render(<PlayerPage video={video} mediaUrl="local-video://media/v1" autoPlayOnOpen />);
     expect(document.querySelector("video")).toHaveProperty("autoplay", true);

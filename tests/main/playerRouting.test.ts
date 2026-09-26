@@ -38,7 +38,7 @@ describe("choosePlaybackRoute", () => {
     expect(choosePlaybackRoute(identity(), "mpv-first")).toBe("mpv");
   });
 
-  it("uses native-first temporarily for pending native containers but stays conservative after probe failure", () => {
+  it("tries native containers without a codec probe, but stays conservative after probe failure", () => {
     expect(choosePlaybackRoute(identity({
       metadataStatus: "pending",
       codecProbeStatus: "unprobed",
@@ -47,6 +47,32 @@ describe("choosePlaybackRoute", () => {
       pixelFormat: null,
       audioCodec: null
     }), "auto")).toBe("native");
+    expect(choosePlaybackRoute(identity({
+      extension: ".MOV",
+      metadataStatus: "ready",
+      codecProbeStatus: "unprobed",
+      videoCodec: null,
+      videoProfile: null,
+      pixelFormat: null,
+      audioCodec: null
+    }), "auto")).toBe("native");
+    expect(choosePlaybackRoute(identity({
+      metadataStatus: "ready",
+      codecProbeStatus: "unprobed",
+      videoCodec: "hevc",
+      videoProfile: null,
+      pixelFormat: null,
+      audioCodec: null
+    }), "auto")).toBe("mpv");
+    expect(choosePlaybackRoute(identity({
+      extension: ".avi",
+      metadataStatus: "ready",
+      codecProbeStatus: "unprobed",
+      videoCodec: null,
+      videoProfile: null,
+      pixelFormat: null,
+      audioCodec: null
+    }), "auto")).toBe("mpv");
     expect(choosePlaybackRoute(identity({
       metadataStatus: "ready",
       codecProbeStatus: "failed",
