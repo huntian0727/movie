@@ -642,7 +642,7 @@ export function LibraryShell({
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark"><PlaySquare size={22} /></span>
-          <div><strong>映匣</strong><small>本地视频库</small></div>
+          <div><strong>拉面影视</strong><small>本地视频库</small></div>
         </div>
         <nav className="primary-nav" aria-label="视频库导航">
           <span className="primary-nav-group">概览</span>

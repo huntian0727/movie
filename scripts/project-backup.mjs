@@ -142,7 +142,7 @@ export async function verifySnapshot(backupRoot, snapshotId) {
 
 export async function restoreSnapshot(options) {
   if (!options.confirmApplicationClosed) {
-    throw new Error("Restore refused: use the PowerShell wrapper after closing every Local Video Manager process");
+    throw new Error("Restore refused: use the PowerShell wrapper after closing every video manager process");
   }
   const verified = await verifySnapshot(options.backupRoot, options.snapshotId);
   const preRestore = await createSnapshot({

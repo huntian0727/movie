@@ -37,10 +37,11 @@ function Invoke-BackupNode {
 }
 
 function Assert-ApplicationClosed {
-  $running = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "Local Video Manager.exe" })
+  $renamedExecutable = (-join @([char]0x62C9, [char]0x9762, [char]0x5F71, [char]0x89C6)) + ".exe"
+  $running = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -in @("Local Video Manager.exe", $renamedExecutable) })
   if ($running.Count -gt 0) {
     $details = ($running | ForEach-Object { "PID $($_.ProcessId): $($_.ExecutablePath)" }) -join [Environment]::NewLine
-    throw "Restore refused because Local Video Manager is still running. Close it first.`n$details"
+    throw "Restore refused because the video manager is still running. Close it first.`n$details"
   }
 }
 

@@ -37,8 +37,8 @@ describe("desktop-only renderer runtime", () => {
 
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "映匣仅支持 Windows 桌面应用运行" })).toBeInTheDocument();
-    expect(screen.getByText("请从映匣桌面客户端启动。")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "拉面影视仅支持 Windows 桌面应用运行" })).toBeInTheDocument();
+    expect(screen.getByText("请从拉面影视桌面客户端启动。")).toBeInTheDocument();
     expect(screen.queryByText("City Walk - Shanghai.mp4")).not.toBeInTheDocument();
     expect(screen.queryByText("D:\\Movies\\Personal Library")).not.toBeInTheDocument();
   });
@@ -50,7 +50,7 @@ describe("desktop-only renderer runtime", () => {
 
     await waitFor(() => expect(api.getWindowSyncSnapshot).toHaveBeenCalled());
     await waitFor(() => expect(api.listVideoPage).toHaveBeenCalled());
-    expect(screen.queryByText("映匣仅支持 Windows 桌面应用运行")).not.toBeInTheDocument();
+    expect(screen.queryByText("拉面影视仅支持 Windows 桌面应用运行")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "视频浏览" })).toBeInTheDocument();
   });
 

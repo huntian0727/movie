@@ -110,6 +110,7 @@ describe("LibraryShell", () => {
   it("shows source roots without rendering the nested directory tree", () => {
     render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]} />);
 
+    expect(screen.getByText("拉面影视")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /浏览目录/ })).toBeInTheDocument();
     expect(screen.getByTitle(folder.path)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Drama" })).not.toBeInTheDocument();

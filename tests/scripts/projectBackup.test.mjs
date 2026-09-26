@@ -105,7 +105,7 @@ describe("project backup and rollback", () => {
       "--action=restore", `--backup-root=${backupRoot}`, `--user-data=${userDataPath}`, `--snapshot=${snapshot.manifest.id}`
     ]);
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toMatch(/Restore refused:.*closing every Local Video Manager/is);
+    expect(result.stderr).toMatch(/Restore refused:.*closing every video manager/is);
   });
 
   it("detects a changed backup file before restore", () => {

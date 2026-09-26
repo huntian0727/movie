@@ -6,7 +6,7 @@ import { runPackagedSmoke } from "./run-packaged-smoke.mjs";
 
 const releaseDirectory = path.join(process.cwd(), "release");
 const packageManifest = JSON.parse(await readFile(path.join(process.cwd(), "package.json"), "utf8"));
-const installerName = `Local-Video-Manager-${packageManifest.version}-x64-Setup.exe`;
+const installerName = `拉面影视-${packageManifest.version}-x64-Setup.exe`;
 const installerPath = path.join(releaseDirectory, installerName);
 await access(installerPath).catch(() => {
   throw new Error(`Current-version NSIS installer not found: ${installerPath}`);
@@ -32,7 +32,7 @@ try {
     mkdir(sandboxLocalAppData, { recursive: true })
   ]);
   await spawnAndWait(installerPath, ["/S", `/D=${installDirectory}`], 120_000, sandboxEnvironment);
-  const executablePath = path.join(installDirectory, "Local Video Manager.exe");
+  const executablePath = path.join(installDirectory, "拉面影视.exe");
   await stat(executablePath);
 
   await writeFile(databaseSentinel, "database-sentinel", "utf8");

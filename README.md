@@ -1,4 +1,4 @@
-# 映匣（Local Video Manager）
+# 拉面影视
 
 面向 Windows 的本地视频资料库 Electron 桌面应用。视频始终保留在原目录；应用只维护 SQLite 索引、收藏/播放历史和可重建的封面/时间轴缓存。项目不提供独立 Web 产品或浏览器演示模式；React、Vite、HTML 和 CSS 只用于 Electron Renderer。本文是产品与开发总览，详细设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，状态与路线见 [TASK.md](TASK.md)。首次接手项目的 AI 必须从 [docs/ai/START_HERE.md](docs/ai/START_HERE.md) 开始；项目经理换手时先读 [项目经理交接文档](docs/ai/deliveries/2026-08-21-project-manager-handoff.md)。
 

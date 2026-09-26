@@ -39,7 +39,8 @@ const require = createRequire(import.meta.url);
 export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<void> {
   const checks: Record<string, boolean | number | string> = {
     packaged: app.isPackaged,
-    databaseQuickCheck: context.db.pragma("quick_check", { simple: true }) === "ok"
+    databaseQuickCheck: context.db.pragma("quick_check", { simple: true }) === "ok",
+    productName: app.getName() === "拉面影视"
   };
   try {
     await access(path.join(context.userDataPath, "logs", "app.jsonl"));
@@ -175,6 +176,8 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
         poll();
       });
       const assetCenterHeading = await waitForSelector('.asset-center-page h1', 'Default Asset Center view was not found');
+      const brandVisible = document.querySelector('.sidebar strong')?.textContent?.trim() === '拉面影视';
+      const pageTitle = document.title === '拉面影视';
       const defaultAssetCenter = assetCenterHeading.textContent?.trim() === '资产中心';
       const duplicatesButton = await waitForSelector('button[aria-label="查看重复项"]', 'Duplicates navigation control was not found');
       duplicatesButton.click();
@@ -223,6 +226,8 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
       observer.disconnect();
       const afterPolling = document.querySelector('.video-cover img');
       return {
+        brandVisible,
+        pageTitle,
         defaultAssetCenter,
         directoryRankingVisible,
         previewGeneratedBeforeMetadata: before[0].metadataStatus === 'pending' && bytes?.length > 0,

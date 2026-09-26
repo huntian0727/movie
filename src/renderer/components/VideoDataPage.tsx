@@ -163,7 +163,7 @@ export function VideoDataPage({ load, exportCsv, deleteSelection, folders, initi
     <footer className="video-data-pagination"><label>每页<select value={query.pageSize} onChange={event => patch({ pageSize: Number(event.target.value) as 50 | 100 | 200 }, false)}>{[50, 100, 200].map(size => <option key={size}>{size}</option>)}</select></label>
       <button disabled={loading || !result || result.page <= 1} onClick={() => patch({ page: (result?.page ?? 1) - 1 }, false)}>上一页</button><span>{result?.page ?? 1} / {result?.totalPages ?? 1} 页</span><button disabled={loading || !result || result.page >= result.totalPages} onClick={() => patch({ page: (result?.page ?? 1) + 1 }, false)}>下一页</button>
       <form onSubmit={event => { event.preventDefault(); const page = Number(jump); if (Number.isInteger(page) && page > 0) patch({ page: Math.min(page, result?.totalPages ?? 1) }, false); }}><input aria-label="跳转页码" type="number" min="1" max={result?.totalPages ?? 1} value={jump} onChange={event => setJump(event.target.value)} /><button disabled={loading}>跳转</button></form>
-    </footer><p className="video-data-footnote">添加时间指加入映匣的时间。状态来自最近保存的记录；导出和批量删除均按执行时的数据与筛选条件处理。映射盘的实际来源无法确定时显示“本地 / 挂载盘”。</p>
+    </footer><p className="video-data-footnote">添加时间指加入拉面影视的时间。状态来自最近保存的记录；导出和批量删除均按执行时的数据与筛选条件处理。映射盘的实际来源无法确定时显示“本地 / 挂载盘”。</p>
     {deleteOpen && <div className="dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setDeleteOpen(false); }}>
       <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="video-data-delete-title">
         <h3 id="video-data-delete-title">确认批量永久删除？</h3>

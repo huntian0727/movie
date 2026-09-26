@@ -1,5 +1,5 @@
 param(
-  [string]$ShortcutName = "Video Manager (Dev).lnk"
+  [string]$ShortcutName = "Lamian Video (Dev).lnk"
 )
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -27,7 +27,7 @@ $shortcut.TargetPath = $npmCommand
 $shortcut.Arguments = "run dev:electron"
 $shortcut.WorkingDirectory = $projectRoot
 $shortcut.IconLocation = "$env:SystemRoot\System32\shell32.dll,264"
-$shortcut.Description = "Start the local video manager in development mode"
+$shortcut.Description = "Start Lamian Video in development mode"
 $shortcut.Save()
 
 Write-Output "Desktop shortcut created: $shortcutPath"

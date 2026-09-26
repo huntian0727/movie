@@ -1,5 +1,5 @@
 appId: com.local.video.manager
-productName: Local Video Manager
+productName: 拉面影视
 directories:
   output: release
 asar: true
@@ -18,7 +18,7 @@ files:
   - '!tests/**'
   - '!.dbg/**'
 win:
-  artifactName: Local-Video-Manager-${version}-${arch}-Setup.${ext}
+  artifactName: 拉面影视-${version}-${arch}-Setup.${ext}
   target:
     - nsis
 nsis:

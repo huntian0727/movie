@@ -30,11 +30,13 @@ import { configureSecurityLogger, configureWindowSecurity, installContentSecurit
 import { createSettingsStore } from "./settings/settingsStore.js";
 import { configureCloudDriveRuntime } from "./clouddrive/mountedScanner.js";
 import { showMainWindowMaximized } from "./windowPresentation.js";
+import { legacyUserDataPath } from "./legacyUserDataPath.js";
 
 // Renderer/webviews run without hardware acceleration so the app starts on
 // machines without a usable GPU (remote desktops, VMs, older GPUs). Without
 // this, Chromium's GPU process crashes at startup and the app exits silently.
 app.disableHardwareAcceleration();
+app.setName("拉面影视");
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? "http://127.0.0.1:5173";
@@ -43,6 +45,9 @@ const rendererEntryUrl = app.isPackaged ? pathToFileURL(packagedRendererPath).hr
 const packagedSmokeUserData = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_USER_DATA;
 if (packagedSmokeUserData) {
   app.setPath("userData", path.resolve(packagedSmokeUserData));
+} else {
+  // Keep existing libraries/settings after changing the visible product name.
+  app.setPath("userData", legacyUserDataPath(app.getPath("appData")));
 }
 const startupUserDataPath = app.getPath("userData");
 const databasePath = path.join(startupUserDataPath, "library.sqlite");
@@ -96,7 +101,7 @@ async function createWindow(): Promise<void> {
     height: 800,
     minWidth: 980,
     minHeight: 640,
-    title: "映匣",
+    title: "拉面影视",
     autoHideMenuBar: true,
     show: false,
     webPreferences: {

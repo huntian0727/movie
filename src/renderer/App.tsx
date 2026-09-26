@@ -60,8 +60,8 @@ export function UnsupportedRuntime() {
     <main className="unsupported-runtime" role="main">
       <div className="unsupported-runtime-card">
         <div className="unsupported-runtime-mark" aria-hidden="true">映</div>
-        <h1>映匣仅支持 Windows 桌面应用运行</h1>
-        <p>请从映匣桌面客户端启动。</p>
+        <h1>拉面影视仅支持 Windows 桌面应用运行</h1>
+        <p>请从拉面影视桌面客户端启动。</p>
       </div>
     </main>
   );

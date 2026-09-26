@@ -68,7 +68,7 @@ function spawnAndWait(command, args, environment, timeout) {
 }
 
 function defaultExecutablePath() {
-  return path.join(process.cwd(), "release", "win-unpacked", "Local Video Manager.exe");
+  return path.join(process.cwd(), "release", "win-unpacked", "拉面影视.exe");
 }
 
 function parseExecutableArgument() {
