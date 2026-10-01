@@ -33,7 +33,8 @@ status: verification-in-progress
 
 - 定向测试：7 文件、95 项通过；新增 IPC 两项在后续全量运行通过。覆盖云盘单并发、首张优先、本地任务保留槽位、跨窗口请求隔离、参数拒绝/上限/关闭释放、缓存命中、当前身份六张完整性、失败重试和图片解码失败。
 - 实际打包所用 FFmpeg：在隔离临时目录生成 12 秒 H.264、10 秒 GOP 测试视频，在 5 秒采样点使用新参数成功输出 8063 字节 JPEG。仅证明真实二进制参数兼容与输出成功，不是云盘带宽基准。
-- `npm run test:release-gate`：PASS，81 文件、747 项全量测试，lint/typecheck、build、Windows 文件操作、迁移、性能检查均通过。此次测试进程设置 `VITEST_MAX_FORKS=2`、`VITEST_MIN_FORKS=1`。初次暴露的新 IPC 校验问题已修复；默认高并发执行中既有 LibraryShell 渐进渲染测试曾触发 1 秒等待超时，单独运行 58 项通过（目标用例 650ms），两 forks 完整门禁目标用例 611ms。未更改业务、断言或等待预算。
+- 扩展真实二进制测试发现 11 秒末尾采样会因负帧时间而无图；增加输出 `setpts=PTS-STARTPTS` 后 1/3/5/7/9/11 秒六点均成功。新增自动化真实 FFmpeg 长 GOP 六张抽帧测试，确保末尾帧非空；以下门禁结果将更新为此修正版。
+- 最终修正版 `npm run test:release-gate`：PASS，81 文件、749 项全量测试，lint/typecheck、build、Windows 文件操作、迁移、性能检查均通过。此次测试进程设置 `VITEST_MAX_FORKS=2`、`VITEST_MIN_FORKS=1`。初次暴露的新 IPC 校验问题已修复；默认高并发执行中既有 LibraryShell 渐进渲染测试曾触发 1 秒等待超时，单独运行 58 项通过（目标用例 650ms），最终两 forks 完整门禁目标用例 614ms。未更改业务、断言或等待预算。真实 FFmpeg 测试固定为 Node 环境，避免 jsdom AbortSignal 与 Node subprocess 不兼容；最终六点实际抽帧测试 430ms。
 - Electron、打包、安装器烟测及桌面快捷方式验收：待执行，完成后补充真实结果。
 
 ## Risks and follow-up

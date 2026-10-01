@@ -1,7 +1,11 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createRequire } from "node:module";
+import { execa } from "execa";
+import { getStoryboardTimes } from "../../src/shared/storyboard";
 import {
   buildCacheKey,
   generateCover,
@@ -22,7 +26,25 @@ describe("cacheService", () => {
     const args = runFfmpeg.mock.calls[0][1];
     expect(args.slice(0, 8)).toEqual(["-y", "-ss", "1.234", "-noaccurate_seek", "-skip_frame", "nokey", "-i", "F:/cloud/clip.mp4"]);
     expect(args).toEqual(expect.arrayContaining(["-map", "0:v:0", "-an", "-sn", "-dn"]));
+    expect(args).toContain("setpts=PTS-STARTPTS,scale=320:-1");
   });
+
+  it("actually produces all six keyframes including the last long-GOP segment", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "storyboard-keyframe-"));
+    const binary = createRequire(import.meta.url)("ffmpeg-static") as string;
+    const input = path.join(root, "long-gop.mp4");
+    try {
+      await execa(binary, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=96x64:rate=10", "-t", "8",
+        "-c:v", "libx264", "-g", "60", "-keyint_min", "60", "-sc_threshold", "0", input], { windowsHide: true, timeout: 10_000 });
+      for (const timeMs of getStoryboardTimes(8000)) {
+        const output = path.join(root, `${timeMs}.jpg`);
+        await generateTimelineFrame(input, output, timeMs, { fastSeek: true, ffmpegPath: binary });
+        expect((await readFile(output)).byteLength).toBeGreaterThan(0);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 15_000);
 
   it("uses path, size, and modified time to build stable cache keys", () => {
     const a = buildCacheKey("D:\\Movies\\clip.mp4", 100, "2026-07-09T00:00:00.000Z");

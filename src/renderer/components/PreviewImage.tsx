@@ -48,6 +48,7 @@ export function PreviewImage({ src, cachedOnly = false, priority = 1, eager = fa
     let poll: ReturnType<typeof setTimeout> | undefined;
     const requestId = crypto.randomUUID();
     const pollState = async () => {
+      if (!stateCallback.current || disposed || finished) return;
       try {
         const next = await api.getPreviewImageState?.(requestId);
         if (!disposed && !finished && next) stateCallback.current?.(next === "active" ? "loading" : "queued");

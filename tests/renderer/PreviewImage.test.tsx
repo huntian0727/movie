@@ -23,6 +23,14 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("visible-page preview requests", () => {
+  it("does not poll queue state for cover consumers without a progress display", async () => {
+    const state = vi.fn().mockResolvedValue("queued");
+    vi.stubGlobal("videoManager", { loadPreviewImage: load, cancelPreviewImage: cancel, getPreviewImageState: state });
+    render(<PreviewImage src="local-video://cover/a" eager delayMs={0} />);
+    await waitFor(() => expect(load).toHaveBeenCalledOnce());
+    expect(state).not.toHaveBeenCalled();
+  });
+
   it("reports queued/active states from memory and pauses offscreen without declaring failure", async () => {
     const state = vi.fn().mockResolvedValue("active");
     vi.stubGlobal("videoManager", { loadPreviewImage: load, cancelPreviewImage: cancel, getPreviewImageState: state });

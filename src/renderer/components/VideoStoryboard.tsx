@@ -34,7 +34,7 @@ export const VideoStoryboard = memo(function VideoStoryboard({ video, onPlay }: 
       </button>}
       <button type="button" title="只重新尝试未能加载的截图" onClick={() => setRetryVersion((value) => value + 1)}><RotateCw size={12} />重试失败截图</button>
     </div>
-    {remote && <div className="video-storyboard-note">云盘使用快速关键帧截图，画面可能略有偏移；点击仍从标注的采样时间播放。</div>}
+    {remote && <div className="video-storyboard-note">云盘使用快速关键帧截图，画面可能与采样时间有偏移；点击仍从标注的时间播放。</div>}
   </div>;
 });
 

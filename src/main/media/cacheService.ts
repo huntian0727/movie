@@ -100,7 +100,8 @@ export async function generateTimelineFrame(
       ...(dependencies.fastSeek ? ["-noaccurate_seek", "-skip_frame", "nokey"] : []),
       "-i", inputPath,
       ...(dependencies.fastSeek ? ["-map", "0:v:0", "-an", "-sn", "-dn"] : []),
-      "-frames:v", "1", "-update", "1", "-vf", "scale=320:-1", outputPath],
+      "-frames:v", "1", "-update", "1", "-vf",
+      dependencies.fastSeek ? "setpts=PTS-STARTPTS,scale=320:-1" : "scale=320:-1", outputPath],
     "timeline frame",
     dependencies
   );
