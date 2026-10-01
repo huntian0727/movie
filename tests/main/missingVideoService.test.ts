@@ -70,6 +70,71 @@ describe("MissingVideoService", () => {
     expect(assertVideosAvailable).toHaveBeenCalledWith([absent.id]);
     expect(removeMissingVideosIfVersions).toHaveBeenCalledWith([absent]);
   });
+
+  it("checks available records and marks a deleted local file missing", async () => {
+    const folder = sourceFolder("folder-1", "D:\\Movies");
+    const available = { ...video("available", folder.id, "D:\\Movies\\available.mp4"), isMissing: false };
+    const deleted = { ...video("deleted", folder.id, "D:\\Movies\\deleted.mp4"), isMissing: false };
+    const { repo, markMissingIfVersion } = fakeRepo([available, deleted], [folder]);
+    const service = new MissingVideoService(repo, {
+      confirmRemoteMissingBatch: vi.fn(),
+      assertVideosAvailable: vi.fn(),
+      enqueueMetadata: vi.fn(),
+      statPath: vi.fn(async (targetPath) => {
+        if (targetPath === folder.path) return stats({ directory: true });
+        if (targetPath === available.path) return stats({ size: available.sizeBytes, mtime: new Date(available.modifiedAt) });
+        throw Object.assign(new Error("missing"), { code: "ENOENT" });
+      })
+    });
+
+    const result = await service.recheck([available.id, deleted.id]);
+
+    expect(result).toMatchObject({ requestedCount: 2, stillMissingCount: 1, skippedCount: 1, failureCount: 0 });
+    expect(result.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ videoId: available.id, status: "skipped", message: expect.stringContaining("文件存在") }),
+      expect.objectContaining({ videoId: deleted.id, status: "still-missing", message: expect.stringContaining("已标记为缺失") })
+    ]));
+    expect(markMissingIfVersion).toHaveBeenCalledWith(deleted.id, deleted.path, deleted.sizeBytes, deleted.modifiedAt);
+  });
+
+  it("checks available CloudDrive records through a forced remote listing", async () => {
+    const folder = { ...sourceFolder("cloud", "F:\\Cloud"), providerType: "clouddrive" as const };
+    const available = { ...video("available", folder.id, "F:\\Cloud\\available.mp4"), isMissing: false };
+    const deleted = { ...video("deleted", folder.id, "F:\\Cloud\\deleted.mp4"), isMissing: false };
+    const { repo, markMissingIfVersion } = fakeRepo([available, deleted], [folder]);
+    const confirmRemoteMissingBatch = vi.fn(async () => new Map<string, "present" | "missing">([
+      [available.path, "present"], [deleted.path, "missing"]
+    ]));
+    const service = new MissingVideoService(repo, {
+      confirmRemoteMissingBatch,
+      assertVideosAvailable: vi.fn(),
+      enqueueMetadata: vi.fn()
+    });
+
+    const result = await service.recheck([available.id, deleted.id]);
+
+    expect(confirmRemoteMissingBatch).toHaveBeenCalledWith([available.path, deleted.path]);
+    expect(result).toMatchObject({ stillMissingCount: 1, skippedCount: 1, failureCount: 0 });
+    expect(markMissingIfVersion).toHaveBeenCalledWith(deleted.id, deleted.path, deleted.sizeBytes, deleted.modifiedAt);
+  });
+
+  it("does not mark an available record missing when its source directory is offline", async () => {
+    const folder = sourceFolder("offline", "Z:\\Offline");
+    const available = { ...video("available", folder.id, "Z:\\Offline\\available.mp4"), isMissing: false };
+    const { repo, markMissingIfVersion } = fakeRepo([available], [folder]);
+    const service = new MissingVideoService(repo, {
+      confirmRemoteMissingBatch: vi.fn(),
+      assertVideosAvailable: vi.fn(),
+      enqueueMetadata: vi.fn(),
+      statPath: vi.fn(async () => { throw Object.assign(new Error("network unavailable"), { code: "ENOENT" }); })
+    });
+
+    const result = await service.recheck([available.id]);
+
+    expect(result).toMatchObject({ requestedCount: 1, stillMissingCount: 0, failureCount: 1 });
+    expect(result.items[0]).toMatchObject({ videoId: available.id, status: "failed", message: expect.stringContaining("本次未更改记录") });
+    expect(markMissingIfVersion).not.toHaveBeenCalled();
+  });
 });
 
 function fakeRepo(initialVideos: VideoRecord[], folders: SourceFolder[]) {
@@ -80,6 +145,12 @@ function fakeRepo(initialVideos: VideoRecord[], folders: SourceFolder[]) {
     videos.delete(candidate.id);
     return true;
   }).map((candidate) => candidate.id));
+  const markMissingIfVersion = vi.fn((id: string) => {
+    const item = videos.get(id);
+    if (!item) return false;
+    videos.set(id, { ...item, isMissing: true });
+    return true;
+  });
   const repo = {
     listVideosByIds: (ids: string[]) => ids.map((id) => videos.get(id)).filter(Boolean),
     listSourceFolders: () => folders,
@@ -90,9 +161,10 @@ function fakeRepo(initialVideos: VideoRecord[], folders: SourceFolder[]) {
       return true;
     },
     refreshVideoFileVersion: () => true,
+    markMissingIfVersion,
     removeMissingVideosIfVersions
   } as unknown as VideoRepository;
-  return { repo, removeMissingVideosIfVersions };
+  return { repo, markMissingIfVersion, removeMissingVideosIfVersions };
 }
 
 function sourceFolder(id: string, folderPath: string): SourceFolder {

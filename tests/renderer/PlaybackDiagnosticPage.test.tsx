@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PlaybackDiagnosticPage } from "../../src/renderer/components/PlaybackDiagnosticPage";
-import type { LibraryPage, PlaybackDiagnosticSearchQuery, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
+import type { LibraryPage, MissingVideoActionResult, PlaybackDiagnosticSearchQuery, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
 
 const video: VideoRecord = {
   id: "v1",
@@ -52,6 +52,22 @@ const folder: SourceFolder = {
 
 const emptyPage: LibraryPage = { videos: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0 };
 
+const availableResult: MissingVideoActionResult = {
+  operation: "recheck",
+  requestedCount: 1,
+  restoredCount: 0,
+  stillMissingCount: 0,
+  removedCount: 0,
+  skippedCount: 1,
+  failureCount: 0,
+  items: [{
+    videoId: video.id,
+    path: video.path,
+    status: "skipped",
+    message: "已确认文件存在，文件大小与修改时间未变化"
+  }]
+};
+
 function renderPage(overrides: Partial<ComponentProps<typeof PlaybackDiagnosticPage>> = {}) {
   const props: ComponentProps<typeof PlaybackDiagnosticPage> = {
     selectedVideoId: null,
@@ -63,6 +79,7 @@ function renderPage(overrides: Partial<ComponentProps<typeof PlaybackDiagnosticP
     onSelectVideo: vi.fn(),
     onClearSelection: vi.fn(),
     onOpenScanFailures: vi.fn(),
+    onCheckFileAvailability: vi.fn(async () => availableResult),
     ...overrides
   };
   return { ...render(<PlaybackDiagnosticPage {...props} />), props };
@@ -163,8 +180,21 @@ describe("PlaybackDiagnosticPage", () => {
     expect(container.querySelector(".diagnostic-information-grid > .diagnostic-analysis")).toBeNull();
     expect(container.querySelectorAll(".diagnostic-information-grid > .diagnostic-info-section")).toHaveLength(3);
     expect(container.querySelector(".diagnostic-info-section dd.wrap")).toHaveTextContent(video.path);
-    expect(screen.getByRole("button", { name: "重新读取缓存" })).toHaveAttribute("title", "只重新读取资料库缓存记录，不访问视频文件");
+    expect(screen.getByRole("button", { name: "检查文件状态" })).toHaveAttribute("title", "本地文件将检查目录与文件；CloudDrive 文件将通过 API 强制刷新远端目录");
     expect(loadVideosByIds).toHaveBeenCalledWith([video.id]);
+  });
+
+  it("checks the actual file state and refreshes the selected database record", async () => {
+    const loadVideosByIds = vi.fn(async () => [video]);
+    const onCheckFileAvailability = vi.fn(async () => availableResult);
+    renderPage({ selectedVideoId: video.id, initialVideo: video, loadVideosByIds, onCheckFileAvailability });
+    await waitFor(() => expect(loadVideosByIds).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "检查文件状态" }));
+
+    await waitFor(() => expect(onCheckFileAvailability).toHaveBeenCalledWith([video.id]));
+    expect(await screen.findByText("已确认文件存在，文件大小与修改时间未变化")).toBeInTheDocument();
+    await waitFor(() => expect(loadVideosByIds).toHaveBeenCalledTimes(2));
   });
 
   it("offers a local cache retry when the selected record read fails", async () => {

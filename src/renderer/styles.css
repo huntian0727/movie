@@ -580,6 +580,7 @@ button.asset-health-row:hover { background: #1d1f1d; }
 .playback-diagnostic-toolbar button:hover:not(:disabled), .diagnostic-actions button:hover:not(:disabled), .diagnostic-maintenance button:hover:not(:disabled), .diagnostic-page-state button:hover:not(:disabled), .diagnostic-missing button:hover:not(:disabled) { color: #fff; background: #292b29; }
 .playback-diagnostic-page button:focus-visible, .playback-diagnostic-page input:focus-visible { outline: 2px solid #d96a55; outline-offset: 2px; }
 .playback-diagnostic-page button:disabled { opacity: .42; cursor: default; }
+.diagnostic-inline-status { min-height: 42px; padding: 10px 12px; border: 1px solid #315d48; border-radius: 7px; display: flex; align-items: center; gap: 8px; color: #99d8b6; background: #13251c; }
 .playback-diagnostic-body { padding: 20px 26px 36px; display: grid; gap: 14px; }
 .playback-diagnostic-picker { max-width: 1040px; margin: 0 auto; }
 .diagnostic-search-panel { padding: 16px 17px; border: 1px solid #2c2e2b; border-radius: 9px; display: grid; grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.3fr); align-items: center; gap: 20px; background: #181a18; }

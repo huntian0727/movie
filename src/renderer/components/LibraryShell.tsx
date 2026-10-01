@@ -899,6 +899,7 @@ export function LibraryShell({
                 onPlayExternal={onPlayExternal}
                 onRevealInFolder={onRevealInFolder}
                 onRetryMetadata={onRetryMetadata}
+                onCheckFileAvailability={onRecheckMissingVideos}
                 onOpenScanFailures={() => {
                   setDiagnosticVideoId(null);
                   setDiagnosticInitialVideo(null);

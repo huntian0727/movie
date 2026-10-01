@@ -543,9 +543,15 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     metadataFileRefresh.refreshZeroByteFiles(videoIdsSchema.parse(videoIds))
   );
   ipcMain.handle(IPC_CHANNELS.libraryMissingRecheck, async (_event, videoIds) => {
-    const result = await missingVideos.recheck(videoIdsSchema.parse(videoIds));
+    const parsedVideoIds = videoIdsSchema.parse(videoIds);
+    const previouslyAvailableIds = new Set(repo.listVideosByIds(parsedVideoIds).filter((video) => !video.isMissing).map((video) => video.id));
+    const result = await missingVideos.recheck(parsedVideoIds);
     const restoredIds = result.items.filter((item) => item.status === "restored").map((item) => item.videoId);
+    const newlyMissingIds = result.items
+      .filter((item) => item.status === "still-missing" && previouslyAvailableIds.has(item.videoId))
+      .map((item) => item.videoId);
     if (restoredIds.length > 0) dependencies.domainEvents.publish({ type: "video:updated", videoIds: restoredIds });
+    if (newlyMissingIds.length > 0) dependencies.domainEvents.publish({ type: "video:removed", videoIds: newlyMissingIds });
     return result;
   });
   ipcMain.handle(IPC_CHANNELS.libraryMissingForget, async (_event, videoIds) => {

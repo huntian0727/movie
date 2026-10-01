@@ -160,7 +160,8 @@ describe("IPC_CHANNELS", () => {
     expect(preload).toContain("recheckMissingVideos: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMissingRecheck, videoIds)");
     expect(preload).toContain("forgetMissingVideos: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMissingForget, videoIds)");
     expect(ipc).toMatch(/const missingVideoPageQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
-    expect(ipc).toContain("missingVideos.recheck(videoIdsSchema.parse(videoIds))");
+    expect(ipc).toContain("const parsedVideoIds = videoIdsSchema.parse(videoIds)");
+    expect(ipc).toContain("missingVideos.recheck(parsedVideoIds)");
     expect(ipc).toContain("missingVideos.forget(videoIdsSchema.parse(videoIds))");
   });
 

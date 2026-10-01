@@ -23,6 +23,7 @@ interface PlaybackDiagnosticPageProps {
   onPlayExternal?(video: VideoRecord): void | Promise<void>;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onRetryMetadata?(video: VideoRecord): void | Promise<void>;
+  onCheckFileAvailability?: import("../../shared/videoTypes").VideoManagerApi["recheckMissingVideos"];
   onOpenScanFailures(): void;
 }
 
@@ -40,6 +41,7 @@ export function PlaybackDiagnosticPage({
   onPlayExternal,
   onRevealInFolder,
   onRetryMetadata,
+  onCheckFileAvailability,
   onOpenScanFailures
 }: PlaybackDiagnosticPageProps) {
   const [video, setVideo] = useState<VideoRecord | null>(initialVideo?.id === selectedVideoId ? initialVideo : null);
@@ -58,8 +60,9 @@ export function PlaybackDiagnosticPage({
   const [recentLoading, setRecentLoading] = useState(false);
   const [recentError, setRecentError] = useState<string | null>(null);
   const [recentRetryVersion, setRecentRetryVersion] = useState(0);
-  const [actionPending, setActionPending] = useState<"play" | "external" | "reveal" | "metadata" | null>(null);
+  const [actionPending, setActionPending] = useState<"play" | "external" | "reveal" | "metadata" | "availability" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
   const detailRequest = useRef(0);
   const searchRequest = useRef(0);
   const recentRequest = useRef(0);
@@ -157,6 +160,7 @@ export function PlaybackDiagnosticPage({
     setVideo(nextVideo);
     setRemoved(false);
     setDetailError(null);
+    setAvailabilityMessage(null);
     setQuery("");
     setDebouncedQuery("");
     onSelectVideo(nextVideo);
@@ -169,6 +173,25 @@ export function PlaybackDiagnosticPage({
     try {
       await action();
       if (kind === "metadata") setRefreshVersion((current) => current + 1);
+    } catch (cause) {
+      setActionError(toMessage(cause));
+    } finally {
+      setActionPending(null);
+    }
+  };
+
+  const checkFileAvailability = async () => {
+    if (!video || !onCheckFileAvailability) return;
+    setActionPending("availability");
+    setActionError(null);
+    setAvailabilityMessage(null);
+    try {
+      const result = await onCheckFileAvailability([video.id]);
+      const item = result.items.find((candidate) => candidate.videoId === video.id);
+      if (!item) throw new Error("检查未返回该视频的结果");
+      if (item.status === "failed") throw new Error(item.message);
+      setAvailabilityMessage(item.message);
+      setRefreshVersion((current) => current + 1);
     } catch (cause) {
       setActionError(toMessage(cause));
     } finally {
@@ -268,11 +291,12 @@ export function PlaybackDiagnosticPage({
     <div className="playback-diagnostic-page">
       <DiagnosticHeader
         onBack={onClearSelection}
-        onRefresh={() => setRefreshVersion((current) => current + 1)}
-        refreshing={detailLoading}
+        onCheckAvailability={onCheckFileAvailability ? checkFileAvailability : undefined}
+        checking={detailLoading || actionPending === "availability"}
       />
       <div className="playback-diagnostic-body">
         {detailError && <div className="diagnostic-inline-error" role="alert"><AlertTriangle size={16} /><span>刷新失败，继续显示上次记录。{detailError}</span></div>}
+        {availabilityMessage && <div className="diagnostic-inline-status" role="status"><RefreshCw size={16} /><span>{availabilityMessage}</span></div>}
         {video.isMissing && <div className="diagnostic-missing" role="status"><AlertTriangle size={17} /><span>资料库记录显示文件当前缺失。播放和元数据重试已停用。</span><button type="button" onClick={onOpenScanFailures}>查看扫描异常</button></div>}
 
         <section className="diagnostic-file-heading">
@@ -321,8 +345,8 @@ export function PlaybackDiagnosticPage({
   );
 }
 
-function DiagnosticHeader({ onBack, onRefresh, refreshing = false }: { onBack(): void; onRefresh?(): void; refreshing?: boolean }) {
-  return <header className="playback-diagnostic-toolbar"><div><h1>播放诊断</h1><p>当前策略与兼容风险仅供排查参考</p></div><div><button type="button" onClick={onBack}><ArrowLeft size={16} />更换视频</button>{onRefresh && <button type="button" aria-label={refreshing ? "正在重新读取缓存" : "重新读取缓存"} title="只重新读取资料库缓存记录，不访问视频文件" disabled={refreshing} onClick={onRefresh}><RefreshCw className={refreshing ? "spin" : undefined} size={16} />{refreshing ? "读取中" : "重新读取缓存"}</button>}</div></header>;
+function DiagnosticHeader({ onBack, onCheckAvailability, checking = false }: { onBack(): void; onCheckAvailability?(): void; checking?: boolean }) {
+  return <header className="playback-diagnostic-toolbar"><div><h1>播放诊断</h1><p>当前策略与兼容风险仅供排查参考</p></div><div><button type="button" onClick={onBack}><ArrowLeft size={16} />更换视频</button>{onCheckAvailability && <button type="button" aria-label={checking ? "正在检查文件状态" : "检查文件状态"} title="本地文件将检查目录与文件；CloudDrive 文件将通过 API 强制刷新远端目录" disabled={checking} onClick={onCheckAvailability}><RefreshCw className={checking ? "spin" : undefined} size={16} />{checking ? "检查中" : "检查文件状态"}</button>}</div></header>;
 }
 
 function VideoChoice({ video, onChoose }: { video: VideoRecord; onChoose(): void }) {

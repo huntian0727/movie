@@ -22,12 +22,12 @@ export class MissingVideoService {
   constructor(private readonly repo: VideoRepository, private readonly dependencies: MissingVideoServiceDependencies) {}
 
   async recheck(videoIds: readonly string[]): Promise<MissingVideoActionResult> {
-    const inspection = await this.inspect(videoIds);
+    const inspection = await this.inspect(videoIds, false);
     return summarize("recheck", inspection.requestedCount, inspection.items);
   }
 
   async forget(videoIds: readonly string[]): Promise<MissingVideoActionResult> {
-    const inspection = await this.inspect(videoIds);
+    const inspection = await this.inspect(videoIds, true);
     if (inspection.confirmedMissingVideos.length > 0) {
       const confirmedMissingIds = inspection.confirmedMissingVideos.map((video) => video.id);
       this.dependencies.assertVideosAvailable(confirmedMissingIds);
@@ -42,7 +42,7 @@ export class MissingVideoService {
     return summarize("forget", inspection.requestedCount, inspection.items);
   }
 
-  private async inspect(videoIds: readonly string[]): Promise<InspectionResult> {
+  private async inspect(videoIds: readonly string[], onlyMissing: boolean): Promise<InspectionResult> {
     const uniqueIds = [...new Set(videoIds)];
     const videosById = new Map(this.repo.listVideosByIds(uniqueIds).map((video) => [video.id, video]));
     const foldersById = new Map(this.repo.listSourceFolders().map((folder) => [folder.id, folder]));
@@ -53,7 +53,7 @@ export class MissingVideoService {
       const video = videosById.get(videoId);
       if (!video) {
         items.push({ videoId, path: "", status: "skipped", message: "资料库记录已不存在" });
-      } else if (!video.isMissing) {
+      } else if (onlyMissing && !video.isMissing) {
         items.push({ videoId, path: video.path, status: "skipped", message: "记录已恢复为可访问状态" });
       } else {
         candidates.push(video);
@@ -68,9 +68,11 @@ export class MissingVideoService {
         for (const video of cloudCandidates) {
           const confirmation = confirmations.get(video.path);
           if (confirmation === "present") {
-            items.push(this.restoreUnchanged(video));
+            items.push(video.isMissing
+              ? this.restoreUnchanged(video)
+              : { videoId: video.id, path: video.path, status: "skipped", message: "CloudDrive 强制刷新后确认远端文件存在" });
           } else if (confirmation === "missing") {
-            items.push({ videoId: video.id, path: video.path, status: "still-missing", message: "CloudDrive 强制刷新后确认远端文件不存在" });
+            items.push(this.confirmMissing(video, "CloudDrive 强制刷新后确认远端文件不存在"));
           } else if (confirmation === "not-cloud-drive") {
             localCandidates.push(video);
           } else {
@@ -122,7 +124,11 @@ export class MissingVideoService {
         const fileStats = await statPath(video.path);
         if (!fileStats.isFile()) return { videoId: video.id, path: video.path, status: "failed", message: "目标路径存在，但不是普通文件" };
         const currentModifiedAt = fileStats.mtime.toISOString();
-        if (fileStats.size === video.sizeBytes && currentModifiedAt === video.modifiedAt) return this.restoreUnchanged(video);
+        if (fileStats.size === video.sizeBytes && currentModifiedAt === video.modifiedAt) {
+          return video.isMissing
+            ? this.restoreUnchanged(video)
+            : { videoId: video.id, path: video.path, status: "skipped", message: "已确认文件存在，大小和修改时间未变化" };
+        }
         const restored = this.repo.refreshVideoFileVersion(
           video.id,
           video.path,
@@ -135,7 +141,7 @@ export class MissingVideoService {
         this.dependencies.enqueueMetadata(video.id);
         return { videoId: video.id, path: video.path, status: "restored", message: "文件已恢复且版本发生变化，已重新加入元数据分析" };
       } catch (cause) {
-        if (isMissingError(cause)) return { videoId: video.id, path: video.path, status: "still-missing", message: "已确认来源目录可访问，但文件不存在" };
+        if (isMissingError(cause)) return this.confirmMissing(video, "已确认来源目录可访问，但文件不存在");
         return { videoId: video.id, path: video.path, status: "failed", message: `文件状态无法确认：${toMessage(cause)}` };
       }
     });
@@ -146,6 +152,14 @@ export class MissingVideoService {
     const restored = this.repo.restoreMissingIfVersion(video.id, video.path, video.sizeBytes, video.modifiedAt);
     return restored
       ? { videoId: video.id, path: video.path, status: "restored", message: "文件已恢复为可访问状态" }
+      : { videoId: video.id, path: video.path, status: "skipped", message: "记录版本已变化，本次未覆盖" };
+  }
+
+  private confirmMissing(video: VideoRecord, message: string): MissingVideoActionItem {
+    if (video.isMissing) return { videoId: video.id, path: video.path, status: "still-missing", message };
+    const marked = this.repo.markMissingIfVersion(video.id, video.path, video.sizeBytes, video.modifiedAt);
+    return marked
+      ? { videoId: video.id, path: video.path, status: "still-missing", message: `${message}，已标记为缺失` }
       : { videoId: video.id, path: video.path, status: "skipped", message: "记录版本已变化，本次未覆盖" };
   }
 }
