@@ -48,6 +48,23 @@ function createVideo(repo: VideoRepository, folderId: string, overrides: Partial
 }
 
 describe("VideoRepository", () => {
+  it("marks the storyboard ready only after all baseline frames match the current file identity", () => {
+    const { repo, folderId } = createRepo();
+    const video = createVideo(repo, folderId);
+    const expected = Array.from({ length: 6 }, (_, index) => ({ timeMs: index * 1000, cachePath: `C:/cache/current/${index}.jpg` }));
+    for (const frame of expected) repo.markTimelinePreviewReady(video.id, frame.timeMs, frame.cachePath.replace("current", "old"));
+    for (const frame of expected.slice(0, 5)) {
+      repo.markTimelinePreviewReady(video.id, frame.timeMs, frame.cachePath, expected);
+      expect(repo.getVideo(video.id).timelinePreviewStatus).toBe("pending");
+    }
+    const last = expected[5];
+    repo.markTimelinePreviewReady(video.id, last.timeMs, last.cachePath, expected);
+    expect(repo.getVideo(video.id).timelinePreviewStatus).toBe("ready");
+    const before = db!.prepare("SELECT total_changes() AS count").get();
+    repo.markTimelinePreviewReady(video.id, last.timeMs, last.cachePath, expected);
+    expect(db!.prepare("SELECT total_changes() AS count").get()).toEqual(before);
+  });
+
   it("does not rewrite video timestamps on cover and timeline cache hits", () => {
     const { repo, folderId } = createRepo();
     const video = createVideo(repo, folderId);

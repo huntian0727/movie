@@ -1,8 +1,8 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, RotateCw } from "lucide-react";
 import type { VideoRecord } from "../../shared/videoTypes";
 import { getStoryboardFrameCount, getStoryboardFrameUrl, getStoryboardTimes } from "../../shared/storyboard";
-import { PreviewImage } from "./PreviewImage";
+import { PreviewImage, type PreviewImageState } from "./PreviewImage";
 import { formatDuration } from "./formatters";
 
 export const VideoStoryboard = memo(function VideoStoryboard({ video, onPlay }: {
@@ -10,19 +10,31 @@ export const VideoStoryboard = memo(function VideoStoryboard({ video, onPlay }: 
 }) {
   const [expanded, setExpanded] = useState(false);
   const [retryVersion, setRetryVersion] = useState(0);
+  const [frameStates, setFrameStates] = useState<Record<string, PreviewImageState>>({});
+  const updateFrameState = useCallback((key: string, state: PreviewImageState) => {
+    setFrameStates((current) => current[key] === state ? current : { ...current, [key]: state });
+  }, []);
   const times = getStoryboardTimes(video.durationMs, expanded ? getStoryboardFrameCount(video.durationMs ?? 0) : 6);
+  const states = times.map((timeMs) => frameStates[getStoryboardFrameUrl(video, timeMs)] ?? "idle");
+  const count = (state: PreviewImageState) => states.filter((value) => value === state).length;
+  const progress = [count("queued") && `排队 ${count("queued")}`, count("loading") && `生成中 ${count("loading")}`,
+    count("failed") && `失败 ${count("failed")}`, count("paused") && `暂停 ${count("paused")}`].filter(Boolean).join(" · ");
+  const remote = Boolean(video.providerFileId || video.providerPath);
   if (times.length === 0) return <StoryboardMetadataGate key={JSON.stringify([video.id, video.path, video.sizeBytes, video.modifiedAt])} video={video} onPlay={onPlay} />;
   return <div className={`video-storyboard${expanded ? " is-expanded" : ""}`} aria-label={`${video.filename} 截图预览`}>
     <div className="video-storyboard-frames">
-      {times.map((timeMs) => <StoryboardFrame key={getStoryboardFrameUrl(video, timeMs)} video={video} timeMs={timeMs} retryVersion={retryVersion} onPlay={onPlay} />)}
+      {times.map((timeMs, index) => <StoryboardFrame key={getStoryboardFrameUrl(video, timeMs)} video={video} timeMs={timeMs}
+        priority={index === 0 ? remote ? 1 : 2 : remote ? 0 : 1}
+        retryVersion={retryVersion} onPlay={onPlay} onStateChange={updateFrameState} />)}
     </div>
     <div className="video-storyboard-footer">
-      <span>{times.length} 张均匀截图 · 点击从对应位置播放</span>
+      <span role="status">已加载 {count("ready")}/{times.length} 张{progress ? ` · ${progress}` : ""} · 点击从对应位置播放</span>
       {getStoryboardFrameCount(video.durationMs!) > 6 && <button type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
         {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}{expanded ? "收起截图" : `查看全部 ${getStoryboardFrameCount(video.durationMs!)} 张`}
       </button>}
       <button type="button" title="只重新尝试未能加载的截图" onClick={() => setRetryVersion((value) => value + 1)}><RotateCw size={12} />重试失败截图</button>
     </div>
+    {remote && <div className="video-storyboard-note">云盘使用快速关键帧截图，画面可能略有偏移；点击仍从标注的采样时间播放。</div>}
   </div>;
 });
 
@@ -104,23 +116,27 @@ function StoryboardMetadataGate({ video, onPlay }: { video: VideoRecord; onPlay(
   </div>;
 }
 
-function StoryboardFrame({ video, timeMs, retryVersion, onPlay }: {
-  video: VideoRecord; timeMs: number; retryVersion: number; onPlay(timeMs: number): void;
+function StoryboardFrame({ video, timeMs, priority, retryVersion, onPlay, onStateChange }: {
+  video: VideoRecord; timeMs: number; priority: 0 | 1 | 2; retryVersion: number; onPlay(timeMs: number): void;
+  onStateChange(key: string, state: PreviewImageState): void;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [state, setState] = useState<PreviewImageState>("idle");
+  const failed = state === "failed";
   const [requestVersion, setRequestVersion] = useState(retryVersion);
   useEffect(() => {
     if (failed && retryVersion > requestVersion) {
       setRequestVersion(retryVersion);
-      setFailed(false);
+      setState("idle");
     }
   }, [failed, requestVersion, retryVersion]);
   return <button type="button" className={`video-storyboard-frame${failed ? " is-failed" : ""}`}
     aria-label={`从 ${formatDuration(timeMs)} 播放 ${video.filename}`} title={`从 ${formatDuration(timeMs)} 播放`}
     onClick={() => onPlay(timeMs)}>
-    <PreviewImage key={requestVersion} src={getStoryboardFrameUrl(video, timeMs)} priority={video.providerFileId || video.providerPath ? 0 : 1}
-      delayMs={180} onStateChange={(state) => { if (state === "failed") setFailed(true); }} />
-    {failed && <span className="video-storyboard-frame-error">截图暂不可用</span>}
+    <PreviewImage key={requestVersion} src={getStoryboardFrameUrl(video, timeMs)} priority={priority}
+      delayMs={180} onStateChange={(next) => { setState(next); onStateChange(getStoryboardFrameUrl(video, timeMs), next); }} />
+    {state !== "ready" && <span className={`video-storyboard-frame-state${failed ? " is-failed" : ""}`}>
+      {state === "loading" ? "正在生成…" : state === "queued" ? "等待生成" : failed ? "生成失败 · 可重试" : state === "paused" ? "离屏暂停" : "等待可见"}
+    </span>}
     <span className="video-storyboard-time">{formatDuration(timeMs)}</span>
   </button>;
 }

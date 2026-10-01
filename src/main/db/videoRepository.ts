@@ -2390,7 +2390,7 @@ export class VideoRepository {
       .run(new Date().toISOString(), videoId);
   }
 
-  markTimelinePreviewReady(videoId: string, timeMs: number, cachePath: string): void {
+  markTimelinePreviewReady(videoId: string, timeMs: number, cachePath: string, expectedFrames?: Array<{ timeMs: number; cachePath: string }>): void {
     const now = new Date().toISOString();
     this.db
       .prepare(
@@ -2411,9 +2411,13 @@ export class VideoRepository {
         createdAt: now
       });
 
+    const lookup = this.db.prepare("SELECT cache_path FROM timeline_previews WHERE video_id = ? AND time_ms = ?");
+    const complete = !expectedFrames || expectedFrames.length > 0 && expectedFrames.every((frame) =>
+      (lookup.get(videoId, frame.timeMs) as { cache_path: string } | undefined)?.cache_path === frame.cachePath);
+    const status = complete ? "ready" : "pending";
     this.db
-      .prepare("UPDATE videos SET timeline_preview_status = 'ready', updated_at = ? WHERE id = ? AND timeline_preview_status <> 'ready'")
-      .run(now, videoId);
+      .prepare("UPDATE videos SET timeline_preview_status = ?, updated_at = ? WHERE id = ? AND timeline_preview_status <> ?")
+      .run(status, now, videoId, status);
   }
 
   markTimelinePreviewFailed(videoId: string): void {

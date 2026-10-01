@@ -83,6 +83,7 @@ describe("IPC_CHANNELS", () => {
       videoRegenerateCover: "video:regenerate-cover",
       previewImageLoad: "preview-image:load",
       previewImageCancel: "preview-image:cancel",
+      previewImageState: "preview-image:state",
       previewMetadataLoad: "preview-metadata:load",
       previewMetadataState: "preview-metadata:state",
       previewMetadataCancel: "preview-metadata:cancel",

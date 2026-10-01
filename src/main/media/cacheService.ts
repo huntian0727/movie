@@ -9,6 +9,7 @@ export { getCoverTimeSeconds } from "../../shared/previewIdentity.js";
 
 interface CacheGenerationDependencies {
   signal?: AbortSignal;
+  fastSeek?: boolean;
   ffmpegPath?: string;
   ensureDir?: (directoryPath: string) => Promise<void>;
   runFfmpeg?: (ffmpegPath: string, args: string[]) => Promise<void>;
@@ -95,7 +96,11 @@ export async function generateTimelineFrame(
   await generateImage(
     inputPath,
     outputPath,
-    ["-y", "-ss", seconds.toFixed(3), "-i", inputPath, "-frames:v", "1", "-update", "1", "-vf", "scale=320:-1", outputPath],
+    ["-y", "-ss", seconds.toFixed(3),
+      ...(dependencies.fastSeek ? ["-noaccurate_seek", "-skip_frame", "nokey"] : []),
+      "-i", inputPath,
+      ...(dependencies.fastSeek ? ["-map", "0:v:0", "-an", "-sn", "-dn"] : []),
+      "-frames:v", "1", "-update", "1", "-vf", "scale=320:-1", outputPath],
     "timeline frame",
     dependencies
   );

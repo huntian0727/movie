@@ -11,6 +11,10 @@
 - `scanManager.ts`：三种模式的串行调度、同源互斥、任务状态/计数、暂停和协作式取消；全盘逐源复用当前目录扫描，不启用无界并发。
 - `cacheService.ts`：持久缓存位置、旧缓存安全迁移、缓存 key、FFmpeg 封面/时间轴帧生成，以及短视频封面截帧回退。
 - `cacheManager.ts`：缓存生成事务、近似 LRU/TTL/配额淘汰、清理 epoch、临时文件恢复、缓存状态统计和数据库引用失效通知。
+- `previewImageIpc.ts`：图片 load/cancel 沿用 UUID、每窗口 256 个请求上限与导航/关闭撤销。新增 `preview-image:state` / `getPreviewImageState(requestId)`，返回 `queued | active | null`，只查询同一可信窗口拥有的内存请求，不读数据库/源文件；Main 与 Player 的预览消费者均可用。Renderer 只对尚未完成的可见请求每秒查询，完成/离屏停止。
+- 列表截图：每个视频默认六个均匀采样点，优先级为本地首张 2/其余 1、云盘首张 1/其余 0；全局最多两个图片生成任务，其中云盘最多一个，不抢占正在进行的任务。已有缓存直接复用，离屏/隐藏取消最后消费者的图片任务，失败只接受显式重试，不无限重试。
+- 云盘时间轴使用 `-noaccurate_seek -skip_frame nokey` 快速定位关键帧，并只映射首个视频流；本地时间轴和封面抽帧参数不变。画面不保证逐帧准确，时间标签是采样/播放位置，页面明确提示可能偏移。仍有每任务 30 秒预算，不承诺网盘总带宽固定，也不控制 CloudDrive 自身预读。
+- 时间轴状态：登记当前帧后，以当前文件身份对应的六个默认采样缓存路径做有界查询；六张齐备才置 `ready`，部分成功为 `pending`。这是默认六张缓存登记状态，不是播放成功或所有展开帧完成的证明；Renderer 按实际响应分别显示完成张数、排队/生成/暂停/失败状态。无数据库迁移。
 
 ## 预览缓存维护规则
 
@@ -22,7 +26,7 @@
 - 旧版本使用 `userData/cache`，在 Windows 上会与 Electron 的 `Cache` 大小写折叠到同一目录。启动迁移只处理旧目录中的 `covers` 和 `timeline`，严禁迁移或删除 `Cache_Data` 等 Electron 子目录；迁移失败不得阻止应用启动。
 - FFprobe、扫描和缓存维护失败通过 `src/main/logging` 记录；只传 video ID、扩展名、计数或会被脱敏的路径，不得记录 ffprobe stdout。禁止恢复任何从主进程或 renderer 向调试端口发送路径、媒体元数据、播放器尺寸、预览 URL 或命令输出的临时代码。
 - 修改清理逻辑时必须验证：视频原文件和 SQLite 不受影响、Electron `Cache_Data` 不受影响、清理后封面/hover 帧可重新生成、迁移有旧目录和部分目标目录两种场景。
-- `mediaProtocol.ts`/`mediaUrl.ts`：解析并服务 `local-video://media|cover|preview`；图片请求通过 cache manager 串行生成并在返回时记录节流后的访问时间。
+- `mediaProtocol.ts`/`mediaUrl.ts`：解析并服务 `local-video://media|cover|preview`；图片请求通过 cache manager 的有界共享队列生成，并在返回时记录节流后的访问时间。
 - `mpvController.ts`/`playerRouting.ts`：外部播放与路由。`auto` 区分 metadata pending 和 ready/unknown：pending 的常见容器临时 native-first，ready 但 probe 未就绪/失败时保守走 mpv；WebM native 白名单要求 VP8/VP9 + `yuv420p` + Opus/Vorbis/无音轨。`native-first` 与 `mpv-first` 语义不变，Renderer native 失败回退与主进程 mpv→系统默认播放器回退必须保留。
 
 扫描写 repository；协议按 id 反查真实路径；renderer 只持有协议 URL。修改时重点保护路径解析、Range/流式播放、FFmpeg 失败降级、任务队列资源上限和缓存可重建性。目录超时必须区分“持续但很慢”和“没有响应”：不得重新引入覆盖整个发现阶段的固定总时限；不完整扫描不得执行缺失清理。

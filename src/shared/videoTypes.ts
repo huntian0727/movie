@@ -1075,6 +1075,7 @@ export const IPC_CHANNELS = {
   videoRegenerateCover: "video:regenerate-cover",
   previewImageLoad: "preview-image:load",
   previewImageCancel: "preview-image:cancel",
+  previewImageState: "preview-image:state",
   previewMetadataLoad: "preview-metadata:load",
   previewMetadataState: "preview-metadata:state",
   previewMetadataCancel: "preview-metadata:cancel",
@@ -1172,6 +1173,7 @@ export interface VideoManagerApi {
   regenerateCover(videoId: string): Promise<VideoRecord>;
   loadPreviewImage(request: PreviewImageRequest): Promise<Uint8Array | null>;
   cancelPreviewImage(requestId: string): Promise<void>;
+  getPreviewImageState(requestId: string): Promise<"queued" | "active" | null>;
   loadPreviewMetadata(request: PreviewMetadataRequest): Promise<VideoRecord | null>;
   getPreviewMetadataState(requestId: string): Promise<"queued" | "active" | null>;
   cancelPreviewMetadata(requestId: string): Promise<void>;

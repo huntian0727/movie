@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PreviewImage } from "../../src/renderer/components/PreviewImage";
 import { getCoverUrl } from "../../src/shared/previewIdentity";
@@ -23,6 +23,31 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("visible-page preview requests", () => {
+  it("reports queued/active states from memory and pauses offscreen without declaring failure", async () => {
+    const state = vi.fn().mockResolvedValue("active");
+    vi.stubGlobal("videoManager", { loadPreviewImage: load, cancelPreviewImage: cancel, getPreviewImageState: state });
+    const onStateChange = vi.fn();
+    render(<PreviewImage src="local-video://preview/a/5000" delayMs={0} onStateChange={onStateChange} />);
+    act(() => observers[0](true));
+    await waitFor(() => expect(onStateChange).toHaveBeenCalledWith("loading"));
+    expect(onStateChange).toHaveBeenCalledWith("queued");
+    expect(state).toHaveBeenCalledWith(load.mock.calls[0][0].requestId);
+    act(() => observers[0](false));
+    expect(onStateChange).toHaveBeenLastCalledWith("paused");
+    expect(onStateChange).not.toHaveBeenCalledWith("failed");
+  });
+
+  it("reports a broken returned image as failed without retrying indefinitely", async () => {
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: vi.fn(() => "blob:bad"), revokeObjectURL: vi.fn() }));
+    load.mockResolvedValue(new Uint8Array([1]));
+    const onStateChange = vi.fn();
+    const { container } = render(<PreviewImage src="local-video://preview/a/5000" eager delayMs={0} onStateChange={onStateChange} />);
+    await waitFor(() => expect(onStateChange).toHaveBeenCalledWith("ready"));
+    fireEvent.error(container.querySelector("img")!);
+    expect(onStateChange).toHaveBeenLastCalledWith("failed");
+    expect(load).toHaveBeenCalledOnce();
+  });
+
   it("keeps the same loaded blob across metadata polling and visibility changes", async () => {
     const createObjectURL = vi.fn().mockReturnValue("blob:stable-cover");
     const revokeObjectURL = vi.fn();

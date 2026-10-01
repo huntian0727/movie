@@ -80,6 +80,7 @@ const channels: typeof SharedIpcChannels = {
   videoRegenerateCover: "video:regenerate-cover",
   previewImageLoad: "preview-image:load",
   previewImageCancel: "preview-image:cancel",
+  previewImageState: "preview-image:state",
   previewMetadataLoad: "preview-metadata:load",
   previewMetadataState: "preview-metadata:state",
   previewMetadataCancel: "preview-metadata:cancel",
@@ -177,6 +178,7 @@ const mainApi: VideoManagerApi = {
   regenerateCover: (videoId: string) => ipcRenderer.invoke(channels.videoRegenerateCover, { videoId }),
   loadPreviewImage: (request: import("../shared/videoTypes.js").PreviewImageRequest) => ipcRenderer.invoke(channels.previewImageLoad, request),
   cancelPreviewImage: (requestId: string) => ipcRenderer.invoke(channels.previewImageCancel, requestId),
+  getPreviewImageState: (requestId: string) => ipcRenderer.invoke(channels.previewImageState, requestId),
   loadPreviewMetadata: (request: import("../shared/videoTypes.js").PreviewMetadataRequest) => ipcRenderer.invoke(channels.previewMetadataLoad, request),
   getPreviewMetadataState: (requestId: string) => ipcRenderer.invoke(channels.previewMetadataState, requestId),
   cancelPreviewMetadata: (requestId: string) => ipcRenderer.invoke(channels.previewMetadataCancel, requestId),
@@ -203,6 +205,7 @@ const mainApi: VideoManagerApi = {
 const playerApi = {
   loadPreviewImage: mainApi.loadPreviewImage,
   cancelPreviewImage: mainApi.cancelPreviewImage,
+  getPreviewImageState: mainApi.getPreviewImageState,
   listVideoPage: mainApi.listVideoPage,
   getLibraryNavigation: mainApi.getLibraryNavigation,
   listMissingVideos: mainApi.listMissingVideos,

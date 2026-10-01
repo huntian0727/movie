@@ -46,6 +46,7 @@ import { bindLegacyCloudDriveDuplicateCandidates } from "./media/cloudDriveLegac
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
 import { registerPreviewMetadataHandlers } from "./media/previewMetadataIpc.js";
+import { registerPreviewImageHandlers } from "./media/previewImageIpc.js";
 import { MetadataFileRefreshService } from "./media/metadataFileRefreshService.js";
 import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import { playWithMpv, waitForMpvStart } from "./media/mpvController.js";
@@ -407,40 +408,8 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
   ipcLogger = dependencies.logger;
   registerPreviewMetadataHandlers(ipcMain, repo, dependencies.metadataQueue);
-  const imageRequests = new Map<number, Map<string, AbortController>>();
-  const observedImageOwners = new Set<number>();
-  const imageRequestSchema = z.object({
-    requestId: z.string().uuid(), url: z.string().max(4096), cachedOnly: z.boolean(),
-    priority: z.union([z.literal(0), z.literal(1), z.literal(2)])
-  }).strict();
-  ipcMain.handle(IPC_CHANNELS.previewImageLoad, async (event, request: unknown) => {
-    const parsed = imageRequestSchema.parse(request);
-    const owner = event.sender.id;
-    if (!observedImageOwners.has(owner)) {
-      observedImageOwners.add(owner);
-      const cancelOwner = () => {
-        for (const controller of imageRequests.get(owner)?.values() ?? []) controller.abort();
-        imageRequests.delete(owner);
-      };
-      event.sender.on("did-start-navigation", cancelOwner);
-      event.sender.once("destroyed", () => { cancelOwner(); observedImageOwners.delete(owner); });
-    }
-    const requests = imageRequests.get(owner) ?? new Map<string, AbortController>();
-    if (requests.size >= 256 || requests.has(parsed.requestId)) throw new Error("Too many or duplicate image requests");
-    imageRequests.set(owner, requests);
-    const controller = new AbortController();
-    requests.set(parsed.requestId, controller);
-    try {
-      return await loadPreviewImage(repo, dependencies.cacheManager, parsed.url, dependencies.settings.get().coverFrameTimeSeconds,
-        { signal: controller.signal, priority: parsed.priority, cachedOnly: parsed.cachedOnly });
-    } finally {
-      requests.delete(parsed.requestId);
-    }
-  });
-  ipcMain.handle(IPC_CHANNELS.previewImageCancel, (event, requestId: unknown) => {
-    const id = z.string().uuid().parse(requestId);
-    imageRequests.get(event.sender.id)?.get(id)?.abort();
-  });
+  registerPreviewImageHandlers(ipcMain, (url, options) =>
+    loadPreviewImage(repo, dependencies.cacheManager, url, dependencies.settings.get().coverFrameTimeSeconds, options));
   let legacyCloudDriveBindingInFlight: Promise<Awaited<ReturnType<typeof bindLegacyCloudDriveDuplicateCandidates>>> | null = null;
   let legacyCloudDriveBindingAbortController: AbortController | null = null;
   let legacyCloudDriveBindingStatus: CloudDriveLegacyBindingProgress = {

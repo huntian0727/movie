@@ -403,6 +403,9 @@ button { color: inherit; }
 .video-storyboard-frame:hover, .video-storyboard-frame:focus-visible { outline: 2px solid #df735d; outline-offset: -2px; }
 .video-storyboard-time { position: absolute; right: 4px; bottom: 4px; padding: 2px 4px; border-radius: 3px; color: #fff; background: #000b; font-size: 10px; font-variant-numeric: tabular-nums; }
 .video-storyboard-frame-error { position: absolute; inset: 0; display: grid; place-items: center; color: #949b93; background: #202824; font-size: 11px; }
+.video-storyboard-frame-state { position: absolute; inset: 0; display: grid; place-items: center; color: #a1ada6; background: #202824; font-size: 11px; }
+.video-storyboard-frame-state.is-failed { color: #d3a194; }
+.video-storyboard-note { margin-top: 4px; color: #737d75; font-size: 11px; }
 .video-storyboard-footer { display: flex; align-items: center; gap: 12px; min-height: 28px; color: #71766e; font-size: 10px; }
 .video-storyboard-footer > span { margin-right: auto; }
 .video-storyboard-footer button { display: inline-flex; align-items: center; gap: 4px; padding: 3px 0; border: 0; background: transparent; color: #a6afa4; font-size: 10px; cursor: pointer; }

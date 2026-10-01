@@ -14,6 +14,16 @@ import {
 } from "../../src/main/media/cacheService";
 
 describe("cacheService", () => {
+  it("uses keyframe-only seeking and excludes unrelated streams only for remote timeline frames", async () => {
+    const runFfmpeg = vi.fn(async (_binary: string, _args: string[]) => undefined);
+    await generateTimelineFrame("F:/cloud/clip.mp4", "C:/cache/frame.jpg", 1234, {
+      fastSeek: true, ffmpegPath: "ffmpeg", ensureDir: async () => undefined, runFfmpeg
+    });
+    const args = runFfmpeg.mock.calls[0][1];
+    expect(args.slice(0, 8)).toEqual(["-y", "-ss", "1.234", "-noaccurate_seek", "-skip_frame", "nokey", "-i", "F:/cloud/clip.mp4"]);
+    expect(args).toEqual(expect.arrayContaining(["-map", "0:v:0", "-an", "-sn", "-dn"]));
+  });
+
   it("uses path, size, and modified time to build stable cache keys", () => {
     const a = buildCacheKey("D:\\Movies\\clip.mp4", 100, "2026-07-09T00:00:00.000Z");
     const b = buildCacheKey("D:\\Movies\\clip.mp4", 100, "2026-07-09T00:00:00.000Z");

@@ -8,6 +8,7 @@ import { buildCacheKey, generateCover, generateTimelineFrame, getCoverPath, getC
 import { CacheGenerationSupersededError, ImageCacheMissError, type MediaCacheManager } from "./cacheManager.js";
 import { ImageRequestCancelledError, type ImageRequestOptions } from "./imageGenerationQueue.js";
 import { getTimelinePreviewFromUrl, getVideoIdFromCoverUrl, getVideoIdFromMediaUrl, MEDIA_SCHEME } from "./mediaUrl.js";
+import { getStoryboardTimes } from "../../shared/storyboard.js";
 
 export { MEDIA_SCHEME } from "./mediaUrl.js";
 
@@ -20,11 +21,13 @@ export async function loadPreviewImage(
   const videoId = preview?.videoId ?? getVideoIdFromCoverUrl(url);
   const video = repo.getVideo(videoId);
   const cacheKey = buildCacheKey(video.path, video.sizeBytes, video.modifiedAt);
-  const readOptions = { ...options, cachedOnly: options.cachedOnly || video.isMissing };
+  // Remote classification is authoritative in Main, never supplied by Renderer.
+  const readOptions = { ...options, remote: Boolean(video.providerFileId || video.providerPath), cachedOnly: options.cachedOnly || video.isMissing };
   try {
     if (preview) {
       const framePath = getTimelineFramePath(cacheManager.root, cacheKey, preview.timeMs);
-      return await ensureTimelineFrame(cacheManager, repo, video.id, video.path, framePath, preview.timeMs, readOptions);
+      const expectedFrames = getStoryboardTimes(video.durationMs).map((timeMs) => ({ timeMs, cachePath: getTimelineFramePath(cacheManager.root, cacheKey, timeMs) }));
+      return await ensureTimelineFrame(cacheManager, repo, video.id, video.path, framePath, preview.timeMs, readOptions, expectedFrames);
     }
     const time = getCoverTimeSeconds(coverTimeSeconds, video.durationMs);
     return await ensureCover(cacheManager, repo, video.id, video.path, getCoverPath(cacheManager.root, cacheKey, time), time, readOptions);
@@ -76,14 +79,15 @@ async function ensureTimelineFrame(
   inputPath: string,
   outputPath: string,
   timeMs: number,
-  options: ImageRequestOptions = {}
+  options: ImageRequestOptions = {},
+  expectedFrames?: Array<{ timeMs: number; cachePath: string }>
 ): Promise<Buffer> {
   try {
     const body = await cacheManager.getOrCreateImage(
       outputPath,
-      (temporaryPath, signal) => generateTimelineFrame(inputPath, temporaryPath, timeMs, { signal }), options
+      (temporaryPath, signal) => generateTimelineFrame(inputPath, temporaryPath, timeMs, { signal, fastSeek: options.remote }), options
     );
-    repo.markTimelinePreviewReady(videoId, timeMs, outputPath);
+    repo.markTimelinePreviewReady(videoId, timeMs, outputPath, expectedFrames);
     return body;
   } catch (error) {
     if (!isIgnoredImageError(error, options)) repo.markTimelinePreviewFailed(videoId);

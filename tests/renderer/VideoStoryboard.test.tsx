@@ -113,7 +113,7 @@ describe("list storyboard", () => {
     expect(load).not.toHaveBeenCalled();
     act(() => observers[0](true));
     await waitFor(() => expect(load).toHaveBeenCalledOnce());
-    expect(load.mock.calls[0][0]).toMatchObject({ priority: 1, cachedOnly: false });
+    expect(load.mock.calls[0][0]).toMatchObject({ priority: 2, cachedOnly: false });
     act(() => observers[0](false));
     expect(cancel).toHaveBeenCalledWith(load.mock.calls[0][0].requestId);
     unmount();
@@ -135,10 +135,12 @@ describe("list storyboard", () => {
     act(() => observers.forEach((observe) => observe(true)));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(6));
     await waitFor(() => expect(container.querySelectorAll('[data-preview-state="ready"]')).toHaveLength(5));
+    expect(screen.getByRole("status")).toHaveTextContent("已加载 5/6 张 · 失败 1");
     fireEvent.click(screen.getByRole("button", { name: "重试失败截图" }));
     act(() => observers[6](true));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(7));
     await waitFor(() => expect(container.querySelectorAll('[data-preview-state="ready"]')).toHaveLength(6));
+    expect(screen.getByRole("status")).toHaveTextContent("已加载 6/6 张");
     rerender(<VideoStoryboard video={{ ...video, updatedAt: "T2", timelinePreviewStatus: "ready" }} onPlay={vi.fn()} />);
     expect(container.querySelectorAll('[data-preview-state="ready"]')).toHaveLength(6);
     expect(load).toHaveBeenCalledTimes(7);
@@ -150,6 +152,9 @@ describe("list storyboard", () => {
     rerender(<VideoStoryboard video={{ ...video, providerFileId: "remote-id" }} onPlay={vi.fn()} />);
     act(() => observers[1](true));
     await waitFor(() => expect(load).toHaveBeenCalledOnce());
-    expect(load.mock.calls[0][0]).toMatchObject({ priority: 0 });
+    expect(load.mock.calls[0][0]).toMatchObject({ priority: 1 });
+    act(() => observers[2](true));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(load.mock.calls[1][0]).toMatchObject({ priority: 0 });
   });
 });

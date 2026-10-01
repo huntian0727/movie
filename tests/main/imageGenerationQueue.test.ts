@@ -9,6 +9,24 @@ function deferred() {
 }
 
 describe("current-page image generation queue", () => {
+  it("serializes remote reads, promotes other videos' first frames, and leaves a slot for local work", async () => {
+    const queue = new ImageGenerationQueue(2);
+    const gate = deferred();
+    const order: string[] = [];
+    const states: string[] = [];
+    const first = queue.run("remote-1-first", () => gate.promise, { remote: true, priority: 1 });
+    const rest = queue.run("remote-1-rest", async () => { order.push("rest"); }, { remote: true, priority: 0 });
+    const other = queue.run("remote-2-first", async () => { order.push("other-first"); }, { remote: true, priority: 1, onStateChange: (state) => states.push(state) });
+    const local = queue.run("local", async () => { order.push("local"); });
+    await local;
+    expect(order).toEqual(["local"]);
+    expect(states).toEqual(["queued"]);
+    gate.resolve();
+    await Promise.all([first, rest, other]);
+    expect(order).toEqual(["local", "other-first", "rest"]);
+    expect(states).toEqual(["queued", "active"]);
+  });
+
   it("bounds concurrency and promotes current interactions ahead of old queued work", async () => {
     const queue = new ImageGenerationQueue(2);
     const gate = deferred();
