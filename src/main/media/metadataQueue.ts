@@ -19,6 +19,8 @@ export type MetadataQueueItemState = "queued" | "active" | null;
 export class MetadataQueue {
   private readonly waiting: string[] = [];
   private readonly scheduled = new Set<string>();
+  private readonly backgroundOwned = new Set<string>();
+  private readonly visibleConsumers = new Map<string, Set<symbol>>();
   private readonly explicitRetries = new Set<string>();
   private readonly activeVideoIds = new Set<string>();
   private active = 0;
@@ -45,6 +47,7 @@ export class MetadataQueue {
 
   enqueue(videoId: string, explicitRetry = false): boolean {
     if (this.stopped) return false;
+    this.backgroundOwned.add(videoId);
     if (explicitRetry) this.explicitRetries.add(videoId);
     if (this.scheduled.has(videoId)) {
       if (explicitRetry) this.prioritizeWaitingVideo(videoId);
@@ -55,6 +58,49 @@ export class MetadataQueue {
     else this.waiting.push(videoId);
     this.pump();
     return true;
+  }
+
+  /** Visible-page requests share the existing bounded queue, without becoming permanent background work. */
+  async requestVisible(videoId: string, signal: AbortSignal, explicitRetry = false): Promise<import("../../shared/videoTypes.js").VideoRecord | null> {
+    if (this.stopped || signal.aborted) return null;
+    const video = this.repo.getVideo(videoId);
+    if (video.isMissing || video.sizeBytes <= 0 || video.metadataStatus !== "pending" || (video.durationMs !== null && video.durationMs > 0)) return video;
+    const consumer = Symbol(videoId);
+    const consumers = this.visibleConsumers.get(videoId) ?? new Set<symbol>();
+    consumers.add(consumer);
+    this.visibleConsumers.set(videoId, consumers);
+    if (explicitRetry) this.explicitRetries.add(videoId);
+    if (!this.scheduled.has(videoId)) {
+      this.scheduled.add(videoId);
+      this.waiting.unshift(videoId);
+    } else {
+      this.prioritizeWaitingVideo(videoId);
+    }
+    // Register the waiter before pumping, including synchronously skipped/deleted videos.
+    const completion = this.waitForVideo(videoId);
+    const releaseConsumer = () => {
+      if (!consumers.delete(consumer) || consumers.size > 0) return;
+      this.visibleConsumers.delete(videoId);
+      const index = this.waiting.indexOf(videoId);
+      if (index >= 0 && !this.backgroundOwned.has(videoId)) {
+        this.waiting.splice(index, 1);
+        this.scheduled.delete(videoId);
+        this.explicitRetries.delete(videoId);
+        this.resolveVideoWaiters(videoId);
+        if (this.active === 0 && this.waiting.length === 0) this.resolveIdleWaiters();
+      }
+    };
+    let abort!: () => void;
+    const cancelled = new Promise<void>((resolve) => { abort = () => { releaseConsumer(); resolve(); }; signal.addEventListener("abort", abort, { once: true }); });
+    this.pump();
+    try {
+      await Promise.race([completion, cancelled]);
+      if (signal.aborted || this.stopped) return null;
+      try { return this.repo.getVideo(videoId); } catch { return null; }
+    } finally {
+      signal.removeEventListener("abort", abort);
+      releaseConsumer();
+    }
   }
 
   enqueuePending(limit = 1000): number {
@@ -104,6 +150,7 @@ export class MetadataQueue {
     this.stopped = true;
     for (const videoId of this.waiting) {
       this.scheduled.delete(videoId);
+      this.backgroundOwned.delete(videoId);
       this.explicitRetries.delete(videoId);
       this.resolveVideoWaiters(videoId);
     }
@@ -120,6 +167,7 @@ export class MetadataQueue {
         this.active -= 1;
         this.activeVideoIds.delete(videoId);
         this.scheduled.delete(videoId);
+        this.backgroundOwned.delete(videoId);
         this.explicitRetries.delete(videoId);
         this.resolveVideoWaiters(videoId);
         this.pump();

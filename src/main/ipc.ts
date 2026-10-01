@@ -45,6 +45,7 @@ import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js
 import { bindLegacyCloudDriveDuplicateCandidates } from "./media/cloudDriveLegacyBindingService.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
+import { registerPreviewMetadataHandlers } from "./media/previewMetadataIpc.js";
 import { MetadataFileRefreshService } from "./media/metadataFileRefreshService.js";
 import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import { playWithMpv, waitForMpvStart } from "./media/mpvController.js";
@@ -405,6 +406,7 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
   ipcLogger = dependencies.logger;
+  registerPreviewMetadataHandlers(ipcMain, repo, dependencies.metadataQueue);
   const imageRequests = new Map<number, Map<string, AbortController>>();
   const observedImageOwners = new Set<number>();
   const imageRequestSchema = z.object({

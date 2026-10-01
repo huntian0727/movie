@@ -404,6 +404,12 @@ export interface PreviewImageRequest {
   priority: 0 | 1 | 2;
 }
 
+export interface PreviewMetadataRequest {
+  requestId: string;
+  videoId: string;
+  retry: boolean;
+}
+
 export type DuplicateGroupSortField = "reclaimableBytes" | "sizeBytes" | "duplicateCount" | "durationMs";
 
 export interface DuplicateGroupPageQuery {
@@ -1069,6 +1075,9 @@ export const IPC_CHANNELS = {
   videoRegenerateCover: "video:regenerate-cover",
   previewImageLoad: "preview-image:load",
   previewImageCancel: "preview-image:cancel",
+  previewMetadataLoad: "preview-metadata:load",
+  previewMetadataState: "preview-metadata:state",
+  previewMetadataCancel: "preview-metadata:cancel",
   videoRetryMetadata: "video:retry-metadata",
   videoOpenPlayer: "video:open-player",
   videoPlayExternal: "video:play-external",
@@ -1163,6 +1172,9 @@ export interface VideoManagerApi {
   regenerateCover(videoId: string): Promise<VideoRecord>;
   loadPreviewImage(request: PreviewImageRequest): Promise<Uint8Array | null>;
   cancelPreviewImage(requestId: string): Promise<void>;
+  loadPreviewMetadata(request: PreviewMetadataRequest): Promise<VideoRecord | null>;
+  getPreviewMetadataState(requestId: string): Promise<"queued" | "active" | null>;
+  cancelPreviewMetadata(requestId: string): Promise<void>;
   retryMetadata(videoId: string): Promise<VideoRecord>;
   openPlayer(videoId: string, queueIds: string[], startPositionMs?: number): Promise<boolean>;
   playExternalVideo(videoId: string, startPositionMs?: number): Promise<boolean>;

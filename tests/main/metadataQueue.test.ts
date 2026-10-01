@@ -10,6 +10,110 @@ import { describeMetadataFailure, MetadataQueue } from "../../src/main/media/met
 import type { VideoRecord } from "../../src/shared/videoTypes";
 
 describe("MetadataQueue", () => {
+  it("analyzes a visible unique-size cloud video even when the background candidate query excludes it", async () => {
+    const video = { ...createVideo("cloud", "Z:\\Cloud\\unique.mp4"), providerFileId: "remote-id", providerPath: "/unique.mp4" };
+    const videos = new Map([[video.id, video]]);
+    const repo = createRepo(videos);
+    repo.markDurationReady.mockImplementation(() => { videos.set(video.id, { ...video, metadataStatus: "ready", durationMs: 600_000 }); return true; });
+    const duration = vi.fn().mockResolvedValue(600_000);
+    const fullReader = vi.fn();
+    const queue = new MetadataQueue(repo.value, fullReader, 1, undefined, undefined, undefined, duration);
+    expect(queue.enqueuePending()).toBe(0);
+    expect(await queue.requestVisible(video.id, new AbortController().signal)).toMatchObject({ durationMs: 600_000, metadataStatus: "ready" });
+    expect(duration).toHaveBeenCalledOnce();
+    expect(fullReader).not.toHaveBeenCalled();
+    await queue.requestVisible(video.id, new AbortController().signal);
+    expect(duration).toHaveBeenCalledOnce();
+  });
+
+  it("prioritizes visible work but cancelling it never removes background-owned work", async () => {
+    const videos = new Map(["a", "b", "c"].map((id) => [id, createVideo(id, `Z:\\${id}.mp4`)]));
+    const repo = createRepo(videos);
+    const reader = vi.fn().mockResolvedValue({ durationMs: 1000, width: 1, height: 1, format: "mp4" });
+    const queue = new MetadataQueue(repo.value, reader);
+    queue.pause();
+    queue.enqueue("a");
+    queue.enqueue("b");
+    const bAbort = new AbortController();
+    const b = queue.requestVisible("b", bAbort.signal);
+    const cAbort = new AbortController();
+    const c = queue.requestVisible("c", cAbort.signal);
+    cAbort.abort();
+    expect(queue.getVideoState("c")).toBeNull();
+    bAbort.abort();
+    expect(queue.getVideoState("b")).toBe("queued");
+    expect(await c).toBeNull();
+    expect(await b).toBeNull();
+    queue.resume();
+    await queue.whenIdle();
+    expect(reader.mock.calls.map(([file]) => file)).toEqual(["Z:\\b.mp4", "Z:\\a.mp4"]);
+  });
+
+  it("shares visible requests and drops queued work only after the last consumer leaves", async () => {
+    const video = createVideo("v", "Z:\\v.mp4");
+    const repo = createRepo(new Map([[video.id, video]]));
+    const reader = vi.fn();
+    const queue = new MetadataQueue(repo.value, reader);
+    queue.pause();
+    const first = new AbortController();
+    const second = new AbortController();
+    const a = queue.requestVisible(video.id, first.signal);
+    const b = queue.requestVisible(video.id, second.signal);
+    expect(queue.getStatus()).toEqual({ queued: 1, active: 0 });
+    first.abort();
+    expect(queue.getVideoState(video.id)).toBe("queued");
+    second.abort();
+    expect(queue.getStatus()).toEqual({ queued: 0, active: 0 });
+    expect(await a).toBeNull();
+    expect(await b).toBeNull();
+    queue.resume();
+    await queue.whenIdle();
+    expect(reader).not.toHaveBeenCalled();
+  });
+
+  it("detaches an offscreen active request but finishes and caches one already-started analysis", async () => {
+    const video = createVideo("v", "Z:\\v.mp4");
+    const videos = new Map([[video.id, video]]);
+    const repo = createRepo(videos);
+    let finish!: (value: { durationMs: number; width: number; height: number; format: string }) => void;
+    const reader = vi.fn(() => new Promise<{ durationMs: number; width: number; height: number; format: string }>((resolve) => { finish = resolve; }));
+    repo.markMetadataReady.mockImplementation(() => { videos.set(video.id, { ...video, metadataStatus: "ready", durationMs: 1000 }); return true; });
+    const queue = new MetadataQueue(repo.value, reader);
+    const abort = new AbortController();
+    const requested = queue.requestVisible(video.id, abort.signal);
+    expect(queue.getVideoState(video.id)).toBe("active");
+    abort.abort();
+    expect(await requested).toBeNull();
+    finish({ durationMs: 1000, width: 1, height: 1, format: "mp4" });
+    await queue.whenIdle();
+    expect(await queue.requestVisible(video.id, new AbortController().signal)).toMatchObject({ durationMs: 1000 });
+    expect(reader).toHaveBeenCalledOnce();
+  });
+
+  it("does not auto-retry failed, missing, zero-byte, or ready-without-duration records", async () => {
+    const videos = new Map<string, VideoRecord>([
+      ["failed", { ...createVideo("failed", "Z:\\f.mp4"), metadataStatus: "failed" }],
+      ["missing", { ...createVideo("missing", "Z:\\m.mp4"), isMissing: true }],
+      ["zero", { ...createVideo("zero", "Z:\\z.mp4"), sizeBytes: 0 }],
+      ["ready", { ...createVideo("ready", "Z:\\r.mp4"), metadataStatus: "ready" }]
+    ]);
+    const repo = createRepo(videos);
+    const reader = vi.fn();
+    const queue = new MetadataQueue(repo.value, reader);
+    for (const id of videos.keys()) expect((await queue.requestVisible(id, new AbortController().signal))?.id).toBe(id);
+    expect(reader).not.toHaveBeenCalled();
+    expect(queue.getStatus()).toEqual({ queued: 0, active: 0 });
+  });
+
+  it("releases visible waiters when the queue stops", async () => {
+    const video = createVideo("v", "Z:\\v.mp4");
+    const queue = new MetadataQueue(createRepo(new Map([[video.id, video]])).value, vi.fn());
+    queue.pause();
+    const result = queue.requestVisible(video.id, new AbortController().signal);
+    queue.stop();
+    expect(await result).toBeNull();
+  });
+
   it("reports queued and active item states", async () => {
     const video = createVideo("v1", "Z:\\Cloud\\queued.mp4");
     const repo = createRepo(new Map([[video.id, video]]));
