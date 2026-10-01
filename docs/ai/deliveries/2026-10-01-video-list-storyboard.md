@@ -2,7 +2,7 @@
 date: 2026-10-01
 branch: ai/video-list-storyboard
 type: feat
-status: desktop-delivered-remote-blocked
+status: completed
 ---
 
 # 视频浏览列表截图故事板
@@ -45,4 +45,4 @@ status: desktop-delivered-remote-blocked
 - 只有取得有效时长的视频才能均匀采样；时长缺失需先完成原元数据任务。
 - 展开使用更密的均匀采样位置，首次可能生成另一组帧，均纳入现有时间轴缓存配额。
 - MPV 不可用时沿用系统默认播放器回退，系统默认播放器接口无法保证传递指定起始时间。
-- 桌面版本已交付，本地功能代码已提交。GitHub 同步仍受连接重置影响；最终交付脚本将按仓库规则尝试提交交付记录与推送，失败则保留本地提交，不强制同步或覆盖远端。
+- 桌面版本已交付，GitHub 连接已恢复。自动交付脚本成功同步 `ai/video-list-storyboard` 与 `origin/main`，核对 Commit `b666835`，更新 main 前备份标签为 `backup-main-20261001-225920-fa6ed9c`。随后仅补充本条同步结果，不影响已打包功能代码。
