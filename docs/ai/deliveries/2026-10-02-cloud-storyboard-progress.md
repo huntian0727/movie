@@ -2,7 +2,7 @@
 date: 2026-10-02
 branch: ai/cloud-storyboard-progress
 type: fix
-status: verification-in-progress
+status: desktop-delivered
 ---
 
 # 云盘截图条进度与有界抽帧优化
@@ -33,9 +33,13 @@ status: verification-in-progress
 
 - 定向测试：7 文件、95 项通过；新增 IPC 两项在后续全量运行通过。覆盖云盘单并发、首张优先、本地任务保留槽位、跨窗口请求隔离、参数拒绝/上限/关闭释放、缓存命中、当前身份六张完整性、失败重试和图片解码失败。
 - 实际打包所用 FFmpeg：在隔离临时目录生成 12 秒 H.264、10 秒 GOP 测试视频，在 5 秒采样点使用新参数成功输出 8063 字节 JPEG。仅证明真实二进制参数兼容与输出成功，不是云盘带宽基准。
-- 扩展真实二进制测试发现 11 秒末尾采样会因负帧时间而无图；增加输出 `setpts=PTS-STARTPTS` 后 1/3/5/7/9/11 秒六点均成功。新增自动化真实 FFmpeg 长 GOP 六张抽帧测试，确保末尾帧非空；以下门禁结果将更新为此修正版。
+- 扩展真实二进制测试发现 11 秒末尾采样会因负帧时间而无图；增加输出 `setpts=PTS-STARTPTS` 后 1/3/5/7/9/11 秒六点均成功。新增自动化真实 FFmpeg 长 GOP 六张抽帧测试，确保末尾帧非空；以下门禁结果均针对最终修正版。
 - 最终修正版 `npm run test:release-gate`：PASS，81 文件、749 项全量测试，lint/typecheck、build、Windows 文件操作、迁移、性能检查均通过。此次测试进程设置 `VITEST_MAX_FORKS=2`、`VITEST_MIN_FORKS=1`。初次暴露的新 IPC 校验问题已修复；默认高并发执行中既有 LibraryShell 渐进渲染测试曾触发 1 秒等待超时，单独运行 58 项通过（目标用例 650ms），最终两 forks 完整门禁目标用例 614ms。未更改业务、断言或等待预算。真实 FFmpeg 测试固定为 Node 环境，避免 jsdom AbortSignal 与 Node subprocess 不兼容；最终六点实际抽帧测试 430ms。
-- Electron、打包、安装器烟测及桌面快捷方式验收：待执行，完成后补充真实结果。
+- `npm run prepare:electron`、`npm run test:electron-smoke`：PASS，Electron 33.4.11 / ABI 130；末尾采样修正版重新执行。
+- `npm run verify:artifact`、`npm run test:packaged-smoke`、`npm run test:installer-smoke`：PASS；包含实际 Renderer 解码封面、缓存命中、手动重置和轮询稳定性、数据库重开及 Worker 查询。安装器在隔离目录检查安装/覆盖安装/卸载与数据库和源视频哨兵保留。
+- 真实桌面：原 2/6、1/6、0/6 的三个云盘样本，经新列表均自动补齐至 6/6。实际观察到第一条 3/6、生成中 1、排队 2，再补齐；第二条 5/6、生成中 1，再补齐；第三条也显示六张成功图片。观察期间成功图片不因状态轮询闪烁，可以继续切换视图和搜索。
+- 只读验收：三个样本逐一核对六个当前文件身份的本地缓存路径均非空，六条 timeline_previews 登记均匹配，timeline_preview_status 均为 ready。检查没有读取源视频或修改数据库，没有把缓存生成成功当作视频完整性证明。
+- 自动交付采用 `-SkipChecks`：本轮同一工作区已完整执行并记录上述等价检查，最后只有交付文档变化；当前 SQLite 原生模块已恢复为 Electron ABI 130。不是绕过失败检查。
 
 ## Risks and follow-up
 
@@ -47,4 +51,7 @@ status: verification-in-progress
 
 ## Desktop delivery
 
-待打包和真实快捷方式验收；目前不能宣称桌面版本已交付。
+- Code Commit `86f665d`：2026-10-02 03:26:36 +08:00；`app.asar`：03:26:42；NSIS：03:27:07。最后文档提交不改变运行代码。
+- 新安装包：`C:/Users/test/Documents/视频管理/movie/release/拉面影视-0.1.15-x64-Setup.exe`。
+- 安装烟测后恢复并核对 `C:/Users/test/Desktop/拉面影视.lnk`，真实目标 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。
+- 使用 computer-use 从 Explorer 打开此实际桌面快捷方式，启动最新包；资产中心正常。在云盘目录仅筛选一个已知缺图视频，切换列表模式，确认新的帧进度与关键帧说明存在，实际补齐截图。
