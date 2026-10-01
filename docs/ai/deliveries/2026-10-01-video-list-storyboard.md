@@ -2,7 +2,7 @@
 date: 2026-10-01
 branch: ai/video-list-storyboard
 type: feat
-status: partial
+status: desktop-delivered-remote-blocked
 ---
 
 # 视频浏览列表截图故事板
@@ -32,7 +32,12 @@ status: partial
 - 测试覆盖：中心分段及边界、未知时长、稳定文件版本缓存、可见性加载和取消、展开/收起、失败隔离重试、CloudDrive 请求优先级、同视频重复截图点击、新媒体加载定位、后续快照不重复定位、切换视频清空起始位置、MPV 起始参数。
 - 首轮新测试修正：测试媒体实际时长为 1 秒，改为 500ms 断言；在卸载组件后再还原 URL mock，避免测试清理异常。
 - 测试环境使用本地隔离 Node 22.23.1 / npm 10.9.8，并分别匹配 Node 与 Electron SQLite ABI；未更改用户资料库。临时旧 npm 目录文件缺失，通过 npm 包缓存准备了新的临时工具环境。
-- 桌面重新打包与人工验证：待完成，尚未宣称桌面版本已交付。
+- `npm run verify:artifact`、`npm run test:packaged-smoke`、`npm run test:installer-smoke`：PASS。安装器测试使用隔离安装目录，未覆盖用户资料库；其卸载阶段移除了同名桌面快捷方式，随后已恢复并重新核对目标。
+- Windows 桌面包与 NSIS 安装包已重新生成。代码 Commit `91f906d` 时间 2026-10-01 22:38:19；`release/win-unpacked/resources/app.asar` 时间 22:41:12；`release/拉面影视-0.1.15-x64-Setup.exe` 时间 22:41:35（本地时间）。首轮打包因旧应用残留进程占用 DLL 失败，关闭对应旧程序进程后重试打包成功。
+- 桌面快捷方式 `C:/Users/test/Desktop/拉面影视.lnk` 实际目标为 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`，已从该快捷方式实际启动验证。
+- 真实 UI 验证：测试视频目录列表显示 6 张截图，横屏/竖屏比例正确；2:44 视频展开为 8 张均匀截图且成功加载；点击 01:12 截图后既有播放窗口显示起始位置 72.2 秒。返回列表后已加载图片仍存在。未执行文件删除或整库扫描。
+- 当前用户配置的外部播放实际回退到系统 PotPlayer，未发现运行中的 MPV。实际 MPV 指定时间播放和真实内置解码定位未完成人工验证；其参数和定位逻辑已由自动化测试覆盖，不将系统播放器回退声称为指定时间播放成功。
+- `project-backup -Action Verify`：PASS，SQLite quick_check 为 ok，schema 13、345480 条视频记录。
 
 ## Risks and follow-up
 
@@ -40,4 +45,4 @@ status: partial
 - 只有取得有效时长的视频才能均匀采样；时长缺失需先完成原元数据任务。
 - 展开使用更密的均匀采样位置，首次可能生成另一组帧，均纳入现有时间轴缓存配额。
 - MPV 不可用时沿用系统默认播放器回退，系统默认播放器接口无法保证传递指定起始时间。
-- 发布推送、桌面包和真实 UI 检查结果将在验证后补充。
+- 桌面版本已交付，本地功能代码已提交。GitHub 同步仍受连接重置影响；最终交付脚本将按仓库规则尝试提交交付记录与推送，失败则保留本地提交，不强制同步或覆盖远端。
