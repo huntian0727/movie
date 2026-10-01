@@ -452,6 +452,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
         hasPrevious={selectedIndex > 0}
         hasNext={selectedIndex < playerQueuedVideos.length - 1}
         playbackRoute={playbackRoute}
+        startPositionMs={playerSession?.startPositionMs}
+        startRequestId={playerSession?.startRequestId}
         onBack={isPlayerWindow ? undefined : () => setSelectedVideoId(null)}
         onPrevious={async () => {
           const nextId = playerQueuedVideos[selectedIndex - 1]?.id ?? selectedVideo.id;
@@ -498,7 +500,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
             setSelectedVideoId(null);
           }
         }}
-        onPlayExternal={async () => { await api.playExternalVideo(selectedVideo.id); }}
+        onPlayExternal={async () => { await api.playExternalVideo(selectedVideo.id, playerSession?.startPositionMs); }}
         getTimelinePreviewUrl={(timeMs) =>
           `local-video://preview/${encodeURIComponent(selectedVideo.id)}/${timeMs}?v=${encodeURIComponent(selectedVideo.updatedAt)}`
         }
@@ -603,10 +605,10 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       onPreviewDuplicateResolve={(plan: DuplicateResolvePlan) => api.previewDuplicateResolve(plan)}
       onRevealInFolder={(video) => api.revealVideoInFolder(video.id).then(() => undefined)}
       onPlayExternal={(video) => api.playExternalVideo(video.id).then(() => undefined)}
-      onOpen={async (video, queue) => {
+      onOpen={async (video, queue, startPositionMs) => {
         const queueIds = queue.map((item) => item.id);
         setDirectoryPlaybackQueue([]);
-        await api.openPlayer(video.id, queueIds);
+        await api.openPlayer(video.id, queueIds, startPositionMs);
         setPlayHistory(await api.listPlayHistory());
       }}
       getCoverUrl={getCoverUrl}

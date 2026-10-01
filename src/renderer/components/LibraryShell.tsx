@@ -66,7 +66,7 @@ interface LibraryShellProps {
   onCancelScanFailureBatch?: VideoManagerApi["cancelScanFailureBatch"];
   onOpenScanFailureLocation?(failureId: string): Promise<unknown>;
   onRefresh?(): void | Promise<void>;
-  onOpen?(video: VideoRecord, queue: VideoRecord[]): void | Promise<void>;
+  onOpen?(video: VideoRecord, queue: VideoRecord[], startPositionMs?: number): void | Promise<void>;
   onPlayExternal?(video: VideoRecord): void | Promise<void>;
   onToggleFavorite?(video: VideoRecord): void | Promise<void>;
   onTogglePendingDelete?(video: VideoRecord): void | Promise<void>;
@@ -1078,7 +1078,7 @@ export function LibraryShell({
           </>
         ) : (
           <>
-            <VideoTable videos={renderedVideos} onOpen={openVideo} onViewDetails={viewVideoDetails} onToggleFavorite={toggleFavorite} onTogglePendingDelete={onTogglePendingDelete ? togglePendingDelete : undefined} onRename={renameVideo} onDelete={deleteVideo} selectionMode={selectionMode} selectedIds={selectedVideoIds} onToggleSelection={toggleSelectedVideo} />
+            <VideoTable videos={renderedVideos} onOpen={openVideo} onOpenAt={(video, timeMs) => void onOpen?.(video, renderedVideos, timeMs)} onViewDetails={viewVideoDetails} onToggleFavorite={toggleFavorite} onTogglePendingDelete={onTogglePendingDelete ? togglePendingDelete : undefined} onRename={renameVideo} onDelete={deleteVideo} selectionMode={selectionMode} selectedIds={selectedVideoIds} onToggleSelection={toggleSelectedVideo} />
             <PaginationBar page={currentPage} totalPages={totalPages} pageSize={pageSize} totalCount={onLoadVideoPage ? videoPage.totalCount : visibleVideos.length} onPage={setPage} onPageSize={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
           </>
         )}

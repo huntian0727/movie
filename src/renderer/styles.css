@@ -393,6 +393,21 @@ button { color: inherit; }
 .table-title strong, .table-title small { display: block; }
 .table-title strong { max-width: 360px; overflow: hidden; color: #eceeeb; font-size: 12px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .table-title small { margin-top: 2px; color: #626560; font-size: 9px; }
+.video-table .video-table-info-row td { border-bottom: 0; }
+.video-table .video-table-storyboard-row td { height: auto; padding: 0 12px 18px 46px; }
+.video-storyboard { max-width: 1120px; }
+.video-storyboard-frames { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; overflow: hidden; border-radius: 5px; background: #202220; }
+.video-storyboard-frame { position: relative; display: block; min-width: 0; width: 100%; aspect-ratio: 16 / 9; padding: 0; overflow: hidden; border: 0; border-radius: 0; background: #202824; cursor: pointer; }
+.video-storyboard-frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.video-storyboard-frame:hover, .video-storyboard-frame:focus-visible { outline: 2px solid #df735d; outline-offset: -2px; }
+.video-storyboard-time { position: absolute; right: 4px; bottom: 4px; padding: 2px 4px; border-radius: 3px; color: #fff; background: #000b; font-size: 10px; font-variant-numeric: tabular-nums; }
+.video-storyboard-frame-error { position: absolute; inset: 0; display: grid; place-items: center; color: #949b93; background: #202824; font-size: 11px; }
+.video-storyboard-footer { display: flex; align-items: center; gap: 12px; min-height: 28px; color: #71766e; font-size: 10px; }
+.video-storyboard-footer > span { margin-right: auto; }
+.video-storyboard-footer button { display: inline-flex; align-items: center; gap: 4px; padding: 3px 0; border: 0; background: transparent; color: #a6afa4; font-size: 10px; cursor: pointer; }
+.video-storyboard-footer button:hover { color: #edf0e9; }
+.video-storyboard.is-expanded .video-storyboard-frames { gap: 6px; background: transparent; }
+.video-storyboard-unavailable { margin: 0; padding: 2px 0 8px; color: #70756e; font-size: 11px; }
 
 .empty-state, .loading-state { min-height: calc(100vh - 89px); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #7b7e79; text-align: center; }
 .empty-state > div { width: 62px; height: 62px; border-radius: 8px; display: grid; place-items: center; color: #b0b3ad; background: #222422; }

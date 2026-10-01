@@ -122,6 +122,19 @@ describe("player queue normalization", () => {
 });
 
 describe("PlayerWindowCoordinator", () => {
+  it("preserves a seek request across snapshots, gives repeated clicks distinct requests, and clears it on next video", async () => {
+    const fixture = createRepo(["v1", "v2"]);
+    const coordinator = new PlayerWindowCoordinator(fixture.repo, { currentDir: "C:\\app", devServerUrl: "http://127.0.0.1:5173/", isPackaged: false });
+    const first = await coordinator.setSession({ videoId: "v1", queueIds: ["v1", "v2"], startPositionMs: 500 }, 0);
+    expect(first.startPositionMs).toBe(500);
+    expect(first.startRequestId).toBeTruthy();
+    expect(coordinator.getSnapshot(1).playerSession?.startRequestId).toBe(first.startRequestId);
+    const repeated = await coordinator.setSession({ videoId: "v1", queueIds: ["v1", "v2"], startPositionMs: 500 }, 2);
+    expect(repeated.startRequestId).not.toBe(first.startRequestId);
+    const next = await coordinator.select("v2", 3);
+    expect(next.startPositionMs).toBeUndefined();
+    expect(next.startRequestId).toBeUndefined();
+  });
   it("loads a fixed player URL without serializing video or queue IDs", async () => {
     const fixture = createRepo(["secret-video", "second-video"]);
     const coordinator = new PlayerWindowCoordinator(fixture.repo, {

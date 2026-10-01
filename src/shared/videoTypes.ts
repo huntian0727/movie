@@ -982,6 +982,8 @@ export interface PlayerSessionSnapshot {
   selectedVideoId: string;
   queueIds: string[];
   videos: VideoRecord[];
+  startPositionMs?: number;
+  startRequestId?: string;
 }
 
 export interface WindowSyncSnapshot {
@@ -1162,8 +1164,8 @@ export interface VideoManagerApi {
   loadPreviewImage(request: PreviewImageRequest): Promise<Uint8Array | null>;
   cancelPreviewImage(requestId: string): Promise<void>;
   retryMetadata(videoId: string): Promise<VideoRecord>;
-  openPlayer(videoId: string, queueIds: string[]): Promise<boolean>;
-  playExternalVideo(videoId: string): Promise<boolean>;
+  openPlayer(videoId: string, queueIds: string[], startPositionMs?: number): Promise<boolean>;
+  playExternalVideo(videoId: string, startPositionMs?: number): Promise<boolean>;
   listPlayHistory(): Promise<PlayHistoryEntry[]>;
   recordPlayback(videoId: string, positionMs?: number): Promise<boolean>;
   getWindowSyncSnapshot(): Promise<WindowSyncSnapshot>;

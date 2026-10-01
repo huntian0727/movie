@@ -69,6 +69,19 @@ afterEach(() => {
 });
 
 describe("PlayerPage", () => {
+  it("seeks when metadata loads and seeks again for a new screenshot request on the same video", () => {
+    const { container, rerender } = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" startPositionMs={30_000} startRequestId="first" />);
+    const element = container.querySelector("video")!;
+    Object.defineProperty(element, "readyState", { configurable: true, value: 1 });
+    Object.defineProperty(element, "duration", { configurable: true, value: 90 });
+    fireEvent.loadedMetadata(element);
+    expect(element.currentTime).toBe(30);
+    element.currentTime = 45;
+    rerender(<PlayerPage video={{ ...video, updatedAt: "later" }} mediaUrl="local-video://media/v1" startPositionMs={30_000} startRequestId="first" />);
+    expect(element.currentTime).toBe(45);
+    rerender(<PlayerPage video={video} mediaUrl="local-video://media/v1" startPositionMs={60_000} startRequestId="second" />);
+    expect(element.currentTime).toBe(60);
+  });
   it("renders standard player controls", () => {
     render(<PlayerPage video={video} />);
     expect(screen.getByText("clip.mp4")).toBeInTheDocument();

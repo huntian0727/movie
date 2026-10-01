@@ -206,7 +206,8 @@ const metadataIssuePageQuerySchema = z.object({
 }).strict();
 const videoIdsSchema = z.array(z.string().min(1)).min(1).max(500);
 const playerSessionSchema = videoIdSchema.extend({
-  queueIds: z.array(z.string().min(1)).min(1).max(MAX_PLAYER_QUEUE_ITEMS)
+  queueIds: z.array(z.string().min(1)).min(1).max(MAX_PLAYER_QUEUE_ITEMS),
+  startPositionMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional()
 });
 const batchMoveSchema = z.object({ videoIds: videoIdsSchema, targetDirectory: z.string().min(1), addTargetToLibrary: z.boolean() }).strict();
 const duplicateGroupPageQuerySchema = z.object({
@@ -1049,10 +1050,10 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
 
   ipcMain.handle(IPC_CHANNELS.videoPlayExternal, async (_event, payload) => {
-    const parsed = videoIdSchema.parse(payload);
+    const parsed = videoIdSchema.extend({ startPositionMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional() }).parse(payload);
     const video = repo.getVideo(parsed.videoId);
     try {
-      await waitForMpvStart(playWithMpv(video.path));
+      await waitForMpvStart(playWithMpv(video.path, undefined, parsed.startPositionMs));
     } catch (cause) {
       const fallbackError = await shell.openPath(video.path);
       if (fallbackError) {

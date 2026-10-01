@@ -1,10 +1,14 @@
+import { Fragment } from "react";
 import { BookmarkX, Heart, Info, Pencil, Play, Trash2 } from "lucide-react";
 import type { VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDate, formatDuration } from "./formatters";
+import { VideoStoryboard } from "./VideoStoryboard";
+import { useProgressiveRenderCount } from "./useProgressiveRenderCount";
 
 type VideoTableProps = {
   videos: VideoRecord[];
   onOpen(video: VideoRecord): void;
+  onOpenAt?(video: VideoRecord, timeMs: number): void;
   onViewDetails(video: VideoRecord): void;
   onToggleFavorite(video: VideoRecord): void;
   onTogglePendingDelete?(video: VideoRecord): void;
@@ -15,14 +19,15 @@ type VideoTableProps = {
   onToggleSelection?(video: VideoRecord): void;
 };
 
-export function VideoTable({ videos, onOpen, onViewDetails, onToggleFavorite, onTogglePendingDelete, onRename, onDelete, selectionMode = false, selectedIds, onToggleSelection }: VideoTableProps) {
+export function VideoTable({ videos, onOpen, onOpenAt, onViewDetails, onToggleFavorite, onTogglePendingDelete, onRename, onDelete, selectionMode = false, selectedIds, onToggleSelection }: VideoTableProps) {
+  const visibleCount = useProgressiveRenderCount(videos.map((video) => video.id).join("|"), videos.length, 12, 12);
   return (
     <div className="table-scroll">
       <table className="video-table">
         <thead><tr>{selectionMode && <th aria-label="选择" />}<th>文件名</th><th>大小</th><th>时长</th><th>分辨率</th><th>修改日期</th><th aria-label="操作" /></tr></thead>
         <tbody>
-          {videos.map((video) => (
-            <tr key={video.id} onDoubleClick={() => !selectionMode && onOpen(video)}>
+          {videos.slice(0, visibleCount).map((video) => (
+            <Fragment key={video.id}><tr className="video-table-info-row" onDoubleClick={() => !selectionMode && onOpen(video)}>
               {selectionMode && <td><input type="checkbox" aria-label={`选择 ${video.filename}`} checked={selectedIds?.has(video.id) ?? false} onChange={() => onToggleSelection?.(video)} /></td>}
               <td><div className="table-title"><span className="table-file-icon"><Play size={14} fill="currentColor" /></span><div><strong>{video.filename}</strong><small>{video.extension.slice(1).toUpperCase()}</small></div></div></td>
               <td>{formatBytes(video.sizeBytes)}</td>
@@ -36,7 +41,9 @@ export function VideoTable({ videos, onOpen, onViewDetails, onToggleFavorite, on
                 <button aria-label="重命名" onClick={() => onRename(video)}><Pencil size={15} /></button>
                 <button className="danger-action" aria-label="删除" onClick={() => onDelete(video)}><Trash2 size={15} /></button>
               </div></td>
-            </tr>
+            </tr><tr className="video-table-storyboard-row"><td colSpan={selectionMode ? 8 : 7}>
+              <VideoStoryboard video={video} onPlay={(timeMs) => onOpenAt ? onOpenAt(video, timeMs) : onOpen(video)} />
+            </td></tr></Fragment>
           ))}
         </tbody>
       </table>

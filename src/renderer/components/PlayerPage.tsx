@@ -18,6 +18,8 @@ interface PlayerPageProps {
   hasPrevious?: boolean;
   hasNext?: boolean;
   playbackRoute?: PlaybackRoute;
+  startPositionMs?: number;
+  startRequestId?: string;
   onBack?(): void;
   onPrevious?(): void;
   onNext?(): void;
@@ -40,6 +42,8 @@ export function PlayerPage({
   hasPrevious = true,
   hasNext = true,
   playbackRoute = "native",
+  startPositionMs = 0,
+  startRequestId,
   onBack,
   onPrevious,
   onNext,
@@ -88,6 +92,21 @@ export function PlayerPage({
   currentDirectoryRef.current = video.directory;
   const isExternalPlayback = playbackRoute === "mpv";
   const externalAutoplayKeyRef = useRef<string | null>(null);
+  const pendingStartRef = useRef<number | null>(null);
+
+  const applyStartingPosition = () => {
+    const element = videoRef.current;
+    if (!element || pendingStartRef.current === null || element.readyState < 1) return;
+    const seconds = pendingStartRef.current / 1000;
+    element.currentTime = Number.isFinite(element.duration) ? Math.min(seconds, Math.max(0, element.duration - 0.001)) : seconds;
+    pendingStartRef.current = null;
+    setCurrentTime(element.currentTime);
+  };
+
+  useEffect(() => {
+    pendingStartRef.current = startPositionMs;
+    if (!isExternalPlayback) applyStartingPosition();
+  }, [video.id, mediaUrl, isExternalPlayback, startPositionMs, startRequestId]);
 
   const clearControlsHideTimeout = () => {
     if (controlsHideTimeoutRef.current !== null) {
@@ -120,14 +139,14 @@ export function PlayerPage({
       return;
     }
 
-    const autoplayKey = `${video.id}:${playbackRoute}`;
+    const autoplayKey = `${video.id}:${playbackRoute}:${startRequestId ?? ""}`;
     if (externalAutoplayKeyRef.current === autoplayKey) {
       return;
     }
 
     externalAutoplayKeyRef.current = autoplayKey;
     void launchExternalPlayback();
-  }, [autoPlayOnOpen, isExternalPlayback, onPlayExternal, playbackRoute, video.id]);
+  }, [autoPlayOnOpen, isExternalPlayback, onPlayExternal, playbackRoute, video.id, startRequestId]);
 
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -170,7 +189,7 @@ export function PlayerPage({
   useEffect(() => {
     setRotationDegrees(0);
     setDecodedVideoSize(null);
-    setCurrentTime(0);
+    setCurrentTime(startPositionMs / 1000);
     setDuration((video.durationMs ?? 0) / 1000);
   }, [video.id]);
 
@@ -563,6 +582,7 @@ export function PlayerPage({
             style={videoStyle}
             onClick={handleStageClick}
             onLoadedMetadata={(event) => {
+              applyStartingPosition();
               const { videoWidth, videoHeight } = event.currentTarget;
               if (videoWidth > 0 && videoHeight > 0) {
                 setDecodedVideoSize({ width: videoWidth, height: videoHeight });

@@ -1,4 +1,5 @@
 import { BrowserWindow } from "electron";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { VideoRepository } from "./db/videoRepository.js";
@@ -26,11 +27,14 @@ export const PLAYBACK_CODEC_PROBE_WAIT_MS = 2_000;
 export interface OpenPlayerWindowInput {
   videoId: string;
   queueIds: string[];
+  startPositionMs?: number;
 }
 
 interface PlayerSessionState {
   selectedVideoId: string;
   queueIds: string[];
+  startPositionMs?: number;
+  startRequestId?: string;
 }
 
 export class DomainEventBus {
@@ -86,6 +90,7 @@ export class PlayerWindowCoordinator {
 
   async setSession(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
     this.session = normalizePlayerSession(this.repo, input);
+    if (this.session.startPositionMs !== undefined) this.session.startRequestId = randomUUID();
     if (await waitForCodecMetadata(this.ensureCodecMetadata, this.session.selectedVideoId)) {
       this.logCodecProbeWaitTimeout(this.session.selectedVideoId);
     }
@@ -122,14 +127,17 @@ export class PlayerWindowCoordinator {
         original.queueIds.slice(0, Math.max(0, selectedIndex)).reverse().find((id) => availableIds.includes(id)) ??
         availableIds[0];
     }
-    this.session = { selectedVideoId, queueIds: availableIds };
+    const start = selectedVideoId === original.selectedVideoId && original.startPositionMs !== undefined
+      ? { startPositionMs: original.startPositionMs, startRequestId: original.startRequestId } : {};
+    this.session = { selectedVideoId, queueIds: availableIds, ...start };
     return {
       sequence,
       playerSession: {
         sequence,
         selectedVideoId,
         queueIds: availableIds,
-        videos
+        videos,
+        ...start
       }
     };
   }
@@ -168,6 +176,9 @@ async function waitForCodecMetadata(ensureCodecMetadata: CodecMetadataEnsurer, v
 }
 
 export function normalizePlayerSession(repo: VideoRepository, input: OpenPlayerWindowInput): PlayerSessionState {
+  if (input.startPositionMs !== undefined && (!Number.isSafeInteger(input.startPositionMs) || input.startPositionMs < 0)) {
+    throw new Error("Player start position must be a nonnegative safe integer");
+  }
   if (input.queueIds.length < 1 || input.queueIds.length > MAX_PLAYER_QUEUE_ITEMS) {
     throw new Error(`Player queue must contain between 1 and ${MAX_PLAYER_QUEUE_ITEMS} items`);
   }
@@ -182,7 +193,8 @@ export function normalizePlayerSession(repo: VideoRepository, input: OpenPlayerW
   }
   return {
     selectedVideoId: input.videoId,
-    queueIds: uniqueQueueIds.filter((videoId) => availableIds.has(videoId))
+    queueIds: uniqueQueueIds.filter((videoId) => availableIds.has(videoId)),
+    ...(input.startPositionMs === undefined ? {} : { startPositionMs: Math.min(input.startPositionMs, Math.max(0, (videos.find((video) => video.id === input.videoId)?.durationMs ?? Infinity) - 1)) })
   };
 }
 

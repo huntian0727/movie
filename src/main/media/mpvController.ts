@@ -1,11 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
 
-export function buildMpvArgs(filePath: string): string[] {
-  return ["--force-window=yes", "--keep-open=no", filePath];
+export function buildMpvArgs(filePath: string, startPositionMs?: number): string[] {
+  const start = startPositionMs !== undefined && Number.isSafeInteger(startPositionMs) && startPositionMs >= 0 ? [`--start=${startPositionMs / 1000}`] : [];
+  return ["--force-window=yes", "--keep-open=no", ...start, filePath];
 }
 
-export function playWithMpv(filePath: string, mpvExecutable = "mpv"): ChildProcess {
-  const child = spawn(mpvExecutable, buildMpvArgs(filePath), {
+export function playWithMpv(filePath: string, mpvExecutable = "mpv", startPositionMs?: number): ChildProcess {
+  const child = spawn(mpvExecutable, buildMpvArgs(filePath, startPositionMs), {
     stdio: "ignore",
     windowsHide: true,
     detached: true
