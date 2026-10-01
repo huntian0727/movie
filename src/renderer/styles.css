@@ -376,6 +376,7 @@ button { color: inherit; }
 .video-card p { margin: 4px 0 7px; display: flex; align-items: center; gap: 7px; color: #777a75; font-size: 11px; }
 .video-card p i { width: 2px; height: 2px; border-radius: 50%; background: #626560; }
 .card-actions, .row-actions { display: flex; align-items: center; gap: 3px; }
+.video-preview-action-status { margin: 0 0 8px; color: var(--text-muted, #92968e); font-size: 12px; }
 .card-actions { min-height: 27px; }
 .card-actions button, .row-actions button { width: 28px; height: 27px; border: 0; border-radius: 4px; display: grid; place-items: center; color: #777a75; background: transparent; cursor: pointer; }
 .card-actions button:hover, .row-actions button:hover { color: #fff; background: #2c2e2b; }

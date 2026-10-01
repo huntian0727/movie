@@ -281,6 +281,24 @@ describe("LibraryShell", () => {
     expect(screen.queryByText("episode-02.mp4")).not.toBeInTheDocument();
   });
 
+  it("wires the same folder, metadata and preview actions in list view", async () => {
+    const failedVideo = { ...video, metadataStatus: "failed" as const };
+    const onRevealInFolder = vi.fn().mockResolvedValue(undefined);
+    const onRetryMetadata = vi.fn().mockResolvedValue(undefined);
+    const onRegenerateCover = vi.fn().mockResolvedValue(undefined);
+    render(<LibraryShell videos={[failedVideo, nestedVideo]} folders={[folder]} onRevealInFolder={onRevealInFolder} onRetryMetadata={onRetryMetadata} onRegenerateCover={onRegenerateCover} />);
+    fireEvent.click(screen.getByRole("button", { name: "列表视图" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开 clip.mp4 所在文件夹" }));
+    fireEvent.click(screen.getByRole("button", { name: "重新分析 clip.mp4" }));
+    fireEvent.click(screen.getByRole("button", { name: "重新生成 clip.mp4 的预览" }));
+    await waitFor(() => expect(onRegenerateCover).toHaveBeenCalledWith(failedVideo));
+    expect(onRevealInFolder).toHaveBeenCalledWith(failedVideo);
+    expect(onRetryMetadata).toHaveBeenCalledWith(failedVideo);
+    fireEvent.click(screen.getByRole("button", { name: "查看 clip.mp4 同目录视频" }));
+    expect(screen.getByRole("heading", { name: "同目录 · Movies" })).toBeInTheDocument();
+    expect(screen.queryByText("episode-01.mp4")).not.toBeInTheDocument();
+  });
+
   it("renames through an in-app dialog", async () => {
     const onRename = vi.fn();
     render(<LibraryShell videos={[video]} onRename={onRename} />);

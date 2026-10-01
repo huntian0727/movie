@@ -1,26 +1,34 @@
-import { Fragment } from "react";
-import { BookmarkX, Heart, Info, Pencil, Play, Trash2 } from "lucide-react";
+import { Fragment, useState } from "react";
+import { Info, Play } from "lucide-react";
 import type { VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDate, formatDuration } from "./formatters";
 import { VideoStoryboard } from "./VideoStoryboard";
 import { useProgressiveRenderCount } from "./useProgressiveRenderCount";
+import { VideoItemActions, type VideoItemActionsProps } from "./VideoItemActions";
 
-type VideoTableProps = {
+type VideoTableProps = Omit<VideoItemActionsProps, "video" | "regenerating"> & {
   videos: VideoRecord[];
   onOpen(video: VideoRecord): void;
   onOpenAt?(video: VideoRecord, timeMs: number): void;
   onViewDetails(video: VideoRecord): void;
-  onToggleFavorite(video: VideoRecord): void;
-  onTogglePendingDelete?(video: VideoRecord): void;
-  onRename(video: VideoRecord): void;
-  onDelete(video: VideoRecord): void;
   selectionMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelection?(video: VideoRecord): void;
 };
 
-export function VideoTable({ videos, onOpen, onOpenAt, onViewDetails, onToggleFavorite, onTogglePendingDelete, onRename, onDelete, selectionMode = false, selectedIds, onToggleSelection }: VideoTableProps) {
+export function VideoTable({ videos, onOpen, onOpenAt, onViewDetails, onToggleFavorite, onTogglePendingDelete, onRename, onDelete, onRegenerateCover, onRetryMetadata, onRevealInFolder, onShowDirectory, selectionMode = false, selectedIds, onToggleSelection }: VideoTableProps) {
+  const [previewStates, setPreviewStates] = useState<Record<string, "resetting" | "reset" | "failed">>({});
   const visibleCount = useProgressiveRenderCount(videos.map((video) => video.id).join("|"), videos.length, 12, 12);
+  const regeneratePreview = async (video: VideoRecord) => {
+    if (!onRegenerateCover || previewStates[video.id] === "resetting") return;
+    setPreviewStates((current) => ({ ...current, [video.id]: "resetting" }));
+    try {
+      await onRegenerateCover(video);
+      setPreviewStates((current) => ({ ...current, [video.id]: "reset" }));
+    } catch {
+      setPreviewStates((current) => ({ ...current, [video.id]: "failed" }));
+    }
+  };
   return (
     <div className="table-scroll">
       <table className="video-table">
@@ -34,14 +42,14 @@ export function VideoTable({ videos, onOpen, onOpenAt, onViewDetails, onToggleFa
               <td>{video.metadataStatus === "pending" ? "待分析" : video.metadataStatus === "failed" ? "元数据失败" : formatDuration(video.durationMs)}</td>
               <td>{video.width && video.height ? `${video.width}×${video.height}` : "-"}</td>
               <td>{formatDate(video.modifiedAt)}</td>
-              <td><div className="row-actions">
+              <td><div className="row-actions" onDoubleClick={(event) => event.stopPropagation()}>
                 <button aria-label={`查看 ${video.filename} 详情`} title="查看详情" onClick={() => onViewDetails(video)}><Info size={15} /></button>
-                <button className={video.isFavorite ? "is-favorite" : undefined} aria-label={video.isFavorite ? "取消收藏" : "收藏"} onClick={() => onToggleFavorite(video)}><Heart size={16} fill={video.isFavorite ? "currentColor" : "none"} /></button>
-                {onTogglePendingDelete && <button className={video.isPendingDelete ? "is-pending-delete" : undefined} aria-label={video.isPendingDelete ? "取消待删除标记" : "标记待删除"} onClick={() => onTogglePendingDelete(video)}><BookmarkX size={16} /></button>}
-                <button aria-label="重命名" onClick={() => onRename(video)}><Pencil size={15} /></button>
-                <button className="danger-action" aria-label="删除" onClick={() => onDelete(video)}><Trash2 size={15} /></button>
+                <VideoItemActions video={video} onToggleFavorite={onToggleFavorite} onTogglePendingDelete={onTogglePendingDelete} onRename={onRename} onDelete={onDelete}
+                  onRegenerateCover={onRegenerateCover ? regeneratePreview : undefined} regenerating={previewStates[video.id] === "resetting"}
+                  onRetryMetadata={onRetryMetadata} onRevealInFolder={onRevealInFolder} onShowDirectory={onShowDirectory} />
               </div></td>
             </tr><tr className="video-table-storyboard-row"><td colSpan={selectionMode ? 8 : 7}>
+              {previewStates[video.id] && <p className="video-preview-action-status" role="status">{previewStates[video.id] === "resetting" ? "正在重置封面预览…" : previewStates[video.id] === "failed" ? "预览重置失败，可点击重新生成重试" : "封面缓存已重置，网格视图将重新加载；下方截图条独立加载。"}</p>}
               <VideoStoryboard video={video} onPlay={(timeMs) => onOpenAt ? onOpenAt(video, timeMs) : onOpen(video)} />
             </td></tr></Fragment>
           ))}

@@ -1078,7 +1078,7 @@ export function LibraryShell({
           </>
         ) : (
           <>
-            <VideoTable videos={renderedVideos} onOpen={openVideo} onOpenAt={(video, timeMs) => void onOpen?.(video, renderedVideos, timeMs)} onViewDetails={viewVideoDetails} onToggleFavorite={toggleFavorite} onTogglePendingDelete={onTogglePendingDelete ? togglePendingDelete : undefined} onRename={renameVideo} onDelete={deleteVideo} selectionMode={selectionMode} selectedIds={selectedVideoIds} onToggleSelection={toggleSelectedVideo} />
+            <VideoTable videos={renderedVideos} onOpen={openVideo} onOpenAt={(video, timeMs) => void onOpen?.(video, renderedVideos, timeMs)} onViewDetails={viewVideoDetails} onToggleFavorite={toggleFavorite} onTogglePendingDelete={onTogglePendingDelete ? togglePendingDelete : undefined} onRename={renameVideo} onDelete={deleteVideo} onRegenerateCover={onRegenerateCover ? regenerateCover : undefined} onRetryMetadata={onRetryMetadata ? retryMetadata : undefined} onRevealInFolder={onRevealInFolder} onShowDirectory={showVideoDirectory} selectionMode={selectionMode} selectedIds={selectedVideoIds} onToggleSelection={toggleSelectedVideo} />
             <PaginationBar page={currentPage} totalPages={totalPages} pageSize={pageSize} totalCount={onLoadVideoPage ? videoPage.totalCount : visibleVideos.length} onPage={setPage} onPageSize={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
           </>
         )}
