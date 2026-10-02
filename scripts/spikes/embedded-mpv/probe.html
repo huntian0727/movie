@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; media-src file:; object-src 'none'">
+<title>拉面影视 · 内嵌播放验证</title><link rel="stylesheet" href="probe.css"></head>
+<body><header><strong>拉面影视 · 内嵌 MPV 验证</strong><span>独立实验，不改正式播放器</span></header>
+<main id="viewport"><p id="placeholder">等待播放宿主…</p></main>
+<footer><div id="status">正在初始化</div><input id="seek" type="range" min="0" max="12" step="0.1" value="0" aria-label="播放进度">
+<div class="buttons"><button id="pause">暂停 / 继续</button><button id="back">后退 5 秒</button><button id="forward">前进 5 秒</button>
+<label>音量 <input id="volume" aria-label="音量" type="range" min="0" max="100" value="20"></label>
+<button id="rotate">旋转 90°</button><button id="fullscreen">全屏 / 退出</button><button id="next">切换样本</button><button id="exit">退出实验</button></div></footer>
+<script src="probe-ui.js"></script></body></html>
