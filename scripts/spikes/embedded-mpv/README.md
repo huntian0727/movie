@@ -43,6 +43,19 @@ node_modules/electron/dist/electron.exe scripts/spikes/embedded-mpv/probe-main.m
 
 本轮证据与限制见 [seek 验证报告](../../../docs/ai/reports/2026-10-03-embedded-mpv-seek-validation.md)。原始匿名结果保留在隔离目录，不把私有媒体清单、DLL 或视频提交到仓库。
 
+## 可选控制调度验证
+
+`--spike-controls=1` 仅开启实验控制调度和候选窗口键盘处理，不改变正式播放器。每次只执行一个 seek/旋转，最多各保留一个最新待执行值；执行中请求不能取消已经发出的本机读操作。完成要求 native ack、同一视频 token、无待完成 seek、新增播放重启及目标属性匹配。单项超过 30s 则清空待执行队列并显示失败；切换样本/关闭宿主会清空旧操作。
+
+```text
+--spike-controls=1 --spike-control-auto=1 --spike-report=controls-synthetic.json
+--spike-controls=1 --spike-control-auto=1 --spike-sample-name=cloud-hevc-aac --spike-report=controls-cloud.json
+```
+
+自动场景包括五次突发跳转、跳转/旋转混合、恢复播放、重新加载取消旧 token、seek 期间退出。测试突发请求在同一轮事件循环发出，证明合并机制，不是实际鼠标拖动频率基准。DOM 显示区分“正在读取”“正在跳转”“正在缓冲”“已暂停”“操作未完成”，心跳只上报白名单阶段计数，不上报文件名或 DOM 文本。
+
+候选键盘处理使用实验窗口自己的 `before-input-event`、webContents focus 与 preload 转发，没有全局快捷键或系统键盘钩子。**实际按键复测未通过**：简单 Electron 层转发不能证明能解决跨进程原生窗口焦点；不得当作已可用的快捷键实现。按钮控制与媒体控制矩阵通过不能覆盖该失败。详情见 [控制验证报告](../../../docs/ai/reports/2026-10-03-embedded-mpv-controls-validation.md)。
+
 ## 验证边界
 
 - 自动验证：真实 libmpv 加载/进度、嵌入 parent、暂停稳定、seek、音量属性、窗口全屏/恢复、宿主退出/异常隔离/重新启动、Electron 主线程定时器延迟。
