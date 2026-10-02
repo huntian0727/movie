@@ -67,15 +67,17 @@ static class Native {
 
 class NativeHost : Form {
     readonly IntPtr parent;
+    readonly string hardwareDecode;
     IntPtr mpv=IntPtr.Zero;
     readonly JavaScriptSerializer json=new JavaScriptSerializer();
     readonly System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer();
     readonly object outputLock=new object();
     bool loaded;
     int token;
+    int seekCount,restartCount;
     int viewportX=0,viewportY=58,viewportWidth=1280,viewportHeight=720;
-    public NativeHost(IntPtr owner) {
-        parent=owner; FormBorderStyle=FormBorderStyle.None; ShowInTaskbar=false; TopLevel=false;
+    public NativeHost(IntPtr owner,string hwdec) {
+        parent=owner;hardwareDecode=hwdec; FormBorderStyle=FormBorderStyle.None; ShowInTaskbar=false; TopLevel=false;
         BackColor=System.Drawing.Color.Black; Width=1280; Height=720;
     }
     void Emit(object value) { lock(outputLock){ Console.Out.WriteLine(json.Serialize(value)); Console.Out.Flush(); } }
@@ -86,7 +88,7 @@ class NativeHost : Form {
         mpv=Native.mpv_create(); if(mpv==IntPtr.Zero) throw new Exception("mpv-create-failed");
         var opts=new Dictionary<string,string>{{"wid",Handle.ToInt64().ToString(CultureInfo.InvariantCulture)},
             {"config","no"},{"terminal","no"},{"osc","no"},{"input-default-bindings","no"},
-            {"input-vo-keyboard","no"},{"hwdec","auto-safe"},{"vo","gpu-next"},{"keep-open","yes"},
+            {"input-vo-keyboard","no"},{"hwdec",hardwareDecode},{"vo","gpu-next"},{"keep-open","yes"},
             {"volume","20"},{"idle","yes"},{"cache","yes"},{"demuxer-max-bytes","32MiB"},
             {"demuxer-max-back-bytes","8MiB"},{"network-timeout","15"}};
         foreach(var opt in opts) if(Native.Set(mpv,opt.Key,opt.Value,true)<0) throw new Exception("option-failed:"+opt.Key);
@@ -113,7 +115,7 @@ class NativeHost : Form {
                 if(x<0||y<0||w<1||h<1||w>16384||h>16384) throw new Exception("invalid-bounds");
                 viewportX=x;viewportY=y;viewportWidth=w;viewportHeight=h;ApplyBounds();
             } else if(op=="load") {
-                loaded=false; token=Convert.ToInt32(message["token"]);
+                loaded=false;seekCount=0;restartCount=0; token=Convert.ToInt32(message["token"]);
                 Native.Set(mpv,"pause","no",false); result=Native.Command(mpv,"loadfile",Convert.ToString(message["path"]),"replace");
             } else if(op=="pause") result=Native.Set(mpv,"pause",Convert.ToBoolean(message["value"])?"yes":"no",false);
             else if(op=="seek") result=Native.Command(mpv,"seek",Clamp(message["value"],0,86400).ToString(CultureInfo.InvariantCulture),"absolute+exact");
@@ -138,6 +140,8 @@ class NativeHost : Form {
             if(ev.id==0) break;
             if(ev.id==8) { loaded=true; ApplyBounds(); Emit(new {type="loaded",token=token}); }
             if(ev.id==17) ApplyBounds();
+            if(ev.id==20) seekCount++;
+            if(ev.id==21) restartCount++;
             if(ev.id==7) { loaded=false; Emit(new {type="ended",token=token,reason=ev.data==IntPtr.Zero?0:Marshal.ReadInt32(ev.data),error=ev.data==IntPtr.Zero?0:Marshal.ReadInt32(ev.data,4)}); }
         }
         Native.Rect viewport; Native.GetClientRect(Handle,out viewport);
@@ -147,6 +151,7 @@ class NativeHost : Form {
             audioCodec=Native.Text(mpv,"audio-codec-name"),hwdec=Native.Text(mpv,"hwdec-current"),width=Native.Number(mpv,"width"),
             height=Native.Number(mpv,"height"),avsync=Native.Number(mpv,"avsync"),dropped=Native.Number(mpv,"frame-drop-count"),
             pausedForCache=Native.Text(mpv,"paused-for-cache"),cacheDuration=Native.Number(mpv,"demuxer-cache-duration"),seeking=Native.Text(mpv,"seeking"),
+            seekCount=seekCount,restartCount=restartCount,currentVo=Native.Text(mpv,"current-vo"),currentAo=Native.Text(mpv,"current-ao"),
             embedded=Native.GetParent(Handle)==parent});
     }
     protected override void OnFormClosed(FormClosedEventArgs e) {
@@ -156,10 +161,12 @@ class NativeHost : Form {
     [STAThread] static void Main(string[] args) {
         try {
             Console.InputEncoding=new UTF8Encoding(false); Console.OutputEncoding=new UTF8Encoding(false);
-            if(args.Length!=2) throw new Exception("usage-owner-and-runtime-required");
+            if(args.Length<2||args.Length>3) throw new Exception("usage-owner-and-runtime-required");
+            string hwdec=args.Length==3?args[2]:"auto-safe";
+            if(hwdec!="auto-safe"&&hwdec!="no") throw new Exception("invalid-hwdec");
             Native.SetThreadDpiAwarenessContext(new IntPtr(-4));
             Native.SetDllDirectory(System.IO.Path.GetFullPath(args[1]));
-            var host=new NativeHost(new IntPtr(long.Parse(args[0],CultureInfo.InvariantCulture)));
+            var host=new NativeHost(new IntPtr(long.Parse(args[0],CultureInfo.InvariantCulture)),hwdec);
             host.Show(); Application.Run(host);
         } catch(Exception ex){ Console.Out.WriteLine(new JavaScriptSerializer().Serialize(new {type="fatal",reason=ex.GetType().Name})); Environment.ExitCode=1; }
     }

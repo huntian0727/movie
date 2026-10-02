@@ -3,6 +3,8 @@ let snapshot = {}, rotation = 0;
 const api = window.mpvSpike;
 const seek = document.querySelector("#seek");
 const status = document.querySelector("#status");
+let heartbeatAt=performance.now();
+setInterval(()=>{const now=performance.now();void api.heartbeat(Math.max(0,now-heartbeatAt-100)).catch(()=>{});heartbeatAt=now;},100);
 const action = (op, value) => api.action(op, value).catch(() => { status.textContent = "操作失败，请查看实验报告"; });
 document.querySelector("#pause").onclick = () => action("pause", snapshot.paused !== "yes");
 document.querySelector("#back").onclick = () => action("seek", Math.max(0,(snapshot.time || 0)-5));

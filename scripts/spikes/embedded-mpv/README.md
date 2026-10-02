@@ -26,6 +26,23 @@ node_modules/electron/dist/electron.exe scripts/spikes/embedded-mpv/probe-main.m
 
 可传 `--spike-report=<name>.json` 保存各轮报告。自动检查报告包含逐样本 `pass` 和整体 `pass`，失败退出码为 1；不要只根据进程能启动判断成功。Windows PowerShell 启动 GUI exe 时需确保等待进程退出，批量测试可通过 Node `spawnSync` 等待并核对退出码。Codex 环境若有 `ELECTRON_RUN_AS_NODE`，应仅从实验子进程环境删除该值，否则启动的是 Node 而不是 Electron。
 
+## 定向 seek / 控制诊断
+
+`--spike-matrix=1` 执行八个有界场景：基线、seek、旋转、全屏、重叠操作、串行操作，以及软件解码对照。每个场景重新创建并释放自有宿主；仅使用清单第一个样本，可用 `--spike-sample-name=<anonymous-name>` 指定样本。不清空 CloudDrive 缓存，不复制整片，不测试正式应用。
+
+```text
+--spike-matrix=1 --spike-sample-name=cloud-hevc-aac --spike-report=seek-matrix.json
+--spike-matrix=1 --spike-cases=combo-overlap-auto,combo-serial-auto --spike-repeat=3 --spike-report=seek-repeat.json
+```
+
+`cases` 必须是既有场景名，`repeat` 限制 1–3。hwdec 只接受 `auto-safe` / `no`，不向 renderer 开放配置或任意命令。串行组合在 seek 和每次旋转引起的播放重启完成后再进行下一项。
+
+不要把 `time-pos` 到达目标当成 seek 成功：正常 seek 检查还要求同一 load token、`seeking=no` 和新增 `PLAYBACK_RESTART`。恢复检查要求取消暂停、无待完成 seek、实际时间推进超过 0.6 秒；随后观察 700ms。故 `resumeMs` 包含这段观察时间，不等于纯解码延迟。重叠场景刻意模拟旧判据，不用它宣称 seek 已完成。
+
+报告包含 seek/restart 计数、缓存等待、实际硬解模式、音频输出模块，以及 main / renderer 的 100ms 心跳额外延迟。心跳是整轮累计指标，不能代表正式应用的点击延迟；进度推进通过也不代表长时间无缓冲。`--spike-start-paused=1` 只用于手动快捷键/焦点测试。
+
+本轮证据与限制见 [seek 验证报告](../../../docs/ai/reports/2026-10-03-embedded-mpv-seek-validation.md)。原始匿名结果保留在隔离目录，不把私有媒体清单、DLL 或视频提交到仓库。
+
 ## 验证边界
 
 - 自动验证：真实 libmpv 加载/进度、嵌入 parent、暂停稳定、seek、音量属性、窗口全屏/恢复、宿主退出/异常隔离/重新启动、Electron 主线程定时器延迟。

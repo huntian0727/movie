@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import { validateAction, validateBounds } from "./contract.mjs";
+import { runDiagnosticMatrix, seekSettled } from "./diagnostic-matrix.mjs";
 
 const args = Object.fromEntries(process.argv.filter((v)=>v.startsWith("--spike-")).map((v)=>{
   const index=v.indexOf("="); return [v.slice(8,index),v.slice(index+1)];
@@ -17,18 +18,20 @@ if(!/^[a-z0-9-]+\.json$/.test(reportName)) throw new Error("invalid-report-name"
 app.setPath("userData",path.join(root,"electron-user-data"));
 const samples=JSON.parse(await readFile(path.resolve(args.samples),"utf8"));
 if(!Array.isArray(samples)||!samples.length||samples.length>10||samples.some((s)=>!path.isAbsolute(s.path)||typeof s.name!=="string")) throw new Error("invalid-samples");
+if(args["sample-name"]){const index=samples.findIndex(s=>s.name===args["sample-name"]);if(index<0)throw new Error("sample-not-found");samples.splice(0,samples.length,samples[index]);}
 let win, host, snapshot, sampleIndex=0, loadToken=0, ready=false, closing=false, bounds={op:"bounds",x:0,y:58,width:1280,height:720};
-const report={ experiment:"libmpv-isolated-native-window", electron:process.versions.electron, samples:[], failures:[], manualActions:[], hostPids:[], maxMainTimerDelayMs:0 };
+const report={ experiment:"libmpv-isolated-native-window", electron:process.versions.electron, samples:[], failures:[], manualActions:[], hostPids:[], maxMainTimerDelayMs:0,rendererTicks:0,maxRendererTimerDelayMs:0 };
 let lastTick=performance.now();
 const heartbeat=setInterval(()=>{ const now=performance.now(); report.maxMainTimerDelayMs=Math.max(report.maxMainTimerDelayMs,now-lastTick-100); lastTick=now; },100);
 const wait= (ms)=>new Promise((r)=>setTimeout(r,ms));
 async function until(predicate,timeout=15000){const start=performance.now();while(!predicate()){if(performance.now()-start>timeout)throw new Error("operation-timeout");await wait(50);}return performance.now()-start;}
 function send(message){if(host?.stdin.writable)host.stdin.write(JSON.stringify(message)+"\n");}
 function load(index){sampleIndex=index; snapshot=null; send({op:"load",token:++loadToken,path:samples[index].path});}
-async function startHost(){
+async function startHost(hwdec="auto-safe"){
   ready=false;
+  snapshot=null;
   const handle=win.getNativeWindowHandle().readBigUInt64LE().toString();
-  host=spawn(path.join(root,"NativeHost.exe"),[handle,root],{stdio:["pipe","pipe","pipe"],windowsHide:true,detached:false});
+  host=spawn(path.join(root,"NativeHost.exe"),[handle,root,hwdec],{stdio:["pipe","pipe","pipe"],windowsHide:true,detached:false});
   report.hostPids.push(host.pid);
   const lines=createInterface({input:host.stdout});
   lines.on("line",(line)=>{
@@ -37,6 +40,7 @@ async function startHost(){
       if(value.type==="ready"){ready=true; report.mpv=value.version; send(bounds);}
       if(value.type==="snapshot"){snapshot=value; value.sample=samples[sampleIndex].name;}
       if(value.type==="fatal"||value.type==="error") report.failures.push(value);
+      if(value.type==="ack"&&value.result<0)report.failures.push({type:"negative-ack",op:value.op,result:value.result});
       if(value.type==="ended"&&value.error<0) report.failures.push(value);
       if(!win.isDestroyed())win.webContents.send("mpv-spike:state",value);
     }catch{/* Do not print third-party runtime output or private paths. */}
@@ -57,6 +61,7 @@ async function stopHost(){
 async function save(){await writeFile(path.join(root,reportName),JSON.stringify(report,null,2));}
 function trust(event){if(event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame||!event.senderFrame.url.startsWith("file:"))throw new Error("untrusted-probe-sender");}
 ipcMain.handle("mpv-spike:bounds",(event,payload)=>{trust(event);bounds=validateBounds(payload);send(bounds);});
+ipcMain.handle("mpv-spike:heartbeat",(event,gapMs)=>{trust(event);if(!Number.isFinite(gapMs)||gapMs<0||gapMs>3600000)throw new Error("invalid-heartbeat");report.rendererTicks++;report.maxRendererTimerDelayMs=Math.max(report.maxRendererTimerDelayMs,gapMs);return true;});
 ipcMain.handle("mpv-spike:action",async(event,payload)=>{
   trust(event);const command=validateAction(payload);report.manualActions.push({op:command.op,value:command.value});
   if(command.op==="fullscreen")win.setFullScreen(!win.isFullScreen());
@@ -77,8 +82,8 @@ async function automatedChecks(){
       result.videoCodec=snapshot.videoCodec;result.audioCodec=snapshot.audioCodec;result.hwdec=snapshot.hwdec;result.size=[snapshot.width,snapshot.height];result.duration=snapshot.duration;
       stage="pause";send({op:"pause",value:true});await until(()=>snapshot?.paused==="yes");
       const pausedTime=snapshot.time;await wait(650);result.pauseStable=Math.abs(snapshot.time-pausedTime)<0.1;
-      stage="seek";const target=Math.min(5,Math.max(1,snapshot.duration/2));const seekStart=performance.now();send({op:"seek",value:target});
-      await until(()=>Math.abs(snapshot?.time-target)<0.3,45000);result.seekMs=Math.round(performance.now()-seekStart);result.seek=true;
+      stage="seek";const target=Math.min(5,Math.max(1,snapshot.duration/2));const seekStart=performance.now();const restartCount=snapshot.restartCount;send({op:"seek",value:target});
+      await until(()=>seekSettled(snapshot,{token,restartCount,target}),45000);result.seekMs=Math.round(performance.now()-seekStart);result.seek=true;
       stage="volume";send({op:"volume",value:35});await until(()=>Math.abs(snapshot?.volume-35)<0.1);result.volume=true;
       stage="rotate";
       send({op:"rotate",value:90});await until(()=>snapshot?.rotation===90);send({op:"rotate",value:0});await until(()=>snapshot?.rotation===0);result.rotate=true;
@@ -108,6 +113,13 @@ win.webContents.on("will-navigate",(event)=>event.preventDefault());
 await win.loadFile(path.join(dir,"probe.html"));
 win.on("close",(event)=>{if(!closing){event.preventDefault();closing=true;void stopHost().then(save).then(()=>{win.destroy();app.quit();});}});
 win.on("closed",()=>clearInterval(heartbeat));
-try {await startHost();if(args.auto==="1")await automatedChecks();else load(0);}
+try {
+  if(args.matrix==="1"){
+    await runDiagnosticMatrix({names:args.cases,repeat:Number(args.repeat||1),sample:samples[0],getState:()=>snapshot,getToken:()=>loadToken,startHost,stopHost,load:()=>load(0),send,until,wait,
+      setFullscreen:v=>win.setFullScreen(v),isFullscreen:()=>win.isFullScreen(),record:r=>report.samples.push(r),persist:save,
+      getResponsiveness:()=>({mainMaxDelayMs:report.maxMainTimerDelayMs,rendererMaxDelayMs:report.maxRendererTimerDelayMs,rendererTicks:report.rendererTicks})});
+    closing=true;report.pass=report.samples.every(s=>s.pass)&&report.failures.length===0;await save();console.log(JSON.stringify(report));win.destroy();app.exit(report.pass?0:1);
+  }else{await startHost();if(args.auto==="1")await automatedChecks();else{load(0);if(args["start-paused"]==="1")send({op:"pause",value:true});}}
+}
 catch(error){report.failures.push({type:"experiment-error",reason:error.message});closing=true;await stopHost().catch(()=>{});await save();console.log(JSON.stringify(report));app.exit(1);}
 }).catch(async (error) => { report.failures.push({type:"initialization-error",reason:error.message}); await save(); console.log(JSON.stringify(report)); app.exit(1); });
