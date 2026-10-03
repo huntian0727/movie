@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowLeft, CircleGauge, ExternalLink, FileSearch, FolderOpen, LoaderCircle, Play, RefreshCw, Search, Wrench } from "lucide-react";
 import { explainPlaybackRoute } from "../../shared/playbackDiagnosis";
 import { choosePlaybackRoute } from "../../shared/playbackRouting";
+import { integratedPlaybackRoute } from "../../shared/integratedPlayback";
 import type { LibraryPage, PlaybackDiagnosticSearchQuery, PlaybackPreference, SourceFolder, VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
 
@@ -153,7 +154,7 @@ export function PlaybackDiagnosticPage({
   }, [debouncedQuery, searchPageNumber, searchRetryVersion, searchVideos, selectedVideoId]);
 
   const source = useMemo(() => video ? folders.find((folder) => folder.id === video.sourceFolderId) ?? null : null, [folders, video]);
-  const route = video ? choosePlaybackRoute(video, playbackPreference) : null;
+  const route = video ? integratedPlaybackRoute(choosePlaybackRoute(video, playbackPreference), playbackPreference, true) : null;
   const diagnosis = video && route ? explainPlaybackRoute(video, playbackPreference, route) : null;
 
   const chooseVideo = (nextVideo: VideoRecord) => {

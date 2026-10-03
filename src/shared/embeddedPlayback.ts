@@ -7,9 +7,15 @@ export const embeddedRequestSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("bounds"), sessionKey: z.string().min(1).max(100), x: z.number().int().min(0).max(16384), y: z.number().int().min(0).max(16384), width: z.number().int().min(1).max(16384), height: z.number().int().min(1).max(16384) }).strict(),
   z.object({ op: z.enum(["seek", "volume", "rotate", "audio-track", "subtitle-track"]), sessionKey: z.string().min(1).max(100), value: z.number().finite().min(0).max(86400) }).strict(),
   z.object({ op: z.enum(["pause", "fullscreen"]), sessionKey: z.string().min(1).max(100), value: z.boolean() }).strict(),
+  z.object({ op: z.literal("visible"), sessionKey: z.string().min(1).max(100), value: z.boolean() }).strict(),
   z.object({ op: z.literal("subtitle-file"), sessionKey: z.string().min(1).max(100) }).strict()
 ]);
 export type EmbeddedRequest = z.infer<typeof embeddedRequestSchema>;
+export const embeddedInputSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("key"), code: z.string().regex(/^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2])|Space|Escape|Enter|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown)$/), control: z.boolean(), shift: z.boolean(), alt: z.boolean() }).strict(),
+  z.object({ kind: z.enum(["click", "double-click"]) }).strict()
+]);
+export type EmbeddedInput = z.infer<typeof embeddedInputSchema>;
 export interface EmbeddedState {
   sessionKey: string;
   phase: "idle" | "loading" | "playing" | "paused" | "reading" | "buffering" | "failed" | "ended";

@@ -301,7 +301,8 @@ async function verifyPackagedRendererSecurity(currentDir: string): Promise<Recor
           preloadHasNoGenericInvoke: typeof window.videoManager?.invoke === "undefined",
           playerBridgeHasEmbeddedPlayback:
             typeof window.videoManager?.embeddedPlayback === "function" &&
-            typeof window.videoManager?.subscribeEmbeddedKeys === "function",
+            typeof window.videoManager?.subscribeEmbeddedKeys === "function" &&
+            typeof window.videoManager?.subscribeEmbeddedInput === "function",
           playerBridgeMinimized:
             typeof window.videoManager?.deleteVideos === "undefined" &&
             typeof window.videoManager?.moveVideos === "undefined" &&

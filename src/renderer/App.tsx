@@ -4,7 +4,7 @@ import { getVideoManagerApi, type DesktopVideoManagerApi } from "./api/client";
 import { LibraryShell } from "./components/LibraryShell";
 import { CloudDriveFolderDialog } from "./components/CloudDriveFolderDialog";
 import { PlayerPage } from "./components/PlayerPage";
-import { EmbeddedPlayerPage } from "./components/EmbeddedPlayerPage";
+import { integratedPlaybackRoute } from "../shared/integratedPlayback";
 import { SettingsPage } from "./components/SettingsPage";
 import { choosePlaybackRoute } from "../shared/playbackRouting";
 import { DEFAULT_SHORTCUTS } from "../shared/shortcuts";
@@ -103,7 +103,6 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
-  const [embeddedBypassedId, setEmbeddedBypassedId] = useState<string | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<string[]>([]);
   const [directoryPlaybackQueue, setDirectoryPlaybackQueue] = useState<VideoRecord[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -417,7 +416,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     : originalPlayerQueue;
   const selectedIndex = playerQueuedVideos.findIndex((video) => video.id === playerVideoId);
   const selectedVideo = selectedIndex >= 0 ? playerQueuedVideos[selectedIndex] : null;
-  const playbackRoute = selectedVideo ? choosePlaybackRoute(selectedVideo, embeddedBypassedId === selectedVideo.id && settings.playbackPreference === "embedded-first" ? "auto" : settings.playbackPreference) : "native";
+  const playbackRoute = selectedVideo ? integratedPlaybackRoute(choosePlaybackRoute(selectedVideo, settings.playbackPreference), settings.playbackPreference, isPlayerWindow) : "native";
 
   if (isPlayerWindow && !selectedVideo) {
     return <div className="loading-state"><span /><p>正在打开播放器...</p></div>;
@@ -444,13 +443,6 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   }
 
   if (selectedVideo) {
-    if (playbackRoute === "embedded" && isPlayerWindow) return <EmbeddedPlayerPage
-      api={api} video={selectedVideo} autoplay={settings.autoPlayOnOpen}
-      startPositionMs={playerSession?.startPositionMs} startRequestId={playerSession?.startRequestId}
-      queue={playerQueuedVideos}
-      onFallback={positionMs => { setEmbeddedBypassedId(selectedVideo.id); setPlayerSession(current => current ? { ...current, startPositionMs: positionMs, startRequestId: crypto.randomUUID() } : current); }}
-      onSelect={async id => { const snapshot = await api.selectPlayerVideo(id); setPlayerSession(snapshot); setVideos(snapshot.videos); }}
-    />;
     return (
       <PlayerPage
         video={selectedVideo}
@@ -461,9 +453,10 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
         hasPrevious={selectedIndex > 0}
         hasNext={selectedIndex < playerQueuedVideos.length - 1}
         playbackRoute={playbackRoute}
+        embeddedApi={isPlayerWindow ? api : undefined}
         startPositionMs={playerSession?.startPositionMs}
         startRequestId={playerSession?.startRequestId}
-        onBack={isPlayerWindow ? undefined : () => setSelectedVideoId(null)}
+        onBack={isPlayerWindow ? () => window.close() : () => setSelectedVideoId(null)}
         onPrevious={async () => {
           const nextId = playerQueuedVideos[selectedIndex - 1]?.id ?? selectedVideo.id;
           if (isPlayerWindow) {
@@ -509,7 +502,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
             setSelectedVideoId(null);
           }
         }}
-        onPlayExternal={async () => { await api.playExternalVideo(selectedVideo.id, playerSession?.startPositionMs); }}
+        onPlayExternal={async positionMs => { await api.playExternalVideo(selectedVideo.id, positionMs ?? playerSession?.startPositionMs); }}
         getTimelinePreviewUrl={(timeMs) =>
           `local-video://preview/${encodeURIComponent(selectedVideo.id)}/${timeMs}?v=${encodeURIComponent(selectedVideo.updatedAt)}`
         }

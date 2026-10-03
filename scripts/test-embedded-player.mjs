@@ -30,7 +30,15 @@ app.whenReady().then(async()=>{
       await until(async()=>{const s=await state();return Math.abs(s.time-6)<.35&&s.phase==="paused";});
       await call({op:"rotate",value:90});await until(async()=>{const s=await state();return s.rotation===90&&s.phase==="paused";});
       await call({op:"volume",value:15});await until(async()=>(await state()).volume===15);
+      await call({op:"visible",value:false});await call({op:"visible",value:true});
       await call({op:"fullscreen",value:true});if(!(await state()).fullscreen)throw Error("fullscreen-failed");await call({op:"fullscreen",value:false});
+      if(sample.name==="h264-aac-mp4"){
+        const duration=(await state()).duration;
+        await call({op:"seek",value:Math.max(0,duration-.6)});
+        await call({op:"pause",value:false});
+        await until(async()=>(await state()).phase==="ended",5000);
+        await wait(350);if((await state()).phase!=="ended")throw Error("eof-state-lost");
+      }
       const old=key;key=old+"-replacement";await call({op:"start",videoId:sample.name,positionMs:3000,autoplay:false});
       await player.handle(event,{op:"stop",sessionKey:old});
       await until(async()=>{const s=await state();if(s.phase==="failed")throw Error(s.error);return s.phase==="paused"&&Math.abs(s.time-3)<.35;});

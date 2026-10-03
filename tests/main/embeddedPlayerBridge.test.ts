@@ -23,6 +23,7 @@ describe("real player-role preload embedded bridge", () => {
     const b = bridge();
     expect(typeof b.api.embeddedPlayback).toBe("function");
     expect(typeof b.api.subscribeEmbeddedKeys).toBe("function");
+    expect(typeof b.api.subscribeEmbeddedInput).toBe("function");
     const request = { op: "start", sessionKey: "key", videoId: "v", autoplay: false };
     await b.api.embeddedPlayback(request);
     expect(b.invoke).toHaveBeenCalledWith("player:embedded", request);
@@ -37,5 +38,15 @@ describe("real player-role preload embedded bridge", () => {
   });
   it("does not expose any bridge to a non-entry page", () => {
     expect(bridge("https://example.com/untrusted").api).toBeUndefined();
+  });
+  it("filters native input, preserves shortcut modifiers and disposes the input listener", () => {
+    const b = bridge(), listener = vi.fn(); const dispose = b.api.subscribeEmbeddedInput(listener);
+    const [channel, handler] = b.on.mock.calls[0]; expect(channel).toBe("player:embedded-input");
+    const key = { kind: "key", code: "ArrowLeft", control: true, shift: false, alt: false };
+    handler({}, key); handler({}, { kind: "double-click" });
+    handler({}, { kind: "key", code: "Delete", control: true, shift: false, alt: false });
+    handler({}, { ...key, alt: "invalid" }); handler({}, { kind: "command", command: "loadfile" });
+    expect(listener.mock.calls).toEqual([[key], [{ kind: "double-click" }]]);
+    dispose(); expect(b.removeListener).toHaveBeenCalledWith(channel, handler);
   });
 });

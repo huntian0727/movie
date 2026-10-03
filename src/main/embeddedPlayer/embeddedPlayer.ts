@@ -5,7 +5,7 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 import { z } from "zod";
 import type { VideoRepository } from "../db/videoRepository.js";
-import { embeddedRequestSchema, type EmbeddedState } from "../../shared/embeddedPlayback.js";
+import { embeddedInputSchema, embeddedRequestSchema, type EmbeddedState } from "../../shared/embeddedPlayback.js";
 import { EmbeddedControlQueue, type NativeSnapshot } from "./controlQueue.js";
 
 const snapshotSchema = z.object({
@@ -33,6 +33,7 @@ export class EmbeddedPlayer {
   private savedAt = 0;
   private closing = false;
   private bounds: object | null = null;
+  private visible = true;
   private queue = new EmbeddedControlQueue(() => this.snapshot, c => this.send(c), (failed, busy) => {
     if (failed) this.fail("跳转或旋转超时，请重试或改用原播放器");
     else if (busy) this.state.phase = "reading";
@@ -48,6 +49,7 @@ export class EmbeddedPlayer {
       const session = this.repo.getVideo(request.videoId);
       if (session.isMissing) throw new Error("资料库标记文件缺失，请先复查可访问性");
       const key = request.sessionKey;
+      this.bounds = null; this.visible = true;
       this.savePosition(); this.videoId = null; this.queue.reset(); this.snapshot = null;
       this.state = { ...initialEmbeddedState(key), phase: "loading" };
       this.send({ op: "quit" });
@@ -74,6 +76,7 @@ export class EmbeddedPlayer {
       this.bounds = request; this.send(request); return this.state;
     }
     if (request.op === "fullscreen") { w.setFullScreen(request.value); return { ...this.state, fullscreen: request.value }; }
+    if (request.op === "visible") { this.visible = request.value; this.send(request); return this.state; }
     if (!this.snapshot?.loaded || this.state.phase === "failed") throw new Error("视频尚未就绪，请稍候或重试");
     if (request.op === "subtitle-file") {
       const key = this.state.sessionKey;
@@ -106,7 +109,12 @@ export class EmbeddedPlayer {
         try {
           const value = JSON.parse(line.replace(/^\uFEFF/, "")); this.lastMessage = Date.now();
           if (value.type === "ready") {
-            clearTimeout(timeout); if (this.bounds) this.send(this.bounds); this.send({ op: "load", token: generation, path: file, paused: !autoplay, start: resume / 1000 }); resolve();
+            clearTimeout(timeout); if (this.bounds) this.send(this.bounds); this.send({ op: "visible", value: this.visible }); this.send({ op: "load", token: generation, path: file, paused: !autoplay, start: resume / 1000 }); resolve();
+          } else if (value.type === "input") {
+            const input = embeddedInputSchema.safeParse(value.input);
+            if (input.success && !w.isDestroyed()) {
+              w.webContents.send("player:embedded-input", input.data);
+            }
           } else if (value.type === "snapshot" && value.token === generation) this.observe(snapshotSchema.parse(value));
           else if (value.type === "ack") { this.queue.acknowledge(value.op, value.result); if (value.result < 0) this.fail("播放控制失败，可重试或改用原播放器"); }
           else if (value.type === "ended" && value.token === generation) {
@@ -128,10 +136,14 @@ export class EmbeddedPlayer {
         if (!this.child || this.closing) return;
         event.preventDefault(); this.dispose(); void this.stopHost().finally(() => { if (!w.isDestroyed()) w.close(); });
       });
-      w.webContents.on("before-input-event", (event, input) => {
-        if (!this.child || input.type !== "keyDown" || input.isAutoRepeat || input.control || input.alt || input.meta) return;
-        const code = ["Space", "KeyF", "Escape"].includes(input.code) ? input.code : ({ " ": "Space", f: "KeyF", escape: "Escape" } as Record<string, string>)[input.key.toLowerCase()];
-        if (["Space", "KeyF", "Escape"].includes(code)) { event.preventDefault(); w.webContents.send("player:embedded-key", code); }
+      w.webContents.on("before-input-event", (_event, input) => {
+        // A Chromium HWND can have OS focus without a focused DOM control after
+        // native playback. Deliver one typed event to the original shortcut UI.
+        if (!this.child || input.type !== "keyDown" || input.isAutoRepeat || input.meta) return;
+        const parsed = embeddedInputSchema.safeParse({ kind: "key", code: input.code, control: input.control, shift: input.shift, alt: input.alt });
+        if (parsed.success && !(input.alt && input.code === "F4")) {
+          w.webContents.send("player:embedded-input", parsed.data);
+        }
       });
     }
     this.watchdog = setInterval(() => {

@@ -24,7 +24,7 @@ export function explainPlaybackRoute(
   preference: PlaybackPreference,
   route: PlaybackRoute
 ): PlaybackDiagnosis {
-  const routeLabel = route === "embedded" ? "内嵌 MPV（试用）" : route === "native" ? "内置播放器" : "MPV 外部播放器";
+  const routeLabel = route === "embedded" ? "内置播放器（MPV 解码）" : route === "native" ? "内置播放器" : "MPV 外部播放器";
   const metadataIncomplete = video.metadataStatus === "pending" || video.codecProbeStatus === "unprobed";
   const metadataFailed = video.metadataStatus === "failed" || video.codecProbeStatus === "failed";
   const riskyCodec = includesAny(video.videoCodec, ["hevc", "h265", "av1"]);
@@ -43,7 +43,7 @@ export function explainPlaybackRoute(
   }
 
   if (preference === "embedded-first") {
-    return { route, routeLabel, confidence: "low", risk: "unknown", reason: "已选择内嵌 MPV 试用策略，兼容性以实际播放为准。", suggestion: "遇到问题可退回原播放方式或使用外部 MPV；长时稳定性尚未验收。", disclaimer: DISCLAIMER };
+    return { route, routeLabel, confidence: "low", risk: "unknown", reason: "已选择内嵌 MPV 解码，仍使用原播放界面，兼容性以实际播放为准。", suggestion: "需要本机解码运行库；遇到问题可手动使用外部播放器。", disclaimer: DISCLAIMER };
   }
   if (preference === "mpv-first") {
     return {
@@ -120,9 +120,9 @@ export function explainPlaybackRoute(
     confidence: "high",
     risk: riskyCodec || riskyAudio ? "high" : "medium",
     reason: riskyCodec || riskyAudio
-      ? "当前编码组合可能超出内置播放器的稳定兼容范围，因此自动策略选择 MPV 外部播放器。"
-      : "当前媒体字段不完全符合内置播放器规则，因此自动策略选择 MPV 外部播放器。",
-    suggestion: "建议使用 MPV 外部播放器，并以实际播放结果为准。",
+      ? `当前编码组合可能超出浏览器解码范围，因此自动策略选择${routeLabel}。`
+      : `当前媒体字段不完全符合浏览器解码规则，因此自动策略选择${routeLabel}。`,
+    suggestion: route === "embedded" ? "在原播放器中使用兼容解码；如读取或播放失败，可手动选择外部播放器。" : "建议使用 MPV 外部播放器，并以实际播放结果为准。",
     disclaimer: DISCLAIMER
   };
 }

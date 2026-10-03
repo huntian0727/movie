@@ -1182,6 +1182,7 @@ export interface VideoManagerApi {
   openPlayer(videoId: string, queueIds: string[], startPositionMs?: number): Promise<boolean>;
   embeddedPlayback(request: import("./embeddedPlayback.js").EmbeddedRequest): Promise<import("./embeddedPlayback.js").EmbeddedState>;
   subscribeEmbeddedKeys(listener: (code: string) => void): () => void;
+  subscribeEmbeddedInput(listener: (input: import("./embeddedPlayback.js").EmbeddedInput) => void): () => void;
   playExternalVideo(videoId: string, startPositionMs?: number): Promise<boolean>;
   listPlayHistory(): Promise<PlayHistoryEntry[]>;
   recordPlayback(videoId: string, positionMs?: number): Promise<boolean>;

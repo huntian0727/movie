@@ -186,6 +186,17 @@ const mainApi: VideoManagerApi = {
   retryMetadata: (videoId: string) => ipcRenderer.invoke(channels.videoRetryMetadata, { videoId }),
   openPlayer: (videoId: string, queueIds: string[], startPositionMs?: number) => ipcRenderer.invoke(channels.videoOpenPlayer, { videoId, queueIds, ...(startPositionMs === undefined ? {} : { startPositionMs }) }),
   embeddedPlayback: (request) => ipcRenderer.invoke(channels.embeddedPlayback, request),
+  subscribeEmbeddedInput: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, input: import("../shared/embeddedPlayback.js").EmbeddedInput) => {
+      if (!input || typeof input !== "object") return;
+      if (input.kind === "click" || input.kind === "double-click") listener({ kind: input.kind });
+      else if (input.kind === "key" && /^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2])|Space|Escape|Enter|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown)$/.test(input.code) && [input.control, input.shift, input.alt].every(v => typeof v === "boolean")) {
+        listener({ kind: "key", code: input.code, control: input.control, shift: input.shift, alt: input.alt });
+      }
+    };
+    ipcRenderer.on("player:embedded-input", handler);
+    return () => ipcRenderer.removeListener("player:embedded-input", handler);
+  },
   subscribeEmbeddedKeys: (listener) => {
     const handler = (_event: IpcRendererEvent, code: string) => { if (["Space", "KeyF", "Escape"].includes(code)) listener(code); };
     ipcRenderer.on("player:embedded-key", handler);
@@ -225,6 +236,7 @@ const playerApi = {
   playExternalVideo: mainApi.playExternalVideo,
   embeddedPlayback: mainApi.embeddedPlayback,
   subscribeEmbeddedKeys: mainApi.subscribeEmbeddedKeys,
+  subscribeEmbeddedInput: mainApi.subscribeEmbeddedInput,
   listPlayHistory: mainApi.listPlayHistory,
   recordPlayback: mainApi.recordPlayback,
   getWindowSyncSnapshot: mainApi.getWindowSyncSnapshot,
@@ -232,7 +244,7 @@ const playerApi = {
   selectPlayerVideo: mainApi.selectPlayerVideo,
   subscribeDomainEvents: mainApi.subscribeDomainEvents,
   getSettings: mainApi.getSettings
-} satisfies Partial<VideoManagerApi> & Pick<VideoManagerApi, "embeddedPlayback" | "subscribeEmbeddedKeys">;
+} satisfies Partial<VideoManagerApi> & Pick<VideoManagerApi, "embeddedPlayback" | "subscribeEmbeddedKeys" | "subscribeEmbeddedInput">;
 
 const roleArgument = process.argv.find((argument) => argument.startsWith("--video-manager-window-role="));
 const windowRole = roleArgument?.slice("--video-manager-window-role=".length);

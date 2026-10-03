@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, ExternalLink, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
-import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoRecord } from "../../shared/videoTypes";
+import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
+import { useEmbeddedEngine } from "./useEmbeddedEngine";
 import { DEFAULT_SHORTCUTS, formatShortcutBinding, matchesShortcut } from "../../shared/shortcuts";
 import { formatBytes, formatDuration } from "./formatters";
 import { PreviewImage } from "./PreviewImage";
@@ -18,6 +19,7 @@ interface PlayerPageProps {
   hasPrevious?: boolean;
   hasNext?: boolean;
   playbackRoute?: PlaybackRoute;
+  embeddedApi?: Pick<VideoManagerApi, "embeddedPlayback" | "subscribeEmbeddedInput">;
   startPositionMs?: number;
   startRequestId?: string;
   onBack?(): void;
@@ -26,7 +28,7 @@ interface PlayerPageProps {
   onToggleFavorite?(video: VideoRecord): void;
   onTogglePendingDelete?(video: VideoRecord): void | Promise<void>;
   onDelete?(video: VideoRecord): void | Promise<void>;
-  onPlayExternal?(): Promise<void> | void;
+  onPlayExternal?(positionMs?: number): Promise<void> | void;
   getTimelinePreviewUrl?(timeMs: number): string;
   getCoverUrl?(video: VideoRecord): string | null;
   loadDirectoryPlaylist?(page: number): Promise<LibraryPage>;
@@ -42,6 +44,7 @@ export function PlayerPage({
   hasPrevious = true,
   hasNext = true,
   playbackRoute = "native",
+  embeddedApi,
   startPositionMs = 0,
   startRequestId,
   onBack,
@@ -93,6 +96,47 @@ export function PlayerPage({
   const isExternalPlayback = playbackRoute === "mpv";
   const externalAutoplayKeyRef = useRef<string | null>(null);
   const pendingStartRef = useRef<number | null>(null);
+  const [nativeFailedId, setNativeFailedId] = useState<string | null>(null);
+  const isEmbeddedPlayback = Boolean(embeddedApi) && playbackRoute !== "mpv" && (playbackRoute === "embedded" || nativeFailedId === video.id);
+  const embeddedStageRef = useRef<HTMLDivElement>(null);
+  const fallbackPositionRef = useRef(0);
+  const endedSessionRef = useRef<string | null>(null);
+  const embedded = useEmbeddedEngine({
+    api: embeddedApi, enabled: isEmbeddedPlayback, videoId: video.id, autoplay: autoPlayOnOpen,
+    positionMs: nativeFailedId === video.id ? fallbackPositionRef.current : startPositionMs,
+    requestId: startRequestId, stage: embeddedStageRef,
+    visible: !detailsOpen && !deleteConfirmOpen && !externalLaunching,
+    layoutKey: `${playlistOpen}:${isFullscreen}`,
+    onInput: input => {
+      if (detailsOpen || deleteConfirmOpen) return;
+      if (input.kind === "click") {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+        handleStageClick();
+      }
+      else if (input.kind === "double-click") handleStageDoubleClick();
+      else if (input.kind === "key") {
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && (focused.matches("input, textarea, select") || focused.isContentEditable || focused.closest("[role='dialog']"))) return;
+        if (input.code === "KeyF" && !input.control && !input.alt) void toggleFullscreen();
+        else if (input.code === "Escape" && isFullscreen && !playlistOpen) void toggleFullscreen();
+        else window.dispatchEvent(new KeyboardEvent("keydown", { code: input.code, ctrlKey: input.control, shiftKey: input.shift, altKey: input.alt }));
+      }
+    }
+  });
+  useEffect(() => {
+    if (!isEmbeddedPlayback || !embedded.state) return;
+    const s = embedded.state;
+    setPlaying(s.phase === "playing"); setCurrentTime(s.time);
+    if (!["idle", "loading"].includes(s.phase)) {
+      setMuted(s.volume === 0);
+      if (s.volume > 0) setVolume(s.volume / 100);
+    }
+    if (s.duration > 0) setDuration(s.duration);
+    if (s.phase === "ended" && endedSessionRef.current !== s.sessionKey) {
+      endedSessionRef.current = s.sessionKey; onNext?.();
+    }
+  }, [embedded.state, isEmbeddedPlayback]);
+  const embeddedError = embedded.error ?? embedded.state?.error;
 
   const applyStartingPosition = () => {
     const element = videoRef.current;
@@ -105,8 +149,8 @@ export function PlayerPage({
 
   useEffect(() => {
     pendingStartRef.current = startPositionMs;
-    if (!isExternalPlayback) applyStartingPosition();
-  }, [video.id, mediaUrl, isExternalPlayback, startPositionMs, startRequestId]);
+    if (!isExternalPlayback && !isEmbeddedPlayback) applyStartingPosition();
+  }, [video.id, mediaUrl, isExternalPlayback, isEmbeddedPlayback, startPositionMs, startRequestId]);
 
   const clearControlsHideTimeout = () => {
     if (controlsHideTimeoutRef.current !== null) {
@@ -117,7 +161,7 @@ export function PlayerPage({
 
   const scheduleControlsHide = () => {
     clearControlsHideTimeout();
-    if (!isFullscreen || detailsOpen || playlistOpen || deleteConfirmOpen) {
+    if (!isFullscreen || isEmbeddedPlayback || detailsOpen || playlistOpen || deleteConfirmOpen) {
       setControlsVisible(true);
       return;
     }
@@ -188,10 +232,18 @@ export function PlayerPage({
 
   useEffect(() => {
     setRotationDegrees(0);
+    setPlaybackError(null);
+    endedSessionRef.current = null;
     setDecodedVideoSize(null);
     setCurrentTime(startPositionMs / 1000);
     setDuration((video.durationMs ?? 0) / 1000);
   }, [video.id]);
+
+  useEffect(() => {
+    if (isEmbeddedPlayback && embedded.state && !["loading", "idle", "failed", "ended"].includes(embedded.state.phase)) {
+      void embedded.send({ op: "rotate", value: rotationDegrees });
+    }
+  }, [isEmbeddedPlayback, rotationDegrees]);
 
   useEffect(() => {
     if (playlistDirectory === null || sameDirectory(playlistDirectory, video.directory)) return;
@@ -231,6 +283,12 @@ export function PlayerPage({
       }
       if (event.target instanceof HTMLElement && event.target.closest("[role='dialog']")) return;
       if (event.target instanceof HTMLInputElement) return;
+      // Embedded keys are forwarded once by the main process, even when the
+      // Chromium HWND has focus but its DOM does not. Leave text entry intact.
+      if (isEmbeddedPlayback && event.isTrusted) {
+        if (Object.values(shortcuts).some(binding => matchesShortcut(event, binding)) || event.code === "Escape" && playlistOpen) event.preventDefault();
+        return;
+      }
       if (matchesShortcut(event, shortcuts.playerDelete)) {
         event.preventDefault();
         if (!detailsOpen && !playlistOpen && onDelete && !event.repeat) openDeleteConfirmation();
@@ -277,16 +335,18 @@ export function PlayerPage({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, onDelete, playlistOpen, seekStepSeconds, shortcuts, volume]);
+  }, [deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, isEmbeddedPlayback, playing, currentTime, onDelete, playlistOpen, seekStepSeconds, shortcuts, volume]);
 
   const launchExternalPlayback = async () => {
     if (!onPlayExternal || externalLaunching) return;
     setExternalLaunching(true);
     try {
-      await onPlayExternal();
+      if (isEmbeddedPlayback) await embedded.stop();
+      await onPlayExternal(Math.round(currentTime * 1000));
       setPlaybackError(null);
     } catch (cause) {
       setPlaybackError(cause instanceof Error ? cause.message : "无法启动 mpv");
+      if (isEmbeddedPlayback) embedded.reload(currentTime);
     } finally {
       setExternalLaunching(false);
     }
@@ -295,6 +355,11 @@ export function PlayerPage({
   const togglePlayback = async () => {
     if (isExternalPlayback) {
       await launchExternalPlayback();
+      return;
+    }
+    if (isEmbeddedPlayback) {
+      if (embeddedError || ["idle", "failed", "ended"].includes(embedded.state?.phase ?? "loading")) embedded.reload(embedded.state?.phase === "ended" ? 0 : currentTime);
+      else await embedded.send({ op: "pause", value: playing });
       return;
     }
 
@@ -310,6 +375,11 @@ export function PlayerPage({
   };
 
   const handleNativePlaybackError = () => {
+    if (embeddedApi) {
+      fallbackPositionRef.current = Math.max(0, (videoRef.current?.currentTime || currentTime) * 1000);
+      setPlaybackError(null); setNativeFailedId(video.id);
+      return;
+    }
     setPlaybackError("内置播放器无法播放，正在尝试 mpv");
     if (onPlayExternal) {
       void launchExternalPlayback();
@@ -317,6 +387,7 @@ export function PlayerPage({
   };
 
   const seekBy = (seconds: number) => {
+    if (isEmbeddedPlayback) { seekTo(Math.max(0, Math.min(duration, currentTime + seconds))); return; }
     const element = videoRef.current;
     if (!element || isExternalPlayback) return;
     element.currentTime = Math.max(0, Math.min(element.duration || duration, element.currentTime + seconds));
@@ -324,11 +395,13 @@ export function PlayerPage({
   };
 
   const seekTo = (seconds: number) => {
+    if (isEmbeddedPlayback) { void embedded.send({ op: "seek", value: seconds }); return; }
     if (videoRef.current && !isExternalPlayback) videoRef.current.currentTime = seconds;
     setCurrentTime(seconds);
   };
 
   const updateVolume = (value: number) => {
+    if (isEmbeddedPlayback) void embedded.send({ op: "volume", value: value * 100 });
     if (videoRef.current && !isExternalPlayback) {
       videoRef.current.volume = value;
       videoRef.current.muted = false;
@@ -338,11 +411,18 @@ export function PlayerPage({
   };
 
   const toggleMute = () => {
+    if (isEmbeddedPlayback) void embedded.send({ op: "volume", value: muted ? volume * 100 : 0 });
     if (videoRef.current && !isExternalPlayback) videoRef.current.muted = !muted;
     setMuted((value) => !value);
   };
 
   const toggleFullscreen = async () => {
+    if (isEmbeddedPlayback) {
+      const next = !isFullscreen;
+      await embedded.send({ op: "fullscreen", value: next });
+      setIsFullscreen(next); setControlsVisible(true);
+      return;
+    }
     if (!document.fullscreenElement) await pageRef.current?.requestFullscreen();
     else await document.exitFullscreen();
   };
@@ -369,6 +449,7 @@ export function PlayerPage({
   const openDeleteConfirmation = () => {
     if (!onDelete || deletePendingRef.current) return;
     if (videoRef.current && !videoRef.current.paused) videoRef.current.pause();
+    if (isEmbeddedPlayback) void embedded.send({ op: "pause", value: true });
     setDeleteError(null);
     setDeleteConfirmOpen(true);
     setControlsVisible(true);
@@ -380,10 +461,13 @@ export function PlayerPage({
     setDeletePending(true);
     setDeleteError(null);
     try {
+      // Release the decoder's file handle before the existing delete API acts.
+      if (isEmbeddedPlayback) await embedded.stop();
       await onDelete(video);
       setDeleteConfirmOpen(false);
     } catch (cause) {
       setDeleteError(cause instanceof Error ? cause.message : "无法永久删除视频");
+      if (isEmbeddedPlayback) embedded.reload(currentTime);
     } finally {
       deletePendingRef.current = false;
       setDeletePending(false);
@@ -482,7 +566,8 @@ export function PlayerPage({
   return (
     <section
       ref={pageRef}
-      className={isFullscreen ? "player-page is-fullscreen" : "player-page"}
+      tabIndex={-1}
+      className={`player-page${isFullscreen ? " is-fullscreen" : ""}${isEmbeddedPlayback ? " uses-embedded-engine" : ""}${playlistOpen ? " has-playlist" : ""}`}
       onMouseMove={() => {
         if (isFullscreen) {
           showControls();
@@ -514,6 +599,7 @@ export function PlayerPage({
             {formatDuration(video.durationMs)}
             <span />
             {video.width && video.height ? `${video.width}x${video.height}` : video.extension.toUpperCase()}
+            {isEmbeddedPlayback && <><span />内嵌解码</>}
           </p>
         </div>
         <div className="player-topbar-actions">
@@ -574,7 +660,8 @@ export function PlayerPage({
       </header>
 
       <div className="player-stage" ref={surfaceRef} onDoubleClick={handleStageDoubleClick}>
-        {!isExternalPlayback && (
+        {isEmbeddedPlayback && <div ref={embeddedStageRef} className="player-embedded-surface" aria-label="视频画面" />}
+        {!isExternalPlayback && !isEmbeddedPlayback && (
           <video
             ref={videoRef}
             src={mediaUrl}
@@ -610,19 +697,19 @@ export function PlayerPage({
             <span>{externalLaunching ? "正在启动 mpv..." : "用 mpv 播放"}</span>
           </button>
         )}
-        {!isExternalPlayback && !mediaUrl && (
+        {!isExternalPlayback && !isEmbeddedPlayback && !mediaUrl && (
           <div className="player-placeholder">
             <Play size={48} fill="currentColor" />
             <strong>{video.extension.slice(1).toUpperCase()}</strong>
             <span>桌面应用中加载本地视频</span>
           </div>
         )}
-        {!isExternalPlayback && !playing && mediaUrl && (
+        {!isExternalPlayback && !isEmbeddedPlayback && !playing && mediaUrl && (
           <button className="player-center-play" aria-label="播放" onClick={() => void togglePlayback()}>
             <Play size={34} fill="currentColor" />
           </button>
         )}
-        {playbackError && <div className="player-error" role="alert">{playbackError}</div>}
+        {!isEmbeddedPlayback && playbackError && <div className="player-error" role="alert">{playbackError}</div>}
       </div>
 
       {playlistOpen && (
@@ -699,6 +786,10 @@ export function PlayerPage({
           }
         }}
       >
+        {isEmbeddedPlayback && <div className="player-engine-status" role="status">
+          {embeddedError ?? playbackError ?? ({ idle: "准备播放", loading: "正在读取视频", playing: "", paused: "已暂停", reading: "正在读取目标位置", buffering: "正在缓冲", failed: "播放失败", ended: "播放结束" }[embedded.state?.phase ?? "idle"])}
+          <button onClick={() => embedded.reload(currentTime)}>重新加载</button>
+        </div>}
         <div
           className="progress-wrap"
           onMouseMove={(event) => {

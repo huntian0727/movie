@@ -25,6 +25,9 @@ static class Native {
     [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr SetParent(IntPtr child, IntPtr parent);
     [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr child);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr handle);
+    [DllImport("user32.dll")] public static extern bool IsChild(IntPtr parent,IntPtr child);
+    [DllImport("user32.dll")] public static extern short GetKeyState(int key);
+    [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr handle);
     [DllImport("user32.dll", SetLastError=true)] public static extern bool MoveWindow(IntPtr handle,int x,int y,int width,int height,bool repaint);
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr handle,out Rect rect);
     [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr handle,uint command);
@@ -64,7 +67,7 @@ static class Native {
     }
 }
 
-class NativeHost : Form {
+class NativeHost : Form, IMessageFilter {
     readonly IntPtr parent;
     readonly string hardwareDecode;
     readonly bool mediaFeatures;
@@ -73,12 +76,44 @@ class NativeHost : Form {
     readonly System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer();
     readonly object outputLock=new object();
     bool loaded;
+    bool endReported;
     int token;
     int seekCount,restartCount;
     int viewportX=0,viewportY=58,viewportWidth=1280,viewportHeight=720;
+    readonly System.Windows.Forms.Timer clickTimer=new System.Windows.Forms.Timer();
+    bool clicked;
     public NativeHost(IntPtr owner,string hwdec,bool features) {
         parent=owner;hardwareDecode=hwdec;mediaFeatures=features; FormBorderStyle=FormBorderStyle.None; ShowInTaskbar=false; TopLevel=false;
-        BackColor=System.Drawing.Color.Black; Width=1280; Height=720;
+        BackColor=System.Drawing.Color.Black; Width=1; Height=1;
+        Application.AddMessageFilter(this);
+        clickTimer.Interval=SystemInformation.DoubleClickTime;
+        clickTimer.Tick+=(sender,args)=>{clickTimer.Stop();clicked=false;Native.SetFocus(Handle);Emit(new {type="input",input=new {kind="click"}});};
+    }
+    public bool PreFilterMessage(ref Message message) {
+        if(message.HWnd!=Handle&&!Native.IsChild(Handle,message.HWnd))return false;
+        return HandleInput(message.Msg,message.WParam,message.LParam);
+    }
+    bool HandleInput(int msg,IntPtr wparam,IntPtr lparam) {
+        if(msg==0x202){
+            if(clicked){clickTimer.Stop();clicked=false;Native.SetFocus(Handle);Emit(new {type="input",input=new {kind="double-click"}});}
+            else {clicked=true;clickTimer.Start();}
+            return false;
+        }
+        if(msg!=0x100&&msg!=0x104)return false;
+        if((lparam.ToInt64()&(1L<<30))!=0)return true;
+        Keys key=(Keys)wparam.ToInt32();string code=null;
+        if(key>=Keys.A&&key<=Keys.Z)code="Key"+key.ToString();
+        else if(key>=Keys.D0&&key<=Keys.D9)code="Digit"+((int)key-(int)Keys.D0).ToString();
+        else if(key>=Keys.F1&&key<=Keys.F12)code=key.ToString();
+        else {switch(key){case Keys.Space:code="Space";break;case Keys.Escape:code="Escape";break;case Keys.Enter:code="Enter";break;
+            case Keys.Left:code="ArrowLeft";break;case Keys.Right:code="ArrowRight";break;case Keys.Up:code="ArrowUp";break;case Keys.Down:code="ArrowDown";break;
+            case Keys.Home:code="Home";break;case Keys.End:code="End";break;case Keys.PageUp:code="PageUp";break;case Keys.PageDown:code="PageDown";break;}}
+        if(code==null)return false;
+        // Alt+F4 must retain the normal close-window behavior.
+        bool control=Native.GetKeyState((int)Keys.ControlKey)<0,shift=Native.GetKeyState((int)Keys.ShiftKey)<0,alt=Native.GetKeyState((int)Keys.Menu)<0;
+        if(key==Keys.F4&&alt)return false;
+        Emit(new {type="input",input=new {kind="key",code=code,control=control,shift=shift,alt=alt}});
+        return true;
     }
     void Emit(object value) { lock(outputLock){ Console.Out.WriteLine(json.Serialize(value)); Console.Out.Flush(); } }
     protected override void OnLoad(EventArgs e) {
@@ -111,12 +146,13 @@ class NativeHost : Form {
         string op=Convert.ToString(message["op"],CultureInfo.InvariantCulture); int result=0;
         try {
             if(op=="quit") { Close(); return; }
-            if(op=="bounds") {
+            if(op=="visible") { Visible=Convert.ToBoolean(message["value"]); }
+            else if(op=="bounds") {
                 int x=Convert.ToInt32(message["x"]),y=Convert.ToInt32(message["y"]),w=Convert.ToInt32(message["width"]),h=Convert.ToInt32(message["height"]);
                 if(x<0||y<0||w<1||h<1||w>16384||h>16384) throw new Exception("invalid-bounds");
                 viewportX=x;viewportY=y;viewportWidth=w;viewportHeight=h;ApplyBounds();
             } else if(op=="load") {
-                loaded=false;seekCount=0;restartCount=0; token=Convert.ToInt32(message["token"]);
+                loaded=false;endReported=false;seekCount=0;restartCount=0; token=Convert.ToInt32(message["token"]);
                 Native.Set(mpv,"pause",Convert.ToBoolean(message["paused"])?"yes":"no",false);
                 Native.Set(mpv,"start",Clamp(message["start"],0,86400).ToString(CultureInfo.InvariantCulture),false);
                 string file=Convert.ToString(message["path"]); if(!System.IO.Path.IsPathRooted(file))throw new Exception("absolute-file-required");
@@ -167,7 +203,12 @@ class NativeHost : Form {
             if(ev.id==17) ApplyBounds();
             if(ev.id==20) seekCount++;
             if(ev.id==21) restartCount++;
-            if(ev.id==7) { loaded=false; Emit(new {type="ended",token=token,reason=ev.data==IntPtr.Zero?0:Marshal.ReadInt32(ev.data),error=ev.data==IntPtr.Zero?0:Marshal.ReadInt32(ev.data,4)}); }
+            if(ev.id==7) { loaded=false; if(!endReported){endReported=true;Emit(new {type="ended",token=token,reason=ev.data==IntPtr.Zero?0:Marshal.ReadInt32(ev.data),error=ev.data==IntPtr.Zero?0:Marshal.ReadInt32(ev.data,4)});} }
+        }
+        // keep-open retains the final frame and can pause at EOF without an
+        // END_FILE event. Still notify the original playlist exactly once.
+        if(loaded&&!endReported&&Native.Text(mpv,"eof-reached")=="yes"){
+            endReported=true;Emit(new {type="ended",token=token,reason=0,error=0});
         }
         Native.Rect viewport; Native.GetClientRect(Handle,out viewport);
         Native.Rect videoRect; Native.GetClientRect(Native.GetWindow(Handle,5),out videoRect);
@@ -180,6 +221,7 @@ class NativeHost : Form {
             embedded=Native.GetParent(Handle)==parent,media=mediaFeatures?FeatureSnapshot():null});
     }
     protected override void OnFormClosed(FormClosedEventArgs e) {
+        Application.RemoveMessageFilter(this);clickTimer.Stop();clickTimer.Dispose();
         timer.Stop(); if(mpv!=IntPtr.Zero){ Native.mpv_terminate_destroy(mpv); mpv=IntPtr.Zero; }
         Emit(new {type="disposed"}); base.OnFormClosed(e);
     }
