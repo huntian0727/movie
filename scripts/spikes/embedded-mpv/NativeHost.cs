@@ -68,6 +68,7 @@ static class Native {
 class NativeHost : Form {
     readonly IntPtr parent;
     readonly string hardwareDecode;
+    readonly bool mediaFeatures;
     IntPtr mpv=IntPtr.Zero;
     readonly JavaScriptSerializer json=new JavaScriptSerializer();
     readonly System.Windows.Forms.Timer timer=new System.Windows.Forms.Timer();
@@ -76,8 +77,8 @@ class NativeHost : Form {
     int token;
     int seekCount,restartCount;
     int viewportX=0,viewportY=58,viewportWidth=1280,viewportHeight=720;
-    public NativeHost(IntPtr owner,string hwdec) {
-        parent=owner;hardwareDecode=hwdec; FormBorderStyle=FormBorderStyle.None; ShowInTaskbar=false; TopLevel=false;
+    public NativeHost(IntPtr owner,string hwdec,bool features) {
+        parent=owner;hardwareDecode=hwdec;mediaFeatures=features; FormBorderStyle=FormBorderStyle.None; ShowInTaskbar=false; TopLevel=false;
         BackColor=System.Drawing.Color.Black; Width=1280; Height=720;
     }
     void Emit(object value) { lock(outputLock){ Console.Out.WriteLine(json.Serialize(value)); Console.Out.Flush(); } }
@@ -92,6 +93,7 @@ class NativeHost : Form {
             {"volume","20"},{"idle","yes"},{"cache","yes"},{"demuxer-max-bytes","32MiB"},
             {"demuxer-max-back-bytes","8MiB"},{"network-timeout","15"}};
         foreach(var opt in opts) if(Native.Set(mpv,opt.Key,opt.Value,true)<0) throw new Exception("option-failed:"+opt.Key);
+        if(mediaFeatures && Native.Set(mpv,"sub-auto","no",true)<0) throw new Exception("sub-auto-option-failed");
         int result=Native.mpv_initialize(mpv); if(result<0) throw new Exception("mpv-init:"+result);
         timer.Interval=200; timer.Tick+=Tick; timer.Start();
         Emit(new {type="ready", embedded=Native.GetParent(Handle)==parent, version=Native.Text(mpv,"mpv-version")});
@@ -121,11 +123,32 @@ class NativeHost : Form {
             else if(op=="seek") result=Native.Command(mpv,"seek",Clamp(message["value"],0,86400).ToString(CultureInfo.InvariantCulture),"absolute+exact");
             else if(op=="volume") result=Native.Set(mpv,"volume",Clamp(message["value"],0,100).ToString(CultureInfo.InvariantCulture),false);
             else if(op=="rotate") result=Native.Set(mpv,"video-rotate",Clamp(message["value"],0,270).ToString(CultureInfo.InvariantCulture),false);
+            else if(mediaFeatures && (op=="audio-track"||op=="subtitle-track")) {
+                int id=Convert.ToInt32(message["value"]);if(id<0||id>128)throw new Exception("invalid-track-id");
+                result=Native.Set(mpv,op=="audio-track"?"aid":"sid",id==0?"no":id.ToString(CultureInfo.InvariantCulture),false);
+            }
+            else if(mediaFeatures && op=="subtitle-visible") result=Native.Set(mpv,"sub-visibility",Convert.ToBoolean(message["value"])?"yes":"no",false);
+            else if(mediaFeatures && op=="subtitle-add") {
+                string file=Convert.ToString(message["path"]);
+                if(!System.IO.Path.IsPathRooted(file)||!file.EndsWith(".srt",StringComparison.OrdinalIgnoreCase))throw new Exception("invalid-subtitle-fixture");
+                result=Native.Command(mpv,"sub-add",file,"cached");
+            }
             else throw new Exception("unsupported-operation");
             Emit(new {type="ack",op=op,result=result});
         } catch(Exception ex) { Emit(new {type="error",reason=ex.GetType().Name,op=op}); }
     }
     static double Clamp(object value,double low,double high){ double n=Convert.ToDouble(value,CultureInfo.InvariantCulture); if(double.IsNaN(n)||double.IsInfinity(n)) throw new Exception("invalid-number"); return Math.Max(low,Math.Min(high,n)); }
+    object FeatureSnapshot(){
+        var tracks=new List<object>();int count=(int)(Native.Number(mpv,"track-list/count")??0);
+        for(int i=0;i<Math.Min(count,16);i++){
+            string p="track-list/"+i.ToString(CultureInfo.InvariantCulture)+"/";
+            tracks.Add(new {type=Native.Text(mpv,p+"type"),id=Native.Number(mpv,p+"id"),selected=Native.Text(mpv,p+"selected"),external=Native.Text(mpv,p+"external"),codec=Native.Text(mpv,p+"codec")});
+        }
+        // Never emit subtitle contents, titles, or external filenames.
+        string text=Native.Text(mpv,"sub-text")??"";
+        return new {tracks=tracks,aid=Native.Text(mpv,"aid"),sid=Native.Text(mpv,"sid"),subtitleVisible=Native.Text(mpv,"sub-visibility"),
+            innerFixture=text.Contains("INNER subtitle"),externalFixture=text.Contains("EXTERNAL subtitle"),audioSamplerate=Native.Number(mpv,"audio-params/samplerate")};
+    }
     void ApplyBounds(){
         if(!Native.MoveWindow(Handle,viewportX,viewportY,viewportWidth,viewportHeight,true)) throw new Exception("native-bounds-failed");
         // libmpv creates its own child under wid. Size that child too: its first
@@ -152,7 +175,7 @@ class NativeHost : Form {
             height=Native.Number(mpv,"height"),avsync=Native.Number(mpv,"avsync"),dropped=Native.Number(mpv,"frame-drop-count"),
             pausedForCache=Native.Text(mpv,"paused-for-cache"),cacheDuration=Native.Number(mpv,"demuxer-cache-duration"),seeking=Native.Text(mpv,"seeking"),
             seekCount=seekCount,restartCount=restartCount,currentVo=Native.Text(mpv,"current-vo"),currentAo=Native.Text(mpv,"current-ao"),
-            embedded=Native.GetParent(Handle)==parent});
+            embedded=Native.GetParent(Handle)==parent,media=mediaFeatures?FeatureSnapshot():null});
     }
     protected override void OnFormClosed(FormClosedEventArgs e) {
         timer.Stop(); if(mpv!=IntPtr.Zero){ Native.mpv_terminate_destroy(mpv); mpv=IntPtr.Zero; }
@@ -161,12 +184,13 @@ class NativeHost : Form {
     [STAThread] static void Main(string[] args) {
         try {
             Console.InputEncoding=new UTF8Encoding(false); Console.OutputEncoding=new UTF8Encoding(false);
-            if(args.Length<2||args.Length>3) throw new Exception("usage-owner-and-runtime-required");
-            string hwdec=args.Length==3?args[2]:"auto-safe";
+            if(args.Length<2||args.Length>4) throw new Exception("usage-owner-and-runtime-required");
+            string hwdec=args.Length>=3?args[2]:"auto-safe";
             if(hwdec!="auto-safe"&&hwdec!="no") throw new Exception("invalid-hwdec");
+            if(args.Length==4&&args[3]!="media-features") throw new Exception("invalid-feature-mode");
             Native.SetThreadDpiAwarenessContext(new IntPtr(-4));
             Native.SetDllDirectory(System.IO.Path.GetFullPath(args[1]));
-            var host=new NativeHost(new IntPtr(long.Parse(args[0],CultureInfo.InvariantCulture)),hwdec);
+            var host=new NativeHost(new IntPtr(long.Parse(args[0],CultureInfo.InvariantCulture)),hwdec,args.Length==4);
             host.Show(); Application.Run(host);
         } catch(Exception ex){ Console.Out.WriteLine(new JavaScriptSerializer().Serialize(new {type="fatal",reason=ex.GetType().Name})); Environment.ExitCode=1; }
     }

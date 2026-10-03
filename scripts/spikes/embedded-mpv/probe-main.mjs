@@ -12,6 +12,7 @@ import { runControlValidation } from "./control-validation.mjs";
 import { invalidateHostState, isSpikeKey, spikeKeyCode } from "./host-lifecycle.mjs";
 import { runFailureValidation } from "./failure-validation.mjs";
 import { LoadDeadline } from "./load-deadline.mjs";
+import {runMediaFeatureValidation,prepareSubtitleVisual} from "./media-feature-validation.mjs";
 
 const args = Object.fromEntries(process.argv.filter((v)=>v.startsWith("--spike-")).map((v)=>{
   const index=v.indexOf("="); return [v.slice(8,index),v.slice(index+1)];
@@ -51,7 +52,8 @@ async function startHost(hwdec="auto-safe"){
   ready=false;
   snapshot=null;
   const handle=win.getNativeWindowHandle().readBigUInt64LE().toString();
-  host=spawn(path.join(root,"NativeHost.exe"),[handle,root,hwdec],{stdio:["pipe","pipe","pipe"],windowsHide:true,detached:false});
+  const features=args["media-auto"]==="1"||Boolean(args["media-visual"]);
+  host=spawn(path.join(root,"NativeHost.exe"),[handle,root,hwdec,...(features?["media-features"]:[])],{stdio:["pipe","pipe","pipe"],windowsHide:true,detached:false});
   const current=host;
   host.stdin.on("error",()=>{});
   report.hostPids.push(host.pid);
@@ -145,7 +147,7 @@ async function automatedChecks(){
 app.whenReady().then(async () => {
 await mkdir(path.join(root,"electron-user-data"),{recursive:true});
 // Automation heartbeats must not mistake Chromium's background timer throttle for a hang.
-const automated=args["failure-auto"]==="1"||args["control-auto"]==="1"||args.matrix==="1"||args.auto==="1";
+const automated=args["media-auto"]==="1"||args["failure-auto"]==="1"||args["control-auto"]==="1"||args.matrix==="1"||args.auto==="1";
 report.backgroundThrottling=!automated;
 win=new BrowserWindow({title:"拉面影视 · 内嵌播放验证",width:1280,height:908,minWidth:900,minHeight:600,backgroundColor:"#111111",webPreferences:{preload:path.join(dir,"preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:!automated}});
 win.setMenu(null);
@@ -167,7 +169,16 @@ await win.loadFile(path.join(dir,"probe.html"));
 win.on("close",(event)=>{if(!closing){event.preventDefault();closing=true;void stopHost().then(save).then(()=>{win.destroy();app.quit();});}});
 win.on("closed",()=>clearInterval(heartbeat));
 try {
-  if(args["failure-auto"]==="1"){
+  if(args["media-auto"]==="1"||args["media-visual"]){
+    if(!controls)throw new Error("media-validation-requires-controls");
+    const harness={root,startHost,stopHost,load,state:()=>snapshot,controls,until,wait,send,ticks:()=>report.rendererTicks,
+      stops:()=>report.hostStops,record:r=>report.samples.push(r),persist:save};
+    if(args["media-visual"])await prepareSubtitleVisual(harness,args["media-visual"]);
+    else{
+      await runMediaFeatureValidation(harness);closing=true;report.pass=report.samples.every(s=>s.pass)&&report.failures.length===0;
+      await save();console.log(JSON.stringify(report));win.destroy();app.exit(report.pass?0:1);
+    }
+  }else if(args["failure-auto"]==="1"){
     if(!controls)throw new Error("failure-auto-requires-controls");
     await runFailureValidation({root,startHost,stopHost,load,getState:()=>snapshot,controls,until,wait,send,
       killHost:()=>host.kill(),perform,alive:()=>!win.isDestroyed(),ticks:()=>report.rendererTicks,

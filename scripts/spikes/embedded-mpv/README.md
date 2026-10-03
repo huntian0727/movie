@@ -68,11 +68,29 @@ node_modules/electron/dist/electron.exe scripts/spikes/embedded-mpv/probe-main.m
 
 自动模式关闭实验窗口的后台计时器节流，避免用 350ms 心跳检查误判后台窗口卡死；手动模式保留 Electron 默认节流。性能数字仅表示此控制环境的定时器额外延迟，不是正式应用体验承诺。详情及失败/复测证据见 [输入与故障验证报告](../../../docs/ai/reports/2026-10-03-embedded-mpv-input-failure-validation.md)。
 
+## 短时音轨 / 字幕 / 中途卡流验证
+
+用户已明确将长时间播放留到正式使用时观察，本轮不执行长时播放测试。先生成中性 12s 双音轨 MKV（内嵌 SRT）和 20s 分片 MP4；生成文件只写到仓库外的隔离目录。
+
+```text
+node scripts/spikes/embedded-mpv/prepare-media-features.mjs <isolated-directory>
+--spike-controls=1 --spike-media-auto=1 --spike-samples=<isolated-directory>/media-feature-samples.json --spike-report=media-features.json
+--spike-controls=1 --spike-media-visual=embedded --spike-samples=<isolated-directory>/media-feature-samples.json --spike-report=subtitle-visual.json
+```
+
+运行前需重新编译 `NativeHost.cs`，与原型默认运行共用现有宿主/DLL。媒体验证通过可信 CLI 单独开启 `media-features` 宿主参数；普通运行仍不开启音轨/字幕实验命令和额外属性采样。未增加 renderer 任意路径、MPV 命令入口或正式设置项。
+
+自动测试检查实际选中轨道、WASAPI 输出初始化及时间推进，不能替代听感/音画同步验证。字幕只上报固定中性标记的匹配布尔值，不上报字幕文本、轨道标题或外挂路径。`media-visual` 仅接受 `embedded` / `external` / `hidden`，暂停在 2s，通过真实窗口分别查看中英文内嵌/外挂字幕与关闭后的画面；手动报告不自动生成 `pass`，视觉结论记录在文档中。
+
+卡流模拟仅监听回环随机端口：完整发送前两个 MP4 片段后暂时停止供流，等待真实 `paused-for-cache=yes`，再补完数据或关闭自有宿主。恢复必须实际时间推进超过 0.6s，且未暂停/未 seek/未等待缓存；0.6s 因而计入恢复耗时。不代表真实 CloudDrive 断网、不测试系统网络配置或无限期卡流后的超时策略。
+
+两轮四场景、三项窗口视觉检查及默认四格式控制回归结果见 [短时媒体功能报告](../../../docs/ai/reports/2026-10-03-embedded-mpv-media-features-validation.md)。
+
 ## 验证边界
 
 - 自动验证：真实 libmpv 加载/进度、嵌入 parent、暂停稳定、seek、音量属性、窗口全屏/恢复、宿主退出/异常隔离/重新启动、Electron 主线程定时器延迟。
 - 人工验证：实际可见画面、按钮/快捷键、缩放/旋转与控件层级；实际声音/主观音画同步由用户或有音频输出验证能力的环境确认，不能仅由 codec 属性推出。
 - 未将 HTML5 与 MPV 混用作自动转换，不做后台转码，不修改原文件，不新增整片下载任务；播放和挂载盘预读仍会读取视频内容，不能承诺不会读取完整短视频。
 - `hwdec=auto-safe` 允许软件回退；32 MiB 前向/8 MiB 后向是 mpv 缓存预算，不限制 CloudDrive 自身预读。
-- 不代表已完成 React PlayerPage 对接、HDR/字幕/音轨矩阵、长时间 4K 性能、安装器/DLL许可证合规、Electron 升级兼容或所有云盘媒体验证。快捷键已通过本机自动输入复测，但真实物理键盘、输入法、多显示器及切出/切回焦点仍需覆盖。
+- 不代表已完成 React PlayerPage 对接、HDR、完整字幕/音轨矩阵、长时间 4K 性能、安装器/DLL许可证合规、Electron 升级兼容或所有云盘媒体验证。本轮只覆盖两条 AAC 音轨、中文 SRT 和短时回环卡流；ASS/PGS、蓝光多音轨等未测。快捷键已通过本机自动输入复测，但真实物理键盘、输入法、多显示器及切出/切回焦点仍需覆盖。
 - 实验不提供网络/外部导航或用户凭据配置，禁止打开不可信播放清单。实际使用前仍需明确来源和许可证审查。
