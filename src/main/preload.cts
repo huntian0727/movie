@@ -86,6 +86,7 @@ const channels: typeof SharedIpcChannels = {
   previewMetadataCancel: "preview-metadata:cancel",
   videoRetryMetadata: "video:retry-metadata",
   videoOpenPlayer: "video:open-player",
+  embeddedPlayback: "player:embedded",
   videoPlayExternal: "video:play-external",
   playHistoryList: "play-history:list",
   playHistoryRecord: "play-history:record",
@@ -184,6 +185,12 @@ const mainApi: VideoManagerApi = {
   cancelPreviewMetadata: (requestId: string) => ipcRenderer.invoke(channels.previewMetadataCancel, requestId),
   retryMetadata: (videoId: string) => ipcRenderer.invoke(channels.videoRetryMetadata, { videoId }),
   openPlayer: (videoId: string, queueIds: string[], startPositionMs?: number) => ipcRenderer.invoke(channels.videoOpenPlayer, { videoId, queueIds, ...(startPositionMs === undefined ? {} : { startPositionMs }) }),
+  embeddedPlayback: (request) => ipcRenderer.invoke(channels.embeddedPlayback, request),
+  subscribeEmbeddedKeys: (listener) => {
+    const handler = (_event: IpcRendererEvent, code: string) => { if (["Space", "KeyF", "Escape"].includes(code)) listener(code); };
+    ipcRenderer.on("player:embedded-key", handler);
+    return () => ipcRenderer.removeListener("player:embedded-key", handler);
+  },
   playExternalVideo: (videoId: string, startPositionMs?: number) => ipcRenderer.invoke(channels.videoPlayExternal, { videoId, ...(startPositionMs === undefined ? {} : { startPositionMs }) }),
   listPlayHistory: () => ipcRenderer.invoke(channels.playHistoryList),
   recordPlayback: (videoId: string, positionMs = 0) => ipcRenderer.invoke(channels.playHistoryRecord, { videoId, positionMs }),

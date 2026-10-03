@@ -25,6 +25,7 @@ import {
   StructuredLogger
 } from "./logging/index.js";
 import { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
+import { EmbeddedPlayer } from "./embeddedPlayer/embeddedPlayer.js";
 import { runPackagedSmoke } from "./packagedSmoke.js";
 import { configureSecurityLogger, configureWindowSecurity, installContentSecurityPolicy } from "./security.js";
 import { createSettingsStore } from "./settings/settingsStore.js";
@@ -58,6 +59,7 @@ let database: DatabaseConnection | undefined;
 let metadataQueue: MetadataQueue | undefined;
 let mediaCacheManager: MediaCacheManager | undefined;
 let playerWindows: PlayerWindowCoordinator | undefined;
+let embeddedPlayer: EmbeddedPlayer | undefined;
 let duplicateCleanup: DuplicateCleanupService | undefined;
 let assetCenterQueries: AssetCenterQueryService | undefined;
 let playbackDiagnosticQueries: PlaybackDiagnosticQueryService | undefined;
@@ -196,6 +198,10 @@ app.whenReady().then(async () => {
     (videoId) => playbackMetadata.ensureCodecMetadata(videoId),
     logger
   );
+  embeddedPlayer = new EmbeddedPlayer(repo, () => playerWindows?.getPlayerWindow() ?? null, {
+    host: app.isPackaged ? path.join(process.resourcesPath, "native-player", "NativeHost.exe") : path.resolve(currentDir, "../../native-bin/NativeHost.exe"),
+    directory: path.join(userDataPath, "native-player")
+  });
   registerIpcHandlers(repo, {
     database,
     assetCenterQueries,
@@ -223,6 +229,7 @@ app.whenReady().then(async () => {
     scanManager,
     metadataQueue,
     playerWindows,
+    embeddedPlayer,
     domainEvents,
     duplicateCleanup,
     duplicateCleanupJobs
@@ -318,6 +325,8 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => {
+  embeddedPlayer?.dispose();
+  embeddedPlayer = undefined;
   void playbackDiagnosticQueries?.dispose().catch((error) => {
     logger.warn({
       module: "playback.diagnostic",

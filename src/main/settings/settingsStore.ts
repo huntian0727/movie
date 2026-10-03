@@ -32,7 +32,7 @@ export function normalizeSettings(input: Partial<AppSettings>): AppSettings {
     autoPlayOnOpen: typeof input.autoPlayOnOpen === "boolean" ? input.autoPlayOnOpen : defaults.autoPlayOnOpen,
     seekStepSeconds: Number.isInteger(input.seekStepSeconds) && (input.seekStepSeconds ?? 0) >= 1 && (input.seekStepSeconds ?? 0) <= 120 ? input.seekStepSeconds! : defaults.seekStepSeconds,
     coverFrameTimeSeconds: input.coverFrameTimeSeconds === 0 || input.coverFrameTimeSeconds === 3 || input.coverFrameTimeSeconds === 5 || input.coverFrameTimeSeconds === 10 || input.coverFrameTimeSeconds === 15 ? input.coverFrameTimeSeconds : defaults.coverFrameTimeSeconds,
-    playbackPreference: input.playbackPreference === "native-first" || input.playbackPreference === "mpv-first" || input.playbackPreference === "auto" ? input.playbackPreference : defaults.playbackPreference,
+    playbackPreference: input.playbackPreference === "embedded-first" || input.playbackPreference === "native-first" || input.playbackPreference === "mpv-first" || input.playbackPreference === "auto" ? input.playbackPreference : defaults.playbackPreference,
     cloudDrive: {
       endpoint: typeof input.cloudDrive?.endpoint === "string" && input.cloudDrive.endpoint.trim() ? input.cloudDrive.endpoint.trim() : defaults.cloudDrive.endpoint,
       apiToken: typeof input.cloudDrive?.apiToken === "string" ? input.cloudDrive.apiToken.trim() : defaults.cloudDrive.apiToken,

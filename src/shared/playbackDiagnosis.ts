@@ -24,7 +24,7 @@ export function explainPlaybackRoute(
   preference: PlaybackPreference,
   route: PlaybackRoute
 ): PlaybackDiagnosis {
-  const routeLabel = route === "native" ? "内置播放器" : "MPV 外部播放器";
+  const routeLabel = route === "embedded" ? "内嵌 MPV（试用）" : route === "native" ? "内置播放器" : "MPV 外部播放器";
   const metadataIncomplete = video.metadataStatus === "pending" || video.codecProbeStatus === "unprobed";
   const metadataFailed = video.metadataStatus === "failed" || video.codecProbeStatus === "failed";
   const riskyCodec = includesAny(video.videoCodec, ["hevc", "h265", "av1"]);
@@ -42,6 +42,9 @@ export function explainPlaybackRoute(
     };
   }
 
+  if (preference === "embedded-first") {
+    return { route, routeLabel, confidence: "low", risk: "unknown", reason: "已选择内嵌 MPV 试用策略，兼容性以实际播放为准。", suggestion: "遇到问题可退回原播放方式或使用外部 MPV；长时稳定性尚未验收。", disclaimer: DISCLAIMER };
+  }
   if (preference === "mpv-first") {
     return {
       route,

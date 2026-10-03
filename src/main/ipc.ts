@@ -50,6 +50,7 @@ import { registerPreviewImageHandlers } from "./media/previewImageIpc.js";
 import { MetadataFileRefreshService } from "./media/metadataFileRefreshService.js";
 import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import { playWithMpv, waitForMpvStart } from "./media/mpvController.js";
+import type { EmbeddedPlayer } from "./embeddedPlayer/embeddedPlayer.js";
 import type { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
 import { wrapTrustedIpcHandler } from "./security.js";
 import type { SettingsStore } from "./settings/settingsStore.js";
@@ -283,7 +284,7 @@ const settingsSchema = z.object({
   autoPlayOnOpen: z.boolean(),
   seekStepSeconds: z.number().int().min(1).max(120),
   coverFrameTimeSeconds: z.union([z.literal(0), z.literal(3), z.literal(5), z.literal(10), z.literal(15)]),
-  playbackPreference: z.enum(["auto", "native-first", "mpv-first"]),
+  playbackPreference: z.enum(["auto", "native-first", "mpv-first", "embedded-first"]),
   cloudDrive: z.object({
     endpoint: z.string().trim().url().refine((value) => value.startsWith("http://") || value.startsWith("https://"), "CloudDrive endpoint must use HTTP or HTTPS"),
     apiToken: z.string().trim().max(16_384),
@@ -338,6 +339,7 @@ interface IpcDependencies {
   cacheRoot: string;
   cacheManager: MediaCacheManager;
   playerWindows: PlayerWindowCoordinator;
+  embeddedPlayer?: EmbeddedPlayer;
   domainEvents: DomainEventBus;
   scanManager: ScanManager;
   metadataQueue: MetadataQueue;
@@ -406,6 +408,10 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 }
 
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
+  ipcMain.handle(IPC_CHANNELS.embeddedPlayback, (event, payload) => {
+    if (!dependencies.embeddedPlayer) throw new Error("内嵌播放服务不可用");
+    return dependencies.embeddedPlayer.handle(event, payload);
+  });
   ipcLogger = dependencies.logger;
   registerPreviewMetadataHandlers(ipcMain, repo, dependencies.metadataQueue);
   registerPreviewImageHandlers(ipcMain, (url, options) =>
@@ -994,8 +1000,11 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoOpenPlayer, async (_event, payload) => {
     const parsed = playerSessionSchema.parse(payload);
+    if (dependencies.settings.get().playbackPreference === "embedded-first" && parsed.startPositionMs === undefined) {
+      parsed.startPositionMs = repo.listPlayHistory().find(p => p.videoId === parsed.videoId)?.positionMs ?? 0;
+    }
     await dependencies.playerWindows.open(parsed, dependencies.domainEvents.getSequence());
-    repo.recordPlayback(parsed.videoId);
+    repo.recordPlayback(parsed.videoId, dependencies.settings.get().playbackPreference === "embedded-first" ? parsed.startPositionMs ?? 0 : 0);
     dependencies.domainEvents.publish({ type: "playback:changed", videoIds: [parsed.videoId] });
     return true;
   });
@@ -1014,8 +1023,9 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.playerSessionSelect, async (_event, payload) => {
     const parsed = videoIdSchema.parse(payload);
+    const position = dependencies.settings.get().playbackPreference === "embedded-first" ? repo.listPlayHistory().find(p => p.videoId === parsed.videoId)?.positionMs ?? 0 : 0;
     await dependencies.playerWindows.select(parsed.videoId, dependencies.domainEvents.getSequence());
-    repo.recordPlayback(parsed.videoId);
+    repo.recordPlayback(parsed.videoId, position);
     const event = dependencies.domainEvents.publish({ type: "playback:changed", videoIds: [parsed.videoId] });
     return dependencies.playerWindows.getSnapshot(event.sequence).playerSession;
   });

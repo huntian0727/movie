@@ -148,6 +148,10 @@ export class PlayerWindowCoordinator {
     this.session = null;
   }
 
+  getPlayerWindow(): BrowserWindow | null {
+    return this.window && !this.window.isDestroyed() ? this.window : null;
+  }
+
   private logCodecProbeWaitTimeout(videoId: string): void {
     this.logger?.warn({
       module: "media.playback",

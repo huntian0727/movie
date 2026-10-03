@@ -1034,3 +1034,17 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
   .duplicate-page *, .task-center-backdrop * { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
   .duplicate-page .spin, .task-center-backdrop .spin { animation: none !important; }
 }
+.embedded-player-page { height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #111; color: #e5e5e5; }
+.embedded-player-header { min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 8px 16px; flex-shrink: 0; }
+.embedded-player-header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 80px; }
+.embedded-player-header span { color: #e8ae65; white-space: nowrap; font-size: 12px; }
+.embedded-player-stage { flex: 1; min-height: 80px; background: #000; }
+.embedded-player-controls { flex-shrink: 0; padding: 10px 16px; display: grid; gap: 8px; background: #1b1e1b; }
+.embedded-player-controls > input { width: 100%; }
+.embedded-player-buttons { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.embedded-player-buttons label { display: flex; align-items: center; gap: 6px; }
+.embedded-player-buttons select { max-width: 240px; }
+.embedded-player-buttons input { width: 90px; }
+.embedded-player-page button, .embedded-player-page select { padding: 6px 9px; border-radius: 5px; border: 1px solid #424942; background: #262c26; color: #eee; }
+.embedded-player-page button:disabled { opacity: .4; }
+.embedded-player-controls small { color: #9da59d; }

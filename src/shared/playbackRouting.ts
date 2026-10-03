@@ -11,6 +11,7 @@ const WEBM_NATIVE_VIDEO = new Set(["vp8", "vp9"]);
 const WEBM_NATIVE_AUDIO = new Set(["opus", "vorbis"]);
 
 export function choosePlaybackRoute(video: PlaybackIdentity, preference: PlaybackPreference): PlaybackRoute {
+  if (preference === "embedded-first") return "embedded";
   if (preference === "mpv-first") return "mpv";
 
   const extension = normalize(video.extension);

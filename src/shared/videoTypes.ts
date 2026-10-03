@@ -12,8 +12,8 @@ export type MetadataStatus = "pending" | "ready" | "failed";
 export type CodecProbeStatus = "unprobed" | "ready" | "failed";
 export type CacheStatus = "pending" | "ready" | "failed";
 export type FingerprintStatus = "pending" | "ready" | "failed";
-export type PlaybackPreference = "auto" | "native-first" | "mpv-first";
-export type PlaybackRoute = "native" | "mpv";
+export type PlaybackPreference = "auto" | "native-first" | "mpv-first" | "embedded-first";
+export type PlaybackRoute = "native" | "mpv" | "embedded";
 export type MediaSourceType = "local" | "clouddrive";
 export type DurationSource = "unknown" | "local-probe" | "clouddrive-api" | "cached";
 
@@ -1081,6 +1081,7 @@ export const IPC_CHANNELS = {
   previewMetadataCancel: "preview-metadata:cancel",
   videoRetryMetadata: "video:retry-metadata",
   videoOpenPlayer: "video:open-player",
+  embeddedPlayback: "player:embedded",
   videoPlayExternal: "video:play-external",
   playHistoryList: "play-history:list",
   playHistoryRecord: "play-history:record",
@@ -1179,6 +1180,8 @@ export interface VideoManagerApi {
   cancelPreviewMetadata(requestId: string): Promise<void>;
   retryMetadata(videoId: string): Promise<VideoRecord>;
   openPlayer(videoId: string, queueIds: string[], startPositionMs?: number): Promise<boolean>;
+  embeddedPlayback(request: import("./embeddedPlayback.js").EmbeddedRequest): Promise<import("./embeddedPlayback.js").EmbeddedState>;
+  subscribeEmbeddedKeys(listener: (code: string) => void): () => void;
   playExternalVideo(videoId: string, startPositionMs?: number): Promise<boolean>;
   listPlayHistory(): Promise<PlayHistoryEntry[]>;
   recordPlayback(videoId: string, positionMs?: number): Promise<boolean>;
