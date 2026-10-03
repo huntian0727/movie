@@ -18,6 +18,11 @@ afterEach(() => {
 });
 
 describe("Electron security policy", () => {
+  it("limits the preview renderer to image queue IPC and only players may position it", () => {
+    expect(getAllowedIpcRoles(IPC_CHANNELS.playerTimelinePreview)).toEqual(["player"]);
+    for (const channel of [IPC_CHANNELS.previewImageLoad, IPC_CHANNELS.previewImageCancel, IPC_CHANNELS.previewImageState]) expect(getAllowedIpcRoles(channel)).toContain("timeline-preview");
+    for (const channel of [IPC_CHANNELS.embeddedPlayback, IPC_CHANNELS.videoDelete, IPC_CHANNELS.settingsGet, IPC_CHANNELS.videoListByIds, IPC_CHANNELS.libraryPage]) expect(getAllowedIpcRoles(channel)).not.toContain("timeline-preview");
+  });
   it("uses a strict production CSP that blocks inline, eval, data, and remote scripts", () => {
     expect(PRODUCTION_CSP).toContain("default-src 'self'");
     expect(PRODUCTION_CSP).toContain("script-src 'self'");

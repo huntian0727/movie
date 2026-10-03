@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, ExternalLink, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { useEmbeddedEngine } from "./useEmbeddedEngine";
@@ -20,7 +20,7 @@ interface PlayerPageProps {
   hasPrevious?: boolean;
   hasNext?: boolean;
   playbackRoute?: PlaybackRoute;
-  embeddedApi?: Pick<VideoManagerApi, "embeddedPlayback" | "subscribeEmbeddedInput">;
+  embeddedApi?: Pick<VideoManagerApi, "embeddedPlayback" | "subscribeEmbeddedInput" | "showPlayerTimelinePreview">;
   startPositionMs?: number;
   startRequestId?: string;
   onBack?(): void;
@@ -71,8 +71,7 @@ export function PlayerPage({
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
-  const [previewHeight, setPreviewHeight] = useState(0);
+  const progressRef = useRef<HTMLDivElement>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [externalLaunching, setExternalLaunching] = useState(false);
   const [failedPreviewUrls, setFailedPreviewUrls] = useState<Set<string>>(() => new Set());
@@ -102,9 +101,6 @@ export function PlayerPage({
   const pendingStartRef = useRef<number | null>(null);
   const [nativeFailedId, setNativeFailedId] = useState<string | null>(null);
   const isEmbeddedPlayback = Boolean(embeddedApi) && playbackRoute !== "mpv" && (playbackRoute === "embedded" || nativeFailedId === video.id);
-  // Native child windows cannot be overlaid by DOM content. Only while hovering,
-  // reserve the measured preview height above the bar; do not restart playback.
-  const previewClearance = isEmbeddedPlayback && hoverTime !== null ? Math.max(0, previewHeight - 16) : 0;
   const embeddedStageRef = useRef<HTMLDivElement>(null);
   const fallbackPositionRef = useRef(0);
   const endedSessionRef = useRef<string | null>(null);
@@ -113,7 +109,7 @@ export function PlayerPage({
     positionMs: nativeFailedId === video.id ? fallbackPositionRef.current : startPositionMs,
     requestId: startRequestId, stage: embeddedStageRef,
     visible: !detailsOpen && !deleteConfirmOpen && !externalLaunching,
-    layoutKey: `${playlistOpen}:${isFullscreen}:${previewClearance}`,
+    layoutKey: `${playlistOpen}:${isFullscreen}`,
     onInput: input => {
       if (detailsOpen || deleteConfirmOpen) return;
       if (input.kind === "click") {
@@ -559,16 +555,21 @@ export function PlayerPage({
   const hoverPreviewTimeMs = hoverTime === null ? null : quantizePreviewTimeMs(hoverTime * 1000, duration * 1000);
   const hoverPreviewUrl = hoverPreviewTimeMs !== null && getTimelinePreviewUrl ? getTimelinePreviewUrl(hoverPreviewTimeMs) : null;
   const showHoverPreviewImage = hoverPreviewUrl !== null && !failedPreviewUrls.has(hoverPreviewUrl);
-  const previewVisible = hoverTime !== null;
-  useLayoutEffect(() => {
-    const element = previewRef.current;
-    if (!previewVisible || !element) { setPreviewHeight(0); return; }
-    const measure = () => setPreviewHeight(element.getBoundingClientRect().height);
-    measure();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    observer?.observe(element);
-    return () => observer?.disconnect();
-  }, [previewVisible, showHoverPreviewImage, video.id]);
+  const floatingPreview = isEmbeddedPlayback && Boolean(embeddedApi?.showPlayerTimelinePreview);
+  useEffect(() => {
+    const show = embeddedApi?.showPlayerTimelinePreview;
+    if (!show || !floatingPreview) return;
+    if (hoverTime === null || hoverPreviewTimeMs === null || detailsOpen || deleteConfirmOpen || externalLaunching) { void show(null).catch(() => undefined); return; }
+    // Debounce pointer movement before crossing IPC; leaving hides immediately.
+    const timer = window.setTimeout(() => {
+      const rect = progressRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      void show({ videoId: video.id, timeMs: hoverPreviewTimeMs,
+        x: rect.left + rect.width * hoverTime / progressMax, y: rect.top - 8 }).catch(() => undefined);
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [embeddedApi, floatingPreview, hoverTime, hoverPreviewTimeMs, progressMax, video.id, isFullscreen, playlistOpen, detailsOpen, deleteConfirmOpen, externalLaunching]);
+  useEffect(() => () => { void embeddedApi?.showPlayerTimelinePreview?.(null).catch(() => undefined); }, [embeddedApi, video.id, floatingPreview]);
   const previewAspectRatio = getAspectRatioValue(video.width, video.height);
   const fullscreenToggleLabel = isFullscreen ? "退出全屏" : "全屏";
   const controlsStateClassName = isFullscreen && !controlsVisible ? " is-hidden" : " is-visible";
@@ -587,7 +588,6 @@ export function PlayerPage({
       ref={pageRef}
       tabIndex={-1}
       className={`player-page${isFullscreen ? " is-fullscreen" : ""}${isEmbeddedPlayback ? " uses-embedded-engine" : ""}${playlistOpen ? " has-playlist" : ""}`}
-      style={{ "--hover-preview-clearance": `${previewClearance}px` } as CSSProperties}
       onMouseMove={() => {
         if (isFullscreen) {
           showControls();
@@ -811,6 +811,7 @@ export function PlayerPage({
           <button onClick={() => embedded.reload(currentTime)}>重新加载</button>
         </div>}
         <div
+          ref={progressRef}
           className="progress-wrap"
           onMouseMove={(event) => {
             if (isFullscreen) {
@@ -826,8 +827,8 @@ export function PlayerPage({
             }
           }}
         >
-          {hoverTime !== null && (
-            <div ref={previewRef} className="progress-preview" style={{ left: `${(hoverTime / progressMax) * 100}%` }}>
+          {hoverTime !== null && !floatingPreview && (
+            <div className="progress-preview" style={{ left: `${(hoverTime / progressMax) * 100}%` }}>
               {showHoverPreviewImage && (
                 <PreviewImage
                   src={hoverPreviewUrl}

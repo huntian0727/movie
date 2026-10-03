@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url";
 import type { VideoRepository } from "./db/videoRepository.js";
 import type { StructuredLogger } from "./logging/logger.js";
 import { configureWindowSecurity } from "./security.js";
+import { PlayerTimelinePreview } from "./playerTimelinePreview.js";
+import { playerTimelinePreviewSchema } from "../shared/playerTimelinePreview.js";
 import {
   IPC_CHANNELS,
   MAX_PLAYER_QUEUE_ITEMS,
@@ -57,6 +59,7 @@ export class PlayerWindowCoordinator {
   private window: BrowserWindow | null = null;
   private session: PlayerSessionState | null = null;
   private opening: Promise<void> = Promise.resolve();
+  private timelinePreview: PlayerTimelinePreview | null = null;
 
   constructor(
     private readonly repo: VideoRepository,
@@ -73,7 +76,10 @@ export class PlayerWindowCoordinator {
           this.window = createPlayerWindow(this.options);
           const createdWindow = this.window;
           createdWindow.once("closed", () => {
-            if (this.window === createdWindow) this.window = null;
+            if (this.window === createdWindow) {
+              this.timelinePreview?.close(); this.timelinePreview = null;
+              this.window = null;
+            }
           });
           await loadPlayerEntry(createdWindow, this.options);
         }
@@ -89,6 +95,7 @@ export class PlayerWindowCoordinator {
   }
 
   async setSession(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
+    this.timelinePreview?.hide();
     this.session = normalizePlayerSession(this.repo, input);
     if (this.session.startPositionMs !== undefined) this.session.startRequestId = randomUUID();
     if (await waitForCodecMetadata(this.ensureCodecMetadata, this.session.selectedVideoId)) {
@@ -98,6 +105,7 @@ export class PlayerWindowCoordinator {
   }
 
   async select(videoId: string, sequence: number): Promise<PlayerSessionSnapshot> {
+    this.timelinePreview?.hide();
     const snapshot = this.getSnapshot(sequence).playerSession;
     if (!snapshot || !snapshot.queueIds.includes(videoId)) {
       throw new Error("Selected video is not available in the current player queue");
@@ -143,6 +151,7 @@ export class PlayerWindowCoordinator {
   }
 
   close(): void {
+    this.timelinePreview?.close(); this.timelinePreview = null;
     if (this.window && !this.window.isDestroyed()) this.window.close();
     this.window = null;
     this.session = null;
@@ -150,6 +159,18 @@ export class PlayerWindowCoordinator {
 
   getPlayerWindow(): BrowserWindow | null {
     return this.window && !this.window.isDestroyed() ? this.window : null;
+  }
+
+  async showTimelinePreview(senderId: number, payload: unknown): Promise<void> {
+    const request = playerTimelinePreviewSchema.parse(payload);
+    const parent = this.getPlayerWindow();
+    if (!parent || parent.webContents.id !== senderId) throw new Error("Timeline preview belongs to the active player window");
+    if (!request) { this.timelinePreview?.hide(); return; }
+    if (request.videoId !== this.session?.selectedVideoId) throw new Error("Timeline preview video is not the active video");
+    const video = this.repo.getVideo(request.videoId);
+    if (video.isMissing) { this.timelinePreview?.hide(); return; }
+    this.timelinePreview ??= new PlayerTimelinePreview(parent, this.options);
+    await this.timelinePreview.update(request, video);
   }
 
   private logCodecProbeWaitTimeout(videoId: string): void {

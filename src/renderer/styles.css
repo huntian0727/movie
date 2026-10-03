@@ -1052,7 +1052,7 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
 /* One existing player shell, with a native child restricted to its video slot.
    Native HWNDs cannot be covered by DOM z-index: reserve controls/playlist space. */
 .player-page.uses-embedded-engine { position: relative; grid-template-rows: 70px minmax(0, 1fr) 126px; }
-.player-embedded-surface { position: absolute; inset: 0; bottom: var(--hover-preview-clearance, 0px); }
+.player-embedded-surface { position: absolute; inset: 0; }
 .player-page.uses-embedded-engine.has-playlist .player-stage { margin-right: min(410px, 42vw); }
 .player-page.uses-embedded-engine .player-playlist { top: 70px; bottom: 126px; right: 0; width: min(410px, 42vw); border-radius: 0; box-shadow: none; }
 .player-page.uses-embedded-engine.is-fullscreen { display: grid; }
@@ -1062,3 +1062,6 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
 .player-page.uses-embedded-engine.is-fullscreen .player-topbar { padding-bottom: 0; }
 .player-engine-status { height: 24px; display: flex; align-items: center; justify-content: space-between; color: #a3aaa0; font-size: 11px; }
 .player-engine-status button { border: 0; color: #a3aaa0; background: transparent; cursor: pointer; font-size: 11px; }
+.timeline-preview-window { width: 160px; overflow: hidden; color: #eee; background: #202824; }
+.timeline-preview-window img { display: block; width: 160px; max-height: 240px; object-fit: contain; background: #070807; }
+.timeline-preview-window span { display: block; height: 22px; padding: 4px 6px; background: #272927; font-size: 10px; line-height: 14px; }

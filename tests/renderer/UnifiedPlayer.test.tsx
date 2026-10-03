@@ -18,7 +18,7 @@ function bridge() {
   return { api, unsubscribe, input: (e: EmbeddedInput) => input(e), update: (next: Partial<EmbeddedState>) => { state = { ...state, ...next }; } };
 }
 describe("original player UI with embedded engine", () => {
-  it("reserves space above the bar only while hovering without restarting the engine", async () => {
+  it("floats previews without resizing or restarting the engine", async () => {
     const b = bridge();
     const original = HTMLElement.prototype.getBoundingClientRect;
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
@@ -26,18 +26,23 @@ describe("original player UI with embedded engine", () => {
       if (this.classList.contains("progress-wrap")) return { x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 31, width: 100, height: 31, toJSON: () => ({}) };
       return original.call(this);
     });
-    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" getTimelinePreviewUrl={ms => `local-video://preview/v1/${ms}`} />);
+    const show = vi.fn(async () => undefined);
+    const api = { ...b.api, showPlayerTimelinePreview: show };
+    const view = render(<PlayerPage video={video} embeddedApi={api} playbackRoute="embedded" getTimelinePreviewUrl={ms => `local-video://preview/v1/${ms}`} />);
     await waitFor(() => expect(screen.getByText(/00:30/)).toBeInTheDocument());
     const page = view.container.querySelector<HTMLElement>(".player-page")!;
     const wrap = screen.getByRole("slider", { name: "播放进度" }).parentElement!;
+    const boundsCalls = b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "bounds").length;
     fireEvent.mouseMove(wrap, { clientX: 50 });
-    expect(page.style.getPropertyValue("--hover-preview-clearance")).toBe("104px");
-    expect(view.container.querySelector(".progress-preview img")).toHaveAttribute("src", "local-video://preview/v1/45000");
+    await waitFor(() => expect(show).toHaveBeenCalledWith({ videoId: "v1", timeMs: 45000, x: 50, y: -8 }));
+    expect(page.style.getPropertyValue("--hover-preview-clearance")).toBe("");
+    expect(view.container.querySelector(".progress-preview")).toBeNull();
+    expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "bounds")).toHaveLength(boundsCalls);
     fireEvent.click(screen.getByRole("button", { name: "全屏" }));
     await waitFor(() => expect(page).toHaveClass("is-fullscreen"));
-    expect(page.style.getPropertyValue("--hover-preview-clearance")).toBe("104px");
+    expect(page.style.getPropertyValue("--hover-preview-clearance")).toBe("");
     fireEvent.mouseLeave(wrap);
-    expect(page.style.getPropertyValue("--hover-preview-clearance")).toBe("0px");
+    expect(show).toHaveBeenLastCalledWith(null);
     expect(view.container.querySelector(".progress-preview")).toBeNull();
     expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "start")).toHaveLength(1);
     expect(b.api.embeddedPlayback.mock.calls.some(([r]) => r.op === "seek")).toBe(false);

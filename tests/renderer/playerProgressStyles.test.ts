@@ -15,6 +15,7 @@ describe("player timeline layout", () => {
     expect(rules(".progress-preview")).toMatch(/bottom:\s*calc\(100% \+ 8px\)/);
     expect(rules(".progress-preview")).toMatch(/top:\s*auto/);
     expect(rules(".player-page.uses-embedded-engine .progress-preview")).toBe("");
-    expect(rules(".player-embedded-surface")).toContain("bottom: var(--hover-preview-clearance, 0px)");
+    expect(rules(".player-embedded-surface")).toContain("inset: 0");
+    expect(css).not.toContain("--hover-preview-clearance");
   });
 });

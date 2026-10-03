@@ -7,18 +7,36 @@ import { describe, it, expect, vi } from "vitest";
 // Execute the real preload, not a complete VideoManagerApi mock that hides role-specific omissions.
 const source = readFileSync(path.resolve("src/main/preload.cts"), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-function bridge(location = "file:///fixture/index.html") {
+function bridge(location = "file:///fixture/index.html", role = "player") {
   let api: any;
   const invoke = vi.fn(async () => ({ phase: "loading" })), on = vi.fn(), removeListener = vi.fn();
   const electron = { contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = value; } }, ipcRenderer: { invoke, on, removeListener } };
   vm.runInNewContext(compiled, {
     exports: {}, URL, window: { location: { href: location } },
-    process: { argv: ["--video-manager-window-role=player", "--video-manager-entry-url=file%3A%2F%2F%2Ffixture%2Findex.html"] },
+    process: { argv: [`--video-manager-window-role=${role}`, "--video-manager-entry-url=file%3A%2F%2F%2Ffixture%2Findex.html"] },
     require: (name: string) => { if (name !== "electron") throw Error("unexpected preload dependency"); return electron; }
   });
   return { api, invoke, on, removeListener };
 }
 describe("real player-role preload embedded bridge", () => {
+  it("gives the floating preview only image methods and buffers the first content update", () => {
+    const b = bridge("file:///fixture/index.html", "timeline-preview");
+    expect(b.api.windowMode).toBe("timeline-preview");
+    expect(Object.keys(b.api).sort()).toEqual(["windowMode", "loadPreviewImage", "cancelPreviewImage", "getPreviewImageState", "subscribePlayerTimelinePreview"].sort());
+    const [channel, handler] = b.on.mock.calls[0];
+    expect(channel).toBe("player:timeline-preview");
+    const payload = { url: "local-video://preview/v1/45000", timeMs: 45000, imageHeight: 90 };
+    handler({}, payload);
+    const listener = vi.fn(), dispose = b.api.subscribePlayerTimelinePreview(listener);
+    expect(listener).toHaveBeenCalledWith(payload);
+    handler({}, null); expect(listener).toHaveBeenLastCalledWith(null);
+    dispose(); listener.mockClear(); handler({}, payload); expect(listener).not.toHaveBeenCalled();
+  });
+  it("exposes the typed preview-position request only on the normal player/main bridge", async () => {
+    const b = bridge();
+    await b.api.showPlayerTimelinePreview(null);
+    expect(b.invoke).toHaveBeenCalledWith("player:timeline-preview", null);
+  });
   it("exposes typed playback and forwards an ID-only request without broadening the player bridge", async () => {
     const b = bridge();
     expect(typeof b.api.embeddedPlayback).toBe("function");

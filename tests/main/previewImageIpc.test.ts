@@ -49,6 +49,6 @@ describe("preview image IPC state", () => {
     s.sender.emit("destroyed");
     await Promise.all(work);
     expect(s.invoke(IPC_CHANNELS.previewImageState, input.requestId)).toBeNull();
-    expect(getAllowedIpcRoles(IPC_CHANNELS.previewImageState)).toEqual(["main", "player"]);
+    expect(getAllowedIpcRoles(IPC_CHANNELS.previewImageState)).toEqual(["main", "player", "timeline-preview"]);
   });
 });

@@ -408,6 +408,7 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 }
 
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
+  ipcMain.handle(IPC_CHANNELS.playerTimelinePreview, (event, payload) => dependencies.playerWindows.showTimelinePreview(event.sender.id, payload));
   ipcMain.handle(IPC_CHANNELS.embeddedPlayback, (event, payload) => {
     if (!dependencies.embeddedPlayer) throw new Error("内嵌播放服务不可用");
     return dependencies.embeddedPlayer.handle(event, payload);

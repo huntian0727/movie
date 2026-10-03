@@ -2,7 +2,7 @@ import type { BrowserWindow, IpcMainInvokeEvent, Session } from "electron";
 import { IPC_CHANNELS } from "../shared/videoTypes.js";
 import type { StructuredLogger } from "./logging/logger.js";
 
-export type WindowRole = "main" | "player" | "smoke";
+export type WindowRole = "main" | "player" | "smoke" | "timeline-preview";
 
 interface TrustedWebContents {
   role: WindowRole;
@@ -47,8 +47,13 @@ const playerAllowedChannels = new Set<string>([
   IPC_CHANNELS.playerSessionSelect,
   IPC_CHANNELS.settingsGet
 ]);
+const previewAllowedChannels = new Set<string>([
+  IPC_CHANNELS.previewImageLoad, IPC_CHANNELS.previewImageCancel, IPC_CHANNELS.previewImageState
+]);
 
 export function getAllowedIpcRoles(channel: string): readonly WindowRole[] {
+  if (channel === IPC_CHANNELS.playerTimelinePreview) return ["player"];
+  if (previewAllowedChannels.has(channel)) return ["main", "player", "timeline-preview"];
   return playerAllowedChannels.has(channel) ? ["main", "player"] : ["main"];
 }
 

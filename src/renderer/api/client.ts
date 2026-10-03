@@ -1,7 +1,7 @@
 import type { VideoManagerApi } from "../../shared/videoTypes";
 
 export type DesktopVideoManagerApi = VideoManagerApi & {
-  readonly windowMode: "main" | "player";
+  readonly windowMode: "main" | "player" | "timeline-preview";
 };
 
 declare global {

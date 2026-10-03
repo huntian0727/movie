@@ -87,6 +87,7 @@ const channels: typeof SharedIpcChannels = {
   videoRetryMetadata: "video:retry-metadata",
   videoOpenPlayer: "video:open-player",
   embeddedPlayback: "player:embedded",
+  playerTimelinePreview: "player:timeline-preview",
   videoPlayExternal: "video:play-external",
   playHistoryList: "play-history:list",
   playHistoryRecord: "play-history:record",
@@ -186,6 +187,7 @@ const mainApi: VideoManagerApi = {
   retryMetadata: (videoId: string) => ipcRenderer.invoke(channels.videoRetryMetadata, { videoId }),
   openPlayer: (videoId: string, queueIds: string[], startPositionMs?: number) => ipcRenderer.invoke(channels.videoOpenPlayer, { videoId, queueIds, ...(startPositionMs === undefined ? {} : { startPositionMs }) }),
   embeddedPlayback: (request) => ipcRenderer.invoke(channels.embeddedPlayback, request),
+  showPlayerTimelinePreview: (request) => ipcRenderer.invoke(channels.playerTimelinePreview, request),
   subscribeEmbeddedInput: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, input: import("../shared/embeddedPlayback.js").EmbeddedInput) => {
       if (!input || typeof input !== "object") return;
@@ -235,6 +237,7 @@ const playerApi = {
   deleteVideo: mainApi.deleteVideo,
   playExternalVideo: mainApi.playExternalVideo,
   embeddedPlayback: mainApi.embeddedPlayback,
+  showPlayerTimelinePreview: mainApi.showPlayerTimelinePreview,
   subscribeEmbeddedKeys: mainApi.subscribeEmbeddedKeys,
   subscribeEmbeddedInput: mainApi.subscribeEmbeddedInput,
   listPlayHistory: mainApi.listPlayHistory,
@@ -254,9 +257,30 @@ const trustedEntryUrl = entryArgument
   : "";
 
 if (isTrustedRendererLocation(window.location.href, trustedEntryUrl)) {
+  if (windowRole === "timeline-preview") {
+    // This renderer can only receive preview content and use the existing image queue.
+    // Register before React mounts so the initial main-process update cannot be lost.
+    let content: import("../shared/playerTimelinePreview.js").PlayerTimelinePreviewContent | null = null;
+    const listeners = new Set<(next: typeof content) => void>();
+    ipcRenderer.on(channels.playerTimelinePreview, (_event, next: typeof content) => {
+      content = next;
+      for (const listener of listeners) listener(content);
+    });
+    contextBridge.exposeInMainWorld("videoManager", {
+      windowMode: "timeline-preview",
+      loadPreviewImage: mainApi.loadPreviewImage,
+      cancelPreviewImage: mainApi.cancelPreviewImage,
+      getPreviewImageState: mainApi.getPreviewImageState,
+      subscribePlayerTimelinePreview: (listener: (next: typeof content) => void) => {
+        listeners.add(listener); listener(content);
+        return () => listeners.delete(listener);
+      }
+    });
+  } else {
   const api = windowRole === "main" ? mainApi : playerApi;
   const windowMode = windowRole === "player" ? "player" : "main";
   contextBridge.exposeInMainWorld("videoManager", { ...api, windowMode });
+  }
 }
 
 function isTrustedRendererLocation(candidateUrl: string, entryUrl: string): boolean {

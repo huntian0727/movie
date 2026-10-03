@@ -90,6 +90,7 @@ describe("IPC_CHANNELS", () => {
       videoRetryMetadata: "video:retry-metadata",
       videoOpenPlayer: "video:open-player",
       embeddedPlayback: "player:embedded",
+      playerTimelinePreview: "player:timeline-preview",
       videoPlayExternal: "video:play-external",
       playHistoryList: "play-history:list",
       playHistoryRecord: "play-history:record",

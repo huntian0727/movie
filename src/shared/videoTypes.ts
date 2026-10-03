@@ -1082,6 +1082,7 @@ export const IPC_CHANNELS = {
   videoRetryMetadata: "video:retry-metadata",
   videoOpenPlayer: "video:open-player",
   embeddedPlayback: "player:embedded",
+  playerTimelinePreview: "player:timeline-preview",
   videoPlayExternal: "video:play-external",
   playHistoryList: "play-history:list",
   playHistoryRecord: "play-history:record",
@@ -1181,6 +1182,8 @@ export interface VideoManagerApi {
   retryMetadata(videoId: string): Promise<VideoRecord>;
   openPlayer(videoId: string, queueIds: string[], startPositionMs?: number): Promise<boolean>;
   embeddedPlayback(request: import("./embeddedPlayback.js").EmbeddedRequest): Promise<import("./embeddedPlayback.js").EmbeddedState>;
+  showPlayerTimelinePreview?(request: import("./playerTimelinePreview.js").PlayerTimelinePreviewRequest): Promise<void>;
+  subscribePlayerTimelinePreview?(listener: (content: import("./playerTimelinePreview.js").PlayerTimelinePreviewContent | null) => void): () => void;
   subscribeEmbeddedKeys(listener: (code: string) => void): () => void;
   subscribeEmbeddedInput(listener: (input: import("./embeddedPlayback.js").EmbeddedInput) => void): () => void;
   playExternalVideo(videoId: string, startPositionMs?: number): Promise<boolean>;

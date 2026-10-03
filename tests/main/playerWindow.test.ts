@@ -271,6 +271,21 @@ describe("DomainEventBus", () => {
   });
 });
 
+describe("player timeline preview authorization", () => {
+  it("rejects a different sender/video and validates the payload before opening any overlay", async () => {
+    const fixture = createRepo(["v1", "v2"]);
+    const coordinator = new PlayerWindowCoordinator(fixture.repo, { currentDir: "app", devServerUrl: "http://127.0.0.1:5173/", isPackaged: false });
+    await coordinator.open({ videoId: "v1", queueIds: ["v1", "v2"] }, 1);
+    const senderId = coordinator.getPlayerWindow()!.webContents.id;
+    await expect(coordinator.showTimelinePreview(senderId + 1, null)).rejects.toThrow("active player window");
+    await expect(coordinator.showTimelinePreview(senderId, { videoId: "v2", timeMs: 0, x: 10, y: 10 })).rejects.toThrow("active video");
+    await expect(coordinator.showTimelinePreview(senderId, { videoId: "v1", timeMs: -1, x: 10, y: 10 })).rejects.toThrow();
+    await coordinator.showTimelinePreview(senderId, null);
+    expect(electronState.windows).toHaveLength(1);
+    coordinator.close();
+  });
+});
+
 function createRepo(ids: string[], missing = new Set<string>()) {
   const videos = new Map(ids.map((id) => [id, createVideo(id, missing.has(id))]));
   const repo = {
