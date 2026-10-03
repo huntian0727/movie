@@ -1051,10 +1051,10 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
 
 /* One existing player shell, with a native child restricted to its video slot.
    Native HWNDs cannot be covered by DOM z-index: reserve controls/playlist space. */
-.player-page.uses-embedded-engine { position: relative; grid-template-rows: 70px minmax(0, 1fr) 162px; }
+.player-page.uses-embedded-engine { position: relative; grid-template-rows: 70px minmax(0, 1fr) 126px; }
 .player-embedded-surface { position: absolute; inset: 0; }
 .player-page.uses-embedded-engine.has-playlist .player-stage { margin-right: min(410px, 42vw); }
-.player-page.uses-embedded-engine .player-playlist { top: 70px; bottom: 162px; right: 0; width: min(410px, 42vw); border-radius: 0; box-shadow: none; }
+.player-page.uses-embedded-engine .player-playlist { top: 70px; bottom: 126px; right: 0; width: min(410px, 42vw); border-radius: 0; box-shadow: none; }
 .player-page.uses-embedded-engine.is-fullscreen { display: grid; }
 .player-page.uses-embedded-engine.is-fullscreen .player-stage { position: relative; inset: auto; min-height: 0; }
 .player-page.uses-embedded-engine.is-fullscreen .player-topbar,
@@ -1063,7 +1063,3 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
 .player-page.uses-embedded-engine .progress-preview { bottom: auto; top: 18px; }
 .player-engine-status { height: 24px; display: flex; align-items: center; justify-content: space-between; color: #a3aaa0; font-size: 11px; }
 .player-engine-status button { border: 0; color: #a3aaa0; background: transparent; cursor: pointer; font-size: 11px; }
-.player-media-controls { height: 36px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; font-size: 11px; color: #a3aaa0; }
-.player-media-controls label { display: flex; align-items: center; gap: 6px; }
-.player-media-controls select, .player-media-controls button { height: 28px; max-width: 180px; padding: 3px 8px; border: 1px solid #424942; border-radius: 5px; background: #262c26; color: #eee; font-size: 11px; }
-.player-media-controls :disabled { opacity: .45; cursor: default; }

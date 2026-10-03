@@ -3,7 +3,6 @@ import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, ExternalLink, 
 import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { useEmbeddedEngine } from "./useEmbeddedEngine";
 import { usePlayerWindowFullscreen } from "./usePlayerWindowFullscreen";
-import { EmbeddedMediaControls } from "./EmbeddedMediaControls";
 import { DEFAULT_SHORTCUTS, formatShortcutBinding, matchesShortcut } from "../../shared/shortcuts";
 import { formatBytes, formatDuration } from "./formatters";
 import { PreviewImage } from "./PreviewImage";
@@ -878,7 +877,6 @@ export function PlayerPage({
             </button>
           </div>
         </div>
-        {isEmbeddedPlayback && <EmbeddedMediaControls state={embedded.state} error={embeddedError} send={embedded.send} />}
       </footer>
 
       {detailsOpen && <VideoDetailsDialog video={video} onClose={() => setDetailsOpen(false)} />}

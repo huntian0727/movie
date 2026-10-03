@@ -18,29 +18,30 @@ function bridge() {
   return { api, unsubscribe, input: (e: EmbeddedInput) => input(e), update: (next: Partial<EmbeddedState>) => { state = { ...state, ...next }; } };
 }
 describe("original player UI with embedded engine", () => {
-  it("exposes decoded tracks, disables loading controls and clears tracks on route change", async () => {
+  it("keeps audio and subtitle controls out of the player footer in all decode states", async () => {
     const b = bridge();
     b.update({ phase: "loading" });
     const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
-    expect(screen.getByRole("combobox", { name: "音轨" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "加载 SRT 字幕" })).toBeDisabled();
+    const expectNoTrackControls = () => {
+      expect(screen.queryByRole("combobox", { name: "音轨" })).toBeNull();
+      expect(screen.queryByRole("combobox", { name: "字幕" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "加载 SRT 字幕" })).toBeNull();
+      expect(view.container.querySelector(".player-media-controls")).toBeNull();
+    };
+    expectNoTrackControls();
     b.update({ phase: "paused", tracks: [
       { type: "audio", id: 1, codec: "aac", selected: true },
       { type: "audio", id: 2, codec: "dts", selected: false },
       { type: "sub", id: 1, codec: "subrip", selected: true }
     ] });
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "音轨" })).toBeEnabled());
-    fireEvent.change(screen.getByRole("combobox", { name: "音轨" }), { target: { value: "2" } });
-    expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "audio-track", value: 2 }));
-    fireEvent.change(screen.getByRole("combobox", { name: "字幕" }), { target: { value: "0" } });
-    expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "subtitle-track", value: 0 }));
-    fireEvent.keyDown(screen.getByRole("combobox", { name: "音轨" }), { code: "ArrowRight" });
-    expect(b.api.embeddedPlayback.mock.calls.some(([r]) => r.op === "seek")).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "加载 SRT 字幕" }));
-    expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "subtitle-file" }));
+    await waitFor(() => expect(screen.getByText("已暂停")).toBeInTheDocument());
+    expectNoTrackControls();
+    fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "退出全屏" })).toHaveLength(2));
+    expectNoTrackControls();
+    expect(b.api.embeddedPlayback.mock.calls.some(([r]) => ["audio-track", "subtitle-track", "subtitle-file"].includes(r.op))).toBe(false);
     view.rerender(<PlayerPage video={{ ...video, id: "native" }} embeddedApi={b.api} playbackRoute="native" />);
-    expect(screen.queryByRole("combobox", { name: "音轨" })).toBeNull();
-    expect(screen.queryByRole("combobox", { name: "字幕" })).toBeNull(); view.unmount();
+    expectNoTrackControls(); view.unmount();
   });
   it("shows fullscreen failure without claiming success and retries", async () => {
     const b = bridge(), original = b.api.embeddedPlayback.getMockImplementation()!;
