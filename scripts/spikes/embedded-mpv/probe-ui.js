@@ -1,5 +1,6 @@
 "use strict";
 import {controlLabel} from "./control-queue.mjs";
+import {spikeKeyCode} from "./host-lifecycle.mjs";
 let snapshot = {}, rotation = 0, controls;
 const api = window.mpvSpike;
 const seek = document.querySelector("#seek");
@@ -26,7 +27,7 @@ api.onState((state) => {
     renderStatus();
   } else if(state.type === "ready") { sendBounds(); }
   else if(state.type === "control-status") {controls=state;renderStatus();}
-  else if(state.type === "fatal" || state.type === "error") status.textContent="播放宿主错误："+state.reason;
+  else if(state.type === "fatal" || state.type === "error") {controls={phase:"failed"};renderStatus();}
 });
 function renderStatus(){const state=snapshot;status.textContent=`样本 ${state.sample || "—"} · ${state.videoCodec || "等待解码"} / ${state.audioCodec || "—"} · ${(state.time || 0).toFixed(1)} / ${(state.duration || 0).toFixed(1)} 秒 · ${controlLabel(state,controls)} · 硬解 ${state.hwdec || "—"} · ${state.embedded ? "已嵌入" : "未嵌入"}`;}
 function shortcut(code){
@@ -37,5 +38,7 @@ function shortcut(code){
 }
 api.onKey(shortcut);
 window.addEventListener("keydown",(event)=>{ if(event.target instanceof HTMLInputElement) return;
-  if(["Space","KeyF","Escape"].includes(event.code)){event.preventDefault();shortcut(event.code);}
+  if(event.repeat||event.ctrlKey||event.altKey||event.metaKey)return;
+  const code=spikeKeyCode(event.code,event.key);
+  if(code){event.preventDefault();shortcut(code);}
 });
