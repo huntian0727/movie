@@ -223,6 +223,8 @@ const playerApi = {
   setPendingDelete: mainApi.setPendingDelete,
   deleteVideo: mainApi.deleteVideo,
   playExternalVideo: mainApi.playExternalVideo,
+  embeddedPlayback: mainApi.embeddedPlayback,
+  subscribeEmbeddedKeys: mainApi.subscribeEmbeddedKeys,
   listPlayHistory: mainApi.listPlayHistory,
   recordPlayback: mainApi.recordPlayback,
   getWindowSyncSnapshot: mainApi.getWindowSyncSnapshot,
@@ -230,7 +232,7 @@ const playerApi = {
   selectPlayerVideo: mainApi.selectPlayerVideo,
   subscribeDomainEvents: mainApi.subscribeDomainEvents,
   getSettings: mainApi.getSettings
-} satisfies Partial<VideoManagerApi>;
+} satisfies Partial<VideoManagerApi> & Pick<VideoManagerApi, "embeddedPlayback" | "subscribeEmbeddedKeys">;
 
 const roleArgument = process.argv.find((argument) => argument.startsWith("--video-manager-window-role="));
 const windowRole = roleArgument?.slice("--video-manager-window-role=".length);

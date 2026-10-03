@@ -1,0 +1,41 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
+import ts from "typescript";
+import { describe, it, expect, vi } from "vitest";
+
+// Execute the real preload, not a complete VideoManagerApi mock that hides role-specific omissions.
+const source = readFileSync(path.resolve("src/main/preload.cts"), "utf8");
+const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+function bridge(location = "file:///fixture/index.html") {
+  let api: any;
+  const invoke = vi.fn(async () => ({ phase: "loading" })), on = vi.fn(), removeListener = vi.fn();
+  const electron = { contextBridge: { exposeInMainWorld: (_name: string, value: unknown) => { api = value; } }, ipcRenderer: { invoke, on, removeListener } };
+  vm.runInNewContext(compiled, {
+    exports: {}, URL, window: { location: { href: location } },
+    process: { argv: ["--video-manager-window-role=player", "--video-manager-entry-url=file%3A%2F%2F%2Ffixture%2Findex.html"] },
+    require: (name: string) => { if (name !== "electron") throw Error("unexpected preload dependency"); return electron; }
+  });
+  return { api, invoke, on, removeListener };
+}
+describe("real player-role preload embedded bridge", () => {
+  it("exposes typed playback and forwards an ID-only request without broadening the player bridge", async () => {
+    const b = bridge();
+    expect(typeof b.api.embeddedPlayback).toBe("function");
+    expect(typeof b.api.subscribeEmbeddedKeys).toBe("function");
+    const request = { op: "start", sessionKey: "key", videoId: "v", autoplay: false };
+    await b.api.embeddedPlayback(request);
+    expect(b.invoke).toHaveBeenCalledWith("player:embedded", request);
+    for (const forbidden of ["invoke", "setSettings", "deleteVideos", "moveVideos", "clearCache", "exportDiagnostics"]) expect(b.api[forbidden]).toBeUndefined();
+  });
+  it("filters embedded hotkeys and removes the exact listener", () => {
+    const b = bridge(), listener = vi.fn(); const dispose = b.api.subscribeEmbeddedKeys(listener);
+    const [channel, handler] = b.on.mock.calls[0]; expect(channel).toBe("player:embedded-key");
+    handler({}, "Space"); handler({}, "KeyF"); handler({}, "Escape"); handler({}, "Delete");
+    expect(listener.mock.calls).toEqual([["Space"], ["KeyF"], ["Escape"]]);
+    dispose(); expect(b.removeListener).toHaveBeenCalledWith(channel, handler);
+  });
+  it("does not expose any bridge to a non-entry page", () => {
+    expect(bridge("https://example.com/untrusted").api).toBeUndefined();
+  });
+});
