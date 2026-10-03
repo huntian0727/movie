@@ -6,13 +6,25 @@ import { EmbeddedPlayer } from "../../src/main/embeddedPlayer/embeddedPlayer";
 
 function fixture() {
   const sender = {};
-  const w = { webContents: sender, isFullScreen: () => false } as unknown as BrowserWindow;
+  let fullscreen = false;
+  const setFullScreen = vi.fn((value: boolean) => { fullscreen = value; });
+  const w = { webContents: sender, isFullScreen: () => fullscreen, setFullScreen } as unknown as BrowserWindow;
   const repo = { getVideo: vi.fn(() => ({ id: "v", path: "unused.mp4", isMissing: false })), recordPlayback: vi.fn(), listPlayHistory: () => [] } as unknown as VideoRepository;
   const player = new EmbeddedPlayer(repo, () => w, { host: "does-not-exist.exe", directory: "missing-runtime" });
   const event = { sender } as IpcMainInvokeEvent;
-  return { player, repo, event };
+  return { player, repo, event, setFullScreen };
 }
 describe("production embedded service boundary", () => {
+  it("controls the player window before and after decode sessions without opening media", async () => {
+    const f = fixture();
+    expect((await f.player.handle(f.event, { op: "window-state", sessionKey: "window" })).fullscreen).toBe(false);
+    await f.player.handle(f.event, { op: "fullscreen", sessionKey: "window", value: true });
+    expect((await f.player.handle(f.event, { op: "window-state", sessionKey: "window" })).fullscreen).toBe(true);
+    await f.player.handle(f.event, { op: "stop", sessionKey: "stale" });
+    await f.player.handle(f.event, { op: "fullscreen", sessionKey: "window", value: false });
+    expect(f.setFullScreen.mock.calls).toEqual([[true], [false]]);
+    expect(f.repo.getVideo).not.toHaveBeenCalled(); f.player.dispose();
+  });
   it("rejects another renderer before looking up any video", async () => {
     const f = fixture();
     await expect(f.player.handle({ sender: {} } as IpcMainInvokeEvent, { op: "start", videoId: "v", sessionKey: "a", autoplay: true })).rejects.toThrow("当前播放窗口");

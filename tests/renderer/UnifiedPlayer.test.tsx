@@ -9,12 +9,69 @@ function bridge() {
   let state: EmbeddedState = { sessionKey: "", phase: "paused", time: 30, duration: 90, paused: true, volume: 20, rotation: 0, fullscreen: false, tracks: [] };
   const unsubscribe = vi.fn();
   const api = {
-    embeddedPlayback: vi.fn(async (request: EmbeddedRequest) => ({ ...state, sessionKey: request.sessionKey })),
+    embeddedPlayback: vi.fn(async (request: EmbeddedRequest) => {
+      if (request.op === "fullscreen") state = { ...state, fullscreen: request.value };
+      return { ...state, sessionKey: request.sessionKey };
+    }),
     subscribeEmbeddedInput: vi.fn(listener => { input = listener; return unsubscribe; })
   };
   return { api, unsubscribe, input: (e: EmbeddedInput) => input(e), update: (next: Partial<EmbeddedState>) => { state = { ...state, ...next }; } };
 }
 describe("original player UI with embedded engine", () => {
+  it("exposes decoded tracks, disables loading controls and clears tracks on route change", async () => {
+    const b = bridge();
+    b.update({ phase: "loading" });
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    expect(screen.getByRole("combobox", { name: "音轨" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "加载 SRT 字幕" })).toBeDisabled();
+    b.update({ phase: "paused", tracks: [
+      { type: "audio", id: 1, codec: "aac", selected: true },
+      { type: "audio", id: 2, codec: "dts", selected: false },
+      { type: "sub", id: 1, codec: "subrip", selected: true }
+    ] });
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "音轨" })).toBeEnabled());
+    fireEvent.change(screen.getByRole("combobox", { name: "音轨" }), { target: { value: "2" } });
+    expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "audio-track", value: 2 }));
+    fireEvent.change(screen.getByRole("combobox", { name: "字幕" }), { target: { value: "0" } });
+    expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "subtitle-track", value: 0 }));
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "音轨" }), { code: "ArrowRight" });
+    expect(b.api.embeddedPlayback.mock.calls.some(([r]) => r.op === "seek")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "加载 SRT 字幕" }));
+    expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "subtitle-file" }));
+    view.rerender(<PlayerPage video={{ ...video, id: "native" }} embeddedApi={b.api} playbackRoute="native" />);
+    expect(screen.queryByRole("combobox", { name: "音轨" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "字幕" })).toBeNull(); view.unmount();
+  });
+  it("shows fullscreen failure without claiming success and retries", async () => {
+    const b = bridge(), original = b.api.embeddedPlayback.getMockImplementation()!;
+    let fail = true;
+    b.api.embeddedPlayback.mockImplementation(async r => { if (r.op === "fullscreen" && fail) throw Error("failed"); return original(r); });
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="native" />);
+    fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    await screen.findByText("全屏操作未完成，请重试");
+    expect(screen.queryByRole("button", { name: "退出全屏" })).toBeNull();
+    fail = false; fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "退出全屏" })).toHaveLength(2));
+    view.unmount();
+  });
+  it("keeps one window fullscreen mechanism across both decode routes", async () => {
+    const b = bridge();
+    const props = { video, embeddedApi: b.api };
+    const view = render(<PlayerPage {...props} playbackRoute="embedded" />);
+    await waitFor(() => expect(screen.getByText(/00:30/)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "退出全屏" })).toHaveLength(2));
+    view.rerender(<PlayerPage {...props} video={{ ...video, id: "native" }} playbackRoute="native" />);
+    fireEvent.click(screen.getAllByRole("button", { name: "退出全屏" })[0]);
+    await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "fullscreen", value: false })));
+    await waitFor(() => expect(screen.getByRole("button", { name: "全屏" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "退出全屏" })).toHaveLength(2));
+    view.rerender(<PlayerPage {...props} playbackRoute="embedded" />);
+    fireEvent.keyDown(window, { code: "Escape" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "全屏" })).toBeInTheDocument());
+    view.unmount();
+  });
   it("preserves modifier shortcuts and leaves focused text inputs alone", async () => {
     const b = bridge();
     const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);

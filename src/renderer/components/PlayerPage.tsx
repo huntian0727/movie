@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, ExternalLink, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { useEmbeddedEngine } from "./useEmbeddedEngine";
+import { usePlayerWindowFullscreen } from "./usePlayerWindowFullscreen";
+import { EmbeddedMediaControls } from "./EmbeddedMediaControls";
 import { DEFAULT_SHORTCUTS, formatShortcutBinding, matchesShortcut } from "../../shared/shortcuts";
 import { formatBytes, formatDuration } from "./formatters";
 import { PreviewImage } from "./PreviewImage";
@@ -75,6 +77,7 @@ export function PlayerPage({
   const [failedPreviewUrls, setFailedPreviewUrls] = useState<Set<string>>(() => new Set());
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const windowFullscreen = usePlayerWindowFullscreen(embeddedApi, setIsFullscreen);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [rotationDegrees, setRotationDegrees] = useState(0);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
@@ -193,6 +196,7 @@ export function PlayerPage({
   }, [autoPlayOnOpen, isExternalPlayback, onPlayExternal, playbackRoute, video.id, startRequestId]);
 
   useEffect(() => {
+    if (windowFullscreen.managed) return;
     const syncFullscreenState = () => {
       const fullscreenNow = document.fullscreenElement === pageRef.current;
       setIsFullscreen(fullscreenNow);
@@ -203,7 +207,7 @@ export function PlayerPage({
 
     document.addEventListener("fullscreenchange", syncFullscreenState);
     return () => document.removeEventListener("fullscreenchange", syncFullscreenState);
-  }, [deleteConfirmOpen, detailsOpen, isFullscreen, playlistOpen]);
+  }, [deleteConfirmOpen, detailsOpen, isFullscreen, playlistOpen, windowFullscreen.managed]);
 
   useEffect(() => {
     if (!isFullscreen) {
@@ -282,7 +286,7 @@ export function PlayerPage({
         return;
       }
       if (event.target instanceof HTMLElement && event.target.closest("[role='dialog']")) return;
-      if (event.target instanceof HTMLInputElement) return;
+      if (event.target instanceof HTMLElement && (event.target.matches("input, textarea, select") || event.target.isContentEditable)) return;
       // Embedded keys are forwarded once by the main process, even when the
       // Chromium HWND has focus but its DOM does not. Leave text entry intact.
       if (isEmbeddedPlayback && event.isTrusted) {
@@ -298,6 +302,9 @@ export function PlayerPage({
         event.preventDefault();
         setPlaylistOpen(false);
         return;
+      }
+      if ((event.code === "Escape" && isFullscreen) || (event.code === "KeyF" && !event.ctrlKey && !event.altKey && !event.repeat)) {
+        event.preventDefault(); void toggleFullscreen(); return;
       }
       if (matchesShortcut(event, shortcuts.playerTogglePlayback)) {
         event.preventDefault();
@@ -335,7 +342,7 @@ export function PlayerPage({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, isEmbeddedPlayback, playing, currentTime, onDelete, playlistOpen, seekStepSeconds, shortcuts, volume]);
+  }, [deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, isEmbeddedPlayback, isFullscreen, playing, currentTime, onDelete, playlistOpen, seekStepSeconds, shortcuts, volume]);
 
   const launchExternalPlayback = async () => {
     if (!onPlayExternal || externalLaunching) return;
@@ -417,10 +424,8 @@ export function PlayerPage({
   };
 
   const toggleFullscreen = async () => {
-    if (isEmbeddedPlayback) {
-      const next = !isFullscreen;
-      await embedded.send({ op: "fullscreen", value: next });
-      setIsFullscreen(next); setControlsVisible(true);
+    if (windowFullscreen.managed) {
+      await windowFullscreen.toggle(); setControlsVisible(true);
       return;
     }
     if (!document.fullscreenElement) await pageRef.current?.requestFullscreen();
@@ -709,7 +714,7 @@ export function PlayerPage({
             <Play size={34} fill="currentColor" />
           </button>
         )}
-        {!isEmbeddedPlayback && playbackError && <div className="player-error" role="alert">{playbackError}</div>}
+        {!isEmbeddedPlayback && (playbackError || windowFullscreen.error) && <div className="player-error" role="alert">{playbackError || windowFullscreen.error}</div>}
       </div>
 
       {playlistOpen && (
@@ -787,7 +792,7 @@ export function PlayerPage({
         }}
       >
         {isEmbeddedPlayback && <div className="player-engine-status" role="status">
-          {embeddedError ?? playbackError ?? ({ idle: "准备播放", loading: "正在读取视频", playing: "", paused: "已暂停", reading: "正在读取目标位置", buffering: "正在缓冲", failed: "播放失败", ended: "播放结束" }[embedded.state?.phase ?? "idle"])}
+          {windowFullscreen.error ?? embeddedError ?? playbackError ?? ({ idle: "准备播放", loading: "正在读取视频", playing: "", paused: "已暂停", reading: "正在读取目标位置", buffering: "正在缓冲", failed: "播放失败", ended: "播放结束" }[embedded.state?.phase ?? "idle"])}
           <button onClick={() => embedded.reload(currentTime)}>重新加载</button>
         </div>}
         <div
@@ -873,6 +878,7 @@ export function PlayerPage({
             </button>
           </div>
         </div>
+        {isEmbeddedPlayback && <EmbeddedMediaControls state={embedded.state} error={embeddedError} send={embedded.send} />}
       </footer>
 
       {detailsOpen && <VideoDetailsDialog video={video} onClose={() => setDetailsOpen(false)} />}

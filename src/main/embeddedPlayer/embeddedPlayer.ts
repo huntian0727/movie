@@ -45,6 +45,12 @@ export class EmbeddedPlayer {
     const w = this.playerWindow();
     if (!w || w.webContents !== event.sender) throw new Error("内嵌播放仅允许当前播放窗口调用");
     const request = embeddedRequestSchema.parse(payload);
+    // Fullscreen belongs to the trusted window, not the active decode session.
+    if (request.op === "window-state") return { ...initialEmbeddedState(request.sessionKey), fullscreen: w.isFullScreen() };
+    if (request.op === "fullscreen") {
+      w.setFullScreen(request.value);
+      return { ...this.state, sessionKey: request.sessionKey, fullscreen: request.value };
+    }
     if (request.op === "start") {
       const session = this.repo.getVideo(request.videoId);
       if (session.isMissing) throw new Error("资料库标记文件缺失，请先复查可访问性");
@@ -75,7 +81,6 @@ export class EmbeddedPlayer {
       if (request.x + request.width > width * scale + 2 || request.y + request.height > height * scale + 2) throw new Error("视频画面超出窗口边界");
       this.bounds = request; this.send(request); return this.state;
     }
-    if (request.op === "fullscreen") { w.setFullScreen(request.value); return { ...this.state, fullscreen: request.value }; }
     if (request.op === "visible") { this.visible = request.value; this.send(request); return this.state; }
     if (!this.snapshot?.loaded || this.state.phase === "failed") throw new Error("视频尚未就绪，请稍候或重试");
     if (request.op === "subtitle-file") {
