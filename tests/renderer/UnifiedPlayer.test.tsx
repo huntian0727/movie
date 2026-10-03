@@ -18,6 +18,31 @@ function bridge() {
   return { api, unsubscribe, input: (e: EmbeddedInput) => input(e), update: (next: Partial<EmbeddedState>) => { state = { ...state, ...next }; } };
 }
 describe("original player UI with embedded engine", () => {
+  it("reserves space above the bar only while hovering without restarting the engine", async () => {
+    const b = bridge();
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("progress-preview")) return { x: 0, y: 0, left: 0, top: 0, right: 160, bottom: 120, width: 160, height: 120, toJSON: () => ({}) };
+      if (this.classList.contains("progress-wrap")) return { x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 31, width: 100, height: 31, toJSON: () => ({}) };
+      return original.call(this);
+    });
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" getTimelinePreviewUrl={ms => `local-video://preview/v1/${ms}`} />);
+    await waitFor(() => expect(screen.getByText(/00:30/)).toBeInTheDocument());
+    const page = view.container.querySelector<HTMLElement>(".player-page")!;
+    const wrap = screen.getByRole("slider", { name: "播放进度" }).parentElement!;
+    fireEvent.mouseMove(wrap, { clientX: 50 });
+    expect(page.style.getPropertyValue("--hover-preview-clearance")).toBe("104px");
+    expect(view.container.querySelector(".progress-preview img")).toHaveAttribute("src", "local-video://preview/v1/45000");
+    fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    await waitFor(() => expect(page).toHaveClass("is-fullscreen"));
+    expect(page.style.getPropertyValue("--hover-preview-clearance")).toBe("104px");
+    fireEvent.mouseLeave(wrap);
+    expect(page.style.getPropertyValue("--hover-preview-clearance")).toBe("0px");
+    expect(view.container.querySelector(".progress-preview")).toBeNull();
+    expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "start")).toHaveLength(1);
+    expect(b.api.embeddedPlayback.mock.calls.some(([r]) => r.op === "seek")).toBe(false);
+    view.unmount(); vi.restoreAllMocks();
+  });
   it("keeps audio and subtitle controls out of the player footer in all decode states", async () => {
     const b = bridge();
     b.update({ phase: "loading" });
