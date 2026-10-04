@@ -26,7 +26,7 @@ async function fixture(startup?: { begin(videoId: string): void; finish(videoId?
   runtime.spawn.mockReturnValue(child);
   const sender = { on: vi.fn(), send: vi.fn() };
   const w = { webContents: sender, setMenu: vi.fn(), on: vi.fn(), isDestroyed: () => false, isFullScreen: () => false, getNativeWindowHandle: () => Buffer.from([1, 0, 0, 0, 0, 0, 0, 0]) } as unknown as BrowserWindow;
-  const repo = { getVideo: () => ({ id: "v", path: "C:/neutral.mp4", isMissing: false }), recordPlayback: vi.fn(), listPlayHistory: () => [] } as unknown as VideoRepository;
+  const repo = { getVideo: () => ({ id: "v", path: "C:/neutral.mp4", isMissing: false }), recordPlayback: vi.fn(), getPlaybackPosition: () => 0 } as unknown as VideoRepository;
   const player = new EmbeddedPlayer(repo, () => w, { host: "host.exe", directory: "runtime" }, startup);
   const event = { sender } as unknown as IpcMainInvokeEvent;
   const emit = (value: object) => child.stdout.write(JSON.stringify(value) + "\n");
@@ -37,11 +37,53 @@ async function fixture(startup?: { begin(videoId: string): void; finish(videoId?
   const call = (op: object) => player.handle(event, { sessionKey: "one", ...op });
   await vi.waitFor(async () => expect((await call({ op: "state" })).phase).toBe(buffering ? "buffering" : "paused"));
   const commands = () => child.stdin.write.mock.calls.map(([line]) => JSON.parse(line));
-  return { player, call, emit, commands };
+  return { player, call, emit, commands, repo, event };
 }
 
 afterEach(() => { vi.useRealTimers(); runtime.spawn.mockClear(); });
 describe("pause confirmation without periodic telemetry", () => {
+  it("does not overwrite the stopped video's saved position when a new session starts or is disposed", async () => {
+    const f = await fixture();
+    try {
+      expect(vi.mocked(f.repo.recordPlayback).mock.calls.at(-1)).toEqual(["v", 3000]);
+      await f.call({ op: "stop" });
+      const writes = vi.mocked(f.repo.recordPlayback).mock.calls.length;
+      await f.player.handle(f.event, { op: "start", videoId: "v", sessionKey: "two", autoplay: false, positionMs: 3000 });
+      expect(vi.mocked(f.repo.recordPlayback).mock.calls.length).toBe(writes);
+      expect(vi.mocked(f.repo.recordPlayback).mock.calls.at(-1)).toEqual(["v", 3000]);
+    } finally { f.player.dispose(); }
+  });
+  it("does not flush the idle state's zero position after stopping", async () => {
+    const f = await fixture();
+    await f.call({ op: "stop" });
+    const writes = vi.mocked(f.repo.recordPlayback).mock.calls.length;
+    f.player.dispose();
+    expect(vi.mocked(f.repo.recordPlayback).mock.calls.length).toBe(writes);
+    expect(vi.mocked(f.repo.recordPlayback).mock.calls.at(-1)).toEqual(["v", 3000]);
+  });
+  it("retains muted volume across replacement decode sessions", async () => {
+    const f = await fixture();
+    try {
+      await f.call({ op: "volume", value: 0 });
+      const started = await f.player.handle(f.event, { op: "start", videoId: "v", sessionKey: "two", autoplay: false });
+      expect(started.volume).toBe(0);
+      await vi.waitFor(() => expect(runtime.spawn).toHaveBeenCalledTimes(2));
+      f.emit({ type: "ready" });
+      await vi.waitFor(() => expect(f.commands().filter(c => c.op === "load").at(-1)).toMatchObject({ volume: 0, token: 2 }));
+    } finally { f.player.dispose(); }
+  });
+  it("does not repeatedly write unchanged paused playback history", async () => {
+    const f = await fixture();
+    try {
+      const writes = vi.mocked(f.repo.recordPlayback).mock.calls.length;
+      const now = Date.now();
+      vi.spyOn(Date, "now").mockReturnValue(now + 6000);
+      f.emit({ type: "snapshot", token: 1, loaded: true, time: 3, duration: 12, rotation: 0, seeking: "no", restartCount: 0, paused: "yes", pausedForCache: "no", volume: 20, media: null });
+      expect(vi.mocked(f.repo.recordPlayback).mock.calls.length).toBe(writes);
+      await f.call({ op: "stop" });
+      expect(vi.mocked(f.repo.recordPlayback).mock.calls.length).toBe(writes);
+    } finally { vi.restoreAllMocks(); f.player.dispose(); }
+  });
   it("keeps priority until initial buffering ends and releases it on stop", async () => {
     const startup = { begin: vi.fn(), finish: vi.fn() };
     const f = await fixture(startup, true);

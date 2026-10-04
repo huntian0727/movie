@@ -24,8 +24,9 @@ interface PlayerPageProps {
   startPositionMs?: number;
   startRequestId?: string;
   onBack?(): void;
-  onPrevious?(): void;
-  onNext?(): void;
+  onPrevious?(): void | Promise<void>;
+  onNext?(): void | Promise<void>;
+  onSavePosition?(videoId: string, positionMs: number): Promise<void>;
   onToggleFavorite?(video: VideoRecord): void;
   onTogglePendingDelete?(video: VideoRecord): void | Promise<void>;
   onDelete?(video: VideoRecord): void | Promise<void>;
@@ -33,7 +34,8 @@ interface PlayerPageProps {
   getTimelinePreviewUrl?(timeMs: number): string;
   getCoverUrl?(video: VideoRecord): string | null;
   loadDirectoryPlaylist?(page: number): Promise<LibraryPage>;
-  onSelectPlaylistVideo?(video: VideoRecord, loadedVideos: VideoRecord[]): void;
+  loadPlaylistVideosByIds?(ids: string[]): Promise<VideoRecord[]>;
+  onSelectPlaylistVideo?(video: VideoRecord, loadedVideos: VideoRecord[]): void | Promise<void>;
 }
 
 export function PlayerPage({
@@ -51,6 +53,7 @@ export function PlayerPage({
   onBack,
   onPrevious,
   onNext,
+  onSavePosition,
   onToggleFavorite,
   onTogglePendingDelete,
   onDelete,
@@ -58,6 +61,7 @@ export function PlayerPage({
   getTimelinePreviewUrl,
   getCoverUrl,
   loadDirectoryPlaylist,
+  loadPlaylistVideosByIds,
   onSelectPlaylistVideo
 }: PlayerPageProps) {
   const pageRef = useRef<HTMLElement>(null);
@@ -72,6 +76,9 @@ export function PlayerPage({
   const [muted, setMuted] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const [dragTime, setDragTime] = useState<number | null>(null);
+  const dragging = useRef(false);
+  const dragTarget = useRef<number | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [externalLaunching, setExternalLaunching] = useState(false);
   const [failedPreviewUrls, setFailedPreviewUrls] = useState<Set<string>>(() => new Set());
@@ -89,6 +96,8 @@ export function PlayerPage({
   const [playlistLoading, setPlaylistLoading] = useState(false);
   const [playlistError, setPlaylistError] = useState<string | null>(null);
   const [playlistDirectory, setPlaylistDirectory] = useState<string | null>(null);
+  const playlistScroll = useRef<HTMLDivElement>(null);
+  const [playlistViewport, setPlaylistViewport] = useState({ top: 0, height: 600 });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -104,6 +113,23 @@ export function PlayerPage({
   const embeddedStageRef = useRef<HTMLDivElement>(null);
   const fallbackPositionRef = useRef(0);
   const endedSessionRef = useRef<string | null>(null);
+  const savePositionRef = useRef(onSavePosition); savePositionRef.current = onSavePosition;
+  const nativePosition = useRef({ videoId: video.id, positionMs: startPositionMs, savedMs: startPositionMs, savedAt: 0 });
+  const navigate = async (action?: () => void | Promise<void>) => {
+    try { await action?.(); } catch { setPlaybackError("无法切换视频，请重试"); }
+  };
+  useEffect(() => {
+    nativePosition.current = { videoId: video.id, positionMs: startPositionMs, savedMs: startPositionMs, savedAt: 0 };
+    const flush = () => {
+      const p = nativePosition.current;
+      if (p.positionMs !== p.savedMs) {
+        p.savedMs = p.positionMs;
+        void savePositionRef.current?.(p.videoId, p.positionMs).catch(() => undefined);
+      }
+    };
+    window.addEventListener("beforeunload", flush);
+    return () => { flush(); window.removeEventListener("beforeunload", flush); };
+  }, [video.id]);
   const embedded = useEmbeddedEngine({
     api: embeddedApi, enabled: isEmbeddedPlayback, videoId: video.id, autoplay: autoPlayOnOpen,
     positionMs: nativeFailedId === video.id ? fallbackPositionRef.current : startPositionMs,
@@ -137,7 +163,7 @@ export function PlayerPage({
     }
     if (s.duration > 0) setDuration(s.duration);
     if (s.phase === "ended" && endedSessionRef.current !== s.sessionKey) {
-      endedSessionRef.current = s.sessionKey; onNext?.();
+      endedSessionRef.current = s.sessionKey; void navigate(onNext);
     }
   }, [embedded.state, isEmbeddedPlayback]);
   const embeddedError = embedded.error ?? embedded.state?.error;
@@ -234,6 +260,7 @@ export function PlayerPage({
 
   useEffect(() => {
     setRotationDegrees(0);
+    dragging.current = false; dragTarget.current = null; setDragTime(null);
     stageClickBeforeRef.current = null;
     setPlaybackError(null);
     endedSessionRef.current = null;
@@ -365,7 +392,7 @@ export function PlayerPage({
       return;
     }
     if (isEmbeddedPlayback) {
-      if (embeddedError || ["idle", "failed", "ended"].includes(embedded.state?.phase ?? "loading")) embedded.reload(embedded.state?.phase === "ended" ? 0 : currentTime);
+      if (embeddedError || ["failed", "ended"].includes(embedded.state?.phase ?? "loading")) embedded.reload(embedded.state?.phase === "ended" ? 0 : currentTime, true);
       else await embedded.send({ op: "pause", value: !embedded.getPaused() });
       return;
     }
@@ -518,46 +545,63 @@ export function PlayerPage({
     }
   };
 
-  const playlistHasPendingMetadata = playlistVideos.some((item) => item.metadataStatus === "pending");
-
+  const visiblePlaylistVideos = playlistVideos.some((item) => item.id === video.id) ? playlistVideos : [video, ...playlistVideos];
+  const playlistRowHeight = 95;
+  const playlistStart = Math.min(Math.max(0, visiblePlaylistVideos.length - 1), Math.max(0, Math.floor(playlistViewport.top / playlistRowHeight) - 3));
+  const playlistEnd = Math.min(visiblePlaylistVideos.length, Math.ceil((playlistViewport.top + playlistViewport.height) / playlistRowHeight) + 3);
+  const playlistPendingIds = visiblePlaylistVideos.slice(playlistStart, playlistEnd).filter(item => item.metadataStatus === "pending").map(item => item.id);
+  const playlistPendingKey = JSON.stringify(playlistPendingIds);
   useEffect(() => {
-    if (!playlistOpen || !loadDirectoryPlaylist || !playlistHasPendingMetadata || playlistPage < 1) return;
+    if (!playlistOpen || !playlistScroll.current) return;
+    const element = playlistScroll.current;
+    const measure = () => setPlaylistViewport({ top: element.scrollTop, height: element.clientHeight || 600 });
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => observer?.disconnect();
+  }, [playlistOpen, video.directory]);
+  useEffect(() => {
+    if (!playlistOpen || !loadPlaylistVideosByIds || playlistPendingIds.length === 0) return;
     let disposed = false;
-    const refreshLoadedPages = async () => {
-      if (playlistLoadingRef.current) return;
+    let reading = false;
+    const refreshVisibleRows = async () => {
+      if (reading || document.hidden) return;
       const requestedDirectory = video.directory;
-      playlistLoadingRef.current = true;
+      reading = true;
       try {
-        const refreshed: VideoRecord[] = [];
-        let latestTotalCount = playlistTotalCount;
-        for (let page = 1; page <= playlistPage; page += 1) {
-          const result = await loadDirectoryPlaylist(page);
-          refreshed.push(...result.videos);
-          latestTotalCount = result.totalCount;
-        }
+        const refreshed = await loadPlaylistVideosByIds(playlistPendingIds);
         if (!disposed && sameDirectory(currentDirectoryRef.current, requestedDirectory)) {
-          setPlaylistVideos(mergeUniqueVideos([], refreshed));
-          setPlaylistTotalCount(latestTotalCount);
+          const patches = new Map(refreshed.map(item => [item.id, item]));
+          setPlaylistVideos(current => {
+            let changed = false;
+            const next = current.map(item => {
+              const patch = patches.get(item.id);
+              if (!patch || JSON.stringify(patch) === JSON.stringify(item)) return item;
+              changed = true; return patch;
+            });
+            return changed ? next : current;
+          });
         }
       } catch {
         // Keep the existing rows visible; the normal loader exposes actionable errors.
       } finally {
-        playlistLoadingRef.current = false;
+        reading = false;
       }
     };
-    void refreshLoadedPages();
-    const timer = window.setInterval(() => void refreshLoadedPages(), 2000);
+    void refreshVisibleRows();
+    const timer = window.setInterval(() => void refreshVisibleRows(), 5000);
     return () => {
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [loadDirectoryPlaylist, playlistHasPendingMetadata, playlistOpen, playlistPage, playlistTotalCount, video.directory]);
+  }, [loadPlaylistVideosByIds, playlistPendingKey, playlistOpen, video.directory]);
 
   const progressMax = Math.max(duration, 1);
   const hoverPreviewTimeMs = hoverTime === null ? null : quantizePreviewTimeMs(hoverTime * 1000, duration * 1000);
   const hoverPreviewUrl = hoverPreviewTimeMs !== null && getTimelinePreviewUrl ? getTimelinePreviewUrl(hoverPreviewTimeMs) : null;
   const showHoverPreviewImage = hoverPreviewUrl !== null && !failedPreviewUrls.has(hoverPreviewUrl);
   const floatingPreview = isEmbeddedPlayback && Boolean(embeddedApi?.showPlayerTimelinePreview);
+  const previewCachedOnly = playing || (isEmbeddedPlayback && embedded.state?.phase !== "paused");
   useEffect(() => {
     const show = embeddedApi?.showPlayerTimelinePreview;
     if (!show || !floatingPreview) return;
@@ -567,10 +611,10 @@ export function PlayerPage({
       const rect = progressRef.current?.getBoundingClientRect();
       if (!rect) return;
       void show({ videoId: video.id, timeMs: hoverPreviewTimeMs,
-        x: rect.left + rect.width * hoverTime / progressMax, y: rect.top - 8 }).catch(() => undefined);
+        x: rect.left + rect.width * hoverTime / progressMax, y: rect.top - 8, ...(previewCachedOnly ? { cachedOnly: true } : {}) }).catch(() => undefined);
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [embeddedApi, floatingPreview, hoverTime, hoverPreviewTimeMs, progressMax, video.id, isFullscreen, playlistOpen, detailsOpen, deleteConfirmOpen, externalLaunching]);
+  }, [embeddedApi, floatingPreview, hoverTime, hoverPreviewTimeMs, progressMax, video.id, isFullscreen, playlistOpen, detailsOpen, deleteConfirmOpen, externalLaunching, previewCachedOnly]);
   useEffect(() => () => { void embeddedApi?.showPlayerTimelinePreview?.(null).catch(() => undefined); }, [embeddedApi, video.id, floatingPreview]);
   const previewAspectRatio = getAspectRatioValue(video.width, video.height);
   const fullscreenToggleLabel = isFullscreen ? "退出全屏" : "全屏";
@@ -581,9 +625,6 @@ export function PlayerPage({
     decodedVideoSize?.width ?? video.width,
     decodedVideoSize?.height ?? video.height
   );
-  const visiblePlaylistVideos = playlistVideos.some((item) => item.id === video.id)
-    ? playlistVideos
-    : [video, ...playlistVideos];
 
   return (
     <section
@@ -699,7 +740,14 @@ export function PlayerPage({
             }}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
-            onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+            onTimeUpdate={(event) => {
+              const seconds = event.currentTarget.currentTime; setCurrentTime(seconds);
+              const p = nativePosition.current; p.positionMs = Math.max(0, Math.trunc(seconds * 1000));
+              if (Date.now() - p.savedAt >= 5000 && p.positionMs !== p.savedMs) {
+                p.savedAt = Date.now(); p.savedMs = p.positionMs;
+                void savePositionRef.current?.(p.videoId, p.positionMs).catch(() => undefined);
+              }
+            }}
             onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : duration)}
             onVolumeChange={(event) => {
               setVolume(event.currentTarget.volume);
@@ -707,7 +755,7 @@ export function PlayerPage({
             }}
             onEnded={() => {
               setPlaying(false);
-              onNext?.();
+              void navigate(onNext);
             }}
             onError={handleNativePlaybackError}
           />
@@ -746,16 +794,19 @@ export function PlayerPage({
             </button>
           </header>
           <div
+            ref={playlistScroll}
             className="player-playlist-items"
             onScroll={(event) => {
               const element = event.currentTarget;
+              setPlaylistViewport({ top: element.scrollTop, height: element.clientHeight || 600 });
               const nearBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 180;
               if (nearBottom && playlistVideos.length < playlistTotalCount && !playlistLoading) {
                 void loadPlaylistPage(playlistPage + 1);
               }
             }}
           >
-            {visiblePlaylistVideos.map((item) => {
+            <div aria-hidden="true" style={{ height: playlistStart * playlistRowHeight }} />
+            {visiblePlaylistVideos.slice(playlistStart, playlistEnd).map((item) => {
               const coverUrl = getCoverUrl?.(item) ?? item.coverCachePath;
               const isCurrent = item.id === video.id;
               const decodedDurationMs = isCurrent && duration > 0 ? Math.round(duration * 1000) : null;
@@ -763,13 +814,17 @@ export function PlayerPage({
                 <button
                   key={item.id}
                   className={isCurrent ? "player-playlist-item is-current" : "player-playlist-item"}
+                  style={{ height: playlistRowHeight }}
                   aria-current={isCurrent ? "true" : undefined}
                   onClick={() => {
-                    if (!isCurrent) onSelectPlaylistVideo?.(item, playlistVideos);
+                    if (!isCurrent) {
+                      try { void Promise.resolve(onSelectPlaylistVideo?.(item, playlistVideos)).catch(() => setPlaylistError("无法切换视频，请重试")); }
+                      catch { setPlaylistError("无法切换视频，请重试"); }
+                    }
                   }}
                 >
                   <span className="player-playlist-cover">
-                    {coverUrl ? <PreviewImage src={coverUrl} priority={0} /> : <Play size={22} fill="currentColor" />}
+                    {coverUrl ? <PreviewImage key={`${coverUrl}:${previewCachedOnly}`} src={coverUrl} priority={0} cachedOnly={previewCachedOnly} /> : <Play size={22} fill="currentColor" />}
                     <em>{formatPlaylistDuration(item, decodedDurationMs)}</em>
                   </span>
                   <span className="player-playlist-meta">
@@ -780,6 +835,7 @@ export function PlayerPage({
                 </button>
               );
             })}
+            <div aria-hidden="true" style={{ height: Math.max(0, visiblePlaylistVideos.length - playlistEnd) * playlistRowHeight }} />
             {playlistLoading && <div className="player-playlist-status">正在加载...</div>}
             {playlistError && (
               <div className="player-playlist-status is-error">
@@ -833,11 +889,13 @@ export function PlayerPage({
             <div className="progress-preview" style={{ left: `${(hoverTime / progressMax) * 100}%` }}>
               {showHoverPreviewImage && (
                 <PreviewImage
+                  key={`${hoverPreviewUrl}:${previewCachedOnly}`}
                   src={hoverPreviewUrl}
+                  cachedOnly={previewCachedOnly}
                   eager priority={2} delayMs={180}
                   style={{ "--preview-aspect-ratio": previewAspectRatio } as React.CSSProperties}
                   onError={() => {
-                    setFailedPreviewUrls((current) => new Set(current).add(hoverPreviewUrl));
+                    if (!previewCachedOnly) setFailedPreviewUrls((current) => new Set(current).add(hoverPreviewUrl));
                   }}
                 />
               )}
@@ -850,15 +908,35 @@ export function PlayerPage({
             min="0"
             max={progressMax}
             step="0.1"
-            value={Math.min(currentTime, progressMax)}
+            value={Math.min(dragTime ?? currentTime, progressMax)}
             disabled={isExternalPlayback}
-            onChange={(event) => seekTo(Number(event.target.value))}
-            style={{ "--progress": `${(currentTime / progressMax) * 100}%` } as React.CSSProperties}
+            onPointerDown={(event) => {
+              dragging.current = true; dragTarget.current = null;
+              event.currentTarget.setPointerCapture?.(event.pointerId);
+            }}
+            onPointerUp={() => {
+              dragging.current = false;
+              const target = dragTarget.current; dragTarget.current = null; setDragTime(null);
+              if (target !== null) seekTo(target);
+            }}
+            onPointerCancel={() => { dragging.current = false; dragTarget.current = null; setDragTime(null); }}
+            onLostPointerCapture={() => {
+              if (!dragging.current) return;
+              dragging.current = false;
+              const target = dragTarget.current; dragTarget.current = null; setDragTime(null);
+              if (target !== null) seekTo(target);
+            }}
+            onChange={(event) => {
+              const target = Number(event.target.value);
+              if (dragging.current) { dragTarget.current = target; setDragTime(target); }
+              else seekTo(target);
+            }}
+            style={{ "--progress": `${((dragTime ?? currentTime) / progressMax) * 100}%` } as React.CSSProperties}
           />
         </div>
         <div className="player-control-row">
           <div className="control-group left">
-            <button aria-label="上一部" title="上一部" disabled={!hasPrevious} onClick={onPrevious}>
+            <button aria-label="上一部" title="上一部" disabled={!hasPrevious} onClick={() => void navigate(onPrevious)}>
               <ChevronLeft size={22} />
             </button>
             <button aria-label={`快退 ${seekStepSeconds} 秒`} title={`快退 ${seekStepSeconds} 秒`} disabled={isExternalPlayback} onClick={() => seekBy(-seekStepSeconds)}>
@@ -870,7 +948,7 @@ export function PlayerPage({
             <button aria-label={`快进 ${seekStepSeconds} 秒`} title={`快进 ${seekStepSeconds} 秒`} disabled={isExternalPlayback} onClick={() => seekBy(seekStepSeconds)}>
               <RotateCw size={20} />
             </button>
-            <button aria-label="下一部" title="下一部" disabled={!hasNext} onClick={onNext}>
+            <button aria-label="下一部" title="下一部" disabled={!hasNext} onClick={() => void navigate(onNext)}>
               <ChevronRight size={22} />
             </button>
           </div>

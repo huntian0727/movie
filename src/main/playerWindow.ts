@@ -102,7 +102,8 @@ export class PlayerWindowCoordinator {
 
   async setSession(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
     this.timelinePreview?.hide();
-    this.session = normalizePlayerSession(this.repo, input);
+    const position = input.startPositionMs ?? this.resumePosition(input.videoId);
+    this.session = normalizePlayerSession(this.repo, { ...input, startPositionMs: position });
     if (this.session.startPositionMs !== undefined) this.session.startRequestId = randomUUID();
     const skipCodecProbe = this.options.skipCodecProbe?.() ?? false;
     if (skipCodecProbe) this.options.onPlaybackStartup?.(this.session.selectedVideoId);
@@ -119,7 +120,7 @@ export class PlayerWindowCoordinator {
     if (!snapshot || !snapshot.queueIds.includes(videoId)) {
       throw new Error("Selected video is not available in the current player queue");
     }
-    this.session = { selectedVideoId: videoId, queueIds: snapshot.queueIds };
+    this.session = { selectedVideoId: videoId, queueIds: snapshot.queueIds, startPositionMs: this.resumePosition(videoId), startRequestId: randomUUID() };
     const skipCodecProbe = this.options.skipCodecProbe?.() ?? false;
     if (skipCodecProbe) this.options.onPlaybackStartup?.(videoId);
     if (!skipCodecProbe && await waitForCodecMetadata(this.ensureCodecMetadata, videoId)) {
@@ -192,6 +193,13 @@ export class PlayerWindowCoordinator {
       message: "Player preparation stopped waiting for codec probing",
       context: { videoId }
     });
+  }
+
+  private resumePosition(videoId: string): number {
+    const position = this.repo.getPlaybackPosition(videoId);
+    const duration = this.repo.getVideo(videoId).durationMs;
+    // A completed file starts again, not at a permanently ended final frame.
+    return duration && position >= duration - 1000 ? 0 : position;
   }
 }
 

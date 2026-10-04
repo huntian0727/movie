@@ -156,6 +156,7 @@ class NativeHost : Form, IMessageFilter {
             } else if(op=="load") {
                 loaded=false;endReported=false;seekCount=0;restartCount=0; token=Convert.ToInt32(message["token"]);
                 Native.Set(mpv,"pause",Convert.ToBoolean(message["paused"])?"yes":"no",false);
+                if(message.ContainsKey("volume")) Native.Set(mpv,"volume",Clamp(message["volume"],0,100).ToString(CultureInfo.InvariantCulture),false);
                 Native.Set(mpv,"start",Clamp(message["start"],0,86400).ToString(CultureInfo.InvariantCulture),false);
                 string file=Convert.ToString(message["path"]); if(!System.IO.Path.IsPathRooted(file))throw new Exception("absolute-file-required");
                 result=Native.Command(mpv,"loadfile",file,"replace");

@@ -1001,11 +1001,8 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.videoOpenPlayer, async (_event, payload) => {
     const parsed = playerSessionSchema.parse(payload);
-    if (dependencies.settings.get().playbackPreference === "embedded-first" && parsed.startPositionMs === undefined) {
-      parsed.startPositionMs = repo.listPlayHistory().find(p => p.videoId === parsed.videoId)?.positionMs ?? 0;
-    }
-    await dependencies.playerWindows.open(parsed, dependencies.domainEvents.getSequence());
-    repo.recordPlayback(parsed.videoId, dependencies.settings.get().playbackPreference === "embedded-first" ? parsed.startPositionMs ?? 0 : 0);
+    const snapshot = await dependencies.playerWindows.open(parsed, dependencies.domainEvents.getSequence());
+    repo.recordPlayback(parsed.videoId, snapshot.startPositionMs ?? 0);
     dependencies.domainEvents.publish({ type: "playback:changed", videoIds: [parsed.videoId] });
     return true;
   });
@@ -1016,17 +1013,16 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
 
   ipcMain.handle(IPC_CHANNELS.playerSessionSet, async (_event, payload) => {
     const parsed = playerSessionSchema.parse(payload);
-    await dependencies.playerWindows.setSession(parsed, dependencies.domainEvents.getSequence());
-    repo.recordPlayback(parsed.videoId);
+    const snapshot = await dependencies.playerWindows.setSession(parsed, dependencies.domainEvents.getSequence());
+    repo.recordPlayback(parsed.videoId, snapshot.startPositionMs ?? 0);
     const event = dependencies.domainEvents.publish({ type: "playback:changed", videoIds: [parsed.videoId] });
     return dependencies.playerWindows.getSnapshot(event.sequence).playerSession;
   });
 
   ipcMain.handle(IPC_CHANNELS.playerSessionSelect, async (_event, payload) => {
     const parsed = videoIdSchema.parse(payload);
-    const position = dependencies.settings.get().playbackPreference === "embedded-first" ? repo.listPlayHistory().find(p => p.videoId === parsed.videoId)?.positionMs ?? 0 : 0;
-    await dependencies.playerWindows.select(parsed.videoId, dependencies.domainEvents.getSequence());
-    repo.recordPlayback(parsed.videoId, position);
+    const snapshot = await dependencies.playerWindows.select(parsed.videoId, dependencies.domainEvents.getSequence());
+    repo.recordPlayback(parsed.videoId, snapshot.startPositionMs ?? 0);
     const event = dependencies.domainEvents.publish({ type: "playback:changed", videoIds: [parsed.videoId] });
     return dependencies.playerWindows.getSnapshot(event.sequence).playerSession;
   });

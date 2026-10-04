@@ -9,7 +9,7 @@ function fixture(startup?: { begin(videoId: string): void; finish(videoId?: stri
   let fullscreen = false;
   const setFullScreen = vi.fn((value: boolean) => { fullscreen = value; });
   const w = { webContents: sender, isFullScreen: () => fullscreen, setFullScreen } as unknown as BrowserWindow;
-  const repo = { getVideo: vi.fn(() => ({ id: "v", path: "unused.mp4", isMissing: false })), recordPlayback: vi.fn(), listPlayHistory: () => [] } as unknown as VideoRepository;
+  const repo = { getVideo: vi.fn(() => ({ id: "v", path: "unused.mp4", isMissing: false })), recordPlayback: vi.fn(), getPlaybackPosition: () => 0 } as unknown as VideoRepository;
   const player = new EmbeddedPlayer(repo, () => w, { host: "does-not-exist.exe", directory: "missing-runtime" }, startup);
   const event = { sender } as IpcMainInvokeEvent;
   return { player, repo, event, setFullScreen };

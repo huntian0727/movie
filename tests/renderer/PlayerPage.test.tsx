@@ -69,6 +69,19 @@ afterEach(() => {
 });
 
 describe("PlayerPage", () => {
+  it("records changed browser progress periodically and flushes the final position on switch", async () => {
+    const saved = vi.fn(async () => undefined);
+    const view = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" onSavePosition={saved} />);
+    const element = view.container.querySelector("video")!;
+    element.currentTime = 12; fireEvent.timeUpdate(element);
+    await waitFor(() => expect(saved).toHaveBeenCalledWith("v1", 12000));
+    fireEvent.timeUpdate(element); expect(saved).toHaveBeenCalledTimes(1);
+    element.currentTime = 14; fireEvent.timeUpdate(element); expect(saved).toHaveBeenCalledTimes(1);
+    view.rerender(<PlayerPage video={{ ...video, id: "v2" }} mediaUrl="local-video://media/v2" onSavePosition={saved} />);
+    await waitFor(() => expect(saved).toHaveBeenCalledWith("v1", 14000));
+    view.unmount();
+    expect(saved).toHaveBeenCalledTimes(2);
+  });
   it("toggles the browser surface immediately and restores playback for a real double-click sequence", async () => {
     const view = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" />);
     const element = view.container.querySelector("video")!;

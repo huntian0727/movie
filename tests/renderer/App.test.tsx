@@ -32,6 +32,27 @@ afterEach(() => {
 });
 
 describe("desktop-only renderer runtime", () => {
+  it("selects beyond item 300 with a bounded queue and does not replay the last item on ended", async () => {
+    const api = createDesktopApi();
+    const rows = Array.from({ length: 400 }, (_, i) => ({ id: `v-${i}`, filename: `sample-${i}.mp4`, path: `F:/sample-${i}.mp4`, directory: "F:/", extension: ".mp4", sizeBytes: 1024, durationMs: 90000, metadataStatus: "ready", codecProbeStatus: "unprobed", updatedAt: "2026-10-04" } as VideoRecord));
+    const setSession = vi.fn(async (id: string, ids: string[]) => ({ sequence: 1, selectedVideoId: id, queueIds: ids, videos: rows.filter(row => ids.includes(row.id)), startPositionMs: 0 }));
+    Object.assign(api, { windowMode: "player", setPlayerSession: setSession, recordPlayback: vi.fn(async () => undefined) });
+    vi.mocked(api.getWindowSyncSnapshot).mockResolvedValue({ sequence: 0, playerSession: { sequence: 0, selectedVideoId: rows[0].id, queueIds: [rows[0].id], videos: [rows[0]] } });
+    vi.mocked(api.listVideoPage).mockResolvedValue({ videos: rows, page: 1, pageSize: 100, totalPages: 1, totalCount: rows.length });
+    const view = render(<DesktopApp api={api} />);
+    await screen.findByText("sample-0.mp4"); fireEvent.click(screen.getByRole("button", { name: "播放列表" }));
+    await screen.findByText("sample-1.mp4");
+    const scroll = view.container.querySelector<HTMLElement>(".player-playlist-items")!;
+    fireEvent.scroll(scroll, { target: { scrollTop: 399 * 95 } });
+    await screen.findByText("sample-399.mp4"); fireEvent.click(screen.getByText("sample-399.mp4"));
+    await waitFor(() => expect(setSession).toHaveBeenCalledTimes(1));
+    expect(setSession.mock.calls[0][0]).toBe("v-399"); expect(setSession.mock.calls[0][1]).toHaveLength(300);
+    expect(setSession.mock.calls[0][1]).toContain("v-399");
+    await waitFor(() => expect(screen.getByRole("button", { name: "下一部" })).toBeDisabled());
+    fireEvent.ended(view.container.querySelector("video")!);
+    expect(setSession).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
   it("shows an unsupported-runtime page instead of a demo library without preload", () => {
     delete window.videoManager;
 

@@ -2540,6 +2540,11 @@ export class VideoRepository {
     }));
   }
 
+  getPlaybackPosition(videoId: string): number {
+    const row = this.db.prepare("SELECT position_ms FROM play_history WHERE video_id = ?").get(videoId) as { position_ms: number } | undefined;
+    return row?.position_ms ?? 0;
+  }
+
   private deleteTimelinePreviews(videoId: string): void {
     this.db.prepare("DELETE FROM timeline_previews WHERE video_id = ?").run(videoId);
   }

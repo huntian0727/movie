@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
   const report = { root, samples: [], scenarios: [], failures: [], actualListening: "NOT RUN", cloudDrive: "NOT RUN", pass: false };
   const ledger = new Map(), invalid = path.join(root, "invalid-fixture.mkv"), absent = path.join(root, "does-not-exist.mp4");
   await writeFile(invalid, "Neutral deliberately invalid media fixture for bounded QA.");
-  const repo = { getVideo: id => ({ id, path: id === "invalid" ? invalid : id === "absent" ? absent : samples.find(s => s.name === id)?.path ?? absent, isMissing: id === "marked-missing" }), recordPlayback: (id, position) => ledger.set(id, position), listPlayHistory: () => [] };
+  const repo = { getVideo: id => ({ id, path: id === "invalid" ? invalid : id === "absent" ? absent : samples.find(s => s.name === id)?.path ?? absent, isMissing: id === "marked-missing" }), recordPlayback: (id, position) => ledger.set(id, position), getPlaybackPosition: id => ledger.get(id) ?? 0 };
   const w = new BrowserWindow({ title: "拉面影视 · 隔离验证", width: 1120, height: 720, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
   await w.loadURL("about:blank");
   const player = new EmbeddedPlayer(repo, () => w, { host: path.resolve("native-bin/NativeHost.exe"), directory: fixtureRoot });

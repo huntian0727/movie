@@ -48,6 +48,14 @@ describe("floating player timeline preview", () => {
     expect(timelinePreviewBounds(content, display, 1000, 550, 160, 112).x).toBe(-760);
     expect(timelinePreviewBounds(content, display, 500, 0, 160, 112).y).toBe(100);
   });
+  it("preserves cache-only policy across the owned preview window boundary", async () => {
+    const { controller } = setup();
+    await controller.update({ videoId: "v1", timeMs: 45000, x: 500, y: 550, cachedOnly: true }, video);
+    expect(runtime.windows[0].webContents.send).toHaveBeenLastCalledWith("player:timeline-preview", expect.objectContaining({ cachedOnly: true }));
+    await controller.update({ videoId: "v1", timeMs: 45000, x: 500, y: 550 }, video);
+    expect(runtime.windows[0].webContents.send.mock.calls.at(-1)[1]).not.toHaveProperty("cachedOnly");
+    controller.close();
+  });
   it("only moves the owned click-through preview, never the player, and reuses one window", async () => {
     const { parent, controller } = setup();
     await controller.update({ videoId: "v1", timeMs: 45000, x: 500, y: 550 }, video);

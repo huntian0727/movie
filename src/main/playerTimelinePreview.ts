@@ -58,7 +58,7 @@ export class PlayerTimelinePreview {
     if (revision !== this.revision || this.disposed || !this.window || this.window.isDestroyed() || this.parent.isDestroyed()) return;
     const imageHeight = video.width && video.height ? Math.min(240, Math.max(1, Math.round(160 * video.height / video.width))) : 90;
     const timeMs = Math.min(request.timeMs, Math.max(0, (video.durationMs ?? Number.MAX_SAFE_INTEGER) - 1));
-    const payload: PlayerTimelinePreviewContent = { url: `local-video://preview/${encodeURIComponent(video.id)}/${timeMs}?v=${encodeURIComponent(video.updatedAt)}`, timeMs, imageHeight };
+    const payload: PlayerTimelinePreviewContent = { url: `local-video://preview/${encodeURIComponent(video.id)}/${timeMs}?v=${encodeURIComponent(video.updatedAt)}`, timeMs, imageHeight, ...(request.cachedOnly ? { cachedOnly: true } : {}) };
     const content = this.parent.getContentBounds(), scale = this.parent.webContents.getZoomFactor();
     const display = screen.getDisplayMatching(this.parent.getBounds());
     this.window.webContents.setZoomFactor(scale);

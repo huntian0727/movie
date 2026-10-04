@@ -5,6 +5,7 @@ import { LibraryShell } from "./components/LibraryShell";
 import { CloudDriveFolderDialog } from "./components/CloudDriveFolderDialog";
 import { PlayerPage } from "./components/PlayerPage";
 import { integratedPlaybackRoute } from "../shared/integratedPlayback";
+import { playerQueueWindow } from "../shared/playerQueue";
 import { SettingsPage } from "./components/SettingsPage";
 import { choosePlaybackRoute } from "../shared/playbackRouting";
 import { DEFAULT_SHORTCUTS } from "../shared/shortcuts";
@@ -458,18 +459,24 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
         startRequestId={playerSession?.startRequestId}
         onBack={isPlayerWindow ? () => window.close() : () => setSelectedVideoId(null)}
         onPrevious={async () => {
+          if (selectedIndex <= 0) return;
           const nextId = playerQueuedVideos[selectedIndex - 1]?.id ?? selectedVideo.id;
           if (isPlayerWindow) {
-            const snapshot = await api.selectPlayerVideo(nextId);
+            const snapshot = playerSession?.queueIds.includes(nextId)
+              ? await api.selectPlayerVideo(nextId)
+              : await api.setPlayerSession(nextId, playerQueueWindow(playerQueuedVideos, nextId).map(item => item.id));
             setPlayerSession(snapshot);
             setVideos(snapshot.videos);
           }
           else setSelectedVideoId(nextId);
         }}
         onNext={async () => {
+          if (selectedIndex >= playerQueuedVideos.length - 1) return;
           const nextId = playerQueuedVideos[selectedIndex + 1]?.id ?? selectedVideo.id;
           if (isPlayerWindow) {
-            const snapshot = await api.selectPlayerVideo(nextId);
+            const snapshot = playerSession?.queueIds.includes(nextId)
+              ? await api.selectPlayerVideo(nextId)
+              : await api.setPlayerSession(nextId, playerQueueWindow(playerQueuedVideos, nextId).map(item => item.id));
             setPlayerSession(snapshot);
             setVideos(snapshot.videos);
           }
@@ -503,6 +510,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
           }
         }}
         onPlayExternal={async positionMs => { await api.playExternalVideo(selectedVideo.id, positionMs ?? playerSession?.startPositionMs); }}
+        onSavePosition={isPlayerWindow ? async (videoId, positionMs) => { await api.recordPlayback(videoId, positionMs); } : undefined}
+        loadPlaylistVideosByIds={api.listVideosByIds}
         getTimelinePreviewUrl={(timeMs) =>
           `local-video://preview/${encodeURIComponent(selectedVideo.id)}/${timeMs}?v=${encodeURIComponent(selectedVideo.updatedAt)}`
         }
@@ -520,7 +529,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
         onSelectPlaylistVideo={async (nextVideo, loadedVideos) => {
           setDirectoryPlaybackQueue(loadedVideos);
           if (isPlayerWindow) {
-            const snapshot = await api.setPlayerSession(nextVideo.id, loadedVideos.map((item) => item.id));
+            const snapshot = await api.setPlayerSession(nextVideo.id, playerQueueWindow(loadedVideos, nextVideo.id).map((item) => item.id));
             setPlayerSession(snapshot);
             setVideos(snapshot.videos);
           }

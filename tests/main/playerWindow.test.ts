@@ -122,6 +122,19 @@ describe("player queue normalization", () => {
 });
 
 describe("PlayerWindowCoordinator", () => {
+  it("uses history consistently for open, selection and playlist replacement, but respects explicit zero", async () => {
+    const fixture = createRepo(["v1", "v2"]);
+    for (const video of fixture.videos.values()) video.durationMs = 90000;
+    Object.assign(fixture.repo, { getPlaybackPosition: (id: string) => id === "v1" ? 12000 : 25000 });
+    const coordinator = new PlayerWindowCoordinator(fixture.repo, { currentDir: "app", devServerUrl: "http://127.0.0.1:5173/", isPackaged: false, skipCodecProbe: () => true });
+    expect(await coordinator.open({ videoId: "v1", queueIds: ["v1", "v2"] }, 0)).toMatchObject({ startPositionMs: 12000 });
+    expect(await coordinator.select("v2", 0)).toMatchObject({ startPositionMs: 25000 });
+    expect(await coordinator.setSession({ videoId: "v1", queueIds: ["v1", "v2"] }, 0)).toMatchObject({ startPositionMs: 12000 });
+    expect(await coordinator.setSession({ videoId: "v1", queueIds: ["v1"], startPositionMs: 0 }, 0)).toMatchObject({ startPositionMs: 0 });
+    Object.assign(fixture.repo, { getPlaybackPosition: () => 90000 });
+    expect(await coordinator.setSession({ videoId: "v1", queueIds: ["v1"] }, 0)).toMatchObject({ startPositionMs: 0 });
+    coordinator.close();
+  });
   it("opens and selects embedded-first media without starting or waiting for FFprobe", async () => {
     const fixture = createRepo(["v1", "v2"]);
     const probe = vi.fn(() => new Promise<void>(() => undefined));
@@ -162,8 +175,8 @@ describe("PlayerWindowCoordinator", () => {
     const repeated = await coordinator.setSession({ videoId: "v1", queueIds: ["v1", "v2"], startPositionMs: 500 }, 2);
     expect(repeated.startRequestId).not.toBe(first.startRequestId);
     const next = await coordinator.select("v2", 3);
-    expect(next.startPositionMs).toBeUndefined();
-    expect(next.startRequestId).toBeUndefined();
+    expect(next.startPositionMs).toBe(0);
+    expect(next.startRequestId).toBeTruthy();
   });
   it("loads a fixed player URL without serializing video or queue IDs", async () => {
     const fixture = createRepo(["secret-video", "second-video"]);
@@ -319,6 +332,9 @@ describe("player timeline preview authorization", () => {
 function createRepo(ids: string[], missing = new Set<string>()) {
   const videos = new Map(ids.map((id) => [id, createVideo(id, missing.has(id))]));
   const repo = {
+    getVideo: (id: string) => { const video = videos.get(id); if (!video) throw new Error("Unknown video"); return video; },
+    listPlayHistory: () => [],
+    getPlaybackPosition: () => 0,
     listVideosByIds: (videoIds: string[]) =>
       videoIds.map((videoId) => videos.get(videoId)).filter((video): video is VideoRecord => Boolean(video))
   } as unknown as VideoRepository;

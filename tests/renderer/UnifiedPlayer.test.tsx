@@ -1,8 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { createRef } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { PlayerPage } from "../../src/renderer/components/PlayerPage";
 import type { VideoRecord } from "../../src/shared/videoTypes";
 import type { EmbeddedInput, EmbeddedRequest, EmbeddedState } from "../../src/shared/embeddedPlayback";
+import type { PlayerTimelinePreviewRequest } from "../../src/shared/playerTimelinePreview";
+import { useEmbeddedEngine } from "../../src/renderer/components/useEmbeddedEngine";
 const video = { id: "v1", filename: "测试.mp4", path: "D:/test/测试.mp4", directory: "D:/test", extension: ".mp4", durationMs: 90000, sizeBytes: 1024, width: 1920, height: 1080, modifiedAt: "2026-10-03", importedAt: "2026-10-03", metadataStatus: "ready", codecProbeStatus: "ready" } as VideoRecord;
 function bridge() {
   let input: (event: EmbeddedInput) => void = () => undefined;
@@ -18,6 +21,105 @@ function bridge() {
   return { api, unsubscribe, input: (e: EmbeddedInput) => input(e), update: (next: Partial<EmbeddedState>) => { state = { ...state, ...next }; } };
 }
 describe("original player UI with embedded engine", () => {
+  it("slows paused/hidden polling and preserves the state reference for identical replies", async () => {
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+    const b = bridge();
+    const view = renderHook(() => useEmbeddedEngine({ api: b.api, enabled: true, videoId: video.id, autoplay: false, stage: createRef<HTMLDivElement>(), visible: true, layoutKey: "", onInput: () => undefined }));
+    try {
+      await act(async () => { await Promise.resolve(); });
+      const initial = view.result.current.state;
+      await act(async () => vi.advanceTimersByTimeAsync(1250));
+      expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "state")).toHaveLength(3);
+      expect(view.result.current.state).toBe(initial);
+      hidden.mockReturnValue(true);
+      await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+      const count = b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "state").length;
+      await act(async () => vi.advanceTimersByTimeAsync(1999));
+      expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "state")).toHaveLength(count);
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "state")).toHaveLength(count + 1);
+    } finally { view.unmount(); hidden.mockRestore(); vi.useRealTimers(); }
+  });
+  it("commits one seek at pointer release, cancels abandoned drags, and keeps keyboard seeking", async () => {
+    const b = bridge();
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    await screen.findByText("已暂停");
+    const slider = screen.getByRole("slider", { name: "播放进度" });
+    fireEvent.pointerDown(slider, { pointerId: 1 });
+    for (const target of [10, 20, 35, 60]) fireEvent.change(slider, { target: { value: String(target) } });
+    expect(slider).toHaveValue("60");
+    expect(b.api.embeddedPlayback.mock.calls.some(([r]) => r.op === "seek")).toBe(false);
+    fireEvent.pointerUp(slider, { pointerId: 1 });
+    expect(b.api.embeddedPlayback.mock.calls.flatMap(([r]) => r.op === "seek" ? [r.value] : [])).toEqual([60]);
+    fireEvent.pointerDown(slider); fireEvent.change(slider, { target: { value: "50" } }); fireEvent.pointerCancel(slider);
+    expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "seek")).toHaveLength(1);
+    fireEvent.change(slider, { target: { value: "40" } });
+    expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "seek", value: 40 }));
+    view.unmount();
+  });
+  it("virtualizes a large playlist and rechecks only visible pending IDs", async () => {
+    const b = bridge();
+    const rows = Array.from({ length: 2000 }, (_, i) => ({ ...video, id: `item-${i}`, filename: `clip-${i}.mp4`, metadataStatus: "pending" as const }));
+    const byIds = vi.fn(async (ids: string[]) => rows.filter(row => ids.includes(row.id)));
+    const select = vi.fn();
+    const view = render(<PlayerPage video={rows[0]} embeddedApi={b.api} playbackRoute="embedded"
+      loadDirectoryPlaylist={async () => ({ videos: rows, totalCount: rows.length, page: 1, pageSize: 100, totalPages: 1 })}
+      loadPlaylistVideosByIds={byIds} onSelectPlaylistVideo={select} />);
+    await screen.findByText("已暂停"); fireEvent.click(screen.getByRole("button", { name: "播放列表" }));
+    await screen.findByText("clip-1.mp4");
+    expect(view.container.querySelectorAll(".player-playlist-item").length).toBeLessThan(20);
+    await waitFor(() => expect(byIds).toHaveBeenCalled());
+    expect(byIds.mock.calls[0][0].length).toBeLessThan(20);
+    const scroll = view.container.querySelector<HTMLElement>(".player-playlist-items")!;
+    fireEvent.scroll(scroll, { target: { scrollTop: 350 * 95 } });
+    await screen.findByText("clip-350.mp4"); fireEvent.click(screen.getByText("clip-350.mp4"));
+    expect(select).toHaveBeenCalledWith(rows[350], rows);
+    expect(screen.queryByText("clip-1.mp4")).toBeNull();
+    expect(view.container.querySelectorAll(".player-playlist-item").length).toBeLessThan(20);
+    await waitFor(() => expect(byIds.mock.calls.at(-1)![0]).toContain("item-350"));
+    view.unmount();
+  });
+  it("uses cache-only floating previews during playback and buffering, allowing paused generation", async () => {
+    const b = bridge(); b.update({ phase: "playing", paused: false });
+    const show = vi.fn(async (_request: PlayerTimelinePreviewRequest | null) => undefined);
+    const view = render(<PlayerPage video={video} embeddedApi={{ ...b.api, showPlayerTimelinePreview: show }} playbackRoute="embedded" getTimelinePreviewUrl={ms => `local-video://preview/v1/${ms}`} />);
+    await screen.findByRole("button", { name: "暂停" });
+    fireEvent.mouseMove(screen.getByRole("slider", { name: "播放进度" }).parentElement!, { clientX: 20 });
+    await waitFor(() => expect(show).toHaveBeenCalledWith(expect.objectContaining({ cachedOnly: true })));
+    b.update({ phase: "buffering" }); await screen.findByText("正在缓冲");
+    expect(show.mock.calls.at(-1)![0]).toMatchObject({ cachedOnly: true });
+    b.update({ phase: "paused", paused: true }); await screen.findByText("已暂停");
+    await waitFor(() => expect(show.mock.calls.at(-1)![0]).not.toHaveProperty("cachedOnly"));
+    view.unmount();
+  });
+  it("queues a pause against autoplay intent while the host is loading", async () => {
+    const b = bridge(); b.update({ phase: "loading", paused: true });
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" autoPlayOnOpen />);
+    await screen.findByText("正在读取视频");
+    fireEvent.click(screen.getByRole("button", { name: "播放" }));
+    b.update({ phase: "playing", paused: false });
+    await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "pause", value: true })));
+    view.unmount();
+  });
+  it("retains play intent during loading without restarting or sending an unready command", async () => {
+    const b = bridge(); b.update({ phase: "loading", paused: true });
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" autoPlayOnOpen={false} />);
+    await screen.findByText("正在读取视频");
+    fireEvent.click(screen.getByRole("button", { name: "播放" }));
+    expect(b.api.embeddedPlayback.mock.calls.some(([r]) => r.op === "pause")).toBe(false);
+    b.update({ phase: "paused" });
+    await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "pause", value: false })));
+    expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "start")).toHaveLength(1);
+    view.unmount();
+  });
+  it("explicit replay starts playing even when open autoplay is disabled", async () => {
+    const b = bridge(); b.update({ phase: "ended" });
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" autoPlayOnOpen={false} />);
+    await screen.findByText("播放结束"); fireEvent.click(screen.getByRole("button", { name: "播放" }));
+    await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "start", positionMs: 0, autoplay: true })));
+    view.unmount();
+  });
   it("handles DOM surface clicks after fullscreen and restores state on double-click", async () => {
     const b = bridge();
     const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);

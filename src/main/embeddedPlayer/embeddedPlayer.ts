@@ -33,6 +33,8 @@ export class EmbeddedPlayer {
   private lastMessage = 0;
   private waitingSince = 0;
   private savedAt = 0;
+  private savedPosition: { videoId: string; positionMs: number } | null = null;
+  private preferredVolume = 20;
   private closing = false;
   private bounds: object | null = null;
   private visible = true;
@@ -68,16 +70,18 @@ export class EmbeddedPlayer {
       this.bounds = null; this.visible = true;
       this.cancelPauses();
       this.savePosition(); this.videoId = null; this.queue.reset(); this.snapshot = null;
-      this.state = { ...initialEmbeddedState(key), phase: "loading" };
+      this.state = { ...initialEmbeddedState(key), volume: this.preferredVolume, phase: "loading" };
       this.send({ op: "quit" });
       const generation = ++this.token;
       this.work = this.work.catch(() => undefined).then(async () => {
         await this.stopHost();
         if (generation !== this.token || this.state.sessionKey !== key) return;
         this.window = w; this.videoId = session.id; this.closing = false;
-        const resume = request.positionMs ?? this.repo.listPlayHistory().find(p => p.videoId === session.id)?.positionMs ?? 0;
-        this.state.time = resume / 1000;
-        try { await this.startHost(w, generation, session.path, resume, request.autoplay); }
+        try {
+          const resume = request.positionMs ?? this.repo.getPlaybackPosition(session.id);
+          this.state.time = resume / 1000;
+          await this.startHost(w, generation, session.path, resume, request.autoplay);
+        }
         catch { if (generation === this.token) this.fail("内嵌 MPV 启动失败：请确认本机运行库已配置，或退回原播放器"); }
       });
       return { ...this.state };
@@ -85,7 +89,13 @@ export class EmbeddedPlayer {
     // Late unmounts and polling must not stop or observe a replacement playback session.
     if (request.sessionKey !== this.state.sessionKey) return initialEmbeddedState(request.sessionKey);
     if (request.op === "state") return { ...this.state, fullscreen: w.isFullScreen() };
-    if (request.op === "stop") { this.finishStartup("stopped"); this.cancelPauses(); ++this.token; this.savePosition(); this.state = initialEmbeddedState(); this.queue.reset(); await this.stopHost(); return this.state; }
+    if (request.op === "stop") {
+      this.finishStartup("stopped"); this.cancelPauses(); ++this.token; this.savePosition();
+      // The idle state's time is not the stopped video's playback position.
+      // Detach it before a later start/dispose flush can overwrite saved progress.
+      this.videoId = null; this.snapshot = null; this.state = initialEmbeddedState();
+      this.queue.reset(); await this.stopHost(); return this.state;
+    }
     if (request.op === "bounds") {
       const [width, height] = w.getContentSize();
       const scale = screen.getDisplayMatching(w.getBounds()).scaleFactor;
@@ -104,6 +114,7 @@ export class EmbeddedPlayer {
       this.queue.request(request.op, request.value);
     } else {
       if (request.op === "volume" && request.value > 100) throw new Error("音量无效");
+      if (request.op === "volume") this.preferredVolume = request.value;
       if ((request.op === "audio-track" || request.op === "subtitle-track") && (!Number.isInteger(request.value) || request.value > 128)) throw new Error("轨道无效");
       this.send(request);
     }
@@ -153,7 +164,7 @@ export class EmbeddedPlayer {
           const value = JSON.parse(line.replace(/^\uFEFF/, "")); this.lastMessage = Date.now();
           if (value.type === "ready") {
             this.logger?.info({ module: "media.playback", event: "embedded_host_ready", durationMs: Date.now() - this.startupStartedAt });
-            clearTimeout(timeout); if (this.bounds) this.send(this.bounds); this.send({ op: "visible", value: this.visible }); this.send({ op: "load", token: generation, path: file, paused: !autoplay, start: resume / 1000 }); resolve();
+            clearTimeout(timeout); if (this.bounds) this.send(this.bounds); this.send({ op: "visible", value: this.visible }); this.send({ op: "load", token: generation, path: file, paused: !autoplay, start: resume / 1000, volume: this.preferredVolume }); resolve();
           } else if (value.type === "input") {
             const input = embeddedInputSchema.safeParse(value.input);
             if (input.success && !w.isDestroyed()) {
@@ -211,7 +222,10 @@ export class EmbeddedPlayer {
   }
   private savePosition(): void {
     if (!this.videoId) return;
-    try { this.repo.recordPlayback(this.videoId, Math.max(0, Math.trunc(this.state.time * 1000))); this.savedAt = Date.now(); } catch { /* Deleted records cannot be recreated. */ }
+    const positionMs = Math.max(0, Math.trunc(this.state.time * 1000));
+    this.savedAt = Date.now();
+    if (this.savedPosition?.videoId === this.videoId && this.savedPosition.positionMs === positionMs) return;
+    try { this.repo.recordPlayback(this.videoId, positionMs); this.savedPosition = { videoId: this.videoId, positionMs }; } catch { /* Deleted records cannot be recreated. */ }
   }
   private fail(message: string): void {
     this.finishStartup("failed");
