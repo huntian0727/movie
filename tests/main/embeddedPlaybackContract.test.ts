@@ -1,10 +1,20 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { embeddedRequestSchema } from "../../src/shared/embeddedPlayback";
+import { embeddedInputSchema, embeddedRequestSchema } from "../../src/shared/embeddedPlayback";
 import { EmbeddedControlQueue, type NativeSnapshot } from "../../src/main/embeddedPlayer/controlQueue";
 import { choosePlaybackRoute } from "../../src/shared/playbackRouting";
 import { normalizeSettings } from "../../src/main/settings/settingsStore";
 describe("embedded trial contracts", () => {
   afterEach(() => vi.useRealTimers());
+  it("accepts bounded optional fullscreen masks and only bounded pointer coordinates", () => {
+    const bounds = { op: "bounds", sessionKey: "k", x: 0, y: 0, width: 1280, height: 720 };
+    expect(embeddedRequestSchema.safeParse(bounds).success).toBe(true);
+    expect(embeddedRequestSchema.safeParse({ ...bounds, clipTop: 70, clipBottom: 142 }).success).toBe(true);
+    for (const clipTop of [-1, 1.5, 16385, NaN]) expect(embeddedRequestSchema.safeParse({ ...bounds, clipTop }).success).toBe(false);
+    expect(embeddedInputSchema.safeParse({ kind: "pointer-move" }).success).toBe(true);
+    expect(embeddedInputSchema.safeParse({ kind: "pointer-move", x: 1, y: 2 }).success).toBe(true);
+    for (const x of [-1, 1.5, 16385, NaN]) expect(embeddedInputSchema.safeParse({ kind: "pointer-move", x, y: 2 }).success).toBe(false);
+    expect(embeddedInputSchema.safeParse({ kind: "pointer-move", path: "file" }).success).toBe(false);
+  });
   it("accepts the opt-in but preserves the automatic default", () => {
     expect(normalizeSettings({}).playbackPreference).toBe("auto");
     expect(normalizeSettings({playbackPreference:"embedded-first"}).playbackPreference).toBe("embedded-first");

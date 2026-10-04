@@ -100,6 +100,7 @@ export class EmbeddedPlayer {
       const [width, height] = w.getContentSize();
       const scale = screen.getDisplayMatching(w.getBounds()).scaleFactor;
       if (request.x + request.width > width * scale + 2 || request.y + request.height > height * scale + 2) throw new Error("视频画面超出窗口边界");
+      if ((request.clipTop ?? 0) + (request.clipBottom ?? 0) >= request.height) throw new Error("视频遮罩超出画面边界");
       this.bounds = request; this.send(request); return this.state;
     }
     if (request.op === "visible") { this.visible = request.value; this.send(request); return this.state; }

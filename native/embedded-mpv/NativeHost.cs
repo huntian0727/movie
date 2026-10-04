@@ -28,7 +28,12 @@ static class Native {
     [DllImport("user32.dll")] public static extern bool IsChild(IntPtr parent,IntPtr child);
     [DllImport("user32.dll")] public static extern short GetKeyState(int key);
     [DllImport("user32.dll")] public static extern IntPtr SetFocus(IntPtr handle);
+    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(System.Drawing.Point point);
+    [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr handle,ref System.Drawing.Point point);
     [DllImport("user32.dll", SetLastError=true)] public static extern bool MoveWindow(IntPtr handle,int x,int y,int width,int height,bool repaint);
+    [DllImport("user32.dll", SetLastError=true)] public static extern int SetWindowRgn(IntPtr handle,IntPtr region,bool redraw);
+    [DllImport("gdi32.dll")] public static extern IntPtr CreateRectRgn(int left,int top,int right,int bottom);
+    [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr handle);
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr handle,out Rect rect);
     [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr handle,uint command);
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int left,top,right,bottom; }
@@ -80,12 +85,20 @@ class NativeHost : Form, IMessageFilter {
     int token;
     int seekCount,restartCount;
     int viewportX=0,viewportY=58,viewportWidth=1280,viewportHeight=720;
+    int clipTop,clipBottom;
+    string appliedRegion;
+    System.Drawing.Point lastPointer=new System.Drawing.Point(int.MinValue,int.MinValue);
+    readonly System.Windows.Forms.Timer pointerTimer=new System.Windows.Forms.Timer();
     readonly System.Windows.Forms.Timer clickTimer=new System.Windows.Forms.Timer();
     bool clicked;
     public NativeHost(IntPtr owner,string hwdec,bool features) {
         parent=owner;hardwareDecode=hwdec;mediaFeatures=features; FormBorderStyle=FormBorderStyle.None; ShowInTaskbar=false; TopLevel=false;
         BackColor=System.Drawing.Color.Black; Width=1; Height=1;
         Application.AddMessageFilter(this);
+        // mpv's VO child can live on another thread; WinForms message filters
+        // cannot see all of its WM_MOUSEMOVE messages. Observe real movement
+        // over this host/its children without global hooks or synthetic input.
+        pointerTimer.Interval=100;pointerTimer.Tick+=(sender,args)=>ObservePointer();
         clickTimer.Interval=SystemInformation.DoubleClickTime;
         // The double-click window only classifies the second click; it must not
         // postpone the first click's playback command.
@@ -117,6 +130,15 @@ class NativeHost : Form, IMessageFilter {
         Emit(new {type="input",input=new {kind="key",code=code,control=control,shift=shift,alt=alt}});
         return true;
     }
+    void ObservePointer(){
+        var point=Cursor.Position;
+        if(point==lastPointer)return;
+        lastPointer=point;
+        IntPtr hovered=Native.WindowFromPoint(point);
+        if(hovered!=parent&&!Native.IsChild(parent,hovered))return;
+        if(Native.ScreenToClient(parent,ref point)&&point.X>=0&&point.Y>=0&&point.X<=16384&&point.Y<=16384)
+            Emit(new {type="input",input=new {kind="pointer-move",x=point.X,y=point.Y}});
+    }
     void Emit(object value) { lock(outputLock){ Console.Out.WriteLine(json.Serialize(value)); Console.Out.Flush(); } }
     protected override void OnLoad(EventArgs e) {
         base.OnLoad(e);
@@ -131,7 +153,7 @@ class NativeHost : Form, IMessageFilter {
         foreach(var opt in opts) if(Native.Set(mpv,opt.Key,opt.Value,true)<0) throw new Exception("option-failed:"+opt.Key);
         if(mediaFeatures && Native.Set(mpv,"sub-auto","no",true)<0) throw new Exception("sub-auto-option-failed");
         int result=Native.mpv_initialize(mpv); if(result<0) throw new Exception("mpv-init:"+result);
-        timer.Interval=200; timer.Tick+=Tick; timer.Start();
+        timer.Interval=200; timer.Tick+=Tick; timer.Start();pointerTimer.Start();
         Emit(new {type="ready", embedded=Native.GetParent(Handle)==parent, version=Native.Text(mpv,"mpv-version")});
         var input=new Thread(ReadInput); input.IsBackground=true; input.Start();
     }
@@ -152,6 +174,9 @@ class NativeHost : Form, IMessageFilter {
             else if(op=="bounds") {
                 int x=Convert.ToInt32(message["x"]),y=Convert.ToInt32(message["y"]),w=Convert.ToInt32(message["width"]),h=Convert.ToInt32(message["height"]);
                 if(x<0||y<0||w<1||h<1||w>16384||h>16384) throw new Exception("invalid-bounds");
+                clipTop=message.ContainsKey("clipTop")?Convert.ToInt32(message["clipTop"]):0;
+                clipBottom=message.ContainsKey("clipBottom")?Convert.ToInt32(message["clipBottom"]):0;
+                if(clipTop<0||clipBottom<0||clipTop+clipBottom>=h)throw new Exception("invalid-clip");
                 viewportX=x;viewportY=y;viewportWidth=w;viewportHeight=h;ApplyBounds();
             } else if(op=="load") {
                 loaded=false;endReported=false;seekCount=0;restartCount=0; token=Convert.ToInt32(message["token"]);
@@ -202,6 +227,14 @@ class NativeHost : Form, IMessageFilter {
         // VO configuration can occur after the host's initial WM_SIZE.
         IntPtr video=Native.GetWindow(Handle,5);
         if(video!=IntPtr.Zero) Native.MoveWindow(video,0,0,viewportWidth,viewportHeight,true);
+        string regionKey=viewportWidth+":"+viewportHeight+":"+clipTop+":"+clipBottom;
+        if(appliedRegion!=regionKey){
+            IntPtr region=clipTop==0&&clipBottom==0?IntPtr.Zero:Native.CreateRectRgn(0,clipTop,viewportWidth,viewportHeight-clipBottom);
+            if((clipTop!=0||clipBottom!=0)&&region==IntPtr.Zero)throw new Exception("native-region-create-failed");
+            if(Native.SetWindowRgn(Handle,region,true)==0){if(region!=IntPtr.Zero)Native.DeleteObject(region);throw new Exception("native-region-failed");}
+            // On success Windows owns the region; never delete that handle.
+            appliedRegion=regionKey;
+        }
     }
     void Tick(object sender,EventArgs args) {
         if(!Native.IsWindow(parent)){ Close(); return; }
@@ -221,7 +254,7 @@ class NativeHost : Form, IMessageFilter {
         }
         Native.Rect viewport; Native.GetClientRect(Handle,out viewport);
         Native.Rect videoRect; Native.GetClientRect(Native.GetWindow(Handle,5),out videoRect);
-        Emit(new {type="snapshot",token=token,loaded=loaded,viewportWidth=viewport.right,viewportHeight=viewport.bottom,renderWidth=videoRect.right,renderHeight=videoRect.bottom,rotation=Native.Number(mpv,"video-rotate"),time=Native.Number(mpv,"time-pos"),duration=Native.Number(mpv,"duration"),
+        Emit(new {type="snapshot",token=token,loaded=loaded,viewportWidth=viewport.right,viewportHeight=viewport.bottom,renderWidth=videoRect.right,renderHeight=videoRect.bottom,clipTop=clipTop,clipBottom=clipBottom,rotation=Native.Number(mpv,"video-rotate"),time=Native.Number(mpv,"time-pos"),duration=Native.Number(mpv,"duration"),
             paused=Native.Text(mpv,"pause"),volume=Native.Number(mpv,"volume"),videoCodec=Native.Text(mpv,"video-codec"),
             audioCodec=Native.Text(mpv,"audio-codec-name"),hwdec=Native.Text(mpv,"hwdec-current"),width=Native.Number(mpv,"width"),
             height=Native.Number(mpv,"height"),avsync=Native.Number(mpv,"avsync"),dropped=Native.Number(mpv,"frame-drop-count"),
@@ -231,6 +264,7 @@ class NativeHost : Form, IMessageFilter {
     }
     protected override void OnFormClosed(FormClosedEventArgs e) {
         Application.RemoveMessageFilter(this);clickTimer.Stop();clickTimer.Dispose();
+        pointerTimer.Stop();pointerTimer.Dispose();
         timer.Stop(); if(mpv!=IntPtr.Zero){ Native.mpv_terminate_destroy(mpv); mpv=IntPtr.Zero; }
         Emit(new {type="disposed"}); base.OnFormClosed(e);
     }

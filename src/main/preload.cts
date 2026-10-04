@@ -192,6 +192,10 @@ const mainApi: VideoManagerApi = {
     const handler = (_event: Electron.IpcRendererEvent, input: import("../shared/embeddedPlayback.js").EmbeddedInput) => {
       if (!input || typeof input !== "object") return;
       if (input.kind === "click" || input.kind === "double-click") listener({ kind: input.kind });
+      else if (input.kind === "pointer-move") {
+        if (input.x === undefined && input.y === undefined) listener({ kind: input.kind });
+        else if ([input.x, input.y].every(v => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 16384)) listener({ kind: input.kind, x: input.x, y: input.y });
+      }
       else if (input.kind === "key" && /^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2])|Space|Escape|Enter|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown)$/.test(input.code) && [input.control, input.shift, input.alt].every(v => typeof v === "boolean")) {
         listener({ kind: "key", code: input.code, control: input.control, shift: input.shift, alt: input.alt });
       }

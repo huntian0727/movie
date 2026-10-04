@@ -61,10 +61,12 @@ describe("real player-role preload embedded bridge", () => {
     const b = bridge(), listener = vi.fn(); const dispose = b.api.subscribeEmbeddedInput(listener);
     const [channel, handler] = b.on.mock.calls[0]; expect(channel).toBe("player:embedded-input");
     const key = { kind: "key", code: "ArrowLeft", control: true, shift: false, alt: false };
-    handler({}, key); handler({}, { kind: "double-click" });
+    handler({}, key); handler({}, { kind: "double-click" }); handler({}, { kind: "pointer-move", path: "not forwarded" });
+    handler({}, { kind: "pointer-move", x: 1280, y: 720, path: "not forwarded" });
+    handler({}, { kind: "pointer-move", x: -1, y: 720 }); handler({}, { kind: "pointer-move", x: 1 });
     handler({}, { kind: "key", code: "Delete", control: true, shift: false, alt: false });
     handler({}, { ...key, alt: "invalid" }); handler({}, { kind: "command", command: "loadfile" });
-    expect(listener.mock.calls).toEqual([[key], [{ kind: "double-click" }]]);
+    expect(listener.mock.calls).toEqual([[key], [{ kind: "double-click" }], [{ kind: "pointer-move" }], [{ kind: "pointer-move", x: 1280, y: 720 }]]);
     dispose(); expect(b.removeListener).toHaveBeenCalledWith(channel, handler);
   });
 });

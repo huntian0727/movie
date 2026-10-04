@@ -5,7 +5,7 @@ import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import type { VideoRepository } from "../../src/main/db/videoRepository";
 
 const runtime = vi.hoisted(() => ({ spawn: vi.fn() }));
-vi.mock("electron", () => ({ BrowserWindow: {}, dialog: {}, screen: {} }));
+vi.mock("electron", () => ({ BrowserWindow: {}, dialog: {}, screen: { getDisplayMatching: () => ({ scaleFactor: 1 }) } }));
 vi.mock("node:child_process", async importOriginal => {
   const actual = await importOriginal<typeof import("node:child_process")>();
   return { ...actual, spawn: runtime.spawn, default: { ...actual, spawn: runtime.spawn } };
@@ -25,7 +25,7 @@ async function fixture(startup?: { begin(videoId: string): void; finish(videoId?
   child.kill.mockImplementation(() => child.emit("exit", 0));
   runtime.spawn.mockReturnValue(child);
   const sender = { on: vi.fn(), send: vi.fn() };
-  const w = { webContents: sender, setMenu: vi.fn(), on: vi.fn(), isDestroyed: () => false, isFullScreen: () => false, getNativeWindowHandle: () => Buffer.from([1, 0, 0, 0, 0, 0, 0, 0]) } as unknown as BrowserWindow;
+  const w = { webContents: sender, setMenu: vi.fn(), on: vi.fn(), isDestroyed: () => false, isFullScreen: () => false, getContentSize: () => [1280, 720], getBounds: () => ({ x: 0, y: 0, width: 1280, height: 720 }), getNativeWindowHandle: () => Buffer.from([1, 0, 0, 0, 0, 0, 0, 0]) } as unknown as BrowserWindow;
   const repo = { getVideo: () => ({ id: "v", path: "C:/neutral.mp4", isMissing: false }), recordPlayback: vi.fn(), getPlaybackPosition: () => 0 } as unknown as VideoRepository;
   const player = new EmbeddedPlayer(repo, () => w, { host: "host.exe", directory: "runtime" }, startup);
   const event = { sender } as unknown as IpcMainInvokeEvent;
@@ -42,6 +42,21 @@ async function fixture(startup?: { begin(videoId: string): void; finish(videoId?
 
 afterEach(() => { vi.useRealTimers(); runtime.spawn.mockClear(); });
 describe("pause confirmation without periodic telemetry", () => {
+  it("forwards fullscreen masks without changing video bounds and rejects full occlusion", async () => {
+    const f = await fixture();
+    try {
+      const bounds = { op: "bounds", x: 0, y: 0, width: 1280, height: 720 };
+      await f.call({ ...bounds, clipTop: 70, clipBottom: 142 });
+      expect(f.commands().at(-1)).toMatchObject({ ...bounds, clipTop: 70, clipBottom: 142 });
+      await f.call(bounds);
+      expect(f.commands().at(-1)).toMatchObject(bounds);
+      expect(f.commands().at(-1)).not.toHaveProperty("clipTop");
+      const count = f.commands().length;
+      await expect(f.call({ ...bounds, clipTop: 600, clipBottom: 120 })).rejects.toThrow("遮罩");
+      await expect(f.call({ ...bounds, width: 1283 })).rejects.toThrow("窗口边界");
+      expect(f.commands()).toHaveLength(count);
+    } finally { f.player.dispose(); }
+  });
   it("does not overwrite the stopped video's saved position when a new session starts or is disposed", async () => {
     const f = await fixture();
     try {

@@ -37,6 +37,28 @@ app.whenReady().then(async()=>{
         if(pauseLatencies.at(-1)>500)throw Error("pause-confirmation-exceeded-500ms");
       }
       await call({op:"pause",value:true});await until(async()=>(await state()).paused);
+      stage=sample.name+":fullscreen-control-masks";
+      // Observe the existing native telemetry, not only the renderer's requested
+      // bounds: clipping must never resize the actual decode/render viewport.
+      let geometry, telemetryBuffer="";
+      const stdout=player.child.stdout;
+      const telemetry=chunk=>{
+        telemetryBuffer+=chunk.toString("utf8");
+        let newline;
+        while((newline=telemetryBuffer.indexOf("\n"))>=0){
+          const line=telemetryBuffer.slice(0,newline);telemetryBuffer=telemetryBuffer.slice(newline+1);
+          try{const s=JSON.parse(line);if(s.type==="snapshot")geometry=s;}catch{}
+        }
+      };
+      stdout.on("data",telemetry);
+      try {
+        for(const [clipTop,clipBottom] of [[70,142],[0,0],[70,142],[0,0]]) {
+          await call({op:"bounds",x:0,y:0,width:1000,height:500,clipTop,clipBottom});
+          await until(()=>geometry?.clipTop===clipTop&&geometry?.clipBottom===clipBottom);
+          if(geometry.viewportWidth!==1000||geometry.viewportHeight!==500||geometry.renderWidth!==1000||geometry.renderHeight!==500)throw Error("controls-resized-video-viewport");
+          if((await state()).phase!=="paused")throw Error("control-mask-changed-playback-state");
+        }
+      } finally { stdout.removeListener("data",telemetry); }
       stage=sample.name+":seek";
       for(const value of [3,4,5,6])await call({op:"seek",value});
       await until(async()=>{const s=await state();return Math.abs(s.time-6)<.35&&s.phase==="paused";});
@@ -76,7 +98,7 @@ app.whenReady().then(async()=>{
       key=old+"-resumed";await call({op:"start",videoId:sample.name,autoplay:false});
       await until(async()=>{const s=await state();if(s.phase==="failed")throw Error(s.error);return s.phase==="paused"&&Math.abs(s.time-3)<.35;});
       await call({op:"stop"});if(ledger.get(sample.name)<2900)throw Error("stopped-progress-overwritten");
-      report.samples.push({name:sample.name,pass:true,positionSaved:true,stopThenResume:true,staleStopIgnored:true,mutedVolumeRetained:true,pauseConfirmationMs:pauseLatencies});
+      report.samples.push({name:sample.name,pass:true,fullscreenControlMasks:true,viewportStableAcrossMasks:true,positionSaved:true,stopThenResume:true,staleStopIgnored:true,mutedVolumeRetained:true,pauseConfirmationMs:pauseLatencies});
     }
     report.pass=true;
   }catch(e){report.failures.push({stage,message:e.message,state:await state().catch(()=>null)});}

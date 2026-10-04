@@ -21,6 +21,88 @@ function bridge() {
   return { api, unsubscribe, input: (e: EmbeddedInput) => input(e), update: (next: Partial<EmbeddedState>) => { state = { ...state, ...next }; } };
 }
 describe("original player UI with embedded engine", () => {
+  it("does not leave browser fullscreen bars pinned by stale toolbar focus", async () => {
+    vi.useFakeTimers();
+    const b = bridge(); b.update({ fullscreen: true });
+    const view = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" embeddedApi={b.api} />);
+    try {
+      await act(async () => { await Promise.resolve(); });
+      act(() => screen.getByRole("button", { name: "播放列表" }).focus());
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      expect(view.container.querySelector(".player-controls")).not.toHaveClass("is-hidden");
+      fireEvent.mouseMove(view.container.querySelector("video")!);
+      expect(document.activeElement).toBe(document.body);
+      await act(async () => vi.advanceTimersByTimeAsync(2200));
+      expect(view.container.querySelector(".player-controls")).toHaveClass("is-hidden");
+    } finally { view.unmount(); vi.useRealTimers(); }
+  });
+  it("auto-hides embedded fullscreen bars, wakes on native movement and pins controls for the playlist", async () => {
+    vi.useFakeTimers();
+    const b = bridge(); b.update({ fullscreen: true });
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    try {
+      await act(async () => { await Promise.resolve(); });
+      const header = view.container.querySelector(".player-topbar")!;
+      const footer = view.container.querySelector(".player-controls")!;
+      expect(view.container.querySelector(".player-page")).toHaveClass("is-fullscreen");
+      await act(async () => vi.advanceTimersByTimeAsync(2200));
+      expect(header).toHaveClass("is-hidden"); expect(footer).toHaveClass("is-hidden");
+      const before = b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "pause").length;
+      act(() => b.input({ kind: "pointer-move" }));
+      expect(header).not.toHaveClass("is-hidden"); expect(footer).not.toHaveClass("is-hidden");
+      expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "pause")).toHaveLength(before);
+      vi.spyOn(footer, "getBoundingClientRect").mockReturnValue({ left: 0, right: 1280, top: 578, bottom: 720 } as DOMRect);
+      act(() => b.input({ kind: "pointer-move", x: 1200, y: 650 }));
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      expect(footer).not.toHaveClass("is-hidden");
+      act(() => b.input({ kind: "pointer-move", x: 500, y: 300 }));
+      await act(async () => vi.advanceTimersByTimeAsync(2200));
+      expect(footer).toHaveClass("is-hidden");
+      act(() => b.input({ kind: "pointer-move" }));
+      fireEvent.mouseEnter(footer);
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      expect(footer).not.toHaveClass("is-hidden");
+      fireEvent.mouseLeave(footer);
+      await act(async () => vi.advanceTimersByTimeAsync(2200));
+      expect(footer).toHaveClass("is-hidden");
+      act(() => b.input({ kind: "pointer-move" }));
+      fireEvent.click(screen.getByRole("button", { name: "播放列表" }));
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      expect(footer).not.toHaveClass("is-hidden");
+      fireEvent.click(screen.getByRole("button", { name: "关闭播放列表" }));
+      act(() => b.input({ kind: "pointer-move" }));
+      await act(async () => vi.advanceTimersByTimeAsync(2200));
+      expect(footer).toHaveClass("is-hidden");
+      act(() => b.input({ kind: "key", code: "Escape", control: false, shift: false, alt: false }));
+      await act(async () => { await Promise.resolve(); });
+      expect(view.container.querySelector(".player-page")).not.toHaveClass("is-fullscreen");
+      expect(header).not.toHaveClass("is-hidden"); expect(footer).not.toHaveClass("is-hidden");
+      expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "start")).toHaveLength(1);
+    } finally { view.unmount(); vi.useRealTimers(); }
+  });
+  it("changes only native clipping when fullscreen controls appear and deduplicates identical geometry", async () => {
+    const rect = (x: number, y: number, width: number, height: number) => ({ x, y, width, height, top: y, bottom: y + height, left: x, right: x + width, toJSON() {} });
+    const stage = { current: document.createElement("div") };
+    const top = { current: document.createElement("header") };
+    const bottom = { current: document.createElement("footer") };
+    stage.current.getBoundingClientRect = () => rect(0, 0, 1280, 720);
+    top.current.getBoundingClientRect = () => rect(0, 0, 1280, 70);
+    bottom.current.getBoundingClientRect = () => rect(0, 578, 1280, 142);
+    const dpr = vi.spyOn(window, "devicePixelRatio", "get").mockReturnValue(2);
+    const b = bridge();
+    const view = renderHook(({ active }) => useEmbeddedEngine({ api: b.api, enabled: true, videoId: video.id, autoplay: false, stage, visible: true, layoutKey: String(active), overlay: { active, top, bottom }, onInput: () => undefined }), { initialProps: { active: true } });
+    try {
+      await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "bounds", width: 2560, height: 1440, clipTop: 140, clipBottom: 284 })));
+      view.rerender({ active: false });
+      const bounds = b.api.embeddedPlayback.mock.calls.flatMap(([r]) => r.op === "bounds" ? [r] : []);
+      expect(bounds).toHaveLength(2);
+      expect(bounds[1]).toMatchObject({ x: 0, y: 0, width: 2560, height: 1440 });
+      expect(bounds[1]).not.toHaveProperty("clipTop");
+      view.rerender({ active: false });
+      expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "bounds")).toHaveLength(2);
+      expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "start")).toHaveLength(1);
+    } finally { view.unmount(); dpr.mockRestore(); }
+  });
   it("slows paused/hidden polling and preserves the state reference for identical replies", async () => {
     vi.useFakeTimers();
     const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);

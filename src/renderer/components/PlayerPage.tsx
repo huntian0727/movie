@@ -65,6 +65,9 @@ export function PlayerPage({
   onSelectPlaylistVideo
 }: PlayerPageProps) {
   const pageRef = useRef<HTMLElement>(null);
+  const topbarRef = useRef<HTMLElement>(null);
+  const controlsRef = useRef<HTMLElement>(null);
+  const controlsHovered = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const stageClickBeforeRef = useRef<{ session: string; paused: boolean } | null>(null);
@@ -135,10 +138,21 @@ export function PlayerPage({
     positionMs: nativeFailedId === video.id ? fallbackPositionRef.current : startPositionMs,
     requestId: startRequestId, stage: embeddedStageRef,
     visible: !detailsOpen && !deleteConfirmOpen && !externalLaunching,
-    layoutKey: `${playlistOpen}:${isFullscreen}`,
+    layoutKey: `${playlistOpen}:${isFullscreen}:${controlsVisible}`,
+    overlay: { active: isFullscreen && controlsVisible, top: topbarRef, bottom: controlsRef },
     onInput: input => {
       if (detailsOpen || deleteConfirmOpen) return;
-      if (input.kind === "click") {
+      if (input.kind === "pointer-move") {
+        if (!isFullscreen) return;
+        const scale = window.devicePixelRatio || 1;
+        const overBar = input.x !== undefined && input.y !== undefined && [topbarRef.current, controlsRef.current].some(bar => {
+          const r = bar?.getBoundingClientRect();
+          return r && input.x! / scale >= r.left && input.x! / scale <= r.right && input.y! / scale >= r.top && input.y! / scale <= r.bottom;
+        });
+        if (overBar) { controlsHovered.current = true; showControls(); }
+        else showControlsFromVideo();
+      }
+      else if (input.kind === "click") {
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         handleStageClick();
       }
@@ -191,10 +205,11 @@ export function PlayerPage({
 
   const scheduleControlsHide = () => {
     clearControlsHideTimeout();
-    if (!isFullscreen || isEmbeddedPlayback || detailsOpen || playlistOpen || deleteConfirmOpen) {
+    if (!isFullscreen || detailsOpen || playlistOpen || deleteConfirmOpen || embeddedError || windowFullscreen.error) {
       setControlsVisible(true);
       return;
     }
+    if (controlsHovered.current || dragging.current || topbarRef.current?.contains(document.activeElement) || controlsRef.current?.contains(document.activeElement)) return;
 
     controlsHideTimeoutRef.current = window.setTimeout(() => {
       setControlsVisible(false);
@@ -205,6 +220,15 @@ export function PlayerPage({
   const showControls = () => {
     setControlsVisible(true);
     scheduleControlsHide();
+  };
+
+  const showControlsFromVideo = () => {
+    // Moving back to either decode surface ends toolbar interaction, including
+    // the focus left behind by clicking its fullscreen button.
+    controlsHovered.current = false;
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && (topbarRef.current?.contains(focused) || controlsRef.current?.contains(focused))) focused.blur();
+    showControls();
   };
 
   useEffect(() => {
@@ -252,7 +276,7 @@ export function PlayerPage({
     scheduleControlsHide();
 
     return () => clearControlsHideTimeout();
-  }, [deleteConfirmOpen, detailsOpen, isFullscreen, playlistOpen]);
+  }, [deleteConfirmOpen, detailsOpen, isFullscreen, playlistOpen, isEmbeddedPlayback, embeddedError, windowFullscreen.error, video.id]);
 
   useEffect(() => () => {
     clearControlsHideTimeout();
@@ -631,21 +655,27 @@ export function PlayerPage({
       ref={pageRef}
       tabIndex={-1}
       className={`player-page${isFullscreen ? " is-fullscreen" : ""}${isEmbeddedPlayback ? " uses-embedded-engine" : ""}${playlistOpen ? " has-playlist" : ""}`}
-      onMouseMove={() => {
+      onMouseMove={event => {
         if (isFullscreen) {
-          showControls();
+          if (surfaceRef.current?.contains(event.target as Node)) showControlsFromVideo();
+          else showControls();
         }
       }}
     >
       <header
+        ref={topbarRef}
         className={`player-topbar${controlsStateClassName}`}
+        onFocusCapture={() => { setControlsVisible(true); clearControlsHideTimeout(); }}
+        onBlurCapture={() => scheduleControlsHide()}
         onMouseEnter={() => {
+          controlsHovered.current = true;
           if (isFullscreen) {
             clearControlsHideTimeout();
             setControlsVisible(true);
           }
         }}
         onMouseLeave={() => {
+          controlsHovered.current = false;
           if (isFullscreen) {
             scheduleControlsHide();
           }
@@ -851,14 +881,19 @@ export function PlayerPage({
       )}
 
       <footer
+        ref={controlsRef}
         className={`player-controls${controlsStateClassName}`}
+        onFocusCapture={() => { setControlsVisible(true); clearControlsHideTimeout(); }}
+        onBlurCapture={() => scheduleControlsHide()}
         onMouseEnter={() => {
+          controlsHovered.current = true;
           if (isFullscreen) {
             clearControlsHideTimeout();
             setControlsVisible(true);
           }
         }}
         onMouseLeave={() => {
+          controlsHovered.current = false;
           if (isFullscreen) {
             scheduleControlsHide();
           }

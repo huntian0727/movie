@@ -1049,17 +1049,20 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
 .embedded-player-page button:disabled { opacity: .4; }
 .embedded-player-controls small { color: #9da59d; }
 
-/* One existing player shell, with a native child restricted to its video slot.
-   Native HWNDs cannot be covered by DOM z-index: reserve controls/playlist space. */
+/* Windowed native playback reserves controls/playlist space. In fullscreen the
+   native viewport stays full-size; its window region reveals the DOM bars. */
 .player-page.uses-embedded-engine { position: relative; grid-template-rows: 70px minmax(0, 1fr) 126px; }
 .player-embedded-surface { position: absolute; inset: 0; }
 .player-page.uses-embedded-engine.has-playlist .player-stage { margin-right: min(410px, 42vw); }
 .player-page.uses-embedded-engine .player-playlist { top: 70px; bottom: 126px; right: 0; width: min(410px, 42vw); border-radius: 0; box-shadow: none; }
-.player-page.uses-embedded-engine.is-fullscreen { display: grid; }
-.player-page.uses-embedded-engine.is-fullscreen .player-stage { position: relative; inset: auto; min-height: 0; }
+.player-page.uses-embedded-engine.is-fullscreen { display: block; }
+.player-page.uses-embedded-engine.is-fullscreen .player-stage { position: absolute; inset: 0; min-height: auto; }
 .player-page.uses-embedded-engine.is-fullscreen .player-topbar,
-.player-page.uses-embedded-engine.is-fullscreen .player-controls { position: relative; inset: auto; padding-top: 0; padding-bottom: 13px; background: #151615; opacity: 1; transform: none; pointer-events: auto; }
-.player-page.uses-embedded-engine.is-fullscreen .player-topbar { padding-bottom: 0; }
+.player-page.uses-embedded-engine.is-fullscreen .player-controls { background: #151615; transition: none; transform: none; }
+.player-page.uses-embedded-engine.is-fullscreen .player-topbar { height: 70px; padding-block: 0; }
+.player-page.uses-embedded-engine.is-fullscreen .player-playlist { bottom: 142px; }
+.player-page.uses-embedded-engine.is-fullscreen .player-topbar.is-hidden,
+.player-page.uses-embedded-engine.is-fullscreen .player-controls.is-hidden { visibility: hidden; }
 .player-engine-status { height: 24px; display: flex; align-items: center; justify-content: space-between; color: #a3aaa0; font-size: 11px; }
 .player-engine-status button { border: 0; color: #a3aaa0; background: transparent; cursor: pointer; font-size: 11px; }
 .timeline-preview-window { width: 160px; overflow: hidden; color: #eee; background: #202824; }

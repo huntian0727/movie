@@ -10,6 +10,7 @@ export function useEmbeddedEngine(options: {
   api?: Bridge; enabled: boolean; videoId: string; autoplay: boolean;
   positionMs?: number; requestId?: string; stage: RefObject<HTMLDivElement | null>;
   visible: boolean; layoutKey: string; onInput(input: EmbeddedInput): void;
+  overlay?: { active: boolean; top: RefObject<HTMLElement | null>; bottom: RefObject<HTMLElement | null> };
 }) {
   const { api, enabled, videoId, autoplay, positionMs, requestId, stage, visible, layoutKey } = options;
   const [state, setState] = useState<EmbeddedState | null>(null);
@@ -25,6 +26,7 @@ export function useEmbeddedEngine(options: {
   const startingPaused = useRef(!autoplay);
   const input = useRef(options.onInput); input.current = options.onInput;
   const visibility = useRef(visible); visibility.current = visible;
+  const overlay = useRef(options.overlay); overlay.current = options.overlay;
   const measure = useRef<() => void>(() => undefined);
   useEffect(() => {
     observed.current = null; pendingPause.current = null; loadingPause.current = null; setState(null); setError(null);
@@ -38,7 +40,13 @@ export function useEmbeddedEngine(options: {
     measure.current = () => {
       if (disposed || !stage.current) return;
       const r = stage.current.getBoundingClientRect(), d = window.devicePixelRatio || 1;
-      const bounds = { op: "bounds" as const, x: Math.max(0, Math.round(r.x * d)), y: Math.max(0, Math.round(r.y * d)), width: Math.max(1, Math.floor(r.width * d)), height: Math.max(1, Math.floor(r.height * d)) };
+      const height = Math.max(1, Math.floor(r.height * d));
+      const top = overlay.current?.active ? overlay.current.top.current?.getBoundingClientRect() : undefined;
+      const bottom = overlay.current?.active ? overlay.current.bottom.current?.getBoundingClientRect() : undefined;
+      const clipTop = top ? Math.min(height - 1, Math.max(0, Math.ceil((top.bottom - r.top) * d))) : 0;
+      const clipBottom = bottom ? Math.min(height - clipTop - 1, Math.max(0, Math.ceil((r.bottom - bottom.top) * d))) : 0;
+      const bounds = { op: "bounds" as const, x: Math.max(0, Math.round(r.x * d)), y: Math.max(0, Math.round(r.y * d)), width: Math.max(1, Math.floor(r.width * d)), height,
+        ...(clipTop || clipBottom ? { clipTop, clipBottom } : {}) };
       const signature = JSON.stringify(bounds);
       if (signature !== lastBounds) { lastBounds = signature; void call(bounds).catch(() => { lastBounds = ""; }); }
       if (lastVisible !== visibility.current) { lastVisible = visibility.current; void call({ op: "visible", value: lastVisible }).catch(() => { lastVisible = undefined; }); }
@@ -74,6 +82,8 @@ export function useEmbeddedEngine(options: {
     document.addEventListener("visibilitychange", wake);
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => measure.current());
     if (stage.current) observer?.observe(stage.current);
+    if (overlay.current?.top.current) observer?.observe(overlay.current.top.current);
+    if (overlay.current?.bottom.current) observer?.observe(overlay.current.bottom.current);
     const resize = () => measure.current(); window.addEventListener("resize", resize);
     const unsubscribe = api.subscribeEmbeddedInput(e => { if (!disposed) input.current(e); });
     return () => {
