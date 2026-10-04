@@ -35,6 +35,8 @@ export class EmbeddedPlayer {
   private closing = false;
   private bounds: object | null = null;
   private visible = true;
+  private pauseControlId = 0;
+  private pendingPauses = new Map<number, { token: number; value: boolean; resolve(state: EmbeddedState): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
   private queue = new EmbeddedControlQueue(() => this.snapshot, c => this.send(c), (failed, busy) => {
     if (failed) this.fail("跳转或旋转超时，请重试或改用原播放器");
     else if (busy) this.state.phase = "reading";
@@ -57,6 +59,7 @@ export class EmbeddedPlayer {
       if (session.isMissing) throw new Error("资料库标记文件缺失，请先复查可访问性");
       const key = request.sessionKey;
       this.bounds = null; this.visible = true;
+      this.cancelPauses();
       this.savePosition(); this.videoId = null; this.queue.reset(); this.snapshot = null;
       this.state = { ...initialEmbeddedState(key), phase: "loading" };
       this.send({ op: "quit" });
@@ -75,7 +78,7 @@ export class EmbeddedPlayer {
     // Late unmounts and polling must not stop or observe a replacement playback session.
     if (request.sessionKey !== this.state.sessionKey) return initialEmbeddedState(request.sessionKey);
     if (request.op === "state") return { ...this.state, fullscreen: w.isFullScreen() };
-    if (request.op === "stop") { ++this.token; this.savePosition(); this.state = initialEmbeddedState(); this.queue.reset(); await this.stopHost(); return this.state; }
+    if (request.op === "stop") { this.cancelPauses(); ++this.token; this.savePosition(); this.state = initialEmbeddedState(); this.queue.reset(); await this.stopHost(); return this.state; }
     if (request.op === "bounds") {
       const [width, height] = w.getContentSize();
       const scale = screen.getDisplayMatching(w.getBounds()).scaleFactor;
@@ -84,6 +87,7 @@ export class EmbeddedPlayer {
     }
     if (request.op === "visible") { this.visible = request.value; this.send(request); return this.state; }
     if (!this.snapshot?.loaded || this.state.phase === "failed") throw new Error("视频尚未就绪，请稍候或重试");
+    if (request.op === "pause") return this.pause(request.value);
     if (request.op === "subtitle-file") {
       const key = this.state.sessionKey;
       const result = await dialog.showOpenDialog(w, { title: "选择外挂 SRT 字幕", filters: [{ name: "SRT 字幕", extensions: ["srt"] }], properties: ["openFile"] });
@@ -100,6 +104,32 @@ export class EmbeddedPlayer {
   }
   private send(command: object): void {
     if (this.child?.stdin.writable && this.child.exitCode === null && this.child.signalCode === null) this.child.stdin.write(JSON.stringify(command) + "\n");
+  }
+  private pause(value: boolean): Promise<EmbeddedState> {
+    if (!this.child?.stdin.writable || this.pendingPauses.size >= 64) return Promise.reject(new Error("播放控制暂不可用，请重试"));
+    const controlId = ++this.pauseControlId;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingPauses.delete(controlId); reject(new Error("播放暂停控制超时，请重试"));
+      }, 3000);
+      this.pendingPauses.set(controlId, { token: this.token, value, resolve, reject, timer });
+      this.send({ op: "pause", value, controlId });
+    });
+  }
+  private acknowledgePause(value: { controlId?: number; token?: number; result?: number; paused?: string }): void {
+    const pending = this.pendingPauses.get(value.controlId ?? -1);
+    if (!pending || value.token !== pending.token || value.token !== this.token) return;
+    this.pendingPauses.delete(value.controlId!); clearTimeout(pending.timer);
+    if (value.result !== 0 || value.paused !== (pending.value ? "yes" : "no")) {
+      pending.reject(new Error("播放暂停控制未完成，请重试")); return;
+    }
+    const paused = value.paused === "yes";
+    this.state = { ...this.state, paused, phase: ["playing", "paused"].includes(this.state.phase) ? paused ? "paused" : "playing" : this.state.phase };
+    pending.resolve({ ...this.state });
+  }
+  private cancelPauses(): void {
+    for (const pending of this.pendingPauses.values()) { clearTimeout(pending.timer); pending.reject(new Error("播放会话已结束")); }
+    this.pendingPauses.clear();
   }
   private async startHost(w: BrowserWindow, generation: number, file: string, resume: number, autoplay: boolean): Promise<void> {
     if (process.platform !== "win32" || !existsSync(this.runtime.host) || !existsSync(path.join(this.runtime.directory, "libmpv-2.dll"))) throw new Error("runtime-unavailable");
@@ -122,9 +152,9 @@ export class EmbeddedPlayer {
               w.webContents.send("player:embedded-input", input.data);
             }
           } else if (value.type === "snapshot" && value.token === generation) this.observe(snapshotSchema.parse(value));
-          else if (value.type === "ack") { this.queue.acknowledge(value.op, value.result); if (value.result < 0) this.fail("播放控制失败，可重试或改用原播放器"); }
+          else if (value.type === "ack") { if (value.op === "pause") this.acknowledgePause(value); this.queue.acknowledge(value.op, value.result); if (value.result < 0) this.fail("播放控制失败，可重试或改用原播放器"); }
           else if (value.type === "ended" && value.token === generation) {
-            this.savePosition(); this.queue.reset(); this.snapshot = null;
+            this.cancelPauses(); this.savePosition(); this.queue.reset(); this.snapshot = null;
             if (value.error < 0) this.fail("文件读取或解码失败，请重试或改用原播放器"); else this.state.phase = "ended";
           } else if (value.type === "fatal" || value.type === "error") this.fail("内嵌播放发生异常，可改用原播放器");
         } catch { /* Drop native output and paths rather than forwarding it or logging user media. */ }
@@ -174,6 +204,7 @@ export class EmbeddedPlayer {
     try { this.repo.recordPlayback(this.videoId, Math.max(0, Math.trunc(this.state.time * 1000))); this.savedAt = Date.now(); } catch { /* Deleted records cannot be recreated. */ }
   }
   private fail(message: string): void {
+    this.cancelPauses();
     this.savePosition(); this.queue.reset(); this.snapshot = null; this.state = { ...this.state, phase: "failed", error: message };
     void this.stopHost();
   }
@@ -190,5 +221,5 @@ export class EmbeddedPlayer {
     }).finally(() => { if (this.child === c) this.child = null; this.stopping = null; });
     return this.stopping;
   }
-  dispose(): void { this.savePosition(); this.videoId = null; this.closing = true; ++this.token; this.queue.reset(); clearInterval(this.watchdog); void this.stopHost(); }
+  dispose(): void { this.cancelPauses(); this.savePosition(); this.videoId = null; this.closing = true; ++this.token; this.queue.reset(); clearInterval(this.watchdog); void this.stopHost(); }
 }

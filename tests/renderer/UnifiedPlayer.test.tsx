@@ -18,6 +18,52 @@ function bridge() {
   return { api, unsubscribe, input: (e: EmbeddedInput) => input(e), update: (next: Partial<EmbeddedState>) => { state = { ...state, ...next }; } };
 }
 describe("original player UI with embedded engine", () => {
+  it("updates play/pause from confirmation without waiting for the next poll", async () => {
+    const b = bridge();
+    b.api.embeddedPlayback.mockImplementation(async r => ({ sessionKey: r.sessionKey, phase: r.op === "pause" && !r.value ? "playing" : "paused", paused: r.op !== "pause" || r.value, time: 30, duration: 90, volume: 20, rotation: 0, fullscreen: false, tracks: [] }));
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    await screen.findByText("已暂停");
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "播放" })));
+    expect(screen.getByRole("button", { name: "暂停" })).toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "暂停" })));
+    expect(screen.getByRole("button", { name: "播放" })).toBeInTheDocument();
+    view.unmount();
+  });
+  it("alternates rapid requests before confirmation and ignores late responses", async () => {
+    const b = bridge();
+    const original = b.api.embeddedPlayback.getMockImplementation()!;
+    const replies: Array<() => void> = [];
+    b.api.embeddedPlayback.mockImplementation(r => r.op !== "pause" ? original(r) : new Promise(resolve => replies.push(() => resolve({ sessionKey: r.sessionKey, phase: r.value ? "paused" : "playing", paused: r.value, time: 30, duration: 90, volume: 20, rotation: 0, fullscreen: false, tracks: [] }))));
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    await screen.findByText("已暂停");
+    const button = screen.getByRole("button", { name: "播放" });
+    fireEvent.click(button); fireEvent.click(button); fireEvent.click(button);
+    expect(b.api.embeddedPlayback.mock.calls.flatMap(([r]) => r.op === "pause" ? [r.value] : [])).toEqual([false, true, false]);
+    await act(async () => replies[2]());
+    expect(screen.getByRole("button", { name: "暂停" })).toBeInTheDocument();
+    await act(async () => { replies[1](); replies[0](); });
+    expect(screen.getByRole("button", { name: "暂停" })).toBeInTheDocument();
+    view.unmount();
+  });
+  it("dispatches a surface click immediately and preserves playback on double-click", async () => {
+    const b = bridge();
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    await screen.findByText("已暂停");
+    act(() => b.input({ kind: "click" }));
+    expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "pause", value: false }));
+    act(() => b.input({ kind: "double-click" }));
+    expect(b.api.embeddedPlayback.mock.calls.flatMap(([r]) => r.op === "pause" ? [r.value] : [])).toEqual([false, true]);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "退出全屏" })).toHaveLength(2));
+    view.unmount();
+  });
+  it("pauses a buffering video based on pause property rather than phase", async () => {
+    const b = bridge(); b.update({ phase: "buffering", paused: false });
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    await screen.findByText("正在缓冲");
+    act(() => b.input({ kind: "key", code: "Space", control: false, shift: false, alt: false }));
+    expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "pause", value: true }));
+    view.unmount();
+  });
   it("floats previews without resizing or restarting the engine", async () => {
     const b = bridge();
     const original = HTMLElement.prototype.getBoundingClientRect;

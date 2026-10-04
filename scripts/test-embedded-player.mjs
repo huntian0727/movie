@@ -1,5 +1,6 @@
 // Bounded integration test of the built production service; neutral fixtures, isolated ledger, no real library.
 import { app, BrowserWindow } from "electron";
+import { performance } from "node:perf_hooks";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { EmbeddedPlayer } from "../dist-main/main/embeddedPlayer/embeddedPlayer.js";
@@ -25,6 +26,13 @@ app.whenReady().then(async()=>{
       key="test-"+sample.name;await call({op:"start",videoId:sample.name,positionMs:2000,autoplay:true});
       await call({op:"bounds",x:0,y:0,width:1000,height:500});
       await until(async()=>{const s=await state();if(s.phase==="failed")throw Error(s.error);return s.time>2.6&&s.phase==="playing";});
+      const pauseLatencies=[];
+      for(const value of [true,false,true,false,true,false]){
+        const started=performance.now();const confirmed=await call({op:"pause",value});
+        pauseLatencies.push(Math.round(performance.now()-started));
+        if(confirmed.paused!==value)throw Error("pause-not-confirmed-in-command-reply");
+        if(pauseLatencies.at(-1)>500)throw Error("pause-confirmation-exceeded-500ms");
+      }
       await call({op:"pause",value:true});await until(async()=>(await state()).paused);
       for(const value of [3,4,5,6])await call({op:"seek",value});
       await until(async()=>{const s=await state();return Math.abs(s.time-6)<.35&&s.phase==="paused";});
@@ -53,7 +61,7 @@ app.whenReady().then(async()=>{
         await call({op:"subtitle-track",value:0});await until(async()=>!(await state()).tracks.some(t=>t.type==="sub"&&t.selected));
       }
       await call({op:"stop"});if(ledger.get(sample.name)<2900)throw Error("progress-not-saved");
-      report.samples.push({name:sample.name,pass:true,positionSaved:true,staleStopIgnored:true});
+      report.samples.push({name:sample.name,pass:true,positionSaved:true,staleStopIgnored:true,pauseConfirmationMs:pauseLatencies});
     }
     report.pass=true;
   }catch(e){report.failures.push(e.message);}

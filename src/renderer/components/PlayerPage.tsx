@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, ExternalLink, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { useEmbeddedEngine } from "./useEmbeddedEngine";
@@ -63,7 +63,7 @@ export function PlayerPage({
   const pageRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const clickTimeoutRef = useRef<number | null>(null);
+  const stageClickBeforeRef = useRef<{ session: string; paused: boolean } | null>(null);
   const controlsHideTimeoutRef = useRef<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -130,7 +130,7 @@ export function PlayerPage({
   useEffect(() => {
     if (!isEmbeddedPlayback || !embedded.state) return;
     const s = embedded.state;
-    setPlaying(s.phase === "playing"); setCurrentTime(s.time);
+    setPlaying(!s.paused && !["idle", "loading", "failed", "ended"].includes(s.phase)); setCurrentTime(s.time);
     if (!["idle", "loading"].includes(s.phase)) {
       setMuted(s.volume === 0);
       if (s.volume > 0) setVolume(s.volume / 100);
@@ -229,14 +229,12 @@ export function PlayerPage({
   }, [deleteConfirmOpen, detailsOpen, isFullscreen, playlistOpen]);
 
   useEffect(() => () => {
-    if (clickTimeoutRef.current !== null) {
-      window.clearTimeout(clickTimeoutRef.current);
-    }
     clearControlsHideTimeout();
   }, []);
 
   useEffect(() => {
     setRotationDegrees(0);
+    stageClickBeforeRef.current = null;
     setPlaybackError(null);
     endedSessionRef.current = null;
     setDecodedVideoSize(null);
@@ -368,7 +366,7 @@ export function PlayerPage({
     }
     if (isEmbeddedPlayback) {
       if (embeddedError || ["idle", "failed", "ended"].includes(embedded.state?.phase ?? "loading")) embedded.reload(embedded.state?.phase === "ended" ? 0 : currentTime);
-      else await embedded.send({ op: "pause", value: playing });
+      else await embedded.send({ op: "pause", value: !embedded.getPaused() });
       return;
     }
 
@@ -434,21 +432,23 @@ export function PlayerPage({
     else await document.exitFullscreen();
   };
 
-  const handleStageClick = () => {
-    if (clickTimeoutRef.current !== null) {
-      window.clearTimeout(clickTimeoutRef.current);
-    }
-
-    clickTimeoutRef.current = window.setTimeout(() => {
-      void togglePlayback();
-      clickTimeoutRef.current = null;
-    }, 220);
+  const handleStageClick = (event?: MouseEvent) => {
+    if (event && event.detail > 1) return;
+    stageClickBeforeRef.current = { session: embedded.state?.sessionKey ?? video.id, paused: isEmbeddedPlayback ? embedded.getPaused() : videoRef.current?.paused ?? true };
+    void togglePlayback();
   };
 
   const handleStageDoubleClick = () => {
-    if (clickTimeoutRef.current !== null) {
-      window.clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
+    const before = stageClickBeforeRef.current;
+    stageClickBeforeRef.current = null;
+    // Single-click is immediate. A second click restores its pre-click intent,
+    // so double-click still changes fullscreen without leaving playback toggled.
+    if (before?.session === (embedded.state?.sessionKey ?? video.id)) {
+      if (isEmbeddedPlayback) void embedded.send({ op: "pause", value: before.paused });
+      else if (videoRef.current && mediaUrl) {
+        if (before.paused) videoRef.current.pause();
+        else void videoRef.current.play().catch(() => setPlaybackError("无法恢复播放此视频"));
+      }
     }
     void toggleFullscreen();
   };

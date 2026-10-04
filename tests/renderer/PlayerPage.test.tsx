@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PlayerPage } from "../../src/renderer/components/PlayerPage";
 import type { VideoRecord } from "../../src/shared/videoTypes";
@@ -69,6 +69,24 @@ afterEach(() => {
 });
 
 describe("PlayerPage", () => {
+  it("toggles the browser surface immediately and restores playback for a real double-click sequence", async () => {
+    const view = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" />);
+    const element = view.container.querySelector("video")!;
+    let paused = true;
+    Object.defineProperty(element, "paused", { configurable: true, get: () => paused });
+    const play = vi.spyOn(element, "play").mockImplementation(async () => { paused = false; fireEvent.play(element); });
+    const pause = vi.spyOn(element, "pause").mockImplementation(() => { paused = true; fireEvent.pause(element); });
+    await act(async () => fireEvent.click(element, { detail: 1 }));
+    expect(play).toHaveBeenCalledOnce();
+    expect(paused).toBe(false);
+    fireEvent.click(element, { detail: 2 });
+    await act(async () => fireEvent.doubleClick(element));
+    expect(play).toHaveBeenCalledOnce();
+    expect(pause).toHaveBeenCalledOnce();
+    expect(paused).toBe(true);
+    expect(screen.getAllByRole("button", { name: "退出全屏" })).toHaveLength(2);
+    view.unmount();
+  });
   it("seeks when metadata loads and seeks again for a new screenshot request on the same video", () => {
     const { container, rerender } = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" startPositionMs={30_000} startRequestId="first" />);
     const element = container.querySelector("video")!;

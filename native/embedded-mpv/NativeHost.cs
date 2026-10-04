@@ -87,7 +87,9 @@ class NativeHost : Form, IMessageFilter {
         BackColor=System.Drawing.Color.Black; Width=1; Height=1;
         Application.AddMessageFilter(this);
         clickTimer.Interval=SystemInformation.DoubleClickTime;
-        clickTimer.Tick+=(sender,args)=>{clickTimer.Stop();clicked=false;Native.SetFocus(Handle);Emit(new {type="input",input=new {kind="click"}});};
+        // The double-click window only classifies the second click; it must not
+        // postpone the first click's playback command.
+        clickTimer.Tick+=(sender,args)=>{clickTimer.Stop();clicked=false;};
     }
     public bool PreFilterMessage(ref Message message) {
         if(message.HWnd!=Handle&&!Native.IsChild(Handle,message.HWnd))return false;
@@ -96,7 +98,7 @@ class NativeHost : Form, IMessageFilter {
     bool HandleInput(int msg,IntPtr wparam,IntPtr lparam) {
         if(msg==0x202){
             if(clicked){clickTimer.Stop();clicked=false;Native.SetFocus(Handle);Emit(new {type="input",input=new {kind="double-click"}});}
-            else {clicked=true;clickTimer.Start();}
+            else {clicked=true;clickTimer.Start();Native.SetFocus(Handle);Emit(new {type="input",input=new {kind="click"}});}
             return false;
         }
         if(msg!=0x100&&msg!=0x104)return false;
@@ -157,7 +159,13 @@ class NativeHost : Form, IMessageFilter {
                 Native.Set(mpv,"start",Clamp(message["start"],0,86400).ToString(CultureInfo.InvariantCulture),false);
                 string file=Convert.ToString(message["path"]); if(!System.IO.Path.IsPathRooted(file))throw new Exception("absolute-file-required");
                 result=Native.Command(mpv,"loadfile",file,"replace");
-            } else if(op=="pause") result=Native.Set(mpv,"pause",Convert.ToBoolean(message["value"])?"yes":"no",false);
+            } else if(op=="pause") {
+                result=Native.Set(mpv,"pause",Convert.ToBoolean(message["value"])?"yes":"no",false);
+                // Return the real property with a correlated acknowledgement,
+                // rather than waiting for the 200 ms telemetry timer.
+                Emit(new {type="ack",op=op,result=result,token=token,controlId=message.ContainsKey("controlId")?Convert.ToInt32(message["controlId"]):0,paused=Native.Text(mpv,"pause")});
+                return;
+            }
             else if(op=="seek") result=Native.Command(mpv,"seek",Clamp(message["value"],0,86400).ToString(CultureInfo.InvariantCulture),"absolute+exact");
             else if(op=="volume") result=Native.Set(mpv,"volume",Clamp(message["value"],0,100).ToString(CultureInfo.InvariantCulture),false);
             else if(op=="rotate") result=Native.Set(mpv,"video-rotate",Clamp(message["value"],0,270).ToString(CultureInfo.InvariantCulture),false);
