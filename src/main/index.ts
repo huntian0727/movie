@@ -19,6 +19,7 @@ import { MediaCacheManager } from "./media/cacheManager.js";
 import { MEDIA_SCHEME, registerMediaProtocol } from "./media/mediaProtocol.js";
 import { MetadataQueue } from "./media/metadataQueue.js";
 import { PlaybackMetadataEnricher } from "./media/playbackMetadataEnricher.js";
+import { PlaybackStartupPriority } from "./media/playbackStartupPriority.js";
 import { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import {
   createDiagnosticEnvironment,
@@ -192,16 +193,23 @@ app.whenReady().then(async () => {
   const duplicateCleanupJobs = new DuplicateCleanupRepository(database, repo);
   duplicateCleanup = new DuplicateCleanupService(duplicateCleanupJobs, repo, metadataQueue, mediaCacheManager, domainEvents);
   const playbackMetadata = new PlaybackMetadataEnricher(repo, undefined, logger);
+  const playbackStartup = new PlaybackStartupPriority((paused) => {
+    mediaCacheManager?.setPlaybackPaused(paused);
+    metadataQueue?.setPlaybackPaused(paused);
+  }, logger);
   playerWindows = new PlayerWindowCoordinator(
     repo,
-    { currentDir, devServerUrl, isPackaged: app.isPackaged },
+    { currentDir, devServerUrl, isPackaged: app.isPackaged,
+      skipCodecProbe: () => settings.get().playbackPreference === "embedded-first",
+      onPlaybackStartup: (videoId) => playbackStartup.begin(videoId),
+      onPlaybackClosed: () => playbackStartup.finish(undefined, "closed") },
     (videoId) => playbackMetadata.ensureCodecMetadata(videoId),
     logger
   );
   embeddedPlayer = new EmbeddedPlayer(repo, () => playerWindows?.getPlayerWindow() ?? null, {
     host: app.isPackaged ? path.join(process.resourcesPath, "native-player", "NativeHost.exe") : path.resolve(currentDir, "../../native-bin/NativeHost.exe"),
     directory: path.join(userDataPath, "native-player")
-  });
+  }, playbackStartup, logger);
   registerIpcHandlers(repo, {
     database,
     assetCenterQueries,

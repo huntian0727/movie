@@ -4,17 +4,25 @@ import type { VideoRepository } from "../../src/main/db/videoRepository";
 vi.mock("electron", () => ({ BrowserWindow: {}, dialog: {}, screen: {} }));
 import { EmbeddedPlayer } from "../../src/main/embeddedPlayer/embeddedPlayer";
 
-function fixture() {
+function fixture(startup?: { begin(videoId: string): void; finish(videoId?: string, reason?: string): void }) {
   const sender = {};
   let fullscreen = false;
   const setFullScreen = vi.fn((value: boolean) => { fullscreen = value; });
   const w = { webContents: sender, isFullScreen: () => fullscreen, setFullScreen } as unknown as BrowserWindow;
   const repo = { getVideo: vi.fn(() => ({ id: "v", path: "unused.mp4", isMissing: false })), recordPlayback: vi.fn(), listPlayHistory: () => [] } as unknown as VideoRepository;
-  const player = new EmbeddedPlayer(repo, () => w, { host: "does-not-exist.exe", directory: "missing-runtime" });
+  const player = new EmbeddedPlayer(repo, () => w, { host: "does-not-exist.exe", directory: "missing-runtime" }, startup);
   const event = { sender } as IpcMainInvokeEvent;
   return { player, repo, event, setFullScreen };
 }
 describe("production embedded service boundary", () => {
+  it("releases source-read priority when the decoder fails to start", async () => {
+    const startup = { begin: vi.fn(), finish: vi.fn() };
+    const f = fixture(startup);
+    await f.player.handle(f.event, { op: "start", videoId: "v", sessionKey: "new", autoplay: true });
+    await vi.waitFor(() => expect(startup.finish).toHaveBeenCalledWith("v", "failed"));
+    expect(startup.begin).toHaveBeenCalledWith("v");
+    f.player.dispose();
+  });
   it("controls the player window before and after decode sessions without opening media", async () => {
     const f = fixture();
     expect((await f.player.handle(f.event, { op: "window-state", sessionKey: "window" })).fullscreen).toBe(false);

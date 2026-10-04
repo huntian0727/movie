@@ -122,6 +122,36 @@ describe("player queue normalization", () => {
 });
 
 describe("PlayerWindowCoordinator", () => {
+  it("opens and selects embedded-first media without starting or waiting for FFprobe", async () => {
+    const fixture = createRepo(["v1", "v2"]);
+    const probe = vi.fn(() => new Promise<void>(() => undefined));
+    const begin = vi.fn();
+    const closed = vi.fn();
+    const coordinator = new PlayerWindowCoordinator(fixture.repo, {
+      currentDir: "app", devServerUrl: "http://127.0.0.1:5173/", isPackaged: false,
+      skipCodecProbe: () => true, onPlaybackStartup: begin, onPlaybackClosed: closed
+    }, probe);
+    await coordinator.open({ videoId: "v1", queueIds: ["v1", "v2"] }, 1);
+    expect(electronState.windows).toHaveLength(1);
+    expect(probe).not.toHaveBeenCalled();
+    await expect(coordinator.select("v2", 2)).resolves.toMatchObject({ selectedVideoId: "v2" });
+    expect(begin.mock.calls).toEqual([["v1"], ["v2"]]);
+    expect(probe).not.toHaveBeenCalled();
+    coordinator.close();
+    expect(closed).toHaveBeenCalled();
+  });
+
+  it("releases startup priority when loading the player window fails", async () => {
+    const fixture = createRepo(["v1"]);
+    const closed = vi.fn();
+    const coordinator = new PlayerWindowCoordinator(fixture.repo, {
+      currentDir: "app", devServerUrl: "not-a-url", isPackaged: false,
+      skipCodecProbe: () => true, onPlaybackClosed: closed
+    });
+    await expect(coordinator.open({ videoId: "v1", queueIds: ["v1"] }, 1)).rejects.toThrow();
+    expect(closed).toHaveBeenCalled();
+  });
+
   it("preserves a seek request across snapshots, gives repeated clicks distinct requests, and clears it on next video", async () => {
     const fixture = createRepo(["v1", "v2"]);
     const coordinator = new PlayerWindowCoordinator(fixture.repo, { currentDir: "C:\\app", devServerUrl: "http://127.0.0.1:5173/", isPackaged: false });

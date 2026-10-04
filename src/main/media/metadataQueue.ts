@@ -26,6 +26,7 @@ export class MetadataQueue {
   private active = 0;
   private stopped = false;
   private paused = false;
+  private playbackPaused = false;
   private resumePendingBatches = false;
   private pendingBatchSize = 1000;
   private readonly idleWaiters = new Set<() => void>();
@@ -137,6 +138,12 @@ export class MetadataQueue {
     this.pump();
   }
 
+  /** Independent of scan pause: let in-flight probes finish, but start no new ones. */
+  setPlaybackPaused(paused: boolean): void {
+    this.playbackPaused = paused;
+    if (!paused) this.pump();
+  }
+
   whenIdle(): Promise<void> {
     if (this.active === 0 && this.waiting.length === 0) return Promise.resolve();
     return new Promise((resolve) => this.idleWaiters.add(resolve));
@@ -159,7 +166,7 @@ export class MetadataQueue {
   }
 
   private pump(): void {
-    while (!this.stopped && !this.paused && this.active < this.concurrency && this.waiting.length > 0) {
+    while (!this.stopped && !this.paused && !this.playbackPaused && this.active < this.concurrency && this.waiting.length > 0) {
       const videoId = this.waiting.shift()!;
       this.active += 1;
       this.activeVideoIds.add(videoId);

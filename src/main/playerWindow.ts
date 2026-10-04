@@ -20,6 +20,9 @@ interface PlayerWindowOptions {
   currentDir: string;
   devServerUrl: string;
   isPackaged: boolean;
+  skipCodecProbe?: () => boolean;
+  onPlaybackStartup?: (videoId: string) => void;
+  onPlaybackClosed?: () => void;
 }
 
 type CodecMetadataEnsurer = (videoId: string) => Promise<void>;
@@ -69,6 +72,7 @@ export class PlayerWindowCoordinator {
   ) {}
 
   async open(input: OpenPlayerWindowInput, sequence: number): Promise<PlayerSessionSnapshot> {
+    const startedAt = Date.now();
     const snapshot = await this.setSession(input, sequence);
     this.opening = this.opening.catch(() => undefined).then(async () => {
       try {
@@ -79,6 +83,7 @@ export class PlayerWindowCoordinator {
             if (this.window === createdWindow) {
               this.timelinePreview?.close(); this.timelinePreview = null;
               this.window = null;
+              this.options.onPlaybackClosed?.();
             }
           });
           await loadPlayerEntry(createdWindow, this.options);
@@ -91,6 +96,7 @@ export class PlayerWindowCoordinator {
       }
     });
     await this.opening;
+    this.logger?.info({ module: "media.playback", event: "player_window_opened", durationMs: Date.now() - startedAt });
     return snapshot;
   }
 
@@ -98,7 +104,10 @@ export class PlayerWindowCoordinator {
     this.timelinePreview?.hide();
     this.session = normalizePlayerSession(this.repo, input);
     if (this.session.startPositionMs !== undefined) this.session.startRequestId = randomUUID();
-    if (await waitForCodecMetadata(this.ensureCodecMetadata, this.session.selectedVideoId)) {
+    const skipCodecProbe = this.options.skipCodecProbe?.() ?? false;
+    if (skipCodecProbe) this.options.onPlaybackStartup?.(this.session.selectedVideoId);
+    // libmpv already inspects the media. Do not duplicate that read before playback.
+    if (!skipCodecProbe && await waitForCodecMetadata(this.ensureCodecMetadata, this.session.selectedVideoId)) {
       this.logCodecProbeWaitTimeout(this.session.selectedVideoId);
     }
     return this.getSnapshot(sequence).playerSession!;
@@ -111,7 +120,9 @@ export class PlayerWindowCoordinator {
       throw new Error("Selected video is not available in the current player queue");
     }
     this.session = { selectedVideoId: videoId, queueIds: snapshot.queueIds };
-    if (await waitForCodecMetadata(this.ensureCodecMetadata, videoId)) {
+    const skipCodecProbe = this.options.skipCodecProbe?.() ?? false;
+    if (skipCodecProbe) this.options.onPlaybackStartup?.(videoId);
+    if (!skipCodecProbe && await waitForCodecMetadata(this.ensureCodecMetadata, videoId)) {
       this.logCodecProbeWaitTimeout(videoId);
     }
     return this.getSnapshot(sequence).playerSession!;
@@ -151,6 +162,7 @@ export class PlayerWindowCoordinator {
   }
 
   close(): void {
+    this.options.onPlaybackClosed?.();
     this.timelinePreview?.close(); this.timelinePreview = null;
     if (this.window && !this.window.isDestroyed()) this.window.close();
     this.window = null;

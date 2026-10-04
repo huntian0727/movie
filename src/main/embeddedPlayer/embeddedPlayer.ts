@@ -8,6 +8,7 @@ import type { VideoRepository } from "../db/videoRepository.js";
 import { embeddedInputSchema, embeddedRequestSchema, type EmbeddedState } from "../../shared/embeddedPlayback.js";
 import { EmbeddedControlQueue, type NativeSnapshot } from "./controlQueue.js";
 import { getShortcutCode } from "../../shared/shortcuts.js";
+import type { StructuredLogger } from "../logging/logger.js";
 
 const snapshotSchema = z.object({
   token: z.number().int(), loaded: z.boolean(), time: z.number().finite().nullable(), duration: z.number().finite().nullable(),
@@ -36,12 +37,16 @@ export class EmbeddedPlayer {
   private bounds: object | null = null;
   private visible = true;
   private pauseControlId = 0;
+  private startupStartedAt = 0;
+  private startupVideoId: string | null = null;
   private pendingPauses = new Map<number, { token: number; value: boolean; resolve(state: EmbeddedState): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
   private queue = new EmbeddedControlQueue(() => this.snapshot, c => this.send(c), (failed, busy) => {
     if (failed) this.fail("跳转或旋转超时，请重试或改用原播放器");
     else if (busy) this.state.phase = "reading";
   });
-  constructor(private repo: VideoRepository, private playerWindow: () => BrowserWindow | null, private runtime: { host: string; directory: string }) {
+  constructor(private repo: VideoRepository, private playerWindow: () => BrowserWindow | null, private runtime: { host: string; directory: string },
+    private readonly startup?: { begin(videoId: string): void; finish(videoId?: string, reason?: string): void },
+    private readonly logger?: StructuredLogger) {
     process.once("exit", () => this.child?.kill());
   }
   async handle(event: IpcMainInvokeEvent, payload: unknown): Promise<EmbeddedState> {
@@ -57,6 +62,8 @@ export class EmbeddedPlayer {
     if (request.op === "start") {
       const session = this.repo.getVideo(request.videoId);
       if (session.isMissing) throw new Error("资料库标记文件缺失，请先复查可访问性");
+      this.startup?.begin(session.id);
+      this.startupStartedAt = Date.now(); this.startupVideoId = session.id;
       const key = request.sessionKey;
       this.bounds = null; this.visible = true;
       this.cancelPauses();
@@ -78,7 +85,7 @@ export class EmbeddedPlayer {
     // Late unmounts and polling must not stop or observe a replacement playback session.
     if (request.sessionKey !== this.state.sessionKey) return initialEmbeddedState(request.sessionKey);
     if (request.op === "state") return { ...this.state, fullscreen: w.isFullScreen() };
-    if (request.op === "stop") { this.cancelPauses(); ++this.token; this.savePosition(); this.state = initialEmbeddedState(); this.queue.reset(); await this.stopHost(); return this.state; }
+    if (request.op === "stop") { this.finishStartup("stopped"); this.cancelPauses(); ++this.token; this.savePosition(); this.state = initialEmbeddedState(); this.queue.reset(); await this.stopHost(); return this.state; }
     if (request.op === "bounds") {
       const [width, height] = w.getContentSize();
       const scale = screen.getDisplayMatching(w.getBounds()).scaleFactor;
@@ -145,6 +152,7 @@ export class EmbeddedPlayer {
         try {
           const value = JSON.parse(line.replace(/^\uFEFF/, "")); this.lastMessage = Date.now();
           if (value.type === "ready") {
+            this.logger?.info({ module: "media.playback", event: "embedded_host_ready", durationMs: Date.now() - this.startupStartedAt });
             clearTimeout(timeout); if (this.bounds) this.send(this.bounds); this.send({ op: "visible", value: this.visible }); this.send({ op: "load", token: generation, path: file, paused: !autoplay, start: resume / 1000 }); resolve();
           } else if (value.type === "input") {
             const input = embeddedInputSchema.safeParse(value.input);
@@ -154,6 +162,7 @@ export class EmbeddedPlayer {
           } else if (value.type === "snapshot" && value.token === generation) this.observe(snapshotSchema.parse(value));
           else if (value.type === "ack") { if (value.op === "pause") this.acknowledgePause(value); this.queue.acknowledge(value.op, value.result); if (value.result < 0) this.fail("播放控制失败，可重试或改用原播放器"); }
           else if (value.type === "ended" && value.token === generation) {
+            this.finishStartup("ended");
             this.cancelPauses(); this.savePosition(); this.queue.reset(); this.snapshot = null;
             if (value.error < 0) this.fail("文件读取或解码失败，请重试或改用原播放器"); else this.state.phase = "ended";
           } else if (value.type === "fatal" || value.type === "error") this.fail("内嵌播放发生异常，可改用原播放器");
@@ -192,6 +201,7 @@ export class EmbeddedPlayer {
     this.snapshot = s; this.queue.observe(s);
     if (this.state.phase === "failed" || this.state.phase === "ended") return;
     const waiting = !s.loaded || s.seeking === "yes" || s.pausedForCache === "yes";
+    if (!waiting) this.finishStartup("decode_ready");
     this.waitingSince = waiting ? this.waitingSince || Date.now() : 0;
     this.state = { ...this.state, time: Math.max(0, s.time ?? this.state.time), duration: s.duration ?? this.state.duration,
       paused: s.paused === "yes", volume: s.volume ?? 20, rotation: s.rotation ?? 0,
@@ -204,6 +214,7 @@ export class EmbeddedPlayer {
     try { this.repo.recordPlayback(this.videoId, Math.max(0, Math.trunc(this.state.time * 1000))); this.savedAt = Date.now(); } catch { /* Deleted records cannot be recreated. */ }
   }
   private fail(message: string): void {
+    this.finishStartup("failed");
     this.cancelPauses();
     this.savePosition(); this.queue.reset(); this.snapshot = null; this.state = { ...this.state, phase: "failed", error: message };
     void this.stopHost();
@@ -221,5 +232,12 @@ export class EmbeddedPlayer {
     }).finally(() => { if (this.child === c) this.child = null; this.stopping = null; });
     return this.stopping;
   }
-  dispose(): void { this.cancelPauses(); this.savePosition(); this.videoId = null; this.closing = true; ++this.token; this.queue.reset(); clearInterval(this.watchdog); void this.stopHost(); }
+  private finishStartup(reason: string): void {
+    if (!this.startupVideoId) return;
+    this.startup?.finish(this.startupVideoId, reason);
+    this.logger?.info({ module: "media.playback", event: "embedded_startup_settled",
+      durationMs: Date.now() - this.startupStartedAt, context: { reason } });
+    this.startupVideoId = null;
+  }
+  dispose(): void { this.finishStartup("closed"); this.cancelPauses(); this.savePosition(); this.videoId = null; this.closing = true; ++this.token; this.queue.reset(); clearInterval(this.watchdog); void this.stopHost(); }
 }

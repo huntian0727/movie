@@ -115,6 +115,10 @@ export class MediaCacheManager {
     return structuredClone(this.status);
   }
 
+  setPlaybackPaused(paused: boolean): void {
+    this.generationQueue.setPlaybackPaused(paused);
+  }
+
   async getOrCreateImage(
     outputPath: string,
     generate: (temporaryPath: string, signal: AbortSignal) => Promise<void>,
@@ -312,6 +316,9 @@ export class MediaCacheManager {
       if (await exists(outputPath)) return;
       await mkdir(path.dirname(outputPath), { recursive: true });
       const temporaryPath = buildTemporaryImagePath(outputPath, requestedEpoch);
+      // A cache hit may schedule maintenance while another image is generating.
+      // Protect its partial file until the writer and cleanup have both settled.
+      this.acquire(temporaryPath);
       try {
         await generate(temporaryPath, signal);
         const temporaryStat = await stat(temporaryPath);
@@ -324,6 +331,7 @@ export class MediaCacheManager {
         this.recordCreated(outputPath, temporaryStat.size);
       } finally {
         await rm(temporaryPath, { force: true }).catch(() => undefined);
+        this.release(temporaryPath);
       }
     }, options);
   }

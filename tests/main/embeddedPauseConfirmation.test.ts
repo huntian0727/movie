@@ -16,7 +16,7 @@ vi.mock("node:fs", async importOriginal => {
 });
 import { EmbeddedPlayer } from "../../src/main/embeddedPlayer/embeddedPlayer";
 
-async function fixture() {
+async function fixture(startup?: { begin(videoId: string): void; finish(videoId?: string, reason?: string): void }, buffering = false) {
   const child = Object.assign(new EventEmitter(), {
     stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null,
     signalCode: null, stdin: { writable: true, on: vi.fn(), write: vi.fn(), end: vi.fn() }, kill: vi.fn()
@@ -27,21 +27,45 @@ async function fixture() {
   const sender = { on: vi.fn(), send: vi.fn() };
   const w = { webContents: sender, setMenu: vi.fn(), on: vi.fn(), isDestroyed: () => false, isFullScreen: () => false, getNativeWindowHandle: () => Buffer.from([1, 0, 0, 0, 0, 0, 0, 0]) } as unknown as BrowserWindow;
   const repo = { getVideo: () => ({ id: "v", path: "C:/neutral.mp4", isMissing: false }), recordPlayback: vi.fn(), listPlayHistory: () => [] } as unknown as VideoRepository;
-  const player = new EmbeddedPlayer(repo, () => w, { host: "host.exe", directory: "runtime" });
+  const player = new EmbeddedPlayer(repo, () => w, { host: "host.exe", directory: "runtime" }, startup);
   const event = { sender } as unknown as IpcMainInvokeEvent;
   const emit = (value: object) => child.stdout.write(JSON.stringify(value) + "\n");
   await player.handle(event, { op: "start", videoId: "v", sessionKey: "one", autoplay: false });
   await vi.waitFor(() => expect(child.stdout.listenerCount("data")).toBeGreaterThan(0));
   emit({ type: "ready" });
-  emit({ type: "snapshot", token: 1, loaded: true, time: 3, duration: 12, rotation: 0, seeking: "no", restartCount: 0, paused: "yes", pausedForCache: "no", volume: 20, media: null });
+  emit({ type: "snapshot", token: 1, loaded: true, time: 3, duration: 12, rotation: 0, seeking: "no", restartCount: 0, paused: "yes", pausedForCache: buffering ? "yes" : "no", volume: 20, media: null });
   const call = (op: object) => player.handle(event, { sessionKey: "one", ...op });
-  await vi.waitFor(async () => expect((await call({ op: "state" })).phase).toBe("paused"));
+  await vi.waitFor(async () => expect((await call({ op: "state" })).phase).toBe(buffering ? "buffering" : "paused"));
   const commands = () => child.stdin.write.mock.calls.map(([line]) => JSON.parse(line));
   return { player, call, emit, commands };
 }
 
 afterEach(() => { vi.useRealTimers(); runtime.spawn.mockClear(); });
 describe("pause confirmation without periodic telemetry", () => {
+  it("keeps priority until initial buffering ends and releases it on stop", async () => {
+    const startup = { begin: vi.fn(), finish: vi.fn() };
+    const f = await fixture(startup, true);
+    try {
+      expect(startup.finish).not.toHaveBeenCalled();
+      f.emit({ type: "snapshot", token: 999, loaded: true });
+      await f.call({ op: "state" });
+      expect(startup.finish).not.toHaveBeenCalled();
+      await f.call({ op: "stop" });
+      expect(startup.finish).toHaveBeenCalledWith("v", "stopped");
+    } finally { f.player.dispose(); }
+  });
+  it("releases startup priority once on decode readiness and ignores obsolete telemetry", async () => {
+    const startup = { begin: vi.fn(), finish: vi.fn() };
+    const f = await fixture(startup);
+    try {
+      expect(startup.begin).toHaveBeenCalledWith("v");
+      expect(startup.finish).toHaveBeenCalledTimes(1);
+      expect(startup.finish).toHaveBeenCalledWith("v", "decode_ready");
+      f.emit({ type: "snapshot", token: 999, loaded: true });
+      await f.call({ op: "state" });
+      expect(startup.finish).toHaveBeenCalledTimes(1);
+    } finally { f.player.dispose(); }
+  });
   it("waits for the matching native acknowledgement and returns actual pause state immediately", async () => {
     const f = await fixture();
     try {

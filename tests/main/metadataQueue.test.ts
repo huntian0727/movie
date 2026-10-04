@@ -10,6 +10,36 @@ import { describeMetadataFailure, MetadataQueue } from "../../src/main/media/met
 import type { VideoRecord } from "../../src/shared/videoTypes";
 
 describe("MetadataQueue", () => {
+  it("finishes an active analysis without marking it failed while deferring new analyses", async () => {
+    const videos = new Map(["a", "b"].map(id => [id, createVideo(id, `Z:\\${id}.mp4`)]));
+    const repo = createRepo(videos);
+    let complete!: (value: { durationMs: number; width: number; height: number; format: string }) => void;
+    const reader = vi.fn(() => reader.mock.calls.length === 1
+      ? new Promise<{ durationMs: number; width: number; height: number; format: string }>(resolve => { complete = resolve; })
+      : Promise.resolve({ durationMs: 1000, width: 1, height: 1, format: "mp4" }));
+    const queue = new MetadataQueue(repo.value, reader);
+    queue.enqueue("a"); queue.enqueue("b"); queue.setPlaybackPaused(true);
+    complete({ durationMs: 1000, width: 1, height: 1, format: "mp4" });
+    await queue.waitForVideos(["a"]);
+    expect(reader).toHaveBeenCalledOnce();
+    expect(queue.getVideoState("b")).toBe("queued");
+    expect(repo.markMetadataFailed).not.toHaveBeenCalled();
+    queue.setPlaybackPaused(false); await queue.whenIdle();
+    expect(reader).toHaveBeenCalledTimes(2);
+  });
+  it("keeps playback startup pause independent from the scan pause", async () => {
+    const video = createVideo("v", "Z:\\v.mp4");
+    const reader = vi.fn().mockResolvedValue({ durationMs: 1000, width: 1, height: 1, format: "mp4" });
+    const queue = new MetadataQueue(createRepo(new Map([[video.id, video]])).value, reader);
+    queue.pause(); queue.setPlaybackPaused(true); queue.enqueue("v");
+    queue.resume();
+    expect(reader).not.toHaveBeenCalled();
+    queue.pause(); queue.setPlaybackPaused(false);
+    expect(reader).not.toHaveBeenCalled();
+    queue.resume(); await queue.whenIdle();
+    expect(reader).toHaveBeenCalledOnce();
+  });
+
   it("analyzes a visible unique-size cloud video even when the background candidate query excludes it", async () => {
     const video = { ...createVideo("cloud", "Z:\\Cloud\\unique.mp4"), providerFileId: "remote-id", providerPath: "/unique.mp4" };
     const videos = new Map([[video.id, video]]);

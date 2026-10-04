@@ -9,6 +9,58 @@ function deferred() {
 }
 
 describe("current-page image generation queue", () => {
+  it("interrupts active reads, keeps shared consumers pending, and retries after playback startup", async () => {
+    const queue = new ImageGenerationQueue(1);
+    const states: string[] = [];
+    const generate = vi.fn((signal: AbortSignal) => generate.mock.calls.length === 1
+      ? new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }))
+      : Promise.resolve());
+    const a = queue.run("shared", generate, { onStateChange: (s) => states.push(s) });
+    queue.setPlaybackPaused(true);
+    const b = queue.run("shared", generate);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(generate).toHaveBeenCalledOnce();
+    expect(states).toEqual(["queued", "active", "queued"]);
+    queue.setPlaybackPaused(false);
+    await Promise.all([a, b]);
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1][0].aborted).toBe(false);
+    await queue.whenIdle();
+  });
+  it("retries only after interrupted file handles settle even if resumed immediately", async () => {
+    const queue = new ImageGenerationQueue(1);
+    const gate = deferred();
+    const generate = vi.fn(() => generate.mock.calls.length === 1 ? gate.promise : Promise.resolve());
+    const image = queue.run("same", generate);
+    queue.setPlaybackPaused(true); queue.setPlaybackPaused(false);
+    expect(generate).toHaveBeenCalledOnce();
+    gate.resolve();
+    await image;
+    expect(generate).toHaveBeenCalledTimes(2);
+  });
+  it("drops cancelled consumers during startup without generating or leaking idle waiters", async () => {
+    const queue = new ImageGenerationQueue();
+    queue.setPlaybackPaused(true);
+    const controller = new AbortController();
+    const generate = vi.fn();
+    const result = queue.run("gone", generate, { signal: controller.signal });
+    controller.abort();
+    await expect(result).rejects.toBeInstanceOf(ImageRequestCancelledError);
+    await queue.whenIdle();
+    queue.setPlaybackPaused(false);
+    expect(generate).not.toHaveBeenCalled();
+  });
+  it("stops interrupted work without retrying after shutdown", async () => {
+    const queue = new ImageGenerationQueue(1);
+    const gate = deferred();
+    const generate = vi.fn(() => gate.promise);
+    const image = queue.run("same", generate);
+    queue.setPlaybackPaused(true); queue.stop();
+    await expect(image).rejects.toBeInstanceOf(ImageRequestCancelledError);
+    gate.resolve(); await queue.whenIdle(); queue.setPlaybackPaused(false);
+    expect(generate).toHaveBeenCalledOnce();
+  });
+
   it("serializes remote reads, promotes other videos' first frames, and leaves a slot for local work", async () => {
     const queue = new ImageGenerationQueue(2);
     const gate = deferred();

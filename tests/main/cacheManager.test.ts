@@ -27,6 +27,32 @@ afterEach(async () => {
 }, 30_000);
 
 describe("MediaCacheManager", () => {
+  it("serves cached images during startup and resumes interrupted generation without publishing partial output", async () => {
+    const root = await createRoot();
+    const manager = new MediaCacheManager(root, generousLimits);
+    const outputPath = path.join(root, "covers", `${"7".repeat(32)}-5s.jpg`);
+    const cachedPath = path.join(root, "covers", `${"6".repeat(32)}-5s.jpg`);
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    await writeFile(cachedPath, "cached");
+    const started = deferred<void>();
+    const generate = vi.fn(async (temporaryPath: string, signal: AbortSignal) => {
+      if (generate.mock.calls.length === 1) {
+        await writeFile(temporaryPath, "partial");
+        started.resolve();
+        await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("interrupted")), { once: true }));
+      } else await writeFile(temporaryPath, "complete");
+    });
+    const image = manager.getOrCreateImage(outputPath, generate);
+    await started.promise;
+    manager.setPlaybackPaused(true);
+    expect((await manager.getOrCreateImage(cachedPath, vi.fn(), { cachedOnly: true })).toString()).toBe("cached");
+    await expectPath(outputPath, false);
+    manager.setPlaybackPaused(false);
+    expect((await image).toString()).toBe("complete");
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect((await readdir(path.dirname(outputPath))).some((name) => name.includes(".video-manager-cache-"))).toBe(false);
+    manager.stop();
+  });
   it("serves cache-only requests without ever scheduling a missing image", async () => {
     const root = await createRoot();
     const outputPath = path.join(root, "covers", `${"9".repeat(32)}-5s.jpg`);

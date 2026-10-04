@@ -33,6 +33,7 @@ const safeSamples = async () => {
 app.whenReady().then(async () => {
   const samples = await safeSamples();
   if (process.argv.includes("--seed-ui")) {
+    const startupProfile = process.argv.includes("--startup-profile");
     const userData = app.getPath("userData"), media = path.join(root, "media");
     mkdirSync(media, { recursive: true }); mkdirSync(path.join(userData, "native-player"), { recursive: true });
     linkSync(path.join(fixtureRoot, "libmpv-2.dll"), path.join(userData, "native-player", "libmpv-2.dll"));
@@ -44,11 +45,11 @@ app.whenReady().then(async () => {
       const p = spawnSync(probe, ["-v", "error", "-show_format", "-show_streams", "-of", "json", target], { encoding: "utf8", timeout: 10000, windowsHide: true });
       if (p.status !== 0) throw Error("fixture-probe-failed");
       const info = JSON.parse(p.stdout), v = info.streams.find(t => t.codec_type === "video"), a = info.streams.find(t => t.codec_type === "audio"), st = await stat(target);
-      repo.upsertVideo({ sourceFolderId: folder.id, path: target, directory: media, filename, basename: path.parse(filename).name, extension: path.extname(filename), sizeBytes: st.size, durationMs: Math.round(Number(info.format.duration) * 1000), width: v.width, height: v.height, format: info.format.format_name, videoCodec: v.codec_name, videoProfile: v.profile, pixelFormat: v.pix_fmt, audioCodec: a?.codec_name ?? null, codecProbeStatus: "ready", metadataStatus: "ready", modifiedAt: st.mtime.toISOString() });
+      repo.upsertVideo({ sourceFolderId: folder.id, path: target, directory: media, filename, basename: path.parse(filename).name, extension: path.extname(filename), sizeBytes: st.size, durationMs: Math.round(Number(info.format.duration) * 1000), width: v.width, height: v.height, format: info.format.format_name, videoCodec: startupProfile ? null : v.codec_name, videoProfile: startupProfile ? null : v.profile, pixelFormat: startupProfile ? null : v.pix_fmt, audioCodec: startupProfile ? null : a?.codec_name ?? null, codecProbeStatus: startupProfile ? "unprobed" : "ready", metadataStatus: "ready", modifiedAt: st.mtime.toISOString() });
     }
-    await writeFile(path.join(userData, "settings.json"), JSON.stringify({ startupSync: false, playbackPreference: "auto", autoPlayOnOpen: false }));
+    await writeFile(path.join(userData, "settings.json"), JSON.stringify({ startupSync: false, playbackPreference: startupProfile ? "embedded-first" : "auto", autoPlayOnOpen: false }));
     db.close();
-    const manifest = { root, userData, media, videos: 5, isolated: true, preference: "auto" };
+    const manifest = { root, userData, media, videos: 5, isolated: true, preference: startupProfile ? "embedded-first" : "auto" };
     await writeFile(path.join(root, "ui-manifest.json"), JSON.stringify(manifest, null, 2)); console.log(JSON.stringify(manifest)); app.exit(0); return;
   }
 
