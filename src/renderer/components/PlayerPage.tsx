@@ -682,7 +682,7 @@ export function PlayerPage({
       </header>
 
       <div className="player-stage" ref={surfaceRef} onDoubleClick={handleStageDoubleClick}>
-        {isEmbeddedPlayback && <div ref={embeddedStageRef} className="player-embedded-surface" aria-label="视频画面" />}
+        {isEmbeddedPlayback && <div ref={embeddedStageRef} className="player-embedded-surface" aria-label="视频画面" onClick={handleStageClick} />}
         {!isExternalPlayback && !isEmbeddedPlayback && (
           <video
             ref={videoRef}

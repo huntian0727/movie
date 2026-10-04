@@ -42,3 +42,13 @@ status: completed
 - main 与 NativeHost 的 pause 协议必须同包更新，不能混用旧 helper。旧直接验证脚本未携带 controlId 时原生兼容返回 0；生产服务总是提供关联 ID。
 - 桌面快捷方式目标 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。本轮正常退出旧软件后，用独立中性资料库复测，不操作用户真实视频。
 - 回滚从本次 backup-main/checkpoint 标签创建修复提交；数据必要时用一致性快照恢复，不强制回退 main。
+
+## 继续修复：全屏后画面单击遗漏
+
+- 用户要求继续修复。基线 `b32f18f`，工作区干净且与 fetch 后 origin/main 一致。追加开发前快照 `2026-10-04_03-30-55-435_player-fullscreen-input-fix`，345479 视频、quick_check OK；checkpoint `checkpoint-20261004-113052-b32f18f-player-fullscreen-input-fix` 已推送。
+- 真实桌面复查发现：正常窗口原生画面点击有效，全屏按钮有效，但全屏后的画面单击没有暂停/恢复。给 NativeHost 增加 WndProc 接收并未改善实机结果，该试验已撤除，不交付未经证实的原生改动。
+- 最小修复：`PlayerPage.tsx` 的 `.player-embedded-surface` 补充 `onClick={handleStageClick}`。覆盖点击落到 DOM 容器的情况，和 NativeHost 原生事件复用同一处理函数；保留 detail>1 去重与双击恢复逻辑。不改解码器、数据库或扫描。
+- 新增 `UnifiedPlayer.test.tsx` 回归：全屏 DOM 单击立即 pause(false)，第二下 detail=2 不重复执行，doubleClick 恢复 pause(true) 并退出全屏。该文件 21 项 PASS；完整 release-gate 再运行：99 文件 / 836 项 PASS，lint/typecheck/build、Windows 37、迁移 32、性能 26 PASS。
+- 从桌面快捷方式打开重建包、独立中性资料库人工复查：正常窗口双击进入全屏后保持暂停；全屏单击恢复且时间/画面推进；再次单击暂停；双击退出全屏后仍暂停。全部 PASS。使用临时加长的中性 HEVC/DTS 样本防止短片 EOF 干扰，不修改真实资料库和用户媒体。
+- 本轮修改仅上述 Renderer、测试与本记录，删除文件无。最终提交后仍须再次重建桌面包并核对快捷方式/启动验证，最终回复记录实际结果。
+- 追加 `prepare:electron`、`test:electron-smoke`、`run-timeline-preview-smoke.mjs`：全部 PASS（Electron ABI 130）；独立 E2E npm 脚本不适用。真实用户云盘与长期播放仍 NOT RUN。

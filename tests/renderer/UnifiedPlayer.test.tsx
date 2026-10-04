@@ -18,6 +18,21 @@ function bridge() {
   return { api, unsubscribe, input: (e: EmbeddedInput) => input(e), update: (next: Partial<EmbeddedState>) => { state = { ...state, ...next }; } };
 }
 describe("original player UI with embedded engine", () => {
+  it("handles DOM surface clicks after fullscreen and restores state on double-click", async () => {
+    const b = bridge();
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    await screen.findByText("已暂停");
+    fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "退出全屏" })).toHaveLength(2));
+    const surface = screen.getByLabelText("视频画面");
+    fireEvent.click(surface, { detail: 1 });
+    expect(b.api.embeddedPlayback.mock.calls.flatMap(([r]) => r.op === "pause" ? [r.value] : [])).toEqual([false]);
+    fireEvent.click(surface, { detail: 2 });
+    fireEvent.doubleClick(surface);
+    expect(b.api.embeddedPlayback.mock.calls.flatMap(([r]) => r.op === "pause" ? [r.value] : [])).toEqual([false, true]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "全屏" })).toBeInTheDocument());
+    view.unmount();
+  });
   it("updates play/pause from confirmation without waiting for the next poll", async () => {
     const b = bridge();
     b.api.embeddedPlayback.mockImplementation(async r => ({ sessionKey: r.sessionKey, phase: r.op === "pause" && !r.value ? "playing" : "paused", paused: r.op !== "pause" || r.value, time: 30, duration: 90, volume: 20, rotation: 0, fullscreen: false, tracks: [] }));
