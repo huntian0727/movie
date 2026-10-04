@@ -243,11 +243,12 @@ export function PlayerPage({
     setDuration((video.durationMs ?? 0) / 1000);
   }, [video.id]);
 
+  const embeddedRotationReady = isEmbeddedPlayback && !!embedded.state && !["loading", "idle", "failed", "ended"].includes(embedded.state.phase);
   useEffect(() => {
-    if (isEmbeddedPlayback && embedded.state && !["loading", "idle", "failed", "ended"].includes(embedded.state.phase)) {
+    if (embeddedRotationReady) {
       void embedded.send({ op: "rotate", value: rotationDegrees });
     }
-  }, [isEmbeddedPlayback, rotationDegrees]);
+  }, [embeddedRotationReady, embedded.state?.sessionKey, rotationDegrees]);
 
   useEffect(() => {
     if (playlistDirectory === null || sameDirectory(playlistDirectory, video.directory)) return;

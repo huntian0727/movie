@@ -28,7 +28,12 @@ app.whenReady().then(async()=>{
       await call({op:"pause",value:true});await until(async()=>(await state()).paused);
       for(const value of [3,4,5,6])await call({op:"seek",value});
       await until(async()=>{const s=await state();return Math.abs(s.time-6)<.35&&s.phase==="paused";});
-      await call({op:"rotate",value:90});await until(async()=>{const s=await state();return s.rotation===90&&s.phase==="paused";});
+      for(const value of [90,0,270,180,90,0]){
+        await call({op:"rotate",value});await until(async()=>{const s=await state();if(s.phase==="failed")throw Error(s.error);return s.rotation===value&&s.phase==="paused";});
+      }
+      // Coalescing must retain the latest requested orientation, including zero.
+      for(const value of [90,180,270,0])await call({op:"rotate",value});
+      await until(async()=>{const s=await state();if(s.phase==="failed")throw Error(s.error);return s.rotation===0&&s.phase==="paused";});
       await call({op:"volume",value:15});await until(async()=>(await state()).volume===15);
       await call({op:"visible",value:false});await call({op:"visible",value:true});
       await call({op:"fullscreen",value:true});if(!(await state()).fullscreen)throw Error("fullscreen-failed");await call({op:"fullscreen",value:false});

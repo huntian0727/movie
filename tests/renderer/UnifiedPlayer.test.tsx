@@ -109,12 +109,27 @@ describe("original player UI with embedded engine", () => {
     await waitFor(() => expect(screen.getByText(/00:30/)).toBeInTheDocument());
     act(() => b.input({ kind: "key", code: "ArrowRight", control: true, alt: false, shift: false }));
     expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "rotate", value: 90 }));
+    act(() => b.input({ kind: "key", code: "ArrowLeft", control: true, alt: false, shift: false }));
+    expect(b.api.embeddedPlayback).toHaveBeenLastCalledWith(expect.objectContaining({ op: "rotate", value: 0 }));
     expect(b.api.embeddedPlayback.mock.calls.some(([r]) => r.op === "seek")).toBe(false);
     const input = document.createElement("input"); document.body.append(input); input.focus();
     b.api.embeddedPlayback.mockClear();
     act(() => b.input({ kind: "key", code: "Space", control: false, alt: false, shift: false }));
     expect(b.api.embeddedPlayback).not.toHaveBeenCalled();
     input.remove(); view.unmount();
+  });
+  it("applies rotation requested during loading once ready and not on every poll", async () => {
+    const b = bridge(); b.update({ phase: "loading" });
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    await waitFor(() => expect(b.api.subscribeEmbeddedInput).toHaveBeenCalled());
+    act(() => b.input({ kind: "key", code: "ArrowRight", control: true, alt: false, shift: false }));
+    expect(b.api.embeddedPlayback.mock.calls.some(([r]) => r.op === "rotate")).toBe(false);
+    b.update({ phase: "paused" });
+    await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "rotate", value: 90 })));
+    const count = b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "rotate").length;
+    b.update({ time: 32 }); await screen.findByText(/00:32/);
+    expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "rotate")).toHaveLength(count);
+    view.unmount();
   });
   it("clears stale toolbar focus on a surface click", async () => {
     const b = bridge();

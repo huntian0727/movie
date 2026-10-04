@@ -26,7 +26,11 @@ export class EmbeddedControlQueue {
   observe(s: NativeSnapshot): void {
     const a = this.active; if (!a) return;
     if (s.token !== a.token) return this.reset();
-    if (!s.loaded || !a.ack || s.seeking !== "no" || s.restartCount <= a.restartCount) return;
+    if (!s.loaded || !a.ack || s.seeking !== "no") return;
+    // A seek must finish decoding at the requested position. Rotation can be
+    // applied by the video output alone (including while paused), with no
+    // PLAYBACK_RESTART event. Waiting for that event wedges subsequent controls.
+    if (a.op === "seek" && s.restartCount <= a.restartCount) return;
     if (a.op === "seek" ? s.time === null || Math.abs(s.time - a.value) >= 0.35 : s.rotation !== a.value) return;
     clearTimeout(this.timer); this.active = null; this.pump(); this.phase(false, !!this.active);
   }
