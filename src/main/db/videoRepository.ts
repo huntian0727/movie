@@ -907,9 +907,13 @@ export class VideoRepository {
   }
 
   resolveScanFailuresForObject(sourceFolderId: string, objectPath: string, objectType?: ScanFailureObjectType): number {
-    const matchingFailures = this.listScanFailures(sourceFolderId).filter((failure) =>
-      failure.normalizedPath === normalizeManagedPath(objectPath) && (!objectType || failure.objectType === objectType)
-    );
+    const normalizedPath = normalizeManagedPath(objectPath);
+    const matchingFailures = (this.db.prepare(`
+      SELECT * FROM scan_failures
+      WHERE source_folder_id = @sourceFolderId AND normalized_path = @normalizedPath
+        AND status != 'resolved' ${objectType ? "AND object_type = @objectType" : ""}
+    `).all({ sourceFolderId, normalizedPath, ...(objectType ? { objectType } : {}) }) as ScanFailureRow[])
+      .map(mapScanFailure);
     const now = new Date().toISOString();
     const result = objectType
       ? this.db.prepare(`UPDATE scan_failures SET status = 'resolved', resolved_at = ? WHERE source_folder_id = ? AND normalized_path = ? AND object_type = ? AND status != 'resolved'`)
@@ -1113,12 +1117,24 @@ export class VideoRepository {
   ): void {
     const directoryPath = objectType === "directory" ? objectPath : path.win32.dirname(objectPath);
     const normalizedDirectory = normalizeManagedPath(directoryPath);
-    const hasUnresolvedFailure = this.listScanFailures(sourceFolderId).some((failure) => {
-      const failureDirectory = failure.objectType === "directory"
-        ? failure.objectPath
-        : path.win32.dirname(failure.objectPath);
-      return normalizeManagedPath(failureDirectory) === normalizedDirectory;
-    });
+    const prefix = `${normalizedDirectory}\\`;
+    // Match the directory itself and its direct files, not descendant directories.
+    // '\\' sorts immediately before ']' in the normalized path index. A range
+    // avoids LIKE's case-insensitive scan and treats %, _ and ! as literal names.
+    const hasUnresolvedFailure = Boolean(this.db.prepare(`
+      SELECT 1 WHERE EXISTS (
+        SELECT 1 FROM scan_failures
+        WHERE source_folder_id = @sourceFolderId AND status != 'resolved'
+          AND object_type = 'directory' AND normalized_path = @directory
+      ) OR EXISTS (
+        SELECT 1 FROM scan_failures
+        WHERE source_folder_id = @sourceFolderId AND status != 'resolved'
+          AND object_type = 'file' AND normalized_path >= @prefix AND normalized_path < @prefixEnd
+          AND instr(substr(normalized_path, length(@prefix) + 1), char(92)) = 0)
+    `).get({
+      sourceFolderId, directory: normalizedDirectory, prefix,
+      prefixEnd: `${normalizedDirectory}]`
+    }));
     this.db.prepare(`
       UPDATE directory_snapshots
       SET has_unresolved_failure = ?, updated_at = ?

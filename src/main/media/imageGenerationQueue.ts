@@ -89,9 +89,17 @@ export class ImageGenerationQueue {
 
   private pump(): void {
     while (!this.stopped && !this.playbackPaused && this.active < this.concurrency) {
-      const priority = (job: Job) => Math.max(...[...job.subscribers].map((subscriber) => subscriber.priority));
-      const job = [...this.jobs.values()].filter((entry) => !entry.active && entry.subscribers.size > 0 && (!entry.remote || this.activeRemote === 0))
-        .sort((a, b) => priority(b) - priority(a) || a.sequence - b.sequence)[0];
+      let job: Job | undefined;
+      let highestPriority = -Infinity;
+      for (const entry of this.jobs.values()) {
+        if (entry.active || entry.subscribers.size === 0 || (entry.remote && this.activeRemote > 0)) continue;
+        let priority = -Infinity;
+        for (const subscriber of entry.subscribers) priority = Math.max(priority, subscriber.priority);
+        if (!job || priority > highestPriority || (priority === highestPriority && entry.sequence < job.sequence)) {
+          job = entry;
+          highestPriority = priority;
+        }
+      }
       if (!job) break;
       job.active = true;
       this.active += 1;

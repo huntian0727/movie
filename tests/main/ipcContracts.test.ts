@@ -182,4 +182,11 @@ describe("IPC_CHANNELS", () => {
     expect(ipc).toContain("dependencies.assetCenterQueries.listMetadataIssues(metadataIssuePageQuerySchema.parse(query))");
     expect(ipc).toContain("metadataFileRefresh.refreshZeroByteFiles(videoIdsSchema.parse(videoIds))");
   });
+
+  it("routes scan failure review paging through the worker instead of main-thread SQL", () => {
+    const projectRoot = path.resolve(import.meta.dirname, "../..");
+    const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
+    expect(ipc).toContain("dependencies.assetCenterQueries.listScanFailures(scanFailureReviewQuerySchema.parse(query))");
+    expect(ipc).not.toContain("repo.listScanFailureReviewPage(scanFailureReviewQuerySchema.parse(query))");
+  });
 });

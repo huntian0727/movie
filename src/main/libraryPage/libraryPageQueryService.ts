@@ -1,16 +1,36 @@
 import { Worker } from "node:worker_threads";
 import type { LibraryPage, LibraryPageQuery } from "../../shared/videoTypes.js";
+import { CoalescingReadQueue } from "../queries/coalescingReadQueue.js";
+
+interface LibraryPageWorkerResponse { id: number; result?: LibraryPage; error?: string }
+interface LibraryPageWorkerRequest { id: number; query: LibraryPageQuery }
+export interface LibraryPageQueryWorker {
+  postMessage(request: LibraryPageWorkerRequest): void;
+  on(event: "message", listener: (response: LibraryPageWorkerResponse) => void): this;
+  on(event: "error", listener: (error: Error) => void): this;
+  on(event: "exit", listener: (code: number) => void): this;
+  terminate(): Promise<number>;
+}
 
 export class LibraryPageQueryService {
-  private worker: Worker | undefined;
+  private worker: LibraryPageQueryWorker | undefined;
   private nextId = 1;
   private pending = new Map<number, { resolve(page: LibraryPage): void; reject(error: Error): void }>();
   private disposed = false;
+  private readonly reads = new CoalescingReadQueue<LibraryPage>();
 
-  constructor(private readonly databasePath: string) {}
+  constructor(
+    private readonly databasePath: string,
+    private readonly workerFactory?: (databasePath: string) => LibraryPageQueryWorker
+  ) {}
 
   page(query: LibraryPageQuery): Promise<LibraryPage> {
     if (this.disposed) return Promise.reject(new Error("Library page service has stopped"));
+    const snapshot = structuredClone(query);
+    return this.reads.run(JSON.stringify(snapshot), () => this.dispatch(snapshot));
+  }
+
+  private dispatch(query: LibraryPageQuery): Promise<LibraryPage> {
     const worker = this.ensureWorker();
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
@@ -27,17 +47,19 @@ export class LibraryPageQueryService {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.failPending(new Error("Library page service has stopped"));
+    const error = new Error("Library page service has stopped");
+    this.reads.rejectAll(error);
+    this.failPending(error);
     if (this.worker) void this.worker.terminate();
     this.worker = undefined;
   }
 
-  private ensureWorker(): Worker {
+  private ensureWorker(): LibraryPageQueryWorker {
     if (this.worker) return this.worker;
-    const worker = new Worker(new URL("./libraryPageWorker.js", import.meta.url), {
+    const worker = this.workerFactory?.(this.databasePath) ?? new Worker(new URL("./libraryPageWorker.js", import.meta.url), {
       workerData: { databasePath: this.databasePath }
     });
-    worker.on("message", (response: { id: number; result?: LibraryPage; error?: string }) => {
+    worker.on("message", (response) => {
       if (this.worker !== worker) return;
       const pending = this.pending.get(response.id);
       if (!pending) return;
@@ -54,9 +76,10 @@ export class LibraryPageQueryService {
     return worker;
   }
 
-  private failWorker(worker: Worker, error: Error): void {
+  private failWorker(worker: LibraryPageQueryWorker, error: Error): void {
     if (this.worker !== worker) return;
     this.worker = undefined;
+    this.reads.rejectAll(error);
     this.failPending(error);
     void worker.terminate();
   }

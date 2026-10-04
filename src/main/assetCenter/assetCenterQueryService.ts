@@ -7,6 +7,8 @@ import type {
   LibraryNavigationSnapshot,
   MetadataIssuePage,
   MetadataIssuePageQuery,
+  ScanFailureReviewPage,
+  ScanFailureReviewQuery,
   SourceFolder
 } from "../../shared/videoTypes.js";
 import type {
@@ -15,6 +17,7 @@ import type {
   AssetCenterSummary
 } from "../../shared/videoTypes.js";
 import type { AssetCenterWorkerRequest, AssetCenterWorkerResponse } from "./assetCenterWorkerProtocol.js";
+import { CoalescingReadQueue } from "../queries/coalescingReadQueue.js";
 
 export interface AssetCenterQueryWorker {
   postMessage(value: AssetCenterWorkerRequest): void;
@@ -29,6 +32,7 @@ export interface AssetCenterReadService {
   listDuplicates(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
   listFolders(): Promise<SourceFolder[]>;
   listMetadataIssues(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
+  listScanFailures(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
   getSummary(): Promise<AssetCenterSummary>;
   listSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
@@ -50,6 +54,7 @@ type AssetCenterQueryResult =
   | DuplicateGroupPage
   | LibraryNavigationSnapshot
   | MetadataIssuePage
+  | ScanFailureReviewPage
   | SourceFolder[];
 
 type AssetCenterWorkerOperation =
@@ -57,6 +62,7 @@ type AssetCenterWorkerOperation =
   | { operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { operation: "folders" }
   | { operation: "metadataIssues"; query: MetadataIssuePageQuery }
+  | { operation: "scanFailures"; query: ScanFailureReviewQuery }
   | { operation: "navigation" }
   | { operation: "summary" }
   | { operation: "sources"; query: AssetCenterSourceQuery };
@@ -65,6 +71,7 @@ export class AssetCenterQueryService implements AssetCenterReadService {
   private worker: AssetCenterQueryWorker | undefined;
   private nextRequestId = 1;
   private readonly pending = new Map<number, PendingRequest>();
+  private readonly reads = new CoalescingReadQueue<AssetCenterQueryResult>();
   private disposed = false;
 
   constructor(
@@ -92,6 +99,10 @@ export class AssetCenterQueryService implements AssetCenterReadService {
     return this.request<MetadataIssuePage>({ operation: "metadataIssues", query });
   }
 
+  listScanFailures(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage> {
+    return this.request<ScanFailureReviewPage>({ operation: "scanFailures", query });
+  }
+
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot> {
     return this.request<LibraryNavigationSnapshot>({ operation: "navigation" });
   }
@@ -105,7 +116,9 @@ export class AssetCenterQueryService implements AssetCenterReadService {
     this.disposed = true;
     const worker = this.worker;
     this.worker = undefined;
-    this.rejectPending(new Error("Asset Center query service has stopped"));
+    const error = new Error("Asset Center query service has stopped");
+    this.reads.rejectAll(error);
+    this.rejectPending(error);
     if (worker) void worker.terminate();
   }
 
@@ -115,12 +128,17 @@ export class AssetCenterQueryService implements AssetCenterReadService {
     if (this.disposed) {
       return Promise.reject(new Error("Asset Center query service has stopped"));
     }
+    const snapshot = structuredClone(request);
+    return this.reads.run(JSON.stringify(snapshot), () => this.dispatch(snapshot)) as Promise<Result>;
+  }
+
+  private dispatch(request: AssetCenterWorkerOperation): Promise<AssetCenterQueryResult> {
     const worker = this.ensureWorker();
     const id = this.nextRequestId;
     this.nextRequestId += 1;
-    return new Promise<Result>((resolve, reject) => {
+    return new Promise<AssetCenterQueryResult>((resolve, reject) => {
       this.pending.set(id, {
-        resolve: (result) => resolve(result as Result),
+        resolve,
         reject
       });
       try {
@@ -166,6 +184,7 @@ export class AssetCenterQueryService implements AssetCenterReadService {
   private handleWorkerFailure(worker: AssetCenterQueryWorker, error: Error): void {
     if (this.worker !== worker) return;
     this.worker = undefined;
+    this.reads.rejectAll(error);
     this.rejectPending(error);
     void worker.terminate();
   }

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DuplicateGroupsPage } from "../../src/renderer/components/DuplicateGroupsPage";
 import type { DuplicateCleanupJob, DuplicateGroup, VideoRecord } from "../../src/shared/videoTypes";
@@ -50,6 +50,24 @@ function cleanupJob(overrides: Partial<DuplicateCleanupJob> = {}): DuplicateClea
 afterEach(() => vi.unstubAllGlobals());
 
 describe("DuplicateGroupsPage staged safety flow", () => {
+  it("rerenders only the changed card when a group's planned keep item changes", () => {
+    const otherKeep = { ...video, id: "other-keep", get filename() { return "untouched-keep.mp4"; } };
+    const otherDelete = { ...duplicateVideo, id: "other-delete", get filename() { return "untouched-delete.mp4"; } };
+    const keepName = vi.spyOn(otherKeep, "filename", "get");
+    const deleteName = vi.spyOn(otherDelete, "filename", "get");
+    const otherGroup: DuplicateGroup = { ...groups[0], groupKey: "other-group", recommendedKeepVideoId: otherKeep.id,
+      items: [{ ...groups[0].items[0], video: otherKeep }, { ...groups[0].items[1], video: otherDelete }] };
+    try {
+      const { container } = render(<DuplicateGroupsPage {...baseProps()} groups={[...groups, otherGroup]} />);
+      keepName.mockClear(); deleteName.mockClear();
+      const firstCard = container.querySelector<HTMLElement>('[data-group-key="fp-1"]')!;
+      const candidateRow = within(firstCard).getByText("clip-copy.mp4").closest(".duplicate-item")!;
+      fireEvent.click(within(candidateRow as HTMLElement).getByRole("button", { name: "设为计划保留" }));
+      expect(keepName).not.toHaveBeenCalled();
+      expect(deleteName).not.toHaveBeenCalled();
+    } finally { keepName.mockRestore(); deleteName.mockRestore(); }
+  });
+
   it("mounts only nearby large-page cards while the cleanup plan still covers every group", async () => {
     let notifyVisibility: IntersectionObserverCallback | undefined;
     vi.stubGlobal("IntersectionObserver", class {

@@ -7,6 +7,8 @@ import type {
   LibraryNavigationSnapshot,
   MetadataIssuePage,
   MetadataIssuePageQuery,
+  ScanFailureReviewPage,
+  ScanFailureReviewQuery,
   SourceFolder
 } from "../../shared/videoTypes.js";
 import type { DuplicateGroupPage, DuplicateGroupPageQuery } from "../../shared/videoTypes.js";
@@ -16,6 +18,7 @@ export type AssetCenterWorkerRequest =
   | { id: number; operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { id: number; operation: "folders" }
   | { id: number; operation: "metadataIssues"; query: MetadataIssuePageQuery }
+  | { id: number; operation: "scanFailures"; query: ScanFailureReviewQuery }
   | { id: number; operation: "navigation" }
   | { id: number; operation: "summary" }
   | { id: number; operation: "sources"; query: AssetCenterSourceQuery };
@@ -31,6 +34,7 @@ export type AssetCenterWorkerResponse =
         | DuplicateGroupPage
         | LibraryNavigationSnapshot
         | MetadataIssuePage
+        | ScanFailureReviewPage
         | SourceFolder[];
     }
   | { id: number; ok: false; error: { name: string; message: string; stack?: string } };

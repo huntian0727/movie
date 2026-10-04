@@ -750,7 +750,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     repo.listScanFailures(z.string().min(1).parse(folderId))
   );
   ipcMain.handle(IPC_CHANNELS.scanFailureReviewPage, (_event, query) =>
-    repo.listScanFailureReviewPage(scanFailureReviewQuerySchema.parse(query))
+    dependencies.assetCenterQueries.listScanFailures(scanFailureReviewQuerySchema.parse(query))
   );
   ipcMain.handle(IPC_CHANNELS.scanFailureReviewRetry, (_event, payload) => {
     const { failureId } = scanFailureIdSchema.parse(payload);

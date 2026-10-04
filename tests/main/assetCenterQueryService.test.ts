@@ -11,7 +11,7 @@ import {
 import { openAssetCenterReadonlyDatabase } from "../../src/main/assetCenter/assetCenterReadonlyDatabase.js";
 import type { AssetCenterWorkerRequest, AssetCenterWorkerResponse } from "../../src/main/assetCenter/assetCenterWorkerProtocol.js";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database.js";
-import type { AssetCenterSummary, DirectoryBrowserResult, LibraryNavigationSnapshot, MetadataIssuePage, SourceFolder } from "../../src/shared/videoTypes.js";
+import type { AssetCenterSummary, DirectoryBrowserResult, LibraryNavigationSnapshot, MetadataIssuePage, ScanFailureReviewPage, SourceFolder } from "../../src/shared/videoTypes.js";
 
 let tempDirectory: string | undefined;
 let database: DatabaseConnection | undefined;
@@ -47,14 +47,12 @@ describe("AssetCenterQueryService", () => {
 
     const folders = service.listFolders();
     const navigation = service.getLibraryNavigation();
-    expect(worker.messages).toEqual([
-      { id: 1, operation: "folders" },
-      { id: 2, operation: "navigation" }
-    ]);
+    expect(worker.messages).toEqual([{ id: 1, operation: "folders" }]);
 
     worker.emitMessage({ id: 1, ok: true, result: FOLDERS });
-    worker.emitMessage({ id: 2, ok: true, result: NAVIGATION });
     await expect(folders).resolves.toEqual(FOLDERS);
+    expect(worker.messages[1]).toEqual({ id: 2, operation: "navigation" });
+    worker.emitMessage({ id: 2, ok: true, result: NAVIGATION });
     await expect(navigation).resolves.toEqual(NAVIGATION);
   });
 
@@ -82,6 +80,51 @@ describe("AssetCenterQueryService", () => {
     await expect(result).resolves.toEqual(DIRECTORY_RESULT);
   });
 
+  it("routes scan failure review pages through the read-only worker", async () => {
+    const worker = new FakeQueryWorker();
+    service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => worker });
+    const query = { sourceFolderId: "source-1", kind: "all", page: 1, pageSize: 30 } as const;
+    const page: ScanFailureReviewPage = { items: [], page: 1, pageSize: 30, totalPages: 1,
+      totalCount: 0, counts: { all: 0, video: 0, unindexedFile: 0, directory: 0 } };
+    const result = service.listScanFailures(query);
+    expect(worker.messages).toEqual([{ id: 1, operation: "scanFailures", query }]);
+    worker.emitMessage({ id: 1, ok: true, result: page });
+    await expect(result).resolves.toEqual(page);
+  });
+
+  it("coalesces repeated waiting refreshes but reruns a read after an active request", async () => {
+    const worker = new FakeQueryWorker();
+    service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => worker });
+    const active = service.getSummary();
+    const currentService = service;
+    const refreshes = Array.from({ length: 100 }, () => currentService.getSummary());
+    expect(worker.messages).toHaveLength(1);
+    worker.emitMessage({ id: 1, ok: true, result: SUMMARY });
+    await active;
+    expect(worker.messages).toEqual([{ id: 1, operation: "summary" }, { id: 2, operation: "summary" }]);
+    const freshSummary = { ...SUMMARY, totalVideoCount: 5 };
+    worker.emitMessage({ id: 2, ok: true, result: freshSummary });
+    await expect(Promise.all(refreshes)).resolves.toEqual(Array(100).fill(freshSummary));
+  });
+
+  it("snapshots waiting filters and keeps distinct directory requests separate", async () => {
+    const worker = new FakeQueryWorker();
+    service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => worker });
+    const active = service.getSummary();
+    const query = { search: "original", limit: 100 as const };
+    const first = service.listDirectories(query);
+    const other = service.listDirectories({ search: "picker", limit: 100 });
+    query.search = "mutated";
+    worker.emitMessage({ id: 1, ok: true, result: SUMMARY });
+    await active;
+    expect(worker.messages[1]).toMatchObject({ operation: "directories", query: { search: "original" } });
+    worker.emitMessage({ id: 2, ok: true, result: DIRECTORY_RESULT });
+    await first;
+    expect(worker.messages[2]).toMatchObject({ operation: "directories", query: { search: "picker" } });
+    worker.emitMessage({ id: 3, ok: true, result: DIRECTORY_RESULT });
+    await other;
+  });
+
   it("rejects pending work on worker failure and lazily replaces the worker", async () => {
     const firstWorker = new FakeQueryWorker();
     const secondWorker = new FakeQueryWorker();
@@ -89,8 +132,10 @@ describe("AssetCenterQueryService", () => {
     service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => workers.shift()! });
 
     const first = service.getSummary();
+    const waiting = service.listFolders();
     firstWorker.emitError(new Error("worker failed"));
     await expect(first).rejects.toThrow("worker failed");
+    await expect(waiting).rejects.toThrow("worker failed");
 
     const replacement = service.getSummary();
     expect(workers).toHaveLength(0);
@@ -104,9 +149,11 @@ describe("AssetCenterQueryService", () => {
     const worker = new FakeQueryWorker();
     service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => worker });
     const pending = service.getSummary();
+    const waiting = service.listFolders();
 
     service.dispose();
     await expect(pending).rejects.toThrow("has stopped");
+    await expect(waiting).rejects.toThrow("has stopped");
     expect(worker.terminateCount).toBe(1);
     await expect(service.getSummary()).rejects.toThrow("has stopped");
   });

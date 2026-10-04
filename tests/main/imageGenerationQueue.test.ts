@@ -9,6 +9,23 @@ function deferred() {
 }
 
 describe("current-page image generation queue", () => {
+  it("preserves FIFO ties and reprioritizes a shared job when its highest-priority consumer leaves", async () => {
+    const queue = new ImageGenerationQueue(1);
+    queue.setPlaybackPaused(true);
+    const order: string[] = [];
+    const promoted = new AbortController();
+    const low = queue.run("shared", async () => { order.push("shared"); }, { priority: 0 });
+    const high = queue.run("shared", async () => undefined, { priority: 5, signal: promoted.signal });
+    const tieA = queue.run("tie-a", async () => { order.push("tie-a"); }, { priority: 2 });
+    const tieB = queue.run("tie-b", async () => { order.push("tie-b"); }, { priority: 2 });
+    promoted.abort();
+    await expect(high).rejects.toBeInstanceOf(ImageRequestCancelledError);
+    queue.setPlaybackPaused(false);
+    await Promise.all([low, tieA, tieB]);
+    await queue.whenIdle();
+    expect(order).toEqual(["tie-a", "tie-b", "shared"]);
+  });
+
   it("interrupts active reads, keeps shared consumers pending, and retries after playback startup", async () => {
     const queue = new ImageGenerationQueue(1);
     const states: string[] = [];

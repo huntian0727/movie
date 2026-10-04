@@ -37,6 +37,9 @@ port.on("message", (request: AssetCenterWorkerRequest) => {
       response = { id: request.id, ok: true, result: cachedFolders };
     } else if (request.operation === "metadataIssues") {
       response = { id: request.id, ok: true, result: repository.listMetadataIssuePage(request.query) };
+    } else if (request.operation === "scanFailures") {
+      const result = database.transaction(() => repository.listScanFailureReviewPage(request.query))();
+      response = { id: request.id, ok: true, result };
     } else if (request.operation === "navigation") {
       cachedNavigation ??= repository.getLibraryNavigation();
       response = { id: request.id, ok: true, result: cachedNavigation };

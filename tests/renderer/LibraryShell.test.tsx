@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryShell } from "../../src/renderer/components/LibraryShell";
 import type { DuplicateGroup, DuplicateGroupPageQuery, SourceFolder, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
@@ -582,6 +582,35 @@ describe("LibraryShell", () => {
     unmount();
     const restored = render(<LibraryShell videos={[video]} folders={[folder]} />);
     expect(restored.container.querySelector(".app-shell")).toHaveStyle({ "--sidebar-width": "310px" });
+  });
+
+  it("coalesces pointer moves per frame and saves only the final sidebar width", () => {
+    let callback: FrameRequestCallback | undefined;
+    const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((next) => { callback = next; return 123; });
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+    const storage = vi.spyOn(Storage.prototype, "setItem");
+    const { container, unmount } = render(<LibraryShell videos={[video]} folders={[folder]} />);
+    const resizer = screen.getByRole("separator", { name: "调整侧栏宽度" });
+    try {
+      storage.mockClear();
+      fireEvent(resizer, new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 300 }));
+      fireEvent(window, new MouseEvent("pointermove", { clientX: 330 }));
+      fireEvent(window, new MouseEvent("pointermove", { clientX: 350 }));
+      expect(requestFrame).toHaveBeenCalledOnce();
+      expect(resizer).toHaveAttribute("aria-valuenow", "300");
+      act(() => callback?.(0));
+      expect(resizer).toHaveAttribute("aria-valuenow", "350");
+      expect(storage.mock.calls.filter(([key]) => key === "video-manager:sidebar-width")).toEqual([]);
+
+      fireEvent(window, new MouseEvent("pointermove", { clientX: 370 }));
+      fireEvent(window, new MouseEvent("pointerup"));
+      expect(cancelFrame).toHaveBeenCalledWith(123);
+      expect(container.querySelector(".app-shell")).toHaveStyle({ "--sidebar-width": "370px" });
+      expect(storage.mock.calls.filter(([key]) => key === "video-manager:sidebar-width")).toEqual([["video-manager:sidebar-width", "370"]]);
+    } finally {
+      unmount();
+      requestFrame.mockRestore(); cancelFrame.mockRestore(); storage.mockRestore();
+    }
   });
 
   it("only retries a failed cover when its URL changes", () => {

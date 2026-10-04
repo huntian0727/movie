@@ -287,7 +287,8 @@ export class MediaCacheManager {
 
     await this.removeAbandonedTempFiles(failures);
     await this.notifyEntriesRemoved(removedPaths);
-    const remaining = entries.filter((entry) => !removedPaths.includes(entry.path));
+    const removedPathSet = new Set(removedPaths);
+    const remaining = entries.filter((entry) => !removedPathSet.has(entry.path));
     this.status = statusFromEntries(
       remaining,
       this.limits.totalBytes,

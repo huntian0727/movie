@@ -314,12 +314,13 @@ export function LibraryShell({
   }, [pageSize]);
 
   useEffect(() => {
+    if (isResizingSidebar) return;
     try {
       window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth));
     } catch {
       // Renderer storage can be unavailable in hardened or test environments.
     }
-  }, [sidebarWidth]);
+  }, [sidebarWidth, isResizingSidebar]);
 
   useEffect(() => {
     try {
@@ -331,12 +332,22 @@ export function LibraryShell({
 
   useEffect(() => {
     if (!isResizingSidebar) return;
+    let frame: number | undefined;
+    let pendingWidth: number | undefined;
     const onPointerMove = (event: PointerEvent) => {
       const start = sidebarResizeStartRef.current;
       if (!start) return;
-      setSidebarWidth(clampSidebarWidth(start.width + event.clientX - start.pointerX));
+      pendingWidth = clampSidebarWidth(start.width + event.clientX - start.pointerX);
+      if (frame !== undefined) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = undefined;
+        if (pendingWidth !== undefined) setSidebarWidth(pendingWidth);
+      });
     };
     const stopResizing = () => {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      frame = undefined;
+      if (pendingWidth !== undefined) setSidebarWidth(pendingWidth);
       sidebarResizeStartRef.current = null;
       setIsResizingSidebar(false);
     };
@@ -344,6 +355,7 @@ export function LibraryShell({
     window.addEventListener("pointerup", stopResizing);
     window.addEventListener("pointercancel", stopResizing);
     return () => {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", stopResizing);
       window.removeEventListener("pointercancel", stopResizing);

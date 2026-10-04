@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderOpen, Info, Link2, ListTodo, LoaderCircle, Play, Trash2 } from "lucide-react";
 import type {
   CloudDriveLegacyBindingProgress,
@@ -287,7 +287,7 @@ export function DuplicateGroupsPage({
     setActionError("候选项不能直接删除；请先运行完整 SHA-256 验证。 ");
   };
 
-  const handleAutoDelete = async (autoPlan: DuplicateResolvePlan, label: string) => {
+  const handleAutoDelete = useCallback(async (autoPlan: DuplicateResolvePlan, label: string) => {
     if (!onAutoDelete || actionPending) return;
     setActionPending(true);
     setActionError(null);
@@ -301,7 +301,19 @@ export function DuplicateGroupsPage({
     } finally {
       setActionPending(false);
     }
-  };
+  }, [onAutoDelete, actionPending]);
+
+  const handleSetKeep = useCallback((groupId: string, videoId: string) => {
+    setManualKeepByGroup((current) => ({ ...current, [groupId]: videoId }));
+  }, []);
+
+  const handleDeleteCandidate = useCallback((group: DuplicateGroup, selectedKeep: string, videoId: string) => {
+    const keepVideoId = selectedKeep === videoId
+      ? group.items.find((item) => item.video.id !== videoId)?.video.id
+      : selectedKeep;
+    if (!keepVideoId) return;
+    void handleAutoDelete({ groups: [{ groupKey: group.groupKey, keepVideoId, deleteVideoIds: [videoId] }] }, "单项清理");
+  }, [handleAutoDelete]);
 
   const handleFilteredAutoDelete = async () => {
     if (!onAutoDeleteFiltered || actionPending) return;
@@ -634,20 +646,13 @@ export function DuplicateGroupsPage({
             index={index}
             page={page}
             pageSize={pageSize}
-            selectedKeepByGroup={manualKeepByGroup}
-            onSetKeep={(groupId, videoId) => setManualKeepByGroup((current) => ({ ...current, [groupId]: videoId }))}
-            onPreferDirectory={(path) => onPreferredDirectoryPathChange?.(path)}
+            keepVideoId={manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId}
+            onSetKeep={handleSetKeep}
+            onPreferDirectory={onPreferredDirectoryPathChange}
             onOpen={onOpen}
             onViewDetails={onViewDetails}
             onRevealInFolder={onRevealInFolder}
-            onDeleteCandidate={(videoId) => {
-              const selectedKeep = manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
-              const keepVideoId = selectedKeep === videoId
-                ? group.items.find((item) => item.video.id !== videoId)?.video.id
-                : selectedKeep;
-              if (!keepVideoId) return;
-              void handleAutoDelete({ groups: [{ groupKey: group.groupKey, keepVideoId, deleteVideoIds: [videoId] }] }, "单项清理");
-            }}
+            onDeleteCandidate={handleDeleteCandidate}
           />
         )} />}
 
@@ -730,7 +735,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   index,
   page,
   pageSize,
-  selectedKeepByGroup,
+  keepVideoId,
   onSetKeep,
   onPreferDirectory,
   onOpen,
@@ -742,16 +747,14 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   index: number;
   page: number;
   pageSize: number;
-  selectedKeepByGroup: Record<string, string>;
+  keepVideoId: string;
   onSetKeep(groupId: string, videoId: string): void;
-  onPreferDirectory(path: string): void;
+  onPreferDirectory?(path: string): void;
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
-  onDeleteCandidate(videoId: string): void;
+  onDeleteCandidate(group: DuplicateGroup, selectedKeep: string, videoId: string): void;
 }) {
-  const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
-
   const sortedItems = useMemo(
     () => [...group.items].sort((left, right) => left.video.filename.localeCompare(right.video.filename, "zh-CN")),
     [group.items]
@@ -804,11 +807,11 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
               </div>
               <div className="duplicate-item-actions">
                 <button type="button" className={isKeeping ? "primary" : undefined} onClick={() => onSetKeep(group.groupKey, item.video.id)}>设为计划保留</button>
-                <button type="button" aria-label={`优先保留 ${item.video.directory} 及其所有子目录（来自 ${item.video.filename}）`} title="筛选包含此目录树文件的候选组，并优先计划保留目录树中的文件" onClick={() => onPreferDirectory(item.video.directory)}><FolderOpen size={16} />优先保留此目录</button>
+                <button type="button" aria-label={`优先保留 ${item.video.directory} 及其所有子目录（来自 ${item.video.filename}）`} title="筛选包含此目录树文件的候选组，并优先计划保留目录树中的文件" onClick={() => onPreferDirectory?.(item.video.directory)}><FolderOpen size={16} />优先保留此目录</button>
                 <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
                 <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
                 <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
-                <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} disabled={item.canAutoDelete === false} onClick={() => onDeleteCandidate(item.video.id)}><Trash2 size={16} /></button>
+                <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} disabled={item.canAutoDelete === false} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>
               </div>
             </article>
           );
