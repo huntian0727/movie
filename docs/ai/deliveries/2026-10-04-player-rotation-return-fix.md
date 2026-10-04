@@ -19,9 +19,11 @@
 5. `scripts/test-embedded-player.mjs`：正式 EmbeddedPlayer + 真 libmpv 的矩阵增加暂停时 `90 → 0 → 270 → 180 → 90 → 0` 和快速四次旋转回零。
 6. 本交付文档。删除文件：无。未改数据库、扫描、文件管理、解码器或快捷键配置，不增加 UI。
 
+桌面复查补充发现：进度/音量 range 获得焦点后，DOM 和内嵌输入适配器的“所有 input 均忽略快捷键”逻辑吞掉 Ctrl+方向键，转而执行 range 默认微调。增加聚焦进度条后“先旋转 90，再转回 0”的确定性回归，补充修复前 FAIL（最后请求仍为 90）；修复两个输入入口，只允许显式旋转快捷键穿过 range 的输入保护并阻止其默认动作。普通 range 方向键、真实文本输入、select、editable 和对话框保护保持不变。
+
 ## Verification
 
-- `npm run test:release-gate`：PASS。类型检查和构建通过；Windows 文件 37、迁移 32、性能 26；完整 Vitest 96 文件 / 820 项 PASS。
+- 第一轮 `npm run test:release-gate`：PASS，完整 Vitest 96 文件 / 820 项。桌面复查补充的焦点修复后第二轮完整门禁 PASS，96 文件 / 821 项；两轮类型检查/构建、Windows 文件 37、迁移 32、性能 26 均通过。
 - `npm run prepare:electron` / `npm run test:electron-smoke`：PASS，Electron 33.4.11、ABI 130。
 - `node scripts/run-timeline-preview-smoke.mjs`：PASS，既有浮动预览渲染、授权、焦点和释放回归无异常。
 - 旧构建的真实 libmpv 合成矩阵也 PASS：这些样本会发重启事件，因此不能声称在真实样本上复现了用户视频的故障；确定性无重启回归测试证实队列缺陷。

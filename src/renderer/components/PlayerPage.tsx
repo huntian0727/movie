@@ -119,10 +119,11 @@ export function PlayerPage({
       else if (input.kind === "double-click") handleStageDoubleClick();
       else if (input.kind === "key") {
         const focused = document.activeElement;
-        if (focused instanceof HTMLElement && (focused.matches("input, textarea, select") || focused.isContentEditable || focused.closest("[role='dialog']"))) return;
+        const event = new KeyboardEvent("keydown", { code: input.code, ctrlKey: input.control, shiftKey: input.shift, altKey: input.alt });
+        if (focused instanceof HTMLElement && (blocksPlayerShortcut(focused, event, shortcuts) || focused.closest("[role='dialog']"))) return;
         if (input.code === "KeyF" && !input.control && !input.alt) void toggleFullscreen();
         else if (input.code === "Escape" && isFullscreen && !playlistOpen) void toggleFullscreen();
-        else window.dispatchEvent(new KeyboardEvent("keydown", { code: input.code, ctrlKey: input.control, shiftKey: input.shift, altKey: input.alt }));
+        else window.dispatchEvent(event);
       }
     }
   });
@@ -287,7 +288,7 @@ export function PlayerPage({
         return;
       }
       if (event.target instanceof HTMLElement && event.target.closest("[role='dialog']")) return;
-      if (event.target instanceof HTMLElement && (event.target.matches("input, textarea, select") || event.target.isContentEditable)) return;
+      if (event.target instanceof HTMLElement && blocksPlayerShortcut(event.target, event, shortcuts)) return;
       // Embedded keys are forwarded once by the main process, even when the
       // Chromium HWND has focus but its DOM does not. Leave text entry intact.
       if (isEmbeddedPlayback && event.isTrusted) {
@@ -915,6 +916,15 @@ export function PlayerPage({
       )}
     </section>
   );
+}
+
+function blocksPlayerShortcut(target: HTMLElement, event: KeyboardEvent, shortcuts: ShortcutSettings): boolean {
+  if (target.isContentEditable || target.matches("textarea, select")) return true;
+  if (!target.matches("input")) return false;
+  // Keep range keyboard navigation, but let explicit rotation shortcuts work
+  // after seeking/changing volume. A range is not a text-entry field.
+  return !target.matches("input[type='range']") ||
+    !(matchesShortcut(event, shortcuts.playerRotateLeft) || matchesShortcut(event, shortcuts.playerRotateRight));
 }
 
 function formatClock(seconds: number): string {

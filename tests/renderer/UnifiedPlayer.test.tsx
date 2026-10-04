@@ -131,6 +131,23 @@ describe("original player UI with embedded engine", () => {
     expect(b.api.embeddedPlayback.mock.calls.filter(([r]) => r.op === "rotate")).toHaveLength(count);
     view.unmount();
   });
+  it("rotates back while the progress slider is focused without changing its value", async () => {
+    const b = bridge();
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    await waitFor(() => expect(screen.getByText(/00:30/)).toBeInTheDocument());
+    act(() => b.input({ kind: "key", code: "ArrowRight", control: true, alt: false, shift: false }));
+    const slider = screen.getByRole("slider", { name: "播放进度" }); act(() => slider.focus());
+    act(() => b.input({ kind: "key", code: "ArrowLeft", control: true, alt: false, shift: false }));
+    expect(b.api.embeddedPlayback).toHaveBeenLastCalledWith(expect.objectContaining({ op: "rotate", value: 0 }));
+    expect(b.api.embeddedPlayback.mock.calls.some(([r]) => r.op === "seek")).toBe(false);
+    expect(slider).toHaveValue("30");
+    expect(fireEvent.keyDown(slider, { code: "ArrowRight", ctrlKey: true })).toBe(false);
+    expect(b.api.embeddedPlayback).toHaveBeenLastCalledWith(expect.objectContaining({ op: "rotate", value: 90 }));
+    b.api.embeddedPlayback.mockClear();
+    expect(fireEvent.keyDown(slider, { code: "ArrowRight" })).toBe(true);
+    expect(b.api.embeddedPlayback).not.toHaveBeenCalled();
+    view.unmount();
+  });
   it("clears stale toolbar focus on a surface click", async () => {
     const b = bridge();
     const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
