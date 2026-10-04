@@ -143,6 +143,8 @@ describe("original player UI with embedded engine", () => {
     expect(slider).toHaveValue("30");
     expect(fireEvent.keyDown(slider, { code: "ArrowRight", ctrlKey: true })).toBe(false);
     expect(b.api.embeddedPlayback).toHaveBeenLastCalledWith(expect.objectContaining({ op: "rotate", value: 90 }));
+    expect(fireEvent.keyDown(slider, { code: "", key: "ArrowLeft", ctrlKey: true })).toBe(false);
+    expect(b.api.embeddedPlayback).toHaveBeenLastCalledWith(expect.objectContaining({ op: "rotate", value: 0 }));
     b.api.embeddedPlayback.mockClear();
     expect(fireEvent.keyDown(slider, { code: "ArrowRight" })).toBe(true);
     expect(b.api.embeddedPlayback).not.toHaveBeenCalled();

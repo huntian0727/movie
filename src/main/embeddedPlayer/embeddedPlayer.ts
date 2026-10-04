@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { VideoRepository } from "../db/videoRepository.js";
 import { embeddedInputSchema, embeddedRequestSchema, type EmbeddedState } from "../../shared/embeddedPlayback.js";
 import { EmbeddedControlQueue, type NativeSnapshot } from "./controlQueue.js";
+import { getShortcutCode } from "../../shared/shortcuts.js";
 
 const snapshotSchema = z.object({
   token: z.number().int(), loaded: z.boolean(), time: z.number().finite().nullable(), duration: z.number().finite().nullable(),
@@ -145,7 +146,7 @@ export class EmbeddedPlayer {
         // A Chromium HWND can have OS focus without a focused DOM control after
         // native playback. Deliver one typed event to the original shortcut UI.
         if (!this.child || input.type !== "keyDown" || input.isAutoRepeat || input.meta) return;
-        const parsed = embeddedInputSchema.safeParse({ kind: "key", code: input.code, control: input.control, shift: input.shift, alt: input.alt });
+        const parsed = embeddedInputSchema.safeParse({ kind: "key", code: getShortcutCode(input), control: input.control, shift: input.shift, alt: input.alt });
         if (parsed.success && !(input.alt && input.code === "F4")) {
           w.webContents.send("player:embedded-input", parsed.data);
         }

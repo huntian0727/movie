@@ -11,6 +11,7 @@ export interface ShortcutDefinition {
 
 export interface ShortcutKeyboardEvent {
   code: string;
+  key?: string;
   ctrlKey: boolean;
   altKey: boolean;
   shiftKey: boolean;
@@ -46,14 +47,26 @@ export const SHORTCUT_DEFINITIONS: readonly ShortcutDefinition[] = [
 const NON_ASSIGNABLE_CODES = new Set(["", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight", "MetaLeft", "MetaRight", "Escape", "Enter", "Tab"]);
 const BINDING_PATTERN = /^(?:(?:Ctrl|Alt|Shift|Meta)\+)*(?:[A-Za-z][A-Za-z0-9]*)$/;
 
+export function getShortcutCode(event: Pick<ShortcutKeyboardEvent, "code" | "key">): string {
+  if (event.code) return event.code;
+  // Virtual-key/remote input can omit the physical scan code. Only normalize
+  // known keys; preserve physical codes for non-QWERTY keyboard layouts.
+  const key = event.key ?? "";
+  if (/^[a-z]$/i.test(key)) return `Key${key.toUpperCase()}`;
+  if (/^[0-9]$/.test(key)) return `Digit${key}`;
+  if (key === " ") return "Space";
+  return /^(Arrow(Left|Right|Up|Down)|F([1-9]|1[0-2])|Home|End|PageUp|PageDown|Escape|Enter|Tab|Delete|Backspace)$/.test(key) ? key : "";
+}
+
 export function shortcutFromKeyboardEvent(event: ShortcutKeyboardEvent): string | null {
-  if (NON_ASSIGNABLE_CODES.has(event.code)) return null;
+  const code = getShortcutCode(event);
+  if (NON_ASSIGNABLE_CODES.has(code)) return null;
   return [
     event.ctrlKey ? "Ctrl" : null,
     event.altKey ? "Alt" : null,
     event.shiftKey ? "Shift" : null,
     event.metaKey ? "Meta" : null,
-    event.code
+    code
   ].filter(Boolean).join("+");
 }
 

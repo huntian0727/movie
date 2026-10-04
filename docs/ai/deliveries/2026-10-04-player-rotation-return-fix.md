@@ -21,9 +21,11 @@
 
 桌面复查补充发现：进度/音量 range 获得焦点后，DOM 和内嵌输入适配器的“所有 input 均忽略快捷键”逻辑吞掉 Ctrl+方向键，转而执行 range 默认微调。增加聚焦进度条后“先旋转 90，再转回 0”的确定性回归，补充修复前 FAIL（最后请求仍为 90）；修复两个输入入口，只允许显式旋转快捷键穿过 range 的输入保护并阻止其默认动作。普通 range 方向键、真实文本输入、select、editable 和对话框保护保持不变。
 
+桌面虚拟键复查仍出现方向键微调、组合快捷键不识别，增补空物理 code 的输入契约：`src/shared/shortcuts.ts` 增加已知 key 的严格 fallback（有物理 code 时绝不覆盖），`src/main/embeddedPlayer/embeddedPlayer.ts` before-input-event 复用相同解析，并保留原 schema 的允许键白名单。新增 `tests/shared/shortcutKeyFallback.test.ts` 及空 code、Ctrl+ArrowLeft 的 range 回归。不扩大原生命令权限。
+
 ## Verification
 
-- 第一轮 `npm run test:release-gate`：PASS，完整 Vitest 96 文件 / 820 项。桌面复查补充的焦点修复后第二轮完整门禁 PASS，96 文件 / 821 项；两轮类型检查/构建、Windows 文件 37、迁移 32、性能 26 均通过。
+- 三轮 `npm run test:release-gate` 均 PASS：首轮 96 文件 / 820 项、焦点修复后 96 文件 / 821 项、空 code 回退后最终 97 文件 / 823 项；类型检查/构建、Windows 文件 37、迁移 32、性能 26 均通过。
 - `npm run prepare:electron` / `npm run test:electron-smoke`：PASS，Electron 33.4.11、ABI 130。
 - `node scripts/run-timeline-preview-smoke.mjs`：PASS，既有浮动预览渲染、授权、焦点和释放回归无异常。
 - 旧构建的真实 libmpv 合成矩阵也 PASS：这些样本会发重启事件，因此不能声称在真实样本上复现了用户视频的故障；确定性无重启回归测试证实队列缺陷。
