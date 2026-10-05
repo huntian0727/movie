@@ -2,7 +2,7 @@
 date: 2026-10-05
 branch: ai/subtitle-quick-load
 type: feat
-status: in-progress
+status: user-test-pending
 ---
 
 # 字幕快速搜索与加载
@@ -25,7 +25,9 @@ status: in-progress
 ## Verification
 
 - 定向回归：31 项 PASS，含新增缓存/选择/即时偏移/同 ID 文件替换隔离和主进程重复来源复用/丢失恢复。首轮 jsdom 缺少 Blob URL mock 和会话查询测试隔离，修正测试夹具后重跑通过。
-- 完整发布门禁、Electron/native 与包检查以及实际快捷方式启动：待最终交付记录更新。E2E 脚本不存在，不适用；桌面启动和 packaged smoke 单独执行。
+- 完整发布门禁 PASS：Node 22.23.1，lint/typecheck/build、Windows 文件 37 项、迁移 32 项、性能 31 项，113 个文件 / 980 项全部通过。仅有既有 Vite 大块提示和非字幕测试 act 提示。
+- 实现提交 2ed96b619b053039f032fb38b636c625ed8d85f9。隔离 checkout 的 Electron 33.4.11 ABI 130 main/native smoke、unpacked package、artifact 4106 条目、packaged smoke PASS。临时中性灰色视频真实 MPV 检查 PASS：ASS 选用、偏移应答、关闭/重选、保持暂停及重启恢复；全部使用测试夹具，不请求真实字幕来源。
+- 最终交付提交后再次生成同一分支桌面包、部署原快捷方式目标并实际启动检查入口，结果保存在 .tmp/quick-subtitle-desktop-proof.json 并在最终回复报告；该步骤不代表真实影片验收。E2E 脚本不存在，不适用；没有生成新的 NSIS 安装器。
 - 真实影片语言/同步/下载质量与体验验收：NOT RUN / USER_TEST_PENDING，由用户执行。
 
 ## Risks and follow-up

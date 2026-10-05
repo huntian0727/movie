@@ -1,0 +1,18 @@
+{
+  "task_id": "SUBTITLE-QUICK-LOAD",
+  "role": "Developer",
+  "status": "DEV_COMPLETE",
+  "commit": "2ed96b619b053039f032fb38b636c625ed8d85f9",
+  "branch": "ai/subtitle-quick-load",
+  "changed_files": ["src/renderer/components/SubtitleDialog.tsx, SubtitleQuickControls.tsx, subtitleSearchCache.ts, useSavedSubtitles.ts, PlayerPage.tsx, README.md", "src/renderer/styles.css", "src/main/subtitles/subtitleService.ts, README.md", "tests/main/subtitles.test.ts, tests/renderer/Subtitles.test.tsx, SubtitleQuickLoad.test.tsx"],
+  "tests": {
+    "focused": "PASS: 31 renderer/main contract checks.",
+    "release_gate": "PASS: Node 22.23.1 lint/typecheck/build, Windows 37, migration 32, performance 31, full 113 suites / 980 tests.",
+    "electron": "PASS: isolated implementation checkout Electron ABI 130 main/native, package, 4106 artifact entries and packaged smoke.",
+    "mpv_runtime": "PASS: neutral synthetic fixture real MPV ASS selection, offset acknowledgement, disable/reselect, pause preservation and persisted selection; no live provider calls.",
+    "desktop_delivery": "Final Commit fresh package and original shortcut verification recorded by Local PM in .tmp/quick-subtitle-desktop-proof.json.",
+    "real_film_acceptance": "NOT RUN / USER_TEST_PENDING; user owns real-film usability and synchronization acceptance."
+  },
+  "risks": ["Subtitle source latency and filename language clues remain external limits.", "Search cache has five-minute TTL; main candidate eviction may require refresh.", "Old saved subtitles lack the new reuse identity until downloaded again; optional manifest field must remain readable in any rollback.", "External player export and Chromium basic ASS limitations remain."],
+  "next": "Local PM desktop delivery, then user real-film acceptance"
+}
