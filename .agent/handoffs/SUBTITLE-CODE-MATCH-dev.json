@@ -1,0 +1,18 @@
+{
+  "task_id": "SUBTITLE-CODE-MATCH",
+  "role": "Developer",
+  "status": "DEV_COMPLETE",
+  "commit": "11aa7bb8fe46af95d32db386db8450f1f7b725b0",
+  "branch": "ai/subtitle-code-match",
+  "changed_files": ["src/shared/subtitleQuery.ts", "src/main/subtitles/providers.ts, subtitleService.ts, README.md", "src/renderer/components/subtitleSearchCache.ts, SubtitleDialog.tsx, README.md", "tests/shared/subtitleQuery.test.ts, tests/main/subtitleFreeSources.test.ts, tests/renderer/SubtitleQuickLoad.test.tsx"],
+  "tests": {
+    "focused": "PASS: 5 files / 49 tests; code variants, ordinary titles, full numeric identity, Thunder name parameter, service filtering and manual override, renderer keyword.",
+    "release_gate": "PASS: stable final source, Node 22.23.1 lint/typecheck/build, Windows 37, migration 32, performance 31, 114 suites / 991 tests. .tmp/code-match-release-gate.log.",
+    "electron": "PASS: isolated implementation checkout build and Electron 33.4.11 ABI 130 main/native smoke.",
+    "live_search": "SSIS-570 only, anonymous Thunder query: 20 returned, 18 code-matching; no download or content/synchronization acceptance.",
+    "desktop_delivery": "Final Commit package/artifact/packaged smoke and original shortcut entry evidence follows in .tmp/code-match-desktop-proof.json.",
+    "real_film_acceptance": "NOT RUN / USER_TEST_PENDING; user owns timing and language quality."
+  },
+  "risks": ["Missing code metadata is conservatively hidden; another explicit query/source may find additional versions.", "Filename extraction is conservative and cannot recognize every identifier series.", "A matching code does not prove subtitle language or time synchronization."],
+  "next": "Local PM final desktop package/shortcut checks then user real-film testing"
+}

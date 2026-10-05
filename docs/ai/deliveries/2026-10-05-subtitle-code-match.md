@@ -2,7 +2,7 @@
 date: 2026-10-05
 branch: ai/subtitle-code-match
 type: fix
-status: in-progress
+status: user-test-pending
 ---
 
 # 字幕编号关键词与结果匹配修复
@@ -26,7 +26,7 @@ status: in-progress
 - 定向 5 文件 / 49 项 PASS：SSIS-570 长描述、格式变体、紧凑形式、FC2、普通电影/季集及数字边界，迅雷真实 name 参数，主进程错误/未知编号排除和显式编辑优先，Renderer 实际关键词/高级输入框。首轮 FC2 被一般 PPV 模式抢先匹配，修正顺序后重跑通过。
 - 2026-10-05 北京时间，编译后的迅雷适配器只提交 SSIS-570 匿名查询：返回 20 条，18 条通过新编号检查；仅搜索，没有下载、播放质量或时间同步验收，不发送截图中的完整描述。
 - 完整发布门禁 PASS：Node 22.23.1、lint/typecheck/build、Windows 文件 37、迁移 32、性能 31、114 个文件 / 991 项；日志 .tmp/code-match-release-gate.log。首轮增加普通数字片名检查后暴露 Room 104 误识别，收紧非已知系列分隔符后，在稳定源码上完整重跑通过。
-- Electron/package 和最终原快捷方式入口核验：待交付结果更新。真实影片字幕内容/语言/同步验收 NOT RUN / USER_TEST_PENDING。
+- 实现提交 11aa7bb8fe46af95d32db386db8450f1f7b725b0。隔离 checkout build、Electron 33.4.11 ABI 130 main/native smoke PASS；后续交付提交仅更新文档/handoff。最终 Commit 后重新生成 unpacked 包、artifact/packaged smoke、部署和原快捷方式入口检查，结果存 .tmp/code-match-desktop-proof.json 并在最终回复报告。真实影片字幕内容/语言/同步验收 NOT RUN / USER_TEST_PENDING。E2E 脚本不存在，不适用；未生成新 NSIS 安装器。
 
 ## Risks and follow-up
 
