@@ -1,0 +1,17 @@
+{
+  "task_id": "SUBTITLE-FREE-SOURCES-V1",
+  "role": "Developer",
+  "status": "DEV_COMPLETE",
+  "commit": "fc9ad08ec925f8755b142a00161ad4faf4582259",
+  "branch": "ai/subtitle-free-sources-v1",
+  "changed_files": ["src/shared/subtitles.ts", "src/main/subtitles/providers.ts, subtitleCatHtml.ts, subtitleService.ts and README.md", "src/main/ipc.ts", "src/renderer/components/SubtitleDialog.tsx, SubtitleSettings.tsx and README.md", "package.json and package-lock.json", "tests/main/subtitleFreeSources.test.ts, subtitles.test.ts and tests/renderer/Subtitles.test.tsx"],
+  "tests": {
+    "focused": "PASS: 5 files / 47 tests, deterministic provider/service/renderer/IPC/security contracts.",
+    "release_gate": "PASS: Node 22.23.1, lint/typecheck/build, Windows paths 37, migrations 32, release performance 31, full 112 suites / 972 tests; .tmp/free-subtitle-release-gate.log.",
+    "electron": "PASS: isolated checkout of this implementation SHA, build and Electron 33.4.11 ABI 130 main/native smoke.",
+    "desktop_delivery": "Local PM final Commit packaging, artifact, packaged smoke and original shortcut entry check follows this handoff; evidence .tmp/free-subtitle-desktop-proof.json.",
+    "real_film_acceptance": "NOT RUN / USER_TEST_PENDING: explicitly assigned to the user; no QA/UI Agent verdict claimed."
+  },
+  "risks": ["Thunder API stability and Cat site/selected-language links are third-party dependencies.", "Thunder language labels are filename clues or unknown; Cat subtitles may be machine translations; match score cannot prove sync.", "No real-film website download/content/language/timing acceptance in this development turn. User owns testing.", "Existing Chromium basic ASS and external-player manual export limitations remain."],
+  "next": "Local PM technical desktop delivery, then User real-film acceptance"
+}
