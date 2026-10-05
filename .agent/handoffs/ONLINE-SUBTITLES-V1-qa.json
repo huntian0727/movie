@@ -1,0 +1,46 @@
+{
+  "task_id": "ONLINE-SUBTITLES-V1",
+  "role": "QA",
+  "status": "PASS_WITH_KNOWN_RISKS",
+  "commit": "9480d87d7aedb4a2ba8ba01ce3845ca6aeb62192",
+  "branch": "ai/online-subtitles-v1",
+  "review_scope": "Independent source/acceptance review of the subtitle implementation and integration committed as 9480d87d7aedb4a2ba8ba01ce3845ca6aeb62192. Local PM/root confirms the reviewed source fixes have not changed since independent retesting. This audit does not claim independent desktop delivery verification.",
+  "tests": {
+    "status": "PASS",
+    "summary": "Pinned Node 22: 6 focused suites / 60 tests passed; 2 independent temporary adversarial suites / 4 tests passed after rework.",
+    "focused": "subtitles, IPC contracts, role restrictions, preload/bridge, embedded acknowledgement/session controls, renderer search/download/configuration",
+    "adversarial": "PlayerPage download completion after closing the panel creates a native track; 2001-character upstream metadata remains readable across persistence; 50 saved versions with control-character metadata remain readable; obsolete subtitle negative acknowledgements/errors do not alter current state.",
+    "live_authenticated_provider_download": "NOT RUN: no user's own ASSRT/OpenSubtitles credentials supplied.",
+    "desktop_package_shortcut_media_validation": "NOT RUN by independent QA; Local PM/root owns final real desktop and packaging evidence.",
+    "full_final_release_gate": "NOT RUN by independent QA; Local PM/root owns the final gate. The initial accidentally broad QA invocation passed 111 repository suites, but included then-failing temporary QA reproductions and is not a final release PASS."
+  },
+  "findings": {
+    "open": [],
+    "resolved": [
+      "Closed subtitle dialogs dropped successful download results; guarded parent state delivery and refresh now pass the native-player reproduction.",
+      "Upstream metadata could produce unreadable saved manifests; bounded, control-cleaned metadata, saved-record validation and consistent manifest limits now pass oversized and 50-version reproductions.",
+      "New subtitle error/acknowledgement handling now rejects obsolete tokens and preserves video playback on current subtitle failure."
+    ]
+  },
+  "security_review": "Renderer exposes IDs and bounded typed inputs; account writes are main-only; credentials use Electron safeStorage with no plaintext fallback/readback; subtitle IPC sanitizes errors without logging credentials; official API requests have finite response/timeout limits; download redirects revalidate provider HTTPS hosts and never forward API credentials; persistent generated assets are confined by realpath and UUID metadata; source video files are not modified.",
+  "sources": [
+    "https://assrt.net/api/doc",
+    "https://ai.opensubtitles.com/docs",
+    "https://mpv.io/manual/stable/"
+  ],
+  "risks": [
+    "Authenticated search/download, quotas and real CDN behavior remain NOT RUN until a user configures their own service account.",
+    "Chromium renders basic ASS text cues; embedded MPV preserves ASS styling. External playback requires export/manual loading.",
+    "Archives, bitmap subtitles and font attachments are intentionally excluded.",
+    "Final desktop rebuild after delivery-document commit and real shortcut verification remain in progress under Local PM/root; independent QA did not run desktop checks.",
+    "Handoff commit identifies the reviewed implementation commit; compare Developer/QA handoffs against this SHA before release."
+  ],
+  "root_reported_evidence": {
+    "source": "Local PM/root follow-up; reported evidence, not independently executed by this QA agent.",
+    "release_gate": "PASS: 111 suites / 964 tests, Windows 37, migration 32, performance 31, lint/typecheck/build.",
+    "real_mpv_and_safe_storage": "PASS in isolated validation: ASS load, 1.5-second offset, disable/reselect, retained pause, persistence across service instances, Electron safeStorage.",
+    "isolated_electron_package_artifact": "PASS reported for isolated ABI checkout smoke/package/artifact; final desktop rebuild and shortcut review are still in progress.",
+    "live_authenticated_provider_download": "NOT RUN."
+  },
+  "next": "Local Project Manager"
+}

@@ -1,0 +1,20 @@
+{
+  "task_id": "ONLINE-SUBTITLES-V1",
+  "role": "Developer",
+  "commit": "9480d87d7aedb4a2ba8ba01ce3845ca6aeb62192",
+  "branch": "ai/online-subtitles-v1",
+  "status": "DEV_COMPLETE",
+  "outcome": "ASSRT/OpenSubtitles official API configuration, explicit search/download, durable subtitle associations, native and embedded playback, offset/export implemented.",
+  "changed_files": ["src/shared/subtitles.ts and videoTypes.ts", "src/main/subtitles/*", "src/main/index.ts, ipc.ts, security and player/embeddedPlayer.ts", "src/preload/*", "native/native-player-host/NativeHost.cs", "src/renderer subtitle Settings/Dialog/hooks and PlayerPage/App integration", "src/renderer/styles.css", "subtitle, IPC, preload, role, renderer and playback tests; module READMEs"],
+  "tests": {
+    "release_gate": "PASS: pinned Node 22.23.1; lint/typecheck/build, 111 suites / 964 tests, Windows paths 37, migrations 32, performance 31; .tmp/subtitle-final-gate.log.",
+    "electron_artifact": "PASS: isolated Electron ABI 130 checkout; Electron smoke, package:dir and verify:artifact. Final documentation commit will be packaged again and packaged smoke repeated before desktop delivery.",
+    "real_mpv": "PASS: real Electron safeStorage and NativeHost/MPV with isolated generated video/ASS and mocked provider; selected ASS track, offset acknowledgement 1.5 seconds, disable/reselect, retained pause and restart persistence. No real service download implied.",
+    "desktop": "PASS: original shortcut launches rebuilt candidate; online subtitle Settings and player search panel visible; separate unconfigured-source messages; modal hides native video; Escape restores video, pause and focus.",
+    "authenticated_provider_download": "NOT RUN: user account/API credentials unavailable.",
+    "independent_review": "Verdicts authored in separate QA/UI handoffs; Developer does not self-accept."
+  },
+  "reviewRequest": "Local PM requests an independent read-only acceptance audit before final release; reviewers may run focused tests but may not rebuild native modules or edit production files.",
+  "risks": ["Live authenticated provider search/download NOT RUN: own account/API credentials required", "Chromium ASS rendering uses plain cues; embedded MPV preserves original ASS", "External player requires manual exported subtitle loading", "Bitmap/archives/font attachments excluded", "Final package and remote push are Local PM delivery gates following this reviewed implementation commit."],
+  "next": "Local Project Manager"
+}

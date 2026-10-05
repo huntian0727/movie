@@ -1,0 +1,42 @@
+{
+  "task_id": "ONLINE-SUBTITLES-V1",
+  "role": "UI",
+  "status": "UI_REVIEW_PASS",
+  "commit": "9480d87d7aedb4a2ba8ba01ce3845ca6aeb62192",
+  "reviewed_state": "Committed ai/online-subtitles-v1 implementation; source corrections independently reviewed, final real desktop screenshots independently inspected on 2026-10-05 Asia/Shanghai",
+  "source_interaction_review": "PASS",
+  "desktop_review": "PASS for supplied screenshots and root-reported desktop interaction acceptance",
+  "evidence": [
+    "Independent read-only audit of SubtitleDialog, SubtitleSettings, useSavedSubtitles, PlayerPage/App/SettingsPage integration, subtitle styles and renderer tests.",
+    "rtk proxy node .tmp/run-node22.cjs exec -- vitest run tests/renderer/Subtitles.test.tsx: PASS, 9 tests after corrections, independently rerun at 18:52:49.",
+    "Clear search/source/language controls, version clues, provider outage distinct from zero results, password fields without secret readback, explicit clear/save, offset explanation and export limitation.",
+    "Independently inspected real desktop screenshots with view_image: .tmp/subtitle-ui-evidence/settings.png and .tmp/subtitle-ui-evidence/player-search.png. Settings shows clear provider configuration sections and empty secret inputs; player modal fits within the shown window with scrolling, readable search/language/source controls, separate unconfigured-source messages, and disabled offset/export while no subtitle is selected. No native video or timeline preview obscures the modal in the screenshot.",
+    "Desktop operations performed by root, not UI reviewer: launched new package through actual desktop shortcut; verified settings entry; opened native player subtitle modal with native video hidden and no preview coverage; searched with no credentials; Escape restored native video, preserved paused state and returned focus to subtitle button. Reviewer independently checked screenshots; keyboard/playback observations are attributed to root."
+  ],
+  "findings": [],
+  "resolved_findings": [
+    {
+      "priority": "P1",
+      "file": "src/renderer/components/SubtitleDialog.tsx",
+      "line": 49,
+      "issue": "Closing during download/select/offset drops the operation result before updating the parent. The service persists the change, but useSavedSubtitles reads only on video/API changes, so the native VTT and reopened saved list stay stale for the same video. The busy copy explicitly permits closing; the current unmount test enshrines this loss.",
+      "resolution": "Completed action state now reaches parent before dialog alive guard. Parent hook guards mounted state, current video and request sequence; panel open refreshes saved state. Added real PlayerPage close-during-download to native track regression. Independently verified source and passing tests."
+    },
+    {
+      "priority": "P2",
+      "file": "src/renderer/components/PlayerPage.tsx",
+      "line": 640,
+      "issue": "Floating native timeline preview has subtitleOpen in dependencies but omits it from the hide condition. Non-null pending hover can reshow the preview while the subtitle modal is open.",
+      "resolution": "subtitleOpen included in preview hide guard; source correction verified. Supplied real screenshot has no video/preview covering modal, and root verified native video hide/restore and no preview coverage."
+    },
+    {
+      "priority": "P2",
+      "file": "src/renderer/components/SubtitleDialog.tsx",
+      "line": 80,
+      "issue": "Saved-state read failure leaves state null, so the modal indefinitely says it is reading records. The actual failure is only a PlayerPage banner behind the modal.",
+      "resolution": "stateError passed into dialog; null saved state now shows actionable alert and retry button. Added saved-record failure/retry regression; focused suite passes."
+    }
+  ],
+  "limits": ["Real authenticated provider search/download NOT RUN: user-owned API/account credentials required.", "No independent interactive desktop control by UI reviewer; root executed desktop interactions and reviewer independently inspected resulting screenshots.", "Visual acceptance covers supplied settings and player modal window sizes; narrower responsive behavior reviewed in source, not independently exercised on desktop."],
+  "next": "Local Project Manager: finalize delivery documentation and normal commit/push; retain authenticated-provider test limitation in user delivery report."
+}
