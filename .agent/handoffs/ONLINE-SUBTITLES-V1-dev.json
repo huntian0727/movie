@@ -5,7 +5,7 @@
   "branch": "ai/online-subtitles-v1",
   "status": "DEV_COMPLETE",
   "outcome": "ASSRT/OpenSubtitles official API configuration, explicit search/download, durable subtitle associations, native and embedded playback, offset/export implemented.",
-  "changed_files": ["src/shared/subtitles.ts and videoTypes.ts", "src/main/subtitles/*", "src/main/index.ts, ipc.ts, security and player/embeddedPlayer.ts", "src/preload/*", "native/native-player-host/NativeHost.cs", "src/renderer subtitle Settings/Dialog/hooks and PlayerPage/App integration", "src/renderer/styles.css", "subtitle, IPC, preload, role, renderer and playback tests; module READMEs"],
+  "changed_files": ["src/shared/subtitles.ts, embeddedPlayback.ts and videoTypes.ts", "src/main/subtitles/*", "src/main/index.ts, ipc.ts, security.ts, preload.cts and embeddedPlayer/embeddedPlayer.ts", "native/embedded-mpv/NativeHost.cs", "src/renderer/components/SubtitleDialog.tsx, SubtitleSettings.tsx, useSavedSubtitles.ts, PlayerPage.tsx and SettingsPage.tsx", "src/renderer/App.tsx and styles.css", "subtitle, IPC, preload, role, renderer and playback tests; module READMEs"],
   "tests": {
     "release_gate": "PASS: pinned Node 22.23.1; lint/typecheck/build, 111 suites / 964 tests, Windows paths 37, migrations 32, performance 31; .tmp/subtitle-final-gate.log.",
     "electron_artifact": "PASS: isolated Electron ABI 130 checkout; Electron smoke, package:dir and verify:artifact. Final documentation commit will be packaged again and packaged smoke repeated before desktop delivery.",

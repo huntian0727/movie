@@ -25,7 +25,7 @@ status: source-and-desktop-acceptance-complete
 - MPV 保留原 ASS 样式，Chromium 转文本 VTT，外部播放器导出后手动加载。字幕失败独立提示，不中断视频。
 - 完整接线 shared/preload/IPC/role policy，账号写入限主窗口；旧会话与旧视频响应隔离。弹窗隐藏原生窗口/预览并支持 Escape、焦点恢复与焦点约束。
 - 独立 QA/UI 发现的关闭弹窗丢失下载结果、过长元数据导致 manifest 不可读、旧 token 错误、预览覆盖弹窗和记录读取失败无恢复提示均已修复并复核。
-- 修改 main/subtitles、shared、IPC/播放服务、NativeHost、renderer 设置/播放器、相关测试与模块 README；不修改扫描、CloudDrive 或文件删除业务。
+- 修改 main/subtitles、shared、IPC/播放服务、`native/embedded-mpv/NativeHost.cs`、renderer 设置/播放器、相关测试与模块 README；不修改扫描、CloudDrive 或文件删除业务。
 
 ## Verification
 
