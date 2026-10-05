@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { SubtitleCandidate, SubtitleCredentials, SubtitleProvider } from "../../shared/subtitles.js";
 import { parseCatDownload, parseCatResults } from "./subtitleCatHtml.js";
+import { matchesSubtitleCode, subtitleCode, suggestSubtitleQuery } from "../../shared/subtitleQuery.js";
+export { suggestSubtitleQuery } from "../../shared/subtitleQuery.js";
 
 export type SearchLanguage = "any" | "chinese" | "bilingual" | "english";
 export interface ProviderCandidate extends SubtitleCandidate { sourceId: string; sourceFile: string }
@@ -13,12 +15,9 @@ const osItem = z.object({ attributes: z.object({ language: z.string(), release: 
   moviehash_match: z.boolean().optional(), feature_details: z.object({ title: name, year: z.number().nullish() }).optional(),
   files: z.array(z.object({ file_id: z.number().int().positive(), file_name: name })).max(100) }) });
 
-export function suggestSubtitleQuery(filename: string): string {
-  return filename.replace(/\.[a-z0-9]{2,5}$/i, "").replace(/[._]/g, " ")
-    .replace(/\b(?:480p|720p|1080[pi]|2160p|4k|8k|blu[ -]?ray|b[dr]rip|web[ -]?(?:dl|rip)|hdtv|dvdrip|remux|x26[45]|h26[45]|hevc|avc|aac|ac3|dts|truehd|atmos)\b.*$/i, "")
-    .replace(/[\[\]()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 240);
-}
 export function scoreCandidate(candidate: Pick<SubtitleCandidate, "title" | "release" | "filename">, filename: string, query: string): { score: number; matches: string[] } {
+  const code = subtitleCode(query);
+  if (code) return matchesSubtitleCode(candidate, code) ? { score: 90, matches: ["编号匹配"] } : { score: 0, matches: [] };
   const normalize = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
   const text = normalize(`${candidate.title} ${candidate.release} ${candidate.filename}`);
   const wanted = normalize(query.replace(/\b(?:19|20)\d{2}\b/g, ""));
@@ -132,7 +131,7 @@ export class SubtitleProviders {
   }
   private async searchThunder(query: string, language: SearchLanguage, filename: string): Promise<ProviderCandidate[]> {
     // Filename is a useful release clue; an explicitly edited query takes precedence.
-    const nameQuery = query === suggestSubtitleQuery(filename) ? filename : query;
+    const nameQuery = subtitleCode(query) ?? (query === suggestSubtitleQuery(filename) ? filename : query);
     const raw = await this.json(`https://api-shoulei-ssl.xunlei.com/oracle/subtitle?${new URLSearchParams({ name: nameQuery })}`);
     const body = z.object({ code: z.number(), result: z.string(), data: z.array(z.unknown()).max(500).nullish() }).safeParse(raw);
     if (!body.success || body.data.code !== 0 || body.data.result !== "ok") throw new Error("字幕服务查询失败，请稍后重试或换用其他来源");

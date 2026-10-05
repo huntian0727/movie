@@ -20,6 +20,17 @@ beforeEach(() => {
 });
 afterEach(() => { localStorage.clear(); vi.restoreAllMocks(); });
 describe("quick subtitle workflow", () => {
+  it("searches a descriptive filename by its code and shows the exact keyword", async () => {
+    const api = fixture();
+    vi.mocked(api.searchSubtitles).mockResolvedValue({ query: "SSIS-570", candidates: [], providers: result.providers });
+    render(<PlayerPage video={{ ...video, id: "structured-code", filename: "SSIS-570 描述文字和姓名.mp4" }} subtitleApi={api} />);
+    fireEvent.click(screen.getByRole("button", { name: "查找字幕" }));
+    await screen.findByText(/未找到编号 SSIS-570/);
+    expect(api.searchSubtitles).toHaveBeenCalledWith(expect.objectContaining({ videoId: "structured-code", query: "SSIS-570" }));
+    expect(screen.getByText("SSIS-570", { selector: "strong" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "更多字幕 / 修改片名" }));
+    expect(screen.getByLabelText("影片名称或发行版本")).toHaveValue("SSIS-570");
+  });
   it("starts only on click, recommends three Chinese versions, reuses results and auto-closes after selection", async () => {
     const api = fixture();
     const view = render(<PlayerPage video={video} subtitleApi={api} />);

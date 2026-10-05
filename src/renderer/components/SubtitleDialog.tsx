@@ -4,6 +4,7 @@ import type { SubtitleAction, SubtitleApi, SubtitleSearchResult, SubtitleState }
 import { subtitleProviderLabels, subtitleProviderWebsites, type SubtitleProvider } from "../../shared/subtitles";
 import { readSubtitlePreferences, saveSubtitlePreferences, searchSubtitleCache, subtitleQuery, recommendedSubtitles } from "./subtitleSearchCache";
 import type { VideoRecord } from "../../shared/videoTypes";
+import { subtitleCode } from "../../shared/subtitleQuery";
 
 export type PlayerSubtitleApi = Pick<SubtitleApi, "openSubtitleWebsite" | "getSubtitleConfig" | "searchSubtitles" | "getSubtitleState" | "subtitleAction">;
 const label = (p: SubtitleProvider) => subtitleProviderLabels[p];
@@ -80,6 +81,7 @@ export function SubtitleDialog({ video, api, state, onState, onClose, external, 
       <header><div><h2 id="subtitle-title">{advanced ? "查找字幕" : "快捷字幕"}</h2><p title={video.filename}>{video.filename}</p></div><button className="player-icon-button" aria-label="关闭字幕面板" onClick={onClose}><X size={20} /></button></header>
       <div className="subtitle-body">
         {!advanced && <><p className="subtitle-note">优先推荐中文和双语，点选即可加载。</p>
+          <p className="subtitle-note">搜索词：<strong>{result?.query ?? query}</strong></p>
           {external && <p className="subtitle-note">外部播放器请在“更多字幕”中导出后手动载入。</p>}
           <div className="subtitle-quick-actions"><button disabled={!!busy} onClick={() => void search(true)}>重新搜索</button><button onClick={() => setAdvanced(true)}>更多字幕 / 修改片名</button></div>
           {state?.items.length ? <label>已保存字幕<select value={state.selectedId ?? ""} disabled={!!busy} onChange={e => void action({ op: "select", id: e.target.value || null })}><option value="">关闭外挂字幕</option>{state.items.map(item => <option key={item.id} value={item.id}>{item.language} · {item.filename}</option>)}</select></label> : null}
@@ -100,7 +102,7 @@ export function SubtitleDialog({ video, api, state, onState, onClose, external, 
         {(hint || state?.message) && <p role="status" className="subtitle-note">{state?.message || hint}</p>}
         {result && <section aria-label="字幕搜索结果">
           {result.providers.map(p => <p key={p.provider} className={p.status === "failed" ? "subtitle-error" : "subtitle-note"}>{label(p.provider)} · {p.status === "ok" ? "搜索完成" : p.message}</p>)}
-          {!result.candidates.length && result.providers.some(p => p.status === "ok") && <p className="subtitle-empty">没有找到可直接下载的字幕。可尝试英文片名、年份或具体季集。</p>}
+          {!result.candidates.length && result.providers.some(p => p.status === "ok") && <p className="subtitle-empty">{subtitleCode(result.query) ? `未找到编号 ${subtitleCode(result.query)} 对应的字幕。可在“更多字幕”中换用其他来源。` : "没有找到可直接下载的字幕。可尝试英文片名、年份或具体季集。"}</p>}
           <div className="subtitle-results">{results.map(c => <article key={c.id} className="subtitle-result">
             <div><strong>{c.title}</strong><p>{c.language} · {label(c.provider)} · {c.format.toUpperCase()}{advanced ? ` · 匹配分 ${c.score}` : ""}</p><p className="subtitle-release">{c.release}</p>{advanced && <><small>{c.filename}</small><small>{c.matches.length ? c.matches.join(" · ") : "尚无版本匹配线索"}{c.downloads !== null ? ` · 下载 ${c.downloads}` : ""}</small></>}</div>
             <button disabled={!!busy} onClick={() => void action({ op: "download", id: c.id })}><Download size={16} />下载并使用</button>

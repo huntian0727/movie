@@ -1,6 +1,7 @@
 import type { SubtitleSearchRequest, SubtitleSearchResult } from "../../shared/subtitles";
 import type { VideoRecord } from "../../shared/videoTypes";
 import type { PlayerSubtitleApi } from "./SubtitleDialog";
+import { suggestSubtitleQuery } from "../../shared/subtitleQuery";
 
 export type SearchPreferences = { language: "any" | "chinese" | "bilingual" | "english"; provider: NonNullable<SubtitleSearchRequest["provider"]> };
 const preferenceKey = "movie.subtitle-search.preferences.v1";
@@ -19,8 +20,7 @@ export function saveSubtitlePreferences(value: SearchPreferences) {
   try { localStorage.setItem(preferenceKey, JSON.stringify(value)); } catch { /* Optional preference. */ }
 }
 export function subtitleQuery(video: VideoRecord) {
-  return queries.get(subtitleVideoKey(video)) ?? video.filename.replace(/\.[a-z0-9]+$/i, "").replace(/[._]/g, " ")
-    .replace(/\b(?:480p|720p|1080[pi]|2160p|4k|blu[ -]?ray|web[ -]?(?:dl|rip)|remux|x26[45]|hevc)\b.*$/i, "").trim().slice(0, 240);
+  return queries.get(subtitleVideoKey(video)) ?? suggestSubtitleQuery(video.filename);
 }
 export async function searchSubtitleCache(api: PlayerSubtitleApi, video: VideoRecord, input: SubtitleSearchRequest, fresh = false) {
   let cache = caches.get(api);

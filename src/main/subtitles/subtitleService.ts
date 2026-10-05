@@ -7,6 +7,7 @@ import { subtitleActionSchema, subtitleSearchSchema, subtitleProviderSchema, typ
 import { atomicWrite, type SubtitleCredentialStore } from "./secureStore.js";
 import { SubtitleProviders, scoreCandidate, suggestSubtitleQuery, type ProviderCandidate } from "./providers.js";
 import { decodeSubtitle, parseSubtitle, toVtt } from "./subtitleText.js";
+import { matchesSubtitleCode, subtitleCode } from "../../shared/subtitleQuery.js";
 
 const savedSchema = z.object({ id: z.string().uuid(), provider: subtitleProviderSchema, title: z.string().max(2000),
   language: z.string().max(2000), release: z.string().max(2000), filename: z.string().max(2000),
@@ -64,7 +65,8 @@ export class SubtitleService {
   }
   async search(input: SubtitleSearchRequest) {
     const request = subtitleSearchSchema.parse(input), video = this.repo.getVideo(request.videoId);
-    const query = request.query?.trim() || suggestSubtitleQuery(video.filename);
+    const requestedQuery = request.query?.trim() || suggestSubtitleQuery(video.filename);
+    const query = subtitleCode(requestedQuery) ?? requestedQuery;
     if (!query) throw new Error("请输入影片名称或发行版本");
     if (this.searches.has(video.id) || this.searches.size >= 2) throw new Error("字幕搜索正在进行，请稍后再试");
     this.searches.add(video.id);
@@ -81,7 +83,8 @@ export class SubtitleService {
         try { return { provider, status: "ok" as const, message: "", candidates: (await this.providers.search(provider, c, query, request.language, video.filename)).slice(0, 100) }; }
         catch (error) { return { provider, status: "failed" as const, message: error instanceof Error && /^字幕|^请/.test(error.message) ? error.message : "字幕来源返回异常，请稍后重试", candidates: [] as ProviderCandidate[] }; }
       }));
-      const publicCandidates = results.flatMap(r => r.candidates).map(candidate => {
+      const code = subtitleCode(query);
+      const publicCandidates = results.flatMap(r => r.candidates).filter(candidate => !code || matchesSubtitleCode(candidate, code)).map(candidate => {
         for (const key of ["title", "language", "release", "filename"] as const) candidate[key] = candidate[key].replace(/[\p{Cc}\p{Cf}]/gu, "").slice(0, 2000);
         candidate.format = candidate.format.slice(0, 64);
         Object.assign(candidate, scoreCandidate(candidate, video.filename, query));

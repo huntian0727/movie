@@ -17,6 +17,24 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => fs.rm(root, { recursive: true, force: true }))); });
 
 describe("no-key subtitle adapters", () => {
+  it("sends only the structured code to Thunder, including the automatic query case", async () => {
+    const fetcher = vi.fn(async () => Response.json({ code: 0, result: "ok", data: [] }));
+    const provider = new SubtitleProviders(fetcher as typeof fetch);
+    await provider.search("thunder", {}, "SSIS-570", "any", "SSIS-570 描述文字和姓名.mp4");
+    expect(new URL((fetcher.mock.calls[0] as unknown as [string])[0]).searchParams.get("name")).toBe("SSIS-570");
+  });
+  it("filters wrong and unmarked codes before exposing any provider candidate", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "yingxia-code-match-")); roots.push(root);
+    const video = { id: "code-video", filename: "SSIS-570 描述文字和姓名.mp4", sizeBytes: 10, modifiedAt: "v1" } as VideoRecord;
+    const fetcher = vi.fn(async () => Response.json({ code: 0, result: "ok", data: [item("姓名SSIS-037.srt"), item("姓名.srt"), item("SSIS-5700.srt"), item("SSIS-570.chs.srt")] }));
+    const service = new SubtitleService({ getVideo: () => video }, root, { get: vi.fn() } as unknown as SubtitleCredentialStore, new SubtitleProviders(fetcher as typeof fetch));
+    const result = await service.search({ videoId: video.id, provider: "thunder", language: "any" });
+    expect(result.query).toBe("SSIS-570"); expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0].filename).toBe("SSIS-570.chs.srt"); expect(result.candidates[0].matches).toContain("编号匹配");
+    expect(new URL((fetcher.mock.calls[0] as unknown as [string])[0]).searchParams.get("name")).toBe("SSIS-570");
+    const edited = await service.search({ videoId: video.id, provider: "thunder", query: "SSIS-037", language: "any" });
+    expect(edited.candidates.map(c => c.filename)).toEqual(["姓名SSIS-037.srt"]);
+  });
   it("searches Thunder with release filename without eagerly downloading or sending credentials", async () => {
     const fetcher = vi.fn(async () => Response.json({ code: 0, result: "ok", data: [item("Movie.chn.srt"), item("Movie.srt"), item("Movie.zip", "zip")] }));
     const api = new SubtitleProviders(fetcher as typeof fetch);
