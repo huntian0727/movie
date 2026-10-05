@@ -25,6 +25,11 @@ export function configureSecurityLogger(logger: StructuredLogger | undefined): v
 }
 
 const playerAllowedChannels = new Set<string>([
+  IPC_CHANNELS.subtitleWebsite,
+  IPC_CHANNELS.subtitleConfigGet,
+  IPC_CHANNELS.subtitleSearch,
+  IPC_CHANNELS.subtitleState,
+  IPC_CHANNELS.subtitleAction,
   IPC_CHANNELS.embeddedPlayback,
   IPC_CHANNELS.previewImageLoad,
   IPC_CHANNELS.previewImageCancel,

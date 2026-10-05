@@ -16,7 +16,8 @@ vi.mock("node:fs", async importOriginal => {
 });
 import { EmbeddedPlayer } from "../../src/main/embeddedPlayer/embeddedPlayer";
 
-async function fixture(startup?: { begin(videoId: string): void; finish(videoId?: string, reason?: string): void }, buffering = false) {
+async function fixture(startup?: { begin(videoId: string): void; finish(videoId?: string, reason?: string): void }, buffering = false,
+  subtitleGetter?: (id: string) => Promise<{ path: string | null; offsetSeconds: number; configured?: boolean }>) {
   const child = Object.assign(new EventEmitter(), {
     stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null,
     signalCode: null, stdin: { writable: true, on: vi.fn(), write: vi.fn(), end: vi.fn() }, kill: vi.fn()
@@ -27,7 +28,7 @@ async function fixture(startup?: { begin(videoId: string): void; finish(videoId?
   const sender = { on: vi.fn(), send: vi.fn() };
   const w = { webContents: sender, setMenu: vi.fn(), on: vi.fn(), isDestroyed: () => false, isFullScreen: () => false, getContentSize: () => [1280, 720], getBounds: () => ({ x: 0, y: 0, width: 1280, height: 720 }), getNativeWindowHandle: () => Buffer.from([1, 0, 0, 0, 0, 0, 0, 0]) } as unknown as BrowserWindow;
   const repo = { getVideo: () => ({ id: "v", path: "C:/neutral.mp4", isMissing: false }), recordPlayback: vi.fn(), getPlaybackPosition: () => 0 } as unknown as VideoRepository;
-  const player = new EmbeddedPlayer(repo, () => w, { host: "host.exe", directory: "runtime" }, startup);
+  const player = new EmbeddedPlayer(repo, () => w, { host: "host.exe", directory: "runtime" }, startup, undefined, subtitleGetter);
   const event = { sender } as unknown as IpcMainInvokeEvent;
   const emit = (value: object) => child.stdout.write(JSON.stringify(value) + "\n");
   await player.handle(event, { op: "start", videoId: "v", sessionKey: "one", autoplay: false });
@@ -42,6 +43,47 @@ async function fixture(startup?: { begin(videoId: string): void; finish(videoId?
 
 afterEach(() => { vi.useRealTimers(); runtime.spawn.mockClear(); });
 describe("pause confirmation without periodic telemetry", () => {
+  it("auto-loads saved subtitles with correlated acknowledgement and preserves playback", async () => {
+    const getter = vi.fn(async () => ({ path: "C:/saved/Chinese.ass", offsetSeconds: 1.5 }));
+    const f = await fixture(undefined, false, getter);
+    try {
+      await vi.waitFor(() => expect(f.commands().some(c => c.op === "subtitle-add")).toBe(true));
+      const add = f.commands().find(c => c.op === "subtitle-add");
+      f.emit({ type: "ack", op: add.op, token: 999, controlId: add.controlId, result: 0 });
+      await Promise.resolve(); expect(f.commands().some(c => c.op === "subtitle-delay")).toBe(false);
+      f.emit({ type: "ack", op: add.op, token: 1, controlId: add.controlId, result: 0 });
+      await vi.waitFor(() => expect(f.commands().some(c => c.op === "subtitle-delay")).toBe(true));
+      const delay = f.commands().find(c => c.op === "subtitle-delay"); expect(delay.value).toBe(1.5);
+      f.emit({ type: "ack", op: delay.op, token: 1, controlId: delay.controlId, result: 0 });
+      expect(await f.call({ op: "state" })).toMatchObject({ phase: "paused", time: 3, paused: true });
+      expect(f.commands().filter(c => c.op === "seek" || c.op === "pause")).toHaveLength(0);
+    } finally { f.player.dispose(); }
+  });
+  it("does not stop video when native subtitle loading fails", async () => {
+    const f = await fixture(undefined, false, async () => ({ path: null, offsetSeconds: 0 }));
+    try {
+      const pending = f.player.applySavedSubtitle("v");
+      await vi.waitFor(() => expect(f.commands().some(c => c.op === "subtitle-track")).toBe(true));
+      const command = f.commands().find(c => c.op === "subtitle-track");
+      f.emit({ type: "ack", op: command.op, token: 999, controlId: command.controlId, result: -1 });
+      f.emit({ type: "error", op: command.op, token: 999, controlId: command.controlId });
+      expect((await f.call({ op: "state" })).subtitleError).toBeUndefined();
+      f.emit({ type: "ack", op: command.op, token: 1, controlId: command.controlId, result: -1 });
+      await expect(pending).rejects.toThrow("加载失败");
+      expect(await f.call({ op: "state" })).toMatchObject({ phase: "paused", time: 3 });
+      expect((await f.call({ op: "state" })).subtitleError).toBeTruthy();
+    } finally { f.player.dispose(); }
+  });
+  it("ignores a saved subtitle arriving after the decode session stops", async () => {
+    let resolve!: (value: { path: string | null; offsetSeconds: number }) => void;
+    const f = await fixture(undefined, false, () => new Promise(r => { resolve = r; }));
+    try {
+      await vi.waitFor(() => expect(resolve).toBeTypeOf("function"));
+      await f.call({ op: "stop" }); resolve({ path: "C:/old.ass", offsetSeconds: 2 });
+      await Promise.resolve(); await Promise.resolve();
+      expect(f.commands().some(c => c.op === "subtitle-add")).toBe(false);
+    } finally { f.player.dispose(); }
+  });
   it("forwards fullscreen masks without changing video bounds and rejects full occlusion", async () => {
     const f = await fixture();
     try {

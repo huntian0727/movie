@@ -13,6 +13,8 @@ import { LibraryPageQueryService } from "./libraryPage/libraryPageQueryService.j
 import { SourceFolderRemovalService } from "./sourceFolderRemoval/sourceFolderRemovalService.js";
 import { DuplicateCleanupRepository } from "./db/duplicateCleanupRepository.js";
 import { registerIpcHandlers } from "./ipc.js";
+import { SubtitleService } from "./subtitles/subtitleService.js";
+import { createSubtitleCredentialStore } from "./subtitles/secureStore.js";
 import { ScanManager } from "./media/scanManager.js";
 import { getMediaCacheRoot, migrateLegacyMediaCache } from "./media/cacheService.js";
 import { MediaCacheManager } from "./media/cacheManager.js";
@@ -164,6 +166,7 @@ app.whenReady().then(async () => {
   const settings = await createSettingsStore();
   configureCloudDriveRuntime(settings.get().cloudDrive, process.env);
   const userDataPath = app.getPath("userData");
+  const subtitles = new SubtitleService(repo, path.join(userDataPath, "subtitles"), createSubtitleCredentialStore(userDataPath));
   const cacheRoot = getMediaCacheRoot(userDataPath);
   try {
     await migrateLegacyMediaCache(userDataPath, cacheRoot);
@@ -212,7 +215,7 @@ app.whenReady().then(async () => {
   embeddedPlayer = new EmbeddedPlayer(repo, () => playerWindows?.getPlayerWindow() ?? null, {
     host: app.isPackaged ? path.join(process.resourcesPath, "native-player", "NativeHost.exe") : path.resolve(currentDir, "../../native-bin/NativeHost.exe"),
     directory: path.join(userDataPath, "native-player")
-  }, playbackStartup, logger);
+  }, playbackStartup, logger, videoId => subtitles.getPlaybackSubtitle(videoId));
   registerIpcHandlers(repo, {
     database,
     assetCenterQueries,
@@ -241,6 +244,7 @@ app.whenReady().then(async () => {
     metadataQueue,
     playerWindows,
     embeddedPlayer,
+    subtitles,
     domainEvents,
     duplicateCleanup,
     duplicateCleanupJobs

@@ -18,6 +18,10 @@ afterEach(() => {
 });
 
 describe("Electron security policy", () => {
+  it("restricts subtitle account writes to main and exposes only typed actions to players", () => {
+    expect(getAllowedIpcRoles(IPC_CHANNELS.subtitleConfigSave)).toEqual(["main"]);
+    for (const channel of [IPC_CHANNELS.subtitleConfigGet, IPC_CHANNELS.subtitleWebsite, IPC_CHANNELS.subtitleSearch, IPC_CHANNELS.subtitleState, IPC_CHANNELS.subtitleAction]) expect(getAllowedIpcRoles(channel)).toEqual(["main", "player"]);
+  });
   it("limits the preview renderer to image queue IPC and only players may position it", () => {
     expect(getAllowedIpcRoles(IPC_CHANNELS.playerTimelinePreview)).toEqual(["player"]);
     for (const channel of [IPC_CHANNELS.previewImageLoad, IPC_CHANNELS.previewImageCancel, IPC_CHANNELS.previewImageState]) expect(getAllowedIpcRoles(channel)).toContain("timeline-preview");

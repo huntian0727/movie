@@ -1,5 +1,7 @@
 import { dialog, ipcMain as electronIpcMain, shell } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
+import type { SubtitleService } from "./subtitles/subtitleService.js";
+import { subtitleActionSchema, subtitleConfigSchema, subtitleSearchSchema, subtitleProviderSchema } from "../shared/subtitles.js";
 import { z } from "zod";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -130,6 +132,12 @@ const ipcMain = {
         }
         return result;
       } catch (error) {
+        if (channel.startsWith("subtitles:")) {
+          // Native filesystem/network and schema diagnostics may contain sensitive input.
+          // Only our own user-facing messages cross this boundary, with no error logging.
+          const message = error instanceof z.ZodError ? "字幕请求参数无效" : error instanceof Error && /^(字幕|请|保存的字幕|系统安全存储|这部影片|影片文件|OpenSubtitles)/.test(error.message) ? error.message : "字幕操作失败，请检查网络、磁盘权限和账号配置后重试";
+          throw new Error(message);
+        }
         ipcLogger?.error({
           module: "ipc",
           operationId,
@@ -346,6 +354,7 @@ interface IpcDependencies {
   cacheManager: MediaCacheManager;
   playerWindows: PlayerWindowCoordinator;
   embeddedPlayer?: EmbeddedPlayer;
+  subtitles?: SubtitleService;
   domainEvents: DomainEventBus;
   scanManager: ScanManager;
   metadataQueue: MetadataQueue;
@@ -414,6 +423,26 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 }
 
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
+  const subtitles = () => { if (!dependencies.subtitles) throw new Error("字幕服务未就绪"); return dependencies.subtitles; };
+  ipcMain.handle(IPC_CHANNELS.subtitleConfigGet, () => subtitles().credentials.status());
+  ipcMain.handle(IPC_CHANNELS.subtitleWebsite, (_event, payload) => shell.openExternal(subtitleProviderSchema.parse(payload) === "assrt" ? "https://assrt.net/" : "https://www.opensubtitles.com/"));
+  ipcMain.handle(IPC_CHANNELS.subtitleConfigSave, (_event, payload) => subtitles().credentials.save(subtitleConfigSchema.parse(payload)));
+  ipcMain.handle(IPC_CHANNELS.subtitleSearch, (_event, payload) => subtitles().search(subtitleSearchSchema.parse(payload)));
+  ipcMain.handle(IPC_CHANNELS.subtitleState, (_event, videoId) => subtitles().getState(z.string().min(1).max(128).parse(videoId)));
+  ipcMain.handle(IPC_CHANNELS.subtitleAction, async (event, payload) => {
+    const request = subtitleActionSchema.parse(payload);
+    if (request.op === "export") {
+      const asset = await subtitles().exportAsset(request.videoId, request.id!);
+      const selected = await dialog.showSaveDialog({ title: "导出原始字幕（不含播放偏移）", defaultPath: asset.filename,
+        filters: [{ name: "字幕", extensions: [path.extname(asset.filename).slice(1)] }] });
+      if (!event.sender.isDestroyed() && !selected.canceled && selected.filePath) await writeFile(selected.filePath, asset.data);
+      return subtitles().getState(request.videoId);
+    }
+    const state = await subtitles().action(request);
+    try { await dependencies.embeddedPlayer?.applySavedSubtitle(request.videoId); }
+    catch { state.message = "字幕已保存，播放器加载未完成；请重新选择字幕或重试播放"; }
+    return state;
+  });
   ipcMain.handle(IPC_CHANNELS.playerTimelinePreview, (event, payload) => dependencies.playerWindows.showTimelinePreview(event.sender.id, payload));
   ipcMain.handle(IPC_CHANNELS.embeddedPlayback, (event, payload) => {
     if (!dependencies.embeddedPlayer) throw new Error("内嵌播放服务不可用");

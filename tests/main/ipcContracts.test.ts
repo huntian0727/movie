@@ -6,6 +6,12 @@ import { IPC_CHANNELS } from "../../src/shared/videoTypes";
 describe("IPC_CHANNELS", () => {
   it("defines stable channels for library, folders, files, and settings", () => {
     expect(IPC_CHANNELS).toEqual({
+      subtitleConfigGet: "subtitles:config-get",
+      subtitleConfigSave: "subtitles:config-save",
+      subtitleWebsite: "subtitles:website",
+      subtitleSearch: "subtitles:search",
+      subtitleState: "subtitles:state",
+      subtitleAction: "subtitles:action",
       libraryList: "library:list",
       libraryPage: "library:page",
       libraryDirectoryBrowser: "library:directory-browser",

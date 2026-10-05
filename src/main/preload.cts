@@ -98,11 +98,23 @@ const channels: typeof SharedIpcChannels = {
   diagnosticsPreview: "diagnostics:preview",
   diagnosticsExport: "diagnostics:export",
   cacheClear: "cache:clear",
+  subtitleConfigGet: "subtitles:config-get",
+  subtitleWebsite: "subtitles:website",
+  subtitleConfigSave: "subtitles:config-save",
+  subtitleSearch: "subtitles:search",
+  subtitleState: "subtitles:state",
+  subtitleAction: "subtitles:action",
   settingsGet: "settings:get",
   settingsSet: "settings:set"
 };
 
 const mainApi: VideoManagerApi = {
+  openSubtitleWebsite: provider => ipcRenderer.invoke(channels.subtitleWebsite, provider),
+  getSubtitleConfig: () => ipcRenderer.invoke(channels.subtitleConfigGet),
+  saveSubtitleConfig: input => ipcRenderer.invoke(channels.subtitleConfigSave, input),
+  searchSubtitles: input => ipcRenderer.invoke(channels.subtitleSearch, input),
+  getSubtitleState: videoId => ipcRenderer.invoke(channels.subtitleState, videoId),
+  subtitleAction: input => ipcRenderer.invoke(channels.subtitleAction, input),
   listVideos: (query: LibraryQuery) => ipcRenderer.invoke(channels.libraryList, query),
   listVideoPage: (query: LibraryPageQuery, purpose?: string) => ipcRenderer.invoke(channels.libraryPage, query, purpose),
   listDirectoryBrowser: (query: DirectoryBrowserQuery, purpose?: string) => ipcRenderer.invoke(channels.libraryDirectoryBrowser, query, purpose),
@@ -227,6 +239,11 @@ const mainApi: VideoManagerApi = {
 };
 
 const playerApi = {
+  openSubtitleWebsite: mainApi.openSubtitleWebsite,
+  getSubtitleConfig: mainApi.getSubtitleConfig,
+  searchSubtitles: mainApi.searchSubtitles,
+  getSubtitleState: mainApi.getSubtitleState,
+  subtitleAction: mainApi.subtitleAction,
   loadPreviewImage: mainApi.loadPreviewImage,
   cancelPreviewImage: mainApi.cancelPreviewImage,
   getPreviewImageState: mainApi.getPreviewImageState,

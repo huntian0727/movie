@@ -1,4 +1,6 @@
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { SubtitleSettings } from "./SubtitleSettings";
+import type { SubtitleApi } from "../../shared/subtitles";
 import { ArrowLeft, Cloud, Database, FileDown, FolderSearch, Keyboard, RotateCcw } from "lucide-react";
 import type {
   AppSettings,
@@ -18,6 +20,7 @@ import {
 } from "../../shared/shortcuts";
 
 interface SettingsPageProps {
+  subtitleApi?: Pick<SubtitleApi, "openSubtitleWebsite" | "getSubtitleConfig" | "saveSubtitleConfig">;
   settings: AppSettings;
   cacheLocation: string;
   cacheStatus: MediaCacheStatus;
@@ -30,6 +33,7 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  subtitleApi,
   settings,
   cacheLocation,
   cacheStatus,
@@ -159,6 +163,7 @@ export function SettingsPage({
           <a href="#settings-library">资料库</a>
           <a href="#settings-clouddrive">CloudDrive API</a>
           <a href="#settings-playback">播放</a>
+          {subtitleApi && <a href="#settings-subtitles">在线字幕</a>}
           <a href="#settings-shortcuts">快捷键</a>
           <a href="#settings-cache">缓存</a>
           <a href="#settings-diagnostics">诊断与日志</a>
@@ -203,6 +208,7 @@ export function SettingsPage({
           <label className="setting-row"><div><strong>播放策略</strong><span>自动模式在原播放器内切换兼容解码；内嵌 MPV 需要本机运行库，外部播放器仅作手动备用</span></div><select aria-label="播放策略" value={settings.playbackPreference} onChange={(event) => update({ playbackPreference: event.target.value as PlaybackPreference })}><option value="auto">自动选择</option><option value="native-first">内置播放器优先</option><option value="mpv-first">外部 mpv 优先</option><option value="embedded-first">内嵌 MPV 优先</option></select></label>
         </section>
 
+        {subtitleApi && <SubtitleSettings api={subtitleApi} />}
         <section id="settings-shortcuts" className="settings-section">
           <div className="section-title settings-section-title-actions">
             <Keyboard size={20} />

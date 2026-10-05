@@ -1,3 +1,4 @@
+import type { SubtitleApi } from "./subtitles.js";
 export const VIDEO_EXTENSIONS = [".mp4", ".mkv", ".avi", ".mov", ".flv", ".webm", ".wmv", ".m4v", ".ts"] as const;
 
 export const SORT_FIELDS = ["filename", "sizeBytes", "durationMs", "modifiedAt"] as const;
@@ -998,6 +999,12 @@ export interface WindowSyncSnapshot {
 }
 
 export const IPC_CHANNELS = {
+  subtitleConfigGet: "subtitles:config-get",
+  subtitleWebsite: "subtitles:website",
+  subtitleConfigSave: "subtitles:config-save",
+  subtitleSearch: "subtitles:search",
+  subtitleState: "subtitles:state",
+  subtitleAction: "subtitles:action",
   libraryList: "library:list",
   libraryPage: "library:page",
   libraryDirectoryBrowser: "library:directory-browser",
@@ -1097,7 +1104,7 @@ export const IPC_CHANNELS = {
   settingsSet: "settings:set"
 } as const;
 
-export interface VideoManagerApi {
+export interface VideoManagerApi extends SubtitleApi {
   listVideos(query: LibraryQuery): Promise<VideoRecord[]>;
   listVideoPage(query: LibraryPageQuery, purpose?: string): Promise<LibraryPage>;
   listDirectoryBrowser(query: DirectoryBrowserQuery, purpose?: string): Promise<DirectoryBrowserResult>;

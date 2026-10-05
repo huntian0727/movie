@@ -29,4 +29,5 @@ export interface EmbeddedState {
   fullscreen: boolean;
   tracks: Array<{ type: "audio" | "sub"; id: number; selected: boolean; codec: string }>;
   error?: string;
+  subtitleError?: string;
 }

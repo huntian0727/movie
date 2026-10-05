@@ -1,0 +1,13 @@
+# Online subtitles
+
+Official ASSRT and OpenSubtitles REST adapters run only in the Electron main process. The renderer supplies video IDs, search preferences and opaque candidate/saved IDs; it never supplies a URL, filesystem path or native command. Candidates expire after ten minutes, are bound to video size/mtime and have a bounded in-memory cache. Provider failures and unconfigured sources are reported separately from an empty successful search.
+
+`secureStore.ts` uses Electron safeStorage (Windows DPAPI) and atomic writes in userData. IPC returns configuration flags only, never stored keys, passwords or sessions. Downloads use HTTPS, approved provider/CDN hosts, revalidated redirects, timeouts and streamed size limits. Authentication headers are never sent to download/CDN hosts. Subtitle IPC errors are sanitized before Electron or the application logger can expose raw input/network/filesystem errors.
+
+`subtitleService.ts` stores UTF-8 SRT/ASS/VTT and per-video manifests below userData/subtitles, independently of media-cache. Video identity changes invalidate the association. The service validates actual content/time cues rather than relying on filename or response Content-Type. Files use generated names and checked real paths. Export writes the original normalized subtitle; playback offsets are not burned into exports. No original video is read, modified or copied to a subtitle site.
+
+The embedded MPV service applies saved subtitles after decode readiness, with token/control-ID acknowledgements and a revision guard. Subtitle errors never fail video playback. A previously explicit disable is restored; videos without an online selection keep their own embedded track selection. Chromium playback uses a temporary VTT blob generated from basic cues; ASS layout/styles remain available only through embedded MPV. External players require manual export/load.
+
+Limits: 4 MiB downloaded/normalized subtitle, 50 saved versions/video, two concurrent searches and four video mutation requests, 100 candidates/provider/search, 400 cached candidates. ASSRT requests are serialized at least 3.1 seconds apart. Only individual text subtitle downloads are accepted; archives, bitmap/VobSub and font attachments are not extracted. No AI, translation, scraping, bulk download or automatic network requests on playback.
+
+API references checked 2026-10-05 (Asia/Shanghai): [ASSRT](https://assrt.net/api/doc), [OpenSubtitles](https://opensubtitles.stoplight.io/docs/opensubtitles-api), [MPV sub-add](https://mpv.io/manual/stable/#command-interface-sub-add). Authenticated live search/download needs the user's own credentials and is not equivalent to fixture adapter tests.

@@ -19,6 +19,14 @@ function bridge(location = "file:///fixture/index.html", role = "player") {
   return { api, invoke, on, removeListener };
 }
 describe("real player-role preload embedded bridge", () => {
+  it("exposes subtitle IDs and search without account writes or arbitrary IPC", async () => {
+    const b = bridge();
+    await b.api.searchSubtitles({ videoId: "v1", language: "chinese" });
+    expect(b.invoke).toHaveBeenCalledWith("subtitles:search", { videoId: "v1", language: "chinese" });
+    await b.api.subtitleAction({ videoId: "v1", op: "select", id: null });
+    expect(b.invoke).toHaveBeenCalledWith("subtitles:action", { videoId: "v1", op: "select", id: null });
+    expect(b.api.saveSubtitleConfig).toBeUndefined();
+  });
   it("gives the floating preview only image methods and buffers the first content update", () => {
     const b = bridge("file:///fixture/index.html", "timeline-preview");
     expect(b.api.windowMode).toBe("timeline-preview");

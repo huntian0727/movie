@@ -202,12 +202,14 @@ class NativeHost : Form, IMessageFilter {
             else if(mediaFeatures && op=="subtitle-visible") result=Native.Set(mpv,"sub-visibility",Convert.ToBoolean(message["value"])?"yes":"no",false);
             else if(mediaFeatures && op=="subtitle-add") {
                 string file=Convert.ToString(message["path"]);
-                if(!System.IO.Path.IsPathRooted(file)||!file.EndsWith(".srt",StringComparison.OrdinalIgnoreCase))throw new Exception("invalid-subtitle-fixture");
+                string extension=System.IO.Path.GetExtension(file).ToLowerInvariant();
+                if(!System.IO.Path.IsPathRooted(file)||(extension!=".srt"&&extension!=".ass"&&extension!=".ssa"&&extension!=".vtt"))throw new Exception("invalid-subtitle");
                 result=Native.Command(mpv,"sub-add",file,"cached");
             }
+            else if(mediaFeatures && op=="subtitle-delay") result=Native.Set(mpv,"sub-delay",Clamp(message["value"],-600,600).ToString(CultureInfo.InvariantCulture),false);
             else throw new Exception("unsupported-operation");
-            Emit(new {type="ack",op=op,result=result});
-        } catch(Exception ex) { Emit(new {type="error",reason=ex.GetType().Name,op=op}); }
+            Emit(new {type="ack",op=op,result=result,token=token,controlId=message.ContainsKey("controlId")?Convert.ToInt32(message["controlId"]):0});
+        } catch(Exception ex) { Emit(new {type="error",reason=ex.GetType().Name,op=op,token=token,controlId=message.ContainsKey("controlId")?Convert.ToInt32(message["controlId"]):0}); }
     }
     static double Clamp(object value,double low,double high){ double n=Convert.ToDouble(value,CultureInfo.InvariantCulture); if(double.IsNaN(n)||double.IsInfinity(n)) throw new Exception("invalid-number"); return Math.Max(low,Math.Min(high,n)); }
     object FeatureSnapshot(){

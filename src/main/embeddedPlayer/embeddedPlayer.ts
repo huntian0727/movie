@@ -39,6 +39,11 @@ export class EmbeddedPlayer {
   private bounds: object | null = null;
   private visible = true;
   private pauseControlId = 0;
+  private subtitleLoadedToken = -1;
+  private subtitleRevision = 0;
+  private onProcessExit = () => this.child?.kill();
+  private subtitleControlId = 0;
+  private subtitleCommands = new Map<number, { token: number; resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
   private startupStartedAt = 0;
   private startupVideoId: string | null = null;
   private pendingPauses = new Map<number, { token: number; value: boolean; resolve(state: EmbeddedState): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
@@ -48,8 +53,9 @@ export class EmbeddedPlayer {
   });
   constructor(private repo: VideoRepository, private playerWindow: () => BrowserWindow | null, private runtime: { host: string; directory: string },
     private readonly startup?: { begin(videoId: string): void; finish(videoId?: string, reason?: string): void },
-    private readonly logger?: StructuredLogger) {
-    process.once("exit", () => this.child?.kill());
+    private readonly logger?: StructuredLogger,
+    private readonly subtitleGetter?: (videoId: string) => Promise<{ path: string | null; offsetSeconds: number; configured?: boolean }>) {
+    process.once("exit", this.onProcessExit);
   }
   async handle(event: IpcMainInvokeEvent, payload: unknown): Promise<EmbeddedState> {
     const w = this.playerWindow();
@@ -108,7 +114,7 @@ export class EmbeddedPlayer {
     if (request.op === "pause") return this.pause(request.value);
     if (request.op === "subtitle-file") {
       const key = this.state.sessionKey;
-      const result = await dialog.showOpenDialog(w, { title: "选择外挂 SRT 字幕", filters: [{ name: "SRT 字幕", extensions: ["srt"] }], properties: ["openFile"] });
+      const result = await dialog.showOpenDialog(w, { title: "选择外挂字幕", filters: [{ name: "字幕", extensions: ["srt", "ass", "ssa", "vtt"] }], properties: ["openFile"] });
       if (!result.canceled && result.filePaths[0] && key === this.state.sessionKey) this.send({ op: "subtitle-add", path: result.filePaths[0] });
     } else if (request.op === "seek" || request.op === "rotate") {
       if (request.op === "rotate" && ![0, 90, 180, 270].includes(request.value)) throw new Error("旋转角度无效");
@@ -123,6 +129,35 @@ export class EmbeddedPlayer {
   }
   private send(command: object): void {
     if (this.child?.stdin.writable && this.child.exitCode === null && this.child.signalCode === null) this.child.stdin.write(JSON.stringify(command) + "\n");
+  }
+  async applySavedSubtitle(videoId: string): Promise<void> {
+    if (!this.subtitleGetter || this.videoId !== videoId || !this.snapshot?.loaded || this.state.phase === "failed") return;
+    const token = this.token, revision = ++this.subtitleRevision, subtitle = await this.subtitleGetter(videoId);
+    if (this.token !== token || this.videoId !== videoId || revision !== this.subtitleRevision || !this.snapshot?.loaded) return;
+    try {
+      await this.subtitleCommand(subtitle.path ? { op: "subtitle-add", path: subtitle.path } : { op: "subtitle-track", value: 0 });
+      if (this.token !== token || this.videoId !== videoId || revision !== this.subtitleRevision) return;
+      await this.subtitleCommand({ op: "subtitle-delay", value: subtitle.offsetSeconds });
+      if (this.token === token && revision === this.subtitleRevision) this.state.subtitleError = undefined;
+    } catch {
+      if (this.token === token && revision === this.subtitleRevision) this.state.subtitleError = "字幕加载未完成；视频可继续播放，请重新选择字幕";
+      throw new Error("字幕已保存，但播放器加载失败，请重新选择字幕或重试播放");
+    }
+  }
+  private subtitleCommand(command: object): Promise<void> {
+    if (!this.child?.stdin.writable) return Promise.reject(new Error("字幕播放会话已结束"));
+    const controlId = ++this.subtitleControlId;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.subtitleCommands.delete(controlId); reject(new Error("字幕控制超时")); }, 3000);
+      this.subtitleCommands.set(controlId, { token: this.token, resolve, reject, timer });
+      this.send({ ...command, controlId });
+    });
+  }
+  private acknowledgeSubtitle(value: { token?: number; controlId?: number; result?: number }): void {
+    const pending = this.subtitleCommands.get(value.controlId ?? -1);
+    if (!pending || pending.token !== value.token || pending.token !== this.token) return;
+    this.subtitleCommands.delete(value.controlId!); clearTimeout(pending.timer);
+    if (value.result === 0) pending.resolve(); else pending.reject(new Error("字幕控制失败"));
   }
   private pause(value: boolean): Promise<EmbeddedState> {
     if (!this.child?.stdin.writable || this.pendingPauses.size >= 64) return Promise.reject(new Error("播放控制暂不可用，请重试"));
@@ -147,6 +182,8 @@ export class EmbeddedPlayer {
     pending.resolve({ ...this.state });
   }
   private cancelPauses(): void {
+    for (const pending of this.subtitleCommands.values()) { clearTimeout(pending.timer); pending.reject(new Error("字幕播放会话已结束")); }
+    this.subtitleCommands.clear();
     for (const pending of this.pendingPauses.values()) { clearTimeout(pending.timer); pending.reject(new Error("播放会话已结束")); }
     this.pendingPauses.clear();
   }
@@ -172,12 +209,24 @@ export class EmbeddedPlayer {
               w.webContents.send("player:embedded-input", input.data);
             }
           } else if (value.type === "snapshot" && value.token === generation) this.observe(snapshotSchema.parse(value));
-          else if (value.type === "ack") { if (value.op === "pause") this.acknowledgePause(value); this.queue.acknowledge(value.op, value.result); if (value.result < 0) this.fail("播放控制失败，可重试或改用原播放器"); }
+          else if (value.type === "ack") {
+            if (/^subtitle-/.test(value.op)) {
+              if (value.token !== generation) return;
+              this.acknowledgeSubtitle(value);
+              if (value.result < 0 && !value.controlId) this.state.subtitleError = "字幕控制失败，请更换字幕版本";
+            }
+            else { if (value.op === "pause") this.acknowledgePause(value); this.queue.acknowledge(value.op, value.result); if (value.result < 0) this.fail("播放控制失败，可重试或改用原播放器"); }
+          }
           else if (value.type === "ended" && value.token === generation) {
             this.finishStartup("ended");
             this.cancelPauses(); this.savePosition(); this.queue.reset(); this.snapshot = null;
             if (value.error < 0) this.fail("文件读取或解码失败，请重试或改用原播放器"); else this.state.phase = "ended";
-          } else if (value.type === "fatal" || value.type === "error") this.fail("内嵌播放发生异常，可改用原播放器");
+          } else if (value.type === "error" && /^subtitle-/.test(value.op)) {
+            if (value.token !== generation) return;
+            this.acknowledgeSubtitle({ ...value, result: -1 });
+            if (!value.controlId) this.state.subtitleError = "字幕控制失败，请更换字幕版本";
+          }
+          else if (value.type === "fatal" || value.type === "error") this.fail("内嵌播放发生异常，可改用原播放器");
         } catch { /* Drop native output and paths rather than forwarding it or logging user media. */ }
       });
       child.once("error", () => { clearTimeout(timeout); reject(new Error("host-spawn-failed")); });
@@ -220,6 +269,14 @@ export class EmbeddedPlayer {
       phase: !s.loaded ? "loading" : s.pausedForCache === "yes" ? "buffering" : s.seeking === "yes" || this.queue.busy ? "reading" : s.paused === "yes" ? "paused" : "playing",
       tracks: (s.media?.tracks ?? []).flatMap(t => (t.type === "audio" || t.type === "sub") && t.id !== null ? [{ type: t.type, id: t.id, selected: t.selected === "yes", codec: t.codec ?? "未知" }] : []) };
     if (s.loaded && Date.now() - this.savedAt > 5000) this.savePosition();
+    if (s.loaded && this.videoId && this.subtitleGetter && this.subtitleLoadedToken !== this.token) {
+      this.subtitleLoadedToken = this.token;
+      const videoId = this.videoId, token = this.token;
+      // Preserve the video's embedded subtitle when there is no saved online selection.
+      void this.subtitleGetter(videoId).then(value => {
+        if ((value.path || value.configured) && token === this.token && videoId === this.videoId) return this.applySavedSubtitle(videoId);
+      }).catch(() => { if (token === this.token) this.state.subtitleError = "保存的字幕无法加载，请重新下载或选择字幕"; });
+    }
   }
   private savePosition(): void {
     if (!this.videoId) return;
@@ -254,5 +311,5 @@ export class EmbeddedPlayer {
       durationMs: Date.now() - this.startupStartedAt, context: { reason } });
     this.startupVideoId = null;
   }
-  dispose(): void { this.finishStartup("closed"); this.cancelPauses(); this.savePosition(); this.videoId = null; this.closing = true; ++this.token; this.queue.reset(); clearInterval(this.watchdog); void this.stopHost(); }
+  dispose(): void { process.removeListener("exit", this.onProcessExit); this.finishStartup("closed"); this.cancelPauses(); this.savePosition(); this.videoId = null; this.closing = true; ++this.token; this.queue.reset(); clearInterval(this.watchdog); void this.stopHost(); }
 }

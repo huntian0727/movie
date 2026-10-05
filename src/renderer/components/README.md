@@ -1,5 +1,7 @@
 # UI 组件模块
 
+`SubtitleSettings` adds independently saved, encrypted ASSRT/OpenSubtitles account configuration, showing only configured flags. `SubtitleDialog` provides explicit online search, version/language/source clues, download/select, per-video offset and original export. It suppresses stale responses after unmount, traps keyboard focus, and hides the native playback surface while open. `useSavedSubtitles` reads durable associations locally on video changes and revokes temporary VTT blobs. Subtitle operations do not pause or seek the video. External-player mode explains manual export/load.
+
 ## 操作反馈与只读恢复
 
 `OperationFeedback.tsx` 统一提供可关闭的成功、等待、警告和失败提示，以及明确的只读重试入口。

@@ -426,6 +426,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   if (settingsOpen) {
     return (
       <SettingsPage
+        subtitleApi={api}
         settings={settings}
         cacheLocation={cacheLocation}
         cacheStatus={cacheStatus}
@@ -446,6 +447,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   if (selectedVideo) {
     return (
       <PlayerPage
+        subtitleApi={api}
         video={selectedVideo}
         mediaUrl={playbackRoute === "native" ? `local-video://media/${encodeURIComponent(selectedVideo.id)}` : undefined}
         autoPlayOnOpen={settings.autoPlayOnOpen}

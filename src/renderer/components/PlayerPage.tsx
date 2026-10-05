@@ -7,11 +7,14 @@ import { DEFAULT_SHORTCUTS, formatShortcutBinding, matchesShortcut } from "../..
 import { formatBytes, formatDuration } from "./formatters";
 import { PreviewImage } from "./PreviewImage";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
+import { SubtitleDialog, type PlayerSubtitleApi } from "./SubtitleDialog";
+import { useSavedSubtitles } from "./useSavedSubtitles";
 
 const FULLSCREEN_CONTROLS_HIDE_DELAY_MS = 2200;
 const VOLUME_KEYBOARD_STEP = 0.05;
 
 interface PlayerPageProps {
+  subtitleApi?: PlayerSubtitleApi;
   video: VideoRecord;
   mediaUrl?: string;
   autoPlayOnOpen?: boolean;
@@ -39,6 +42,7 @@ interface PlayerPageProps {
 }
 
 export function PlayerPage({
+  subtitleApi,
   video,
   mediaUrl,
   autoPlayOnOpen = false,
@@ -86,6 +90,9 @@ export function PlayerPage({
   const [externalLaunching, setExternalLaunching] = useState(false);
   const [failedPreviewUrls, setFailedPreviewUrls] = useState<Set<string>>(() => new Set());
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [subtitleOpen, setSubtitleOpen] = useState(false);
+  const subtitles = useSavedSubtitles(subtitleApi, video.id);
+  useEffect(() => { setSubtitleOpen(false); }, [video.id]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const windowFullscreen = usePlayerWindowFullscreen(embeddedApi, setIsFullscreen);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -137,11 +144,11 @@ export function PlayerPage({
     api: embeddedApi, enabled: isEmbeddedPlayback, videoId: video.id, autoplay: autoPlayOnOpen,
     positionMs: nativeFailedId === video.id ? fallbackPositionRef.current : startPositionMs,
     requestId: startRequestId, stage: embeddedStageRef,
-    visible: !detailsOpen && !deleteConfirmOpen && !externalLaunching,
+    visible: !detailsOpen && !deleteConfirmOpen && !subtitleOpen && !externalLaunching,
     layoutKey: `${playlistOpen}:${isFullscreen}:${controlsVisible}`,
     overlay: { active: isFullscreen && controlsVisible, top: topbarRef, bottom: controlsRef },
     onInput: input => {
-      if (detailsOpen || deleteConfirmOpen) return;
+      if (detailsOpen || deleteConfirmOpen || subtitleOpen) return;
       if (input.kind === "pointer-move") {
         if (!isFullscreen) return;
         const scale = window.devicePixelRatio || 1;
@@ -205,7 +212,7 @@ export function PlayerPage({
 
   const scheduleControlsHide = () => {
     clearControlsHideTimeout();
-    if (!isFullscreen || detailsOpen || playlistOpen || deleteConfirmOpen || embeddedError || windowFullscreen.error) {
+    if (!isFullscreen || detailsOpen || playlistOpen || deleteConfirmOpen || subtitleOpen || embeddedError || windowFullscreen.error) {
       setControlsVisible(true);
       return;
     }
@@ -258,7 +265,7 @@ export function PlayerPage({
 
     document.addEventListener("fullscreenchange", syncFullscreenState);
     return () => document.removeEventListener("fullscreenchange", syncFullscreenState);
-  }, [deleteConfirmOpen, detailsOpen, isFullscreen, playlistOpen, windowFullscreen.managed]);
+  }, [subtitleOpen, deleteConfirmOpen, detailsOpen, isFullscreen, playlistOpen, windowFullscreen.managed]);
 
   useEffect(() => {
     if (!isFullscreen) {
@@ -267,7 +274,7 @@ export function PlayerPage({
       return;
     }
 
-    if (detailsOpen || playlistOpen || deleteConfirmOpen) {
+    if (detailsOpen || playlistOpen || deleteConfirmOpen || subtitleOpen) {
       clearControlsHideTimeout();
       setControlsVisible(true);
       return;
@@ -276,7 +283,7 @@ export function PlayerPage({
     scheduleControlsHide();
 
     return () => clearControlsHideTimeout();
-  }, [deleteConfirmOpen, detailsOpen, isFullscreen, playlistOpen, isEmbeddedPlayback, embeddedError, windowFullscreen.error, video.id]);
+  }, [subtitleOpen, deleteConfirmOpen, detailsOpen, isFullscreen, playlistOpen, isEmbeddedPlayback, embeddedError, windowFullscreen.error, video.id]);
 
   useEffect(() => () => {
     clearControlsHideTimeout();
@@ -326,6 +333,7 @@ export function PlayerPage({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (subtitleOpen) return;
       if (deleteConfirmOpen) {
         if (event.code === "Escape") {
           event.preventDefault();
@@ -393,7 +401,7 @@ export function PlayerPage({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, isEmbeddedPlayback, isFullscreen, playing, currentTime, onDelete, playlistOpen, seekStepSeconds, shortcuts, volume]);
+  }, [subtitleOpen, deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, isEmbeddedPlayback, isFullscreen, playing, currentTime, onDelete, playlistOpen, seekStepSeconds, shortcuts, volume]);
 
   const launchExternalPlayback = async () => {
     if (!onPlayExternal || externalLaunching) return;
@@ -629,7 +637,7 @@ export function PlayerPage({
   useEffect(() => {
     const show = embeddedApi?.showPlayerTimelinePreview;
     if (!show || !floatingPreview) return;
-    if (hoverTime === null || hoverPreviewTimeMs === null || detailsOpen || deleteConfirmOpen || externalLaunching) { void show(null).catch(() => undefined); return; }
+    if (hoverTime === null || hoverPreviewTimeMs === null || detailsOpen || deleteConfirmOpen || subtitleOpen || externalLaunching) { void show(null).catch(() => undefined); return; }
     // Debounce pointer movement before crossing IPC; leaving hides immediately.
     const timer = window.setTimeout(() => {
       const rect = progressRef.current?.getBoundingClientRect();
@@ -638,7 +646,7 @@ export function PlayerPage({
         x: rect.left + rect.width * hoverTime / progressMax, y: rect.top - 8, ...(previewCachedOnly ? { cachedOnly: true } : {}) }).catch(() => undefined);
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [embeddedApi, floatingPreview, hoverTime, hoverPreviewTimeMs, progressMax, video.id, isFullscreen, playlistOpen, detailsOpen, deleteConfirmOpen, externalLaunching, previewCachedOnly]);
+  }, [subtitleOpen, embeddedApi, floatingPreview, hoverTime, hoverPreviewTimeMs, progressMax, video.id, isFullscreen, playlistOpen, detailsOpen, deleteConfirmOpen, externalLaunching, previewCachedOnly]);
   useEffect(() => () => { void embeddedApi?.showPlayerTimelinePreview?.(null).catch(() => undefined); }, [embeddedApi, video.id, floatingPreview]);
   const previewAspectRatio = getAspectRatioValue(video.width, video.height);
   const fullscreenToggleLabel = isFullscreen ? "退出全屏" : "全屏";
@@ -696,6 +704,7 @@ export function PlayerPage({
           </p>
         </div>
         <div className="player-topbar-actions">
+          {subtitleApi && <button className="player-icon-button player-subtitles-button" aria-label="查找字幕" title="查找、选用和调整字幕" onClick={() => { showControls(); void subtitles.refresh(); setSubtitleOpen(true); }}>字幕</button>}
           {isFullscreen && (
             <button
               className="player-icon-button player-exit-fullscreen"
@@ -788,7 +797,9 @@ export function PlayerPage({
               void navigate(onNext);
             }}
             onError={handleNativePlaybackError}
-          />
+          >
+            {subtitles.url && <track key={subtitles.url} kind="subtitles" src={subtitles.url} label="外挂字幕" srcLang="zh" default onLoad={event => { event.currentTarget.track.mode = "showing"; }} />}
+          </video>
         )}
         {isExternalPlayback && (
           <button className="player-placeholder external-playback" aria-label="用 mpv 播放" onClick={() => void launchExternalPlayback()}>
@@ -1011,6 +1022,8 @@ export function PlayerPage({
         </div>
       </footer>
 
+      {(subtitles.error || embedded.state?.subtitleError) && <div className="player-subtitle-status" role="status">{subtitles.error || embedded.state?.subtitleError}</div>}
+      {subtitleOpen && subtitleApi && <SubtitleDialog key={video.id} video={video} api={subtitleApi} state={subtitles.state} stateError={subtitles.error} onRetryState={() => void subtitles.refresh()} onState={subtitles.update} onClose={() => setSubtitleOpen(false)} external={isExternalPlayback} />}
       {detailsOpen && <VideoDetailsDialog video={video} onClose={() => setDetailsOpen(false)} />}
 
       {deleteConfirmOpen && (
