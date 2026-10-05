@@ -34,6 +34,39 @@ function renderPanel(overrides: Partial<Parameters<typeof DuplicateCleanupTasksP
 }
 
 describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
+  it("retains confirmation and its error if permanent deletion was not accepted", async () => {
+    const onConfirm = vi.fn().mockRejectedValue(new Error("verification revision expired"));
+    renderPanel({ onConfirm });
+    await selectTask(/等待第二次确认/);
+    fireEvent.click(screen.getByRole("button", { name: "第二次确认永久删除" }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "DELETE" } });
+    fireEvent.click(screen.getByRole("button", { name: "永久删除已验证相同项" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("verification revision expired");
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("DELETE");
+    expect(onConfirm).toHaveBeenCalledOnce();
+  });
+
+  it("offers a read-only task-list retry without invoking any destructive action", async () => {
+    const loadJobs = vi.fn().mockRejectedValueOnce(new Error("worker busy")).mockResolvedValue(jobPage([job()]));
+    const { props } = renderPanel({ loadJobs });
+    expect(await screen.findByRole("alert")).toHaveTextContent("worker busy");
+    expect(screen.queryByText("暂无重复文件清理任务")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新读取" }));
+    await screen.findByRole("button", { name: /等待第二次确认/ });
+    expect(props.onConfirm).not.toHaveBeenCalled(); expect(props.onRetry).not.toHaveBeenCalled();
+  });
+
+  it("ignores late item data after the selected task changes", async () => {
+    let resolveFirst!: (page: DuplicateCleanupItemPage) => void;
+    const first = new Promise<DuplicateCleanupItemPage>((resolve) => { resolveFirst = resolve; });
+    const loadItems = vi.fn((id: string) => id === "first" ? first : Promise.resolve(itemPage()));
+    renderPanel({ loadJobs: vi.fn().mockResolvedValue(jobPage([job({ id: "first", phase: "verification", status: "running" }), job({ id: "second", phase: "finished", status: "completed" })])), loadItems });
+    await selectTask(/正在完整验证/);
+    await selectTask(/已完成/);
+    await act(async () => resolveFirst(itemPage([{ id: "stale", filename: "stale.mp4" } as DuplicateCleanupItemPage["items"][number]])));
+    expect(screen.queryByText("stale.mp4")).not.toBeInTheDocument();
+  });
   it("renders nothing while closed", () => {
     const { rendered } = renderPanel({ open: false });
     expect(rendered.container).toBeEmptyDOMElement();

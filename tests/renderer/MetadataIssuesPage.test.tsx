@@ -101,4 +101,40 @@ describe("MetadataIssuesPage", () => {
     rerender(<MetadataIssuesPage {...props} refreshSequence={1} />);
     await waitFor(() => expect(screen.getByText("当前筛选下没有元数据异常")).toBeInTheDocument(), { timeout: 2_500 });
   });
+
+  it("offers a read-only query retry without pretending a failed read is empty", async () => {
+    const loadPage = vi.fn().mockRejectedValueOnce(new Error("database busy")).mockResolvedValue(page);
+    const onRetry = vi.fn(); const onRefreshSizes = vi.fn();
+    render(<MetadataIssuesPage folders={[folder]} refreshSequence={0} loadPage={loadPage} onRetry={onRetry} onRefreshSizes={onRefreshSizes} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("database busy");
+    expect(screen.queryByText("当前筛选下没有元数据异常")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新读取" }));
+    await screen.findByText("failed.mp4");
+    expect(onRetry).not.toHaveBeenCalled(); expect(onRefreshSizes).not.toHaveBeenCalled();
+  });
+
+  it("does not clear an operation failure when the list is refreshed", async () => {
+    render(<MetadataIssuesPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onRefreshSizes={vi.fn().mockRejectedValue(new Error("cloud unavailable"))} />);
+    fireEvent.click(await screen.findByRole("button", { name: "重新读取大小" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("cloud unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "刷新列表" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "刷新列表" })).toBeEnabled());
+    expect(screen.getByRole("alert")).toHaveTextContent("cloud unavailable");
+  });
+
+  it("handles synchronous queue rejection as a partial failure with retained detail", async () => {
+    render(<MetadataIssuesPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={() => { throw new Error("queue unavailable"); }} onRefreshSizes={vi.fn()} />);
+    await screen.findByText("failed.mp4");
+    fireEvent.click(screen.getByRole("button", { name: "全选当前页" }));
+    fireEvent.click(screen.getByRole("button", { name: /优先重新分析/ }));
+    expect(await screen.findByText(/失败 2 条/)).toBeInTheDocument();
+    expect(screen.getAllByText("queue unavailable")).toHaveLength(2);
+  });
+
+  it("reports failed open-location actions instead of leaving an unhandled rejection", async () => {
+    render(<MetadataIssuesPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onRefreshSizes={vi.fn()} onOpenLocation={vi.fn().mockRejectedValue(new Error("path unavailable"))} />);
+    await screen.findByText("failed.mp4");
+    fireEvent.click(screen.getAllByRole("button", { name: "打开位置" })[0]);
+    expect(await screen.findByRole("alert")).toHaveTextContent("path unavailable");
+  });
 });

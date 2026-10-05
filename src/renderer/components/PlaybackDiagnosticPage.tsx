@@ -5,6 +5,7 @@ import { choosePlaybackRoute } from "../../shared/playbackRouting";
 import { integratedPlaybackRoute } from "../../shared/integratedPlayback";
 import type { LibraryPage, PlaybackDiagnosticSearchQuery, PlaybackPreference, SourceFolder, VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
+import { OperationFeedback, operationErrorMessage } from "./OperationFeedback";
 
 const SEARCH_PAGE_SIZE = 30;
 const RECENT_LIMIT = 10;
@@ -67,6 +68,14 @@ export function PlaybackDiagnosticPage({
   const detailRequest = useRef(0);
   const searchRequest = useRef(0);
   const recentRequest = useRef(0);
+  const selectedIdRef = useRef(selectedVideoId);
+  selectedIdRef.current = selectedVideoId;
+
+  useEffect(() => {
+    setActionPending(null);
+    setActionError(null);
+    setAvailabilityMessage(null);
+  }, [selectedVideoId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -90,7 +99,7 @@ export function PlaybackDiagnosticPage({
     setDetailLoading(true);
     setDetailError(null);
     setRemoved(false);
-    if (initialVideo?.id === selectedVideoId) setVideo(initialVideo);
+    setVideo((current) => current?.id === selectedVideoId ? current : initialVideo?.id === selectedVideoId ? initialVideo : null);
 
     void loadVideosByIds([selectedVideoId]).then((videos) => {
       if (detailRequest.current !== requestId) return;
@@ -102,6 +111,7 @@ export function PlaybackDiagnosticPage({
     }).finally(() => {
       if (detailRequest.current === requestId) setDetailLoading(false);
     });
+    return () => { detailRequest.current += 1; };
   }, [initialVideo, loadVideosByIds, refreshVersion, selectedVideoId]);
 
   useEffect(() => {
@@ -125,6 +135,7 @@ export function PlaybackDiagnosticPage({
     }).finally(() => {
       if (recentRequest.current === requestId) setRecentLoading(false);
     });
+    return () => { recentRequest.current += 1; };
   }, [loadVideosByIds, recentRetryVersion, recentVideoIds, selectedVideoId]);
 
   useEffect(() => {
@@ -151,6 +162,7 @@ export function PlaybackDiagnosticPage({
     }).finally(() => {
       if (searchRequest.current === requestId) setSearchLoading(false);
     });
+    return () => { searchRequest.current += 1; };
   }, [debouncedQuery, searchPageNumber, searchRetryVersion, searchVideos, selectedVideoId]);
 
   const source = useMemo(() => video ? folders.find((folder) => folder.id === video.sourceFolderId) ?? null : null, [folders, video]);
@@ -168,35 +180,42 @@ export function PlaybackDiagnosticPage({
   };
 
   const runAction = async (kind: NonNullable<typeof actionPending>, action: (() => void | Promise<void>) | undefined) => {
-    if (!action) return;
+    if (!action || actionPending !== null) return;
+    const videoId = selectedVideoId;
     setActionPending(kind);
     setActionError(null);
     try {
       await action();
-      if (kind === "metadata") setRefreshVersion((current) => current + 1);
+      if (selectedIdRef.current !== videoId) return;
+      if (kind === "metadata") {
+        setAvailabilityMessage("已提交元数据分析，实际完成后媒体信息才会更新。可重新读取记录查看结果。");
+        setRefreshVersion((current) => current + 1);
+      }
     } catch (cause) {
-      setActionError(toMessage(cause));
+      if (selectedIdRef.current === videoId) setActionError(toMessage(cause));
     } finally {
-      setActionPending(null);
+      if (selectedIdRef.current === videoId) setActionPending(null);
     }
   };
 
   const checkFileAvailability = async () => {
-    if (!video || !onCheckFileAvailability) return;
+    if (!video || !onCheckFileAvailability || actionPending !== null) return;
+    const videoId = video.id;
     setActionPending("availability");
     setActionError(null);
     setAvailabilityMessage(null);
     try {
       const result = await onCheckFileAvailability([video.id]);
+      if (selectedIdRef.current !== videoId) return;
       const item = result.items.find((candidate) => candidate.videoId === video.id);
       if (!item) throw new Error("检查未返回该视频的结果");
       if (item.status === "failed") throw new Error(item.message);
       setAvailabilityMessage(item.message);
       setRefreshVersion((current) => current + 1);
     } catch (cause) {
-      setActionError(toMessage(cause));
+      if (selectedIdRef.current === videoId) setActionError(toMessage(cause));
     } finally {
-      setActionPending(null);
+      if (selectedIdRef.current === videoId) setActionPending(null);
     }
   };
 
@@ -280,7 +299,7 @@ export function PlaybackDiagnosticPage({
           <div>
             {removed
               ? <button type="button" onClick={onOpenScanFailures}>查看扫描异常</button>
-              : <button type="button" onClick={() => setRefreshVersion((current) => current + 1)}>重新读取缓存</button>}
+              : <button type="button" onClick={() => setRefreshVersion((current) => current + 1)}>重新读取记录</button>}
           </div>
         </div>
       </div>
@@ -296,8 +315,9 @@ export function PlaybackDiagnosticPage({
         checking={detailLoading || actionPending === "availability"}
       />
       <div className="playback-diagnostic-body">
-        {detailError && <div className="diagnostic-inline-error" role="alert"><AlertTriangle size={16} /><span>刷新失败，继续显示上次记录。{detailError}</span></div>}
-        {availabilityMessage && <div className="diagnostic-inline-status" role="status"><RefreshCw size={16} /><span>{availabilityMessage}</span></div>}
+        <OperationFeedback message={detailError ? `记录读取失败，继续显示上次记录：${detailError}` : null} tone="error" onRetry={() => setRefreshVersion((current) => current + 1)} />
+        <OperationFeedback message={availabilityMessage} tone="info" onDismiss={() => setAvailabilityMessage(null)} />
+        <div className="diagnostic-read-record"><button type="button" title="只读取数据库中已有的媒体信息；不会检查文件或重新分析" disabled={detailLoading} onClick={() => setRefreshVersion((current) => current + 1)}><RefreshCw className={detailLoading ? "spin" : undefined} size={15} />{detailLoading ? "正在读取记录..." : "重新读取记录"}</button><small>检查文件是否存在请使用上方“检查文件状态”；补充编码和时长请使用下方“补充元数据”。</small></div>
         {video.isMissing && <div className="diagnostic-missing" role="status"><AlertTriangle size={17} /><span>资料库记录显示文件当前缺失。播放和元数据重试已停用。</span><button type="button" onClick={onOpenScanFailures}>查看扫描异常</button></div>}
 
         <section className="diagnostic-file-heading">
@@ -340,7 +360,7 @@ export function PlaybackDiagnosticPage({
           <div><h2>资料维护</h2><p>仅在你明确操作后补充媒体信息。诊断页自身不会读取文件内容。</p></div>
           <button type="button" disabled={controlsDisabled || !onRetryMetadata} onClick={() => void runAction("metadata", () => onRetryMetadata?.(video))}><Wrench size={15} />{actionPending === "metadata" ? "正在补充..." : "补充元数据"}</button>
         </section>
-        {actionError && <div className="diagnostic-inline-error" role="alert"><AlertTriangle size={16} />{actionError}</div>}
+        <OperationFeedback message={actionError} tone="error" onDismiss={() => setActionError(null)} />
       </div>
     </div>
   );
@@ -394,6 +414,6 @@ function emptyPage(): LibraryPage {
 }
 
 function toMessage(cause: unknown): string {
-  const message = cause instanceof Error ? cause.message : typeof cause === "string" ? cause : "读取失败，请稍后重试";
+  const message = operationErrorMessage(cause);
   return message.split(/\r?\n/, 1)[0].slice(0, 500);
 }

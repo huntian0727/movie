@@ -4,6 +4,7 @@ import type {
   DuplicateCleanupConfirmRequest, DuplicateCleanupItemPage, DuplicateCleanupJob, DuplicateCleanupJobPage
 } from "../../shared/videoTypes";
 import { formatBytes, formatDate } from "./formatters";
+import { OperationFeedback, ReadState, operationErrorMessage } from "./OperationFeedback";
 
 interface Props {
   open: boolean;
@@ -27,29 +28,60 @@ export function DuplicateCleanupTasksPanel(props: Props) {
   const [items, setItems] = useState<DuplicateCleanupItemPage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const [readVersion, setReadVersion] = useState(0);
+  const [itemsReadVersion, setItemsReadVersion] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [liveMessage, setLiveMessage] = useState("");
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const confirmInputRef = useRef<HTMLInputElement>(null);
   const confirmTriggerRef = useRef<HTMLButtonElement>(null);
+  const jobRequestRef = useRef(0);
+  const actionGuardRef = useRef(false);
 
   const reload = async () => {
-    const next = await props.loadJobs(page, 20);
-    setJobs(next);
-    setSelected((current) => current ? next.items.find((job) => job.id === current.id) ?? null : null);
+    const request = ++jobRequestRef.current;
+    setJobsLoading(true);
+    setJobsError(null);
+    try {
+      const next = await props.loadJobs(page, 20);
+      if (request !== jobRequestRef.current) return;
+      setJobs(next);
+      setSelected((current) => current ? next.items.find((job) => job.id === current.id) ?? null : null);
+    } catch (cause) {
+      if (request === jobRequestRef.current) setJobsError(toMessage(cause));
+    } finally {
+      if (request === jobRequestRef.current) setJobsLoading(false);
+    }
   };
 
   useEffect(() => {
     if (!props.open) return;
+    void reload();
+    return () => { jobRequestRef.current += 1; };
+  }, [props.open, page, props.refreshSequence, readVersion]);
+
+  useEffect(() => {
+    if (!props.open) return;
     closeButtonRef.current?.focus();
-    void reload().catch((cause) => setError(toMessage(cause)));
-  }, [props.open, page, props.refreshSequence]);
+  }, [props.open]);
+
+  useEffect(() => { setItems(null); setItemsError(null); }, [selected?.id]);
 
   useEffect(() => {
     if (!props.open || !selected) return;
-    void props.loadItems(selected.id, 1, 50).then(setItems).catch((cause) => setError(toMessage(cause)));
-  }, [props.open, selected?.id, selected?.updatedAt, props.refreshSequence]);
+    let disposed = false;
+    setItemsLoading(true);
+    setItemsError(null);
+    void props.loadItems(selected.id, 1, 50).then((next) => { if (!disposed) setItems(next); })
+      .catch((cause) => { if (!disposed) setItemsError(toMessage(cause)); })
+      .finally(() => { if (!disposed) setItemsLoading(false); });
+    return () => { disposed = true; };
+  }, [props.open, selected?.id, selected?.updatedAt, props.refreshSequence, itemsReadVersion]);
 
   useEffect(() => {
     if (confirmOpen) confirmInputRef.current?.focus();
@@ -66,15 +98,18 @@ export function DuplicateCleanupTasksPanel(props: Props) {
   if (!props.open) return null;
 
   const act = async (action: () => Promise<unknown>) => {
+    if (actionGuardRef.current) return false;
+    actionGuardRef.current = true;
     setBusy(true); setError(null);
-    try { await action(); await reload(); }
-    catch (cause) { setError(toMessage(cause)); }
-    finally { setBusy(false); }
+    try { await action(); await reload(); return true; }
+    catch (cause) { setError(toMessage(cause)); return false; }
+    finally { setBusy(false); actionGuardRef.current = false; }
   };
 
   const confirmDeletion = async () => {
     if (!selected?.verificationRevision || confirmation !== "DELETE" || !props.onConfirm) return;
-    await act(() => props.onConfirm!({ jobId: selected.id, verificationRevision: selected.verificationRevision!, confirmation: "DELETE" }));
+    const accepted = await act(() => props.onConfirm!({ jobId: selected.id, verificationRevision: selected.verificationRevision!, confirmation: "DELETE" }));
+    if (!accepted) return;
     setConfirmation("");
     setConfirmOpen(false);
     queueMicrotask(() => closeButtonRef.current?.focus());
@@ -101,23 +136,26 @@ export function DuplicateCleanupTasksPanel(props: Props) {
       }}>
         <header><div><h3 id="duplicate-task-title">重复文件清理任务</h3><p>API快速任务不会读取视频内容；历史安全任务仍按原流程显示。</p></div><button ref={closeButtonRef} type="button" aria-label="关闭任务中心" onClick={closeOuter}><X size={18} /></button></header>
         <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">{liveMessage}</p>
-        {error && <div className="error-banner" role="alert">{error}</div>}
+        {!confirmOpen && <OperationFeedback message={error} tone="error" onDismiss={() => setError(null)} />}
+        <OperationFeedback message={jobsError ? `任务列表读取失败：${jobsError}` : null} tone="error" onRetry={() => setReadVersion((current) => current + 1)} />
         {busy && <LoaderCircle className="spin" size={20} aria-label="处理中" />}
         <div className="duplicate-task-layout">
           <div className="duplicate-task-list">
+            <ReadState loading={jobsLoading && !jobs} error={jobsError} empty={Boolean(jobs && jobs.items.length === 0)} loadingText="正在读取清理任务..." emptyTitle="暂无重复文件清理任务" />
             {jobs?.items.map((job) => (
-              <button type="button" className={selected?.id === job.id ? "is-selected" : ""} key={job.id} onClick={() => setSelected(job)}>
+              <button type="button" disabled={busy} className={selected?.id === job.id ? "is-selected" : ""} key={job.id} onClick={() => setSelected(job)}>
                 <strong>{phaseLabel(job)} · {progressValue(job)}/{job.totalItems}</strong>
                 <span>{formatDate(job.createdAt)} · 已释放 {formatBytes(job.reclaimedBytes)}</span>
                 <progress aria-label={`${phaseLabel(job)}进度`} max={Math.max(1, job.totalItems)} value={progressValue(job)} />
               </button>
             ))}
-            {jobs?.items.length === 0 && <p>暂无重复文件清理任务</p>}
-            {jobs && jobs.totalPages > 1 && <div className="pagination-bar"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button><span>{page}/{jobs.totalPages}</span><button disabled={page >= jobs.totalPages} onClick={() => setPage(page + 1)}>下一页</button></div>}
+            {jobs && jobs.totalPages > 1 && <div className="pagination-bar"><button disabled={page <= 1 || jobsLoading || busy} onClick={() => setPage(page - 1)}>上一页</button><span>{page}/{jobs.totalPages}</span><button disabled={page >= jobs.totalPages || jobsLoading || busy} onClick={() => setPage(page + 1)}>下一页</button></div>}
           </div>
           <div className="duplicate-task-detail">
             {!selected ? <p>选择任务查看执行结果。</p> : <>
               <h4>{phaseLabel(selected)}</h4>
+              {selected.errorSummary && <OperationFeedback message={selected.errorSummary} tone="warning" />}
+              <OperationFeedback message={itemsError ? `任务明细读取失败：${itemsError}` : null} tone="error" onRetry={() => setItemsReadVersion((current) => current + 1)} />
               {selected.workflowVersion === 2 && <p>相同 {selected.identicalItems} · 不同 {selected.differentItems} · 无法验证 {selected.unverifiableItems}</p>}
               {selected.workflowVersion === 3 && <p>计划 {selected.totalItems} · 成功 {selected.successItems} · 失败 {selected.failedItems} · 跳过 {selected.skippedItems}</p>}
               {selected.phase === "awaiting_confirmation" && <p role="status">只有“完整哈希相同”的文件可进入永久删除。其他结果不会删除。</p>}
@@ -125,14 +163,15 @@ export function DuplicateCleanupTasksPanel(props: Props) {
               {selected.phase === "deletion" && ["queued", "running", "cancelling"].includes(selected.status) && <p className="duplicate-task-safety-note">停止剩余删除只阻止尚未开始的项目；已经完成的永久删除无法撤销。</p>}
               {selected.status === "interrupted" && <p className="duplicate-task-safety-note">任务已中断；可以从尚未完成的 API删除项继续。</p>}
               <div className="duplicate-task-actions">
-                {selected.phase === "awaiting_confirmation" && props.onConfirm && <button ref={confirmTriggerRef} className="delete-review-action" onClick={() => { setConfirmation(""); setConfirmOpen(true); }}>第二次确认永久删除</button>}
-                {["queued", "running", "interrupted"].includes(selected.status) && <button onClick={() => void act(() => props.onCancel(selected.id))}><PauseCircle size={16} />{selected.phase === "deletion" ? "停止剩余删除" : "取消验证"}</button>}
-                {selected.status === "interrupted" && <button onClick={() => void act(() => props.onResume(selected.id))}><PlayCircle size={16} />{selected.workflowVersion === 3 ? "继续API删除" : "重新完整验证"}</button>}
-                {["completed_with_errors", "cancelled"].includes(selected.status) && selected.phase === "finished" && <button onClick={() => void act(() => props.onRetry(selected.id))}><RotateCcw size={16} />{selected.workflowVersion === 3 ? "重试失败项" : "重新完整验证"}</button>}
-                {["completed", "completed_with_errors", "cancelled"].includes(selected.status) && selected.phase !== "awaiting_confirmation" && <button onClick={() => void act(async () => { await props.onClear(selected.id); setSelected(null); setItems(null); })}><Trash2 size={16} />清除记录</button>}
+                {selected.phase === "awaiting_confirmation" && props.onConfirm && <button disabled={busy || Boolean(jobsError)} ref={confirmTriggerRef} className="delete-review-action" onClick={() => { setError(null); setConfirmation(""); setConfirmOpen(true); }}>第二次确认永久删除</button>}
+                {["queued", "running", "interrupted"].includes(selected.status) && <button disabled={busy} onClick={() => void act(() => props.onCancel(selected.id))}><PauseCircle size={16} />{selected.phase === "deletion" ? "停止剩余删除" : "取消验证"}</button>}
+                {selected.status === "interrupted" && <button disabled={busy || Boolean(jobsError)} onClick={() => void act(() => props.onResume(selected.id))}><PlayCircle size={16} />{selected.workflowVersion === 3 ? "继续API删除" : "重新完整验证"}</button>}
+                {["completed_with_errors", "cancelled"].includes(selected.status) && selected.phase === "finished" && <button disabled={busy || Boolean(jobsError)} onClick={() => void act(() => props.onRetry(selected.id))}><RotateCcw size={16} />{selected.workflowVersion === 3 ? "重试失败项" : "重新完整验证"}</button>}
+                {["completed", "completed_with_errors", "cancelled"].includes(selected.status) && selected.phase !== "awaiting_confirmation" && <button disabled={busy || Boolean(jobsError)} onClick={() => void act(async () => { await props.onClear(selected.id); setSelected(null); setItems(null); })}><Trash2 size={16} />清除记录</button>}
               </div>
               <div className="duplicate-task-items">
-                {items?.items.map((item) => <article key={item.id}><div><strong>{item.filename}</strong><span>{itemResultLabel(item)}</span></div><button aria-label={`打开 ${item.filename} 所在文件夹`} onClick={() => void props.onOpenItem?.(item.id)}><FolderOpen size={16} /></button></article>)}
+                <ReadState loading={itemsLoading && !items} error={itemsError} empty={Boolean(items && items.items.length === 0)} loadingText="正在读取任务明细..." emptyTitle="该任务暂无明细" />
+                {items?.items.map((item) => <article key={item.id}><div><strong>{item.filename}</strong><span>{itemResultLabel(item)}</span></div><button aria-label={`打开 ${item.filename} 所在文件夹`} disabled={!props.onOpenItem || busy} onClick={() => void act(() => props.onOpenItem!(item.id))}><FolderOpen size={16} /></button></article>)}
               </div>
             </>}
           </div>
@@ -145,6 +184,7 @@ export function DuplicateCleanupTasksPanel(props: Props) {
             if (event.key === "Tab") trapFocus(event, event.currentTarget);
           }}>
             <h3 id="duplicate-delete-confirm-title">确认永久删除已验证相同的文件</h3>
+            <OperationFeedback message={error} tone="error" />
             <p>任务包含 {selected.totalGroups} 个候选组和最多 {selected.totalGroups} 个计划保留文件；本次只永久删除 {selected.identicalItems} 个经完整 SHA-256 验证相同的候选移除项，候选可释放空间上限为 {formatBytes(selected.plannedReclaimableBytes)}。</p>
             <p>最终删除前会再次完整核验哈希、强文件身份、大小和修改时间；任何变化都会阻止删除。已经完成的永久删除无法撤销。</p>
             <label>请输入 <strong>DELETE</strong><input ref={confirmInputRef} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" aria-describedby="duplicate-delete-confirm-help" /></label>
@@ -161,6 +201,7 @@ function progressValue(job: DuplicateCleanupJob): number {
   return job.phase === "verification" || job.phase === "awaiting_confirmation" ? job.verificationProcessedItems : job.processedItems;
 }
 function phaseLabel(job: DuplicateCleanupJob): string {
+  if (job.status === "queued") return "等待执行";
   if (job.workflowVersion === 3 && job.phase === "deletion") return job.status === "cancelling" ? "正在停止API删除" : "正在通过CloudDrive API删除";
   if (job.phase === "verification") return job.status === "interrupted" ? "验证已中断" : job.status === "cancelling" ? "正在取消验证" : "正在完整验证";
   if (job.phase === "awaiting_confirmation") return "验证完成，等待第二次确认";
@@ -218,4 +259,4 @@ function trapFocus(event: KeyboardEvent<HTMLElement>, container: HTMLElement): v
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 }
-function toMessage(cause: unknown): string { return cause instanceof Error ? cause.message : String(cause); }
+function toMessage(cause: unknown): string { return operationErrorMessage(cause); }

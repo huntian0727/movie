@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import type { ScanFailureReviewItem, ScanFailureReviewPage, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ScanFailureBatchJob, ScanFailureReviewItem, ScanFailureReviewPage, SourceFolder, VideoRecord } from "../../src/shared/videoTypes";
 import { ScanFailuresPage } from "../../src/renderer/components/ScanFailuresPage";
 
 const folder: SourceFolder = { id: "folder-1", path: "D:\\Movies", recursive: true, enabled: true, lastScannedAt: null, createdAt: "2026-01-01", updatedAt: "2026-01-01", scanError: "failed" };
@@ -27,7 +27,59 @@ const page: ScanFailureReviewPage = {
   counts: { all: 3, video: 1, unindexedFile: 1, directory: 1 }
 };
 
+const queuedJob: ScanFailureBatchJob = { id: "batch-1", operation: "analyze-metadata", status: "queued", totalCount: 3, processedCount: 0, successCount: 0, failureCount: 0, skippedCount: 0, currentPath: null, message: null, createdAt: "2026-10-05", completedAt: null };
+afterEach(() => vi.useRealTimers());
+
 describe("ScanFailuresPage", () => {
+  it("does not present a failed query as an empty result and retry only reads the list", async () => {
+    const loadPage = vi.fn().mockRejectedValueOnce(new Error("database locked")).mockResolvedValue(page);
+    const onRetry = vi.fn(); const onDeleteFile = vi.fn();
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={loadPage} onRetry={onRetry} onDeleteFile={onDeleteFile} onOpenLocation={vi.fn()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("database locked");
+    expect(screen.queryByText("当前筛选下没有未解决的扫描异常")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新读取" }));
+    await screen.findByText("clip.mp4");
+    expect(onRetry).not.toHaveBeenCalled(); expect(onDeleteFile).not.toHaveBeenCalled();
+  });
+
+  it("guards batch submission and labels accepted queued work truthfully", async () => {
+    let resolveJob!: (job: ScanFailureBatchJob) => void;
+    const onSubmitBatch = vi.fn(() => new Promise<ScanFailureBatchJob>((resolve) => { resolveJob = resolve; }));
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} onSubmitBatch={onSubmitBatch} />);
+    await screen.findByText("clip.mp4");
+    fireEvent.click(screen.getByRole("button", { name: "全选全部筛选结果" }));
+    const start = screen.getByRole("button", { name: "分析元数据" });
+    fireEvent.click(start); fireEvent.click(start);
+    expect(onSubmitBatch).toHaveBeenCalledOnce(); expect(start).toBeDisabled();
+    await act(async () => resolveJob(queuedJob));
+    expect(screen.getByText("等待执行")).toBeInTheDocument();
+    expect(screen.queryByText("批处理完成")).not.toBeInTheDocument();
+  });
+
+  it("polls without overlap and lets a state read recover without submitting the batch again", async () => {
+    const onSubmitBatch = vi.fn().mockResolvedValue(queuedJob);
+    let resolvePoll!: (job: ScanFailureBatchJob) => void;
+    const onGetBatch = vi.fn().mockRejectedValueOnce(new Error("status unavailable"))
+      .mockImplementationOnce(() => new Promise<ScanFailureBatchJob>((resolve) => { resolvePoll = resolve; }));
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} onSubmitBatch={onSubmitBatch} onGetBatch={onGetBatch} />);
+    await screen.findByText("clip.mp4");
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "全选全部筛选结果" }));
+    fireEvent.click(screen.getByRole("button", { name: "分析元数据" }));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(onGetBatch).toHaveBeenCalledOnce();
+    expect(screen.getByText("任务状态暂时未知")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新读取" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(onGetBatch).toHaveBeenCalledTimes(2);
+    await act(async () => resolvePoll({ ...queuedJob, status: "completed-with-errors", processedCount: 3, failureCount: 1, successCount: 2 }));
+    expect(screen.getByText("批处理完成（有失败）")).toBeInTheDocument();
+    expect(screen.queryByText(/批处理已受理/)).not.toBeInTheDocument();
+    expect(onSubmitBatch).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "收起结果" }));
+    expect(screen.queryByText("批处理完成（有失败）")).not.toBeInTheDocument();
+  });
   it("groups source-level failures in a collapsed summary and scopes the list on demand", async () => {
     const loadPage = vi.fn().mockResolvedValue(page);
     render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={loadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);

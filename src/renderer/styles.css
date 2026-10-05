@@ -10,6 +10,26 @@
   letter-spacing: 0;
 }
 
+/* Compact contextual feedback: no overlays, layout animation or global toast queue. */
+.operation-feedback { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; line-height: 1.5; }
+.operation-feedback > svg { flex-shrink: 0; }
+.operation-feedback > span { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.operation-feedback-success { color: #acd9bb; background: #17251d; border-color: #365d44; }
+.operation-feedback-info { color: #bfccd6; background: #1c2328; border-color: #455661; }
+.operation-feedback-warning { color: #f3ce87; background: #282116; border-color: #6c572e; }
+.operation-feedback-error { color: #ffb3a5; background: #2d1d19; border-color: #805044; }
+.operation-feedback button { flex-shrink: 0; padding: 5px 9px; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 5px; cursor: pointer; white-space: nowrap; }
+.operation-feedback .operation-feedback-close { display: flex; align-items: center; padding: 5px; border: 0; }
+.operation-feedback button:focus-visible, .read-state button:focus-visible { outline: 2px solid var(--workflow-accent-strong); outline-offset: 3px; }
+.read-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px 16px; color: #c4c9c2; text-align: center; }
+.read-state strong { color: #f4f4f2; }
+.read-state span { max-width: 65ch; font-size: 13px; }
+.diagnostic-read-record { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.diagnostic-read-record button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.diagnostic-read-record small { color: #aeb8ae; }
+@media (max-width: 800px) { .operation-feedback { flex-wrap: wrap; } .operation-feedback > span { flex-basis: 70%; } }
+@media (prefers-reduced-motion: reduce) { .read-state .spin { animation: none; } }
+
 .scan-failure-page { padding: 24px 32px 40px; display: grid; gap: 18px; }
 .scan-failure-filters { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
 .scan-failure-filters label { display: grid; gap: 6px; color: #8b8f89; font-size: 13px; }

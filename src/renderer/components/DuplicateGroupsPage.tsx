@@ -28,10 +28,12 @@ import { DuplicateDirectoryRanking } from "./DuplicateDirectoryRanking";
 import { WindowedDuplicateGroups } from "./WindowedDuplicateGroups";
 import { DuplicateCleanupTasksPanel } from "./DuplicateCleanupTasksPanel";
 import { DuplicateCleanupButton } from "./DuplicateCleanupButton";
+import { OperationFeedback, ReadState, operationErrorMessage } from "./OperationFeedback";
 
 interface DuplicateGroupsPageProps {
   groups: DuplicateGroup[];
   loading?: boolean;
+  loadError?: string | null;
   page?: number;
   pageSize?: DuplicatePageSize;
   totalPages?: number;
@@ -51,7 +53,7 @@ interface DuplicateGroupsPageProps {
   onPageSize?(pageSize: DuplicatePageSize): void;
   onSortField?(field: DuplicateGroupSortField): void;
   onSortDirection?(direction: SortDirection): void;
-  onPreferredDirectoryPathChange?(path: string): void;
+  onPreferredDirectoryPathChange?(path: string): void | Promise<void>;
   onClearDirectoryFilter?(): void;
   onRemovePreferredDirectory?(id: string): void | Promise<void>;
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
@@ -70,6 +72,7 @@ interface DuplicateGroupsPageProps {
   onSubmitCleanup?(requestId: string, plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onConfirmCleanup?(request: DuplicateCleanupConfirmRequest): Promise<DuplicateCleanupJob>;
   onLoadCleanupJobs?(page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupJobPage>;
+  onGetCleanupJob?(jobId: string): Promise<DuplicateCleanupJob>;
   onLoadCleanupItems?(jobId: string, page: number, pageSize: 20 | 50 | 100): Promise<DuplicateCleanupItemPage>;
   onCancelCleanup?(jobId: string): Promise<DuplicateCleanupJob>;
   onResumeCleanup?(jobId: string): Promise<DuplicateCleanupJob>;
@@ -88,6 +91,7 @@ const GIBIBYTE = 1024 ** 3;
 export function DuplicateGroupsPage({
   groups,
   loading = false,
+  loadError = null,
   page = 1,
   pageSize = 20,
   totalPages = 1,
@@ -126,6 +130,7 @@ export function DuplicateGroupsPage({
   onSubmitCleanup,
   onConfirmCleanup,
   onLoadCleanupJobs,
+  onGetCleanupJob,
   onLoadCleanupItems,
   onCancelCleanup,
   onResumeCleanup,
@@ -149,6 +154,8 @@ export function DuplicateGroupsPage({
   const [directoryFilterPreset, setDirectoryFilterPreset] = useState<DuplicateDirectoryFilterPreset>("all");
   const [taskCenterOpen, setTaskCenterOpen] = useState(false);
   const [activeTaskCount, setActiveTaskCount] = useState(0);
+  const [taskReadError, setTaskReadError] = useState<string | null>(null);
+  const [taskReadVersion, setTaskReadVersion] = useState(0);
   const [submittedCleanupJobId, setSubmittedCleanupJobId] = useState<string | null>(null);
   const [directPreviewPending, setDirectPreviewPending] = useState(false);
   const [directPreviewElapsed, setDirectPreviewElapsed] = useState(0);
@@ -157,6 +164,8 @@ export function DuplicateGroupsPage({
   const [bindingPending, setBindingPending] = useState(false);
   const [bindingProgress, setBindingProgress] = useState<CloudDriveLegacyBindingProgress | null>(null);
   const [filteredSubmissionHidden, setFilteredSubmissionHidden] = useState(false);
+  const [directoryPending, setDirectoryPending] = useState(false);
+  const directoryGuardRef = useRef(false);
   const submitGuardRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
   const onCleanupFinishedRef = useRef(onCleanupFinished);
@@ -178,6 +187,31 @@ export function DuplicateGroupsPage({
   const currentPreferredDirectoryOption = currentPreferredDirectory
     ? directoryOptions.find((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(currentPreferredDirectory.path))
     : undefined;
+
+  const changePreferredDirectory = useCallback(async (path: string) => {
+    if (!onPreferredDirectoryPathChange || directoryGuardRef.current) return;
+    directoryGuardRef.current = true;
+    setDirectoryPending(true);
+    setActionError(null);
+    try { await onPreferredDirectoryPathChange(path); }
+    catch (cause) { setActionError(operationErrorMessage(cause)); }
+    finally { directoryGuardRef.current = false; setDirectoryPending(false); }
+  }, [onPreferredDirectoryPathChange]);
+
+  const removePreferredDirectory = async (id: string) => {
+    if (!onRemovePreferredDirectory || directoryGuardRef.current) return;
+    directoryGuardRef.current = true;
+    setDirectoryPending(true);
+    setActionError(null);
+    try { await onRemovePreferredDirectory(id); }
+    catch (cause) { setActionError(operationErrorMessage(cause)); }
+    finally { directoryGuardRef.current = false; setDirectoryPending(false); }
+  };
+
+  const revealVideo = useCallback(async (video: VideoRecord) => {
+    try { await onRevealInFolder?.(video); }
+    catch (cause) { setActionError(operationErrorMessage(cause)); }
+  }, [onRevealInFolder]);
 
   useEffect(() => {
     onCleanupFinishedRef.current = onCleanupFinished;
@@ -201,19 +235,25 @@ export function DuplicateGroupsPage({
   useEffect(() => {
     if (!onLoadCleanupJobs) return;
     let disposed = false;
-    void onLoadCleanupJobs(1, 20).then((result) => {
+    setTaskReadError(null);
+    void Promise.all([onLoadCleanupJobs(1, 20), submittedCleanupJobId && onGetCleanupJob ? onGetCleanupJob(submittedCleanupJobId) : Promise.resolve(null)]).then(([result, detail]) => {
       if (disposed) return;
       setActiveTaskCount(result.activeCount);
       if (!submittedCleanupJobId) return;
-      const submittedJob = result.items.find((job) => job.id === submittedCleanupJobId);
+      const submittedJob = detail ?? result.items.find((job) => job.id === submittedCleanupJobId);
       if (submittedJob && isCleanupJobFinished(submittedJob)) {
         setSubmittedCleanupJobId(null);
         setMissingCheckMessage(null);
-        void onCleanupFinishedRef.current?.(submittedJob);
+        if (submittedJob.status !== "completed" || submittedJob.failedItems > 0 || submittedJob.skippedItems > 0) {
+          setActionError(`清理任务${submittedJob.status === "cancelled" ? "已取消" : "结束但有未完成项"}：成功 ${submittedJob.successItems} 项，失败 ${submittedJob.failedItems} 项，跳过 ${submittedJob.skippedItems} 项。请在“后台任务”查看明细。`);
+        }
+        void Promise.resolve().then(() => onCleanupFinishedRef.current?.(submittedJob)).catch((cause) => {
+          if (!disposed) setActionError(`任务已结束，但列表刷新失败：${operationErrorMessage(cause)}`);
+        });
       }
-    }).catch(() => undefined);
+    }).catch((cause) => { if (!disposed && submittedCleanupJobId) setTaskReadError(operationErrorMessage(cause)); });
     return () => { disposed = true; };
-  }, [onLoadCleanupJobs, cleanupRefreshSequence, submittedCleanupJobId]);
+  }, [onLoadCleanupJobs, onGetCleanupJob, cleanupRefreshSequence, submittedCleanupJobId, taskReadVersion]);
 
   useEffect(() => {
     if (!onGetLegacyCloudDriveBindingStatus) return;
@@ -288,7 +328,7 @@ export function DuplicateGroupsPage({
   };
 
   const handleAutoDelete = useCallback(async (autoPlan: DuplicateResolvePlan, label: string) => {
-    if (!onAutoDelete || actionPending) return;
+    if (!onAutoDelete || actionPending || loading || loadError || directoryPending) return;
     setActionPending(true);
     setActionError(null);
     try {
@@ -301,7 +341,7 @@ export function DuplicateGroupsPage({
     } finally {
       setActionPending(false);
     }
-  }, [onAutoDelete, actionPending]);
+  }, [onAutoDelete, actionPending, loading, loadError, directoryPending]);
 
   const handleSetKeep = useCallback((groupId: string, videoId: string) => {
     setManualKeepByGroup((current) => ({ ...current, [groupId]: videoId }));
@@ -316,7 +356,7 @@ export function DuplicateGroupsPage({
   }, [handleAutoDelete]);
 
   const handleFilteredAutoDelete = async () => {
-    if (!onAutoDeleteFiltered || actionPending) return;
+    if (!onAutoDeleteFiltered || actionPending || loading || loadError || directoryPending) return;
     setFilteredSubmissionHidden(true);
     setActionPending(true);
     setActionError(null);
@@ -399,6 +439,7 @@ export function DuplicateGroupsPage({
   const handleCheckMissing = async () => {
     if (!onCheckMissing || missingCheckPending) return;
     setMissingCheckPending(true);
+    setActionError(null);
     setMissingCheckMessage(null);
     try {
       const result = await onCheckMissing(plan);
@@ -414,9 +455,18 @@ export function DuplicateGroupsPage({
     }
   };
 
+  const feedback = <>
+    <OperationFeedback message={taskReadError ? `任务状态读取失败：${taskReadError}。任务不会重复提交。` : null} tone="error" onRetry={() => setTaskReadVersion((current) => current + 1)} />
+    <OperationFeedback message={loadError ? `候选列表读取失败：${loadError}` : null} tone="error" onRetry={onRefresh} />
+    <OperationFeedback message={actionError} tone="error" onDismiss={() => setActionError(null)} />
+    <OperationFeedback message={missingCheckMessage} tone={submittedCleanupJobId ? "info" : "success"} autoDismiss={!submittedCleanupJobId} onDismiss={() => setMissingCheckMessage(null)} />
+    {directoryPending && <OperationFeedback message="正在保存优先保留目录..." tone="info" />}
+  </>;
+
   if (groups.length === 0) {
     return (
       <section className="duplicate-page">
+        {feedback}
         <div className="duplicate-summary">
           <details className="duplicate-rule-note">
             <summary>候选判定规则</summary>
@@ -438,13 +488,13 @@ export function DuplicateGroupsPage({
                 value={undefined}
                 placeholder={currentPreferredDirectory ? "更换优先保留目录" : "添加优先保留目录"}
                 ariaLabel="选择候选项计划保留目录（包含所有子目录）"
-                onChange={(path) => onPreferredDirectoryPathChange?.(path)}
+                onChange={(path) => void changePreferredDirectory(path)}
               />
             </div>
             {currentPreferredDirectory && <p className="duplicate-directory-scope">
               当前优先保留：<code title={currentPreferredDirectory.path}>{currentPreferredDirectory.path}</code>（含子目录）
               {!directoryOptions.some((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(currentPreferredDirectory.path)) && <span className="duplicate-directory-no-match">当前无匹配</span>}
-              <button type="button" aria-label={`清除当前优先保留目录 ${currentPreferredDirectory.path}`} onClick={() => void onRemovePreferredDirectory?.(currentPreferredDirectory.id)}>清除</button>
+              <button type="button" disabled={directoryPending} aria-label={`清除当前优先保留目录 ${currentPreferredDirectory.path}`} onClick={() => void removePreferredDirectory(currentPreferredDirectory.id)}>清除</button>
             </p>}
             {filterDirectoryPath && (
               <div className="duplicate-directory-scope">
@@ -455,12 +505,12 @@ export function DuplicateGroupsPage({
             {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
           </div>
         </div>
-        <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={onPreferredDirectoryPathChange} />
+        <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={changePreferredDirectory} />
         <div className="empty-state duplicate-empty-state">
-          <div><Trash2 size={36} /></div>
-          <h3>{filterDirectoryPath && overallTotalGroups > 0 ? "该目录当前没有重复项" : totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}</h3>
-          <p>{loading ? "正在整理候选项..." : filterDirectoryPath && overallTotalGroups > 0 ? `优先保留规则仍然有效，但不会隐藏资料库中其他 ${overallTotalGroups} 组重复项。` : totalCandidateGroups > 0 ? "这些同大小文件的缓存时长不同或尚未读取成功。" : "扫描完成后，这里会显示文件大小和缓存时长相同的候选项。"}</p>
-          {filterDirectoryPath && overallTotalGroups > 0 && <button type="button" className="empty-state-action" onClick={onClearDirectoryFilter}>显示全部 {overallTotalGroups} 组重复项</button>}
+          <ReadState loading={loading} error={loadError} empty loadingText="正在整理候选项..."
+            emptyTitle={filterDirectoryPath && overallTotalGroups > 0 ? "该目录当前没有重复项" : totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}
+            emptyText={filterDirectoryPath && overallTotalGroups > 0 ? `优先保留规则仍然有效，但不会隐藏资料库中其他 ${overallTotalGroups} 组重复项。` : totalCandidateGroups > 0 ? "这些同大小文件的缓存时长不同或尚未读取成功。" : "扫描完成后，这里会显示文件大小和缓存时长相同的候选项。"} />
+          {!loading && !loadError && filterDirectoryPath && overallTotalGroups > 0 && <button type="button" className="empty-state-action" onClick={onClearDirectoryFilter}>显示全部 {overallTotalGroups} 组重复项</button>}
         </div>
         {onLoadCleanupJobs && onLoadCleanupItems && onCancelCleanup && onResumeCleanup && onRetryCleanup && onClearCleanup && (
           <DuplicateCleanupTasksPanel open={taskCenterOpen} onClose={() => setTaskCenterOpen(false)} returnFocusRef={taskCenterOpenerRef} loadJobs={onLoadCleanupJobs} loadItems={onLoadCleanupItems} onConfirm={onConfirmCleanup} onCancel={onCancelCleanup} onResume={onResumeCleanup} onRetry={onRetryCleanup} onClear={onClearCleanup} onOpenItem={onOpenCleanupItem} refreshSequence={cleanupRefreshSequence} />
@@ -471,8 +521,8 @@ export function DuplicateGroupsPage({
 
   return (
     <section className="duplicate-page" aria-label="候选项页面">
-      {actionError && <div className="error-banner" role="alert">{actionError}</div>}
-      {missingCheckMessage && <div className="success-banner" role="status">{missingCheckMessage}</div>}
+      {feedback}
+      {loading && <OperationFeedback message="正在更新候选列表，暂时保留上次结果。" tone="info" />}
 
       <div className="duplicate-summary">
         <details className="duplicate-rule-note">
@@ -504,7 +554,7 @@ export function DuplicateGroupsPage({
               value={undefined}
               placeholder={currentPreferredDirectory ? "更换优先保留目录" : "添加优先保留目录"}
               ariaLabel="选择候选项计划保留目录（包含所有子目录）"
-              onChange={(path) => onPreferredDirectoryPathChange?.(path)}
+              onChange={(path) => void changePreferredDirectory(path)}
             />
           </div>
           <label className="duplicate-sort">
@@ -535,7 +585,7 @@ export function DuplicateGroupsPage({
               {currentPreferredDirectoryOption
                 ? <span className="duplicate-directory-impact">候选清理 {currentPreferredDirectoryOption.estimatedCleanupFileCount.toLocaleString()} 个 · 释放 {formatBytes(currentPreferredDirectoryOption.estimatedReclaimableBytes)}</span>
                 : <span className="duplicate-directory-no-match">当前无匹配</span>}
-              <button type="button" aria-label={`清除当前优先保留目录 ${currentPreferredDirectory.path}`} onClick={() => void onRemovePreferredDirectory?.(currentPreferredDirectory.id)}>清除</button>
+              <button type="button" disabled={directoryPending} aria-label={`清除当前优先保留目录 ${currentPreferredDirectory.path}`} onClick={() => void removePreferredDirectory(currentPreferredDirectory.id)}>清除</button>
             </p>
           </div>}
           {filterDirectoryPath && (
@@ -586,10 +636,10 @@ export function DuplicateGroupsPage({
             </div>
           )}
           {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
-          {onAutoDelete && <button className="danger current-page-delete" type="button" title={`只删除当前第 ${page} 页中可通过 CloudDrive API 处理的候选项`} disabled={actionPending || fastDeleteCount === 0} onClick={() => void handleAutoDelete(plan, `当前第 ${page} 页清理`)}>
+          {onAutoDelete && <button className="danger current-page-delete" type="button" title={`只删除当前第 ${page} 页中可通过 CloudDrive API 处理的候选项`} disabled={loading || Boolean(loadError) || directoryPending || actionPending || fastDeleteCount === 0} onClick={() => void handleAutoDelete(plan, `当前第 ${page} 页清理`)}>
             {actionPending ? "正在创建删除任务..." : `批量删除当前页（${groups.length} 组）`}
           </button>}
-          {onAutoDeleteFiltered && <button className="danger" type="button" title={filteredDeleteDisabledReason ?? "通过 CloudDrive API 删除全部筛选结果中的候选项"} aria-describedby={filteredDeleteDisabledReason ? "filtered-delete-disabled-reason" : undefined} disabled={actionPending || filteredDeleteDisabledReason !== null} onClick={() => void handleFilteredAutoDelete()}>
+          {onAutoDeleteFiltered && <button className="danger" type="button" title={filteredDeleteDisabledReason ?? "通过 CloudDrive API 删除全部筛选结果中的候选项"} aria-describedby={filteredDeleteDisabledReason ? "filtered-delete-disabled-reason" : undefined} disabled={loading || Boolean(loadError) || directoryPending || actionPending || filteredDeleteDisabledReason !== null} onClick={() => void handleFilteredAutoDelete()}>
             {actionPending ? "正在创建删除任务..." : `批量删除全部筛选结果（${totalGroups} 组）`}
           </button>}
           {onAutoDeleteFiltered && filteredDeleteDisabledReason && <p id="filtered-delete-disabled-reason" className="duplicate-delete-disabled-reason" role="status">批量删除暂不可用：{filteredDeleteDisabledReason}</p>}
@@ -638,7 +688,7 @@ export function DuplicateGroupsPage({
         </div>
       </div>
 
-      <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={onPreferredDirectoryPathChange} />
+      <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={changePreferredDirectory} />
       {!filteredSubmissionHidden && <WindowedDuplicateGroups groups={groups} renderGroup={(group, index) => (
           <DuplicateGroupCard
             key={group.groupKey}
@@ -647,11 +697,12 @@ export function DuplicateGroupsPage({
             page={page}
             pageSize={pageSize}
             keepVideoId={manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId}
+            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending}
             onSetKeep={handleSetKeep}
-            onPreferDirectory={onPreferredDirectoryPathChange}
+            onPreferDirectory={changePreferredDirectory}
             onOpen={onOpen}
             onViewDetails={onViewDetails}
-            onRevealInFolder={onRevealInFolder}
+            onRevealInFolder={revealVideo}
             onDeleteCandidate={handleDeleteCandidate}
           />
         )} />}
@@ -736,6 +787,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   page,
   pageSize,
   keepVideoId,
+  cleanupDisabled,
   onSetKeep,
   onPreferDirectory,
   onOpen,
@@ -748,6 +800,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   page: number;
   pageSize: number;
   keepVideoId: string;
+  cleanupDisabled: boolean;
   onSetKeep(groupId: string, videoId: string): void;
   onPreferDirectory?(path: string): void;
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
@@ -811,7 +864,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
                 <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
                 <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
                 <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
-                <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} disabled={item.canAutoDelete === false} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>
+                <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} disabled={cleanupDisabled || item.canAutoDelete === false} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>
               </div>
             </article>
           );
@@ -884,8 +937,8 @@ function formatRemainingTime(milliseconds: number | null): string {
 }
 
 function toDuplicateActionMessage(cause: unknown): string {
-  const message = cause instanceof Error ? cause.message : String(cause);
-  if (/Error invoking remote method|duplicate:preview-resolve|duplicate:resolve/i.test(message)) {
+  const message = operationErrorMessage(cause);
+  if (/duplicate:preview-resolve|duplicate:resolve/i.test(message)) {
     return "候选项检查失败，请刷新候选项后重试。";
   }
   return message;

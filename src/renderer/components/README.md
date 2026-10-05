@@ -1,5 +1,14 @@
 # UI 组件模块
 
+## 操作反馈与只读恢复
+
+`OperationFeedback.tsx` 统一提供可关闭的成功、等待、警告和失败提示，以及明确的只读重试入口。
+成功提示只有启用 `autoDismiss` 时才在 8 秒后消失；等待、警告和失败不会自动消失或自动重试。
+页面必须分别维护查询失败和操作失败，刷新查询不得清除操作失败；加载中、真实空结果、读取失败不可混为一种状态。
+重试读取只能调用原查询，不得重新提交删除、扫描或媒体解析任务。队列受理不等于任务完成。
+播放诊断的“重新读取记录”只读数据库；“检查文件状态”和“补充元数据”分别沿用原有的明确操作入口。
+异步查询和操作结果应忽略已卸载页面、已切换视频或已切换任务的过期响应。
+
 The video grid uses `useProgressiveRenderCount` to split initial React mounting
 into small batches. Duplicate pages of more than 20 groups use
 `WindowedDuplicateGroups`: lightweight slots keep scroll positions, while

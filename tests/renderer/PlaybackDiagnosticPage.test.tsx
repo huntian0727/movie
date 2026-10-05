@@ -206,7 +206,7 @@ describe("PlaybackDiagnosticPage", () => {
     expect(await screen.findByText("无法读取视频记录")).toBeInTheDocument();
     expect(screen.getByText("cache unavailable")).toBeInTheDocument();
     expect(screen.queryByText(/hidden-stack/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重新读取缓存" }));
+    fireEvent.click(screen.getByRole("button", { name: "重新读取记录" }));
 
     expect(await screen.findByText("内置播放器")).toBeInTheDocument();
     expect(loadVideosByIds).toHaveBeenCalledTimes(2);
@@ -299,5 +299,32 @@ describe("PlaybackDiagnosticPage", () => {
   it("contains no direct file, probe, scan, or cover-loading code", () => {
     const source = readFileSync("src/renderer/components/PlaybackDiagnosticPage.tsx", "utf8");
     expect(source).not.toMatch(/from ["']node:fs|ffprobe|getCoverUrl|scanFolder|refresh\(/);
+  });
+
+  it("separates database record refresh from actual file checks and metadata submission", async () => {
+    const loadVideosByIds = vi.fn().mockResolvedValue([video]);
+    const onCheckFileAvailability = vi.fn(); const onRetryMetadata = vi.fn();
+    renderPage({ selectedVideoId: video.id, initialVideo: video, loadVideosByIds, onCheckFileAvailability, onRetryMetadata });
+    const refresh = await screen.findByRole("button", { name: "重新读取记录" });
+    await waitFor(() => expect(refresh).toBeEnabled());
+    fireEvent.click(refresh);
+    await waitFor(() => expect(loadVideosByIds).toHaveBeenCalledTimes(2));
+    expect(onCheckFileAvailability).not.toHaveBeenCalled();
+    expect(onRetryMetadata).not.toHaveBeenCalled();
+  });
+
+  it("ignores an availability result from the previously selected video", async () => {
+    let resolveCheck!: (result: MissingVideoActionResult) => void;
+    const onCheckFileAvailability = vi.fn(() => new Promise<MissingVideoActionResult>((resolve) => { resolveCheck = resolve; }));
+    const second = { ...video, id: "v2", filename: "second.mp4" };
+    const loadVideosByIds = vi.fn((ids: string[]) => Promise.resolve([ids[0] === video.id ? video : second]));
+    const { props, rerender } = renderPage({ selectedVideoId: video.id, initialVideo: video, loadVideosByIds, onCheckFileAvailability });
+    await waitFor(() => expect(screen.getByRole("button", { name: "检查文件状态" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "检查文件状态" }));
+    rerender(<PlaybackDiagnosticPage {...props} selectedVideoId={second.id} initialVideo={second} />);
+    await screen.findByText("second.mp4");
+    await act(async () => resolveCheck(availableResult));
+    expect(screen.queryByText(availableResult.items[0].message)).not.toBeInTheDocument();
+    expect(loadVideosByIds).toHaveBeenCalledTimes(2);
   });
 });

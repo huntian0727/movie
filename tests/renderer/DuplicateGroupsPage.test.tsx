@@ -50,6 +50,53 @@ function cleanupJob(overrides: Partial<DuplicateCleanupJob> = {}): DuplicateClea
 afterEach(() => vi.unstubAllGlobals());
 
 describe("DuplicateGroupsPage staged safety flow", () => {
+  it("shows loading instead of an empty conclusion, and read retry never submits deletion", () => {
+    const onRefresh = vi.fn(); const onAutoDeleteFiltered = vi.fn();
+    const { rerender } = render(<DuplicateGroupsPage {...baseProps()} groups={[]} loading onRefresh={onRefresh} onAutoDeleteFiltered={onAutoDeleteFiltered} />);
+    expect(screen.getByText("正在整理候选项...")).toBeInTheDocument();
+    expect(screen.queryByText("暂时没有同大小文件")).not.toBeInTheDocument();
+    rerender(<DuplicateGroupsPage {...baseProps()} groups={[]} loadError="worker unavailable" onRefresh={onRefresh} onAutoDeleteFiltered={onAutoDeleteFiltered} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("worker unavailable");
+    expect(screen.queryByText("暂时没有同大小文件")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新读取" }));
+    expect(onRefresh).toHaveBeenCalledOnce(); expect(onAutoDeleteFiltered).not.toHaveBeenCalled();
+  });
+
+  it("keeps action errors visible even after all groups leave the page", async () => {
+    const onAutoDelete = vi.fn().mockRejectedValue(new Error("Error invoking remote method 'duplicate:submit': Error: CloudDrive unavailable"));
+    const { rerender } = render(<DuplicateGroupsPage {...baseProps()} onAutoDelete={onAutoDelete} />);
+    fireEvent.click(screen.getByRole("button", { name: /批量删除当前页/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("CloudDrive unavailable");
+    rerender(<DuplicateGroupsPage {...baseProps()} groups={[]} onAutoDelete={onAutoDelete} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("CloudDrive unavailable");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Error invoking remote method");
+  });
+
+  it("reports preferred-directory persistence failures rather than silently ignoring them", async () => {
+    const onPreferredDirectoryPathChange = vi.fn().mockRejectedValue(new Error("cannot save preference"));
+    render(<DuplicateGroupsPage {...baseProps()} onPreferredDirectoryPathChange={onPreferredDirectoryPathChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /优先保留 D:\\Movies 及其所有子目录/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("cannot save preference");
+  });
+
+  it("prevents cleanup of stale displayed groups while a new query is loading", () => {
+    const onAutoDelete = vi.fn(); const onAutoDeleteFiltered = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} loading onAutoDelete={onAutoDelete} onAutoDeleteFiltered={onAutoDeleteFiltered} />);
+    expect(screen.getByRole("button", { name: /批量删除当前页/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /批量删除全部筛选结果/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "验证并永久删除 clip-copy.mp4" })).toBeDisabled();
+  });
+
+  it("reads the submitted job by identity even when it leaves the first task page", async () => {
+    const failedJob = cleanupJob({ status: "completed_with_errors", phase: "finished", failedItems: 1 });
+    const onGetCleanupJob = vi.fn().mockResolvedValue(failedJob);
+    const onAutoDeleteFiltered = vi.fn().mockResolvedValue({ jobId: failedJob.id, reused: false });
+    render(<DuplicateGroupsPage {...baseProps()} {...taskCenterProps()} onAutoDeleteFiltered={onAutoDeleteFiltered} onGetCleanupJob={onGetCleanupJob} />);
+    fireEvent.click(screen.getByRole("button", { name: /批量删除全部筛选结果/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("失败 1 项");
+    expect(onGetCleanupJob).toHaveBeenCalledWith(failedJob.id);
+    expect(screen.queryByText(/已对全部筛选结果启动/)).not.toBeInTheDocument();
+  });
   it("rerenders only the changed card when a group's planned keep item changes", () => {
     const otherKeep = { ...video, id: "other-keep", get filename() { return "untouched-keep.mp4"; } };
     const otherDelete = { ...duplicateVideo, id: "other-delete", get filename() { return "untouched-delete.mp4"; } };

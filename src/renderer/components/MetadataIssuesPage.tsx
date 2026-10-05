@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, CircleGauge, ExternalLink, FileWarning, LoaderCircle, RefreshCw, Search } from "lucide-react";
+import { CheckCircle2, CircleGauge, ExternalLink, FileWarning, LoaderCircle, RefreshCw, Search } from "lucide-react";
 import type {
   MetadataIssueItem,
   MetadataIssuePage,
@@ -11,6 +11,7 @@ import type {
   VideoRecord
 } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime } from "./formatters";
+import { OperationFeedback, operationErrorMessage } from "./OperationFeedback";
 
 interface MetadataIssuesPageProps {
   folders: SourceFolder[];
@@ -44,6 +45,7 @@ export function MetadataIssuesPage({
   const [result, setResult] = useState(EMPTY_PAGE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
@@ -79,7 +81,7 @@ export function MetadataIssuesPage({
   useEffect(() => {
     const request = ++requestRef.current;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     void loadPage({ sourceFolderId: sourceFolderId || undefined, status, zeroBytesOnly, search, page: pageNumber, pageSize })
       .then((next) => {
         if (request !== requestRef.current) return;
@@ -89,8 +91,9 @@ export function MetadataIssuesPage({
         const visibleIds = new Set(next.items.map((item) => item.video.id));
         setSelectedIds((current) => new Set([...current].filter((id) => visibleIds.has(id))));
       })
-      .catch((cause) => { if (request === requestRef.current) setError(toMessage(cause)); })
+      .catch((cause) => { if (request === requestRef.current) setLoadError(toMessage(cause)); })
       .finally(() => { if (request === requestRef.current) setLoading(false); });
+    return () => { requestRef.current += 1; };
   }, [coalescedRefreshSequence, loadPage, onTotalCount, pageNumber, pageSize, refreshVersion, search, sourceFolderId, status, zeroBytesOnly]);
 
   const selectedFolder = useMemo(() => folders.find((folder) => folder.id === sourceFolderId), [folders, sourceFolderId]);
@@ -99,8 +102,10 @@ export function MetadataIssuesPage({
   const selectedZeroByteItems = selectedItems.filter((item) => item.video.sizeBytes === 0);
   const selectedAnalyzableItems = selectedItems.filter((item) => item.video.sizeBytes > 0);
   const bulkBusy = busyIds.size > 1;
+  const rowsUnavailable = loading || Boolean(loadError);
 
   async function retryItems(items: MetadataIssueItem[]) {
+    if (rowsUnavailable || busyIds.size > 0) return;
     const uniqueItems = [...new Map(items.filter((item) => item.video.sizeBytes > 0).map((item) => [item.video.id, item])).values()];
     if (uniqueItems.length === 0) return;
     beginAction(uniqueItems.map((item) => item.video.id));
@@ -109,7 +114,7 @@ export function MetadataIssuesPage({
     try {
       for (let index = 0; index < uniqueItems.length; index += 8) {
         const batch = uniqueItems.slice(index, index + 8);
-        const settled = await Promise.allSettled(batch.map((item) => onRetry(item.video)));
+        const settled = await Promise.allSettled(batch.map((item) => Promise.resolve().then(() => onRetry(item.video))));
         settled.forEach((entry, batchIndex) => {
           if (entry.status === "fulfilled") successCount += 1;
           else failures.push({ path: batch[batchIndex]!.video.path, message: toMessage(entry.reason) });
@@ -124,6 +129,7 @@ export function MetadataIssuesPage({
   }
 
   async function refreshSizes(items: MetadataIssueItem[]) {
+    if (rowsUnavailable || busyIds.size > 0) return;
     const uniqueItems = [...new Map(items.filter((item) => item.video.sizeBytes === 0).map((item) => [item.video.id, item])).values()];
     if (uniqueItems.length === 0) return;
     beginAction(uniqueItems.map((item) => item.video.id));
@@ -155,6 +161,11 @@ export function MetadataIssuesPage({
   function finishAction() {
     setSelectedIds(new Set());
     setRefreshVersion((current) => current + 1);
+  }
+
+  async function openLocation(video: VideoRecord) {
+    try { await onOpenLocation?.(video); }
+    catch (cause) { setError(toMessage(cause)); }
   }
 
   return (
@@ -190,26 +201,27 @@ export function MetadataIssuesPage({
             <option value={30}>30</option><option value={50}>50</option><option value={100}>100</option>
           </select>
         </label>
-        <button className="missing-video-refresh" type="button" disabled={loading || busyIds.size > 0} onClick={() => setRefreshVersion((current) => current + 1)}><RefreshCw className={loading ? "spin" : undefined} size={17} />刷新</button>
+        <button className="missing-video-refresh" type="button" title="只重新读取资料库记录，不扫描文件、不重新分析视频" disabled={loading || busyIds.size > 0} onClick={() => setRefreshVersion((current) => current + 1)}><RefreshCw className={loading ? "spin" : undefined} size={17} />刷新列表</button>
       </div>
 
       <div className="missing-video-actions metadata-issue-actions">
         <strong>已选 {selectedIds.size.toLocaleString("zh-CN")} 条</strong>
-        <button type="button" disabled={result.items.length === 0 || busyIds.size > 0} onClick={() => setSelectedIds(allCurrentPageSelected ? new Set() : new Set(result.items.map((item) => item.video.id)))}>{allCurrentPageSelected ? "取消当前页全选" : "全选当前页"}</button>
+        <button type="button" disabled={rowsUnavailable || result.items.length === 0 || busyIds.size > 0} onClick={() => setSelectedIds(allCurrentPageSelected ? new Set() : new Set(result.items.map((item) => item.video.id)))}>{allCurrentPageSelected ? "取消当前页全选" : "全选当前页"}</button>
         <button type="button" className={zeroBytesOnly ? "active" : undefined} disabled={busyIds.size > 0} aria-pressed={zeroBytesOnly} onClick={() => setZeroBytesOnly((current) => !current)}><FileWarning size={15} />仅看 0B（{result.zeroByteCount.toLocaleString("zh-CN")}）</button>
-        <button type="button" disabled={selectedZeroByteItems.length === 0 || busyIds.size > 0} onClick={() => void refreshSizes(selectedZeroByteItems)}>{bulkBusy ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}重新读取大小（{selectedZeroByteItems.length.toLocaleString("zh-CN")}）</button>
-        <button type="button" disabled={selectedAnalyzableItems.length === 0 || busyIds.size > 0} onClick={() => void retryItems(selectedAnalyzableItems)}>{bulkBusy ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}优先重新分析（{selectedAnalyzableItems.length.toLocaleString("zh-CN")}）</button>
+        <button type="button" disabled={rowsUnavailable || selectedZeroByteItems.length === 0 || busyIds.size > 0} onClick={() => void refreshSizes(selectedZeroByteItems)}>{bulkBusy ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}重新读取大小（{selectedZeroByteItems.length.toLocaleString("zh-CN")}）</button>
+        <button type="button" disabled={rowsUnavailable || selectedAnalyzableItems.length === 0 || busyIds.size > 0} onClick={() => void retryItems(selectedAnalyzableItems)}>{bulkBusy ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}优先重新分析（{selectedAnalyzableItems.length.toLocaleString("zh-CN")}）</button>
         <span>重新读取只更新资料库和分析状态，不会修改或删除视频文件。</span>
       </div>
 
       {selectedFolder && <p className="missing-video-scope">当前仅查看：{selectedFolder.path}</p>}
-      {error && <div className="error-banner missing-video-banner" role="alert"><AlertTriangle size={16} />{error}</div>}
-      {notice && <div className="success-banner missing-video-banner" role="status"><CheckCircle2 size={16} />{notice}</div>}
+      <OperationFeedback message={loadError ? `列表读取失败：${loadError}` : null} tone="error" onRetry={() => setRefreshVersion((current) => current + 1)} />
+      <OperationFeedback message={error} tone="error" onDismiss={() => setError(null)} />
+      <OperationFeedback message={notice} tone={actionDetails.length ? "warning" : "success"} autoDismiss onDismiss={() => setNotice(null)} />
       {actionDetails.length > 0 && <details className="missing-video-result-details"><summary>查看未直接恢复的记录</summary>{actionDetails.map((detail, index) => <p key={`${detail.path}-${index}`}><code>{detail.path}</code><span>{detail.message}</span></p>)}</details>}
 
-      {loading && result.items.length === 0 ? <MetadataTableSkeleton /> : !loading && result.items.length === 0 ? (
+      {loading && result.items.length === 0 ? <MetadataTableSkeleton /> : !loading && !loadError && result.items.length === 0 ? (
         <div className="missing-video-empty"><CheckCircle2 size={38} /><strong>当前筛选下没有元数据异常</strong><span>{emptyMessage(status, zeroBytesOnly)}</span></div>
-      ) : (
+      ) : result.items.length === 0 ? null : (
         <div className="missing-video-table-wrap" aria-busy={loading}>
           <table className="missing-video-table metadata-issue-table">
             <thead><tr><th aria-label="选择" /><th>文件</th><th>处理状态</th><th>状态说明</th><th>最近更新</th><th>操作</th></tr></thead>
@@ -219,7 +231,7 @@ export function MetadataIssuesPage({
               const folder = folders.find((candidate) => candidate.id === video.sourceFolderId);
               const displayState = statePresentation(item);
               return <tr key={video.id}>
-                <td><input aria-label={`选择 ${video.filename}`} type="checkbox" checked={selectedIds.has(video.id)} disabled={busyIds.size > 0} onChange={(event) => setSelectedIds((current) => {
+                <td><input aria-label={`选择 ${video.filename}`} type="checkbox" checked={selectedIds.has(video.id)} disabled={rowsUnavailable || busyIds.size > 0} onChange={(event) => setSelectedIds((current) => {
                   const next = new Set(current);
                   if (event.target.checked) next.add(video.id); else next.delete(video.id);
                   return next;
@@ -229,10 +241,10 @@ export function MetadataIssuesPage({
                 <td><div className="metadata-issue-error"><strong title={displayState.message}>{displayState.message}</strong><small>{failureMeta(item)}</small></div></td>
                 <td><strong>{formatDateTime(video.updatedAt)}</strong><small>{video.durationMs === null ? "时长未知" : `${Math.round(video.durationMs / 1000).toLocaleString("zh-CN")} 秒`}</small></td>
                 <td><div className="missing-video-row-actions">
-                  {onOpenLocation && <button type="button" disabled={busyIds.size > 0} onClick={() => void onOpenLocation(video)}><ExternalLink size={14} />打开位置</button>}
+                  {onOpenLocation && <button type="button" disabled={busyIds.size > 0} onClick={() => void openLocation(video)}><ExternalLink size={14} />打开位置</button>}
                   {video.sizeBytes === 0
-                    ? <button type="button" disabled={busyIds.size > 0} onClick={() => void refreshSizes([item])}>{busy ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}重新读取大小</button>
-                    : <button type="button" disabled={busyIds.size > 0} onClick={() => void retryItems([item])}>{busy ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}重新分析</button>}
+                    ? <button type="button" disabled={rowsUnavailable || busyIds.size > 0} onClick={() => void refreshSizes([item])}>{busy ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}重新读取大小</button>
+                    : <button type="button" disabled={rowsUnavailable || busyIds.size > 0} onClick={() => void retryItems([item])}>{busy ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}重新分析</button>}
                 </div></td>
               </tr>;
             })}</tbody>
@@ -291,5 +303,5 @@ function folderName(folderPath: string): string {
 }
 
 function toMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
+  return operationErrorMessage(cause);
 }

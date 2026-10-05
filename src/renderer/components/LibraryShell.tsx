@@ -90,7 +90,7 @@ interface LibraryShellProps {
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "confirmDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">
-    & Partial<Pick<VideoManagerApi, "fastDeleteDuplicateCandidates" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "getLegacyCloudDriveBindingStatus" | "cancelLegacyCloudDriveBinding" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
+    & Partial<Pick<VideoManagerApi, "getDuplicateCleanupJob" | "fastDeleteDuplicateCandidates" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "getLegacyCloudDriveBindingStatus" | "cancelLegacyCloudDriveBinding" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -818,7 +818,7 @@ export function LibraryShell({
 
         {Boolean(removingFolderIds?.size) && <div className="success-banner" role="status">正在后台移除 {removingFolderIds?.size} 个资料库来源。视频文件保留原位，可继续使用其他页面。</div>}
         {error && <div className="error-banner" role="alert">{error}</div>}
-        {usesCommonToolbar && !error && (actionError || duplicateLoadError || videoPageError) && <div className="error-banner" role="alert">{actionError ?? duplicateLoadError ?? videoPageError}</div>}
+        {usesCommonToolbar && !error && (actionError || (view !== "duplicates" && videoPageError)) && <div className="error-banner" role="alert">{actionError ?? videoPageError}</div>}
         {view === "folder" && selectedFolderPath && onLoadDirectoryBrowser && onLoadVideoPage && <DirectoryBrowserPage
           key={`folder-context:${selectedFolderPath}`}
           compact
@@ -970,6 +970,7 @@ export function LibraryShell({
           <DuplicateGroupsPage
             groups={duplicatePage.groups}
             loading={loading || duplicateLoading}
+            loadError={duplicateLoadError}
             page={duplicatePage.page}
             pageSize={duplicatePage.pageSize}
             totalPages={duplicatePage.totalPages}
@@ -1053,6 +1054,7 @@ export function LibraryShell({
             }}
             onConfirmCleanup={duplicateCleanupApi?.confirmDuplicateCleanup}
             onLoadCleanupJobs={duplicateCleanupApi?.listDuplicateCleanupJobs}
+            onGetCleanupJob={duplicateCleanupApi?.getDuplicateCleanupJob}
             onLoadCleanupItems={duplicateCleanupApi?.listDuplicateCleanupItems}
             onCancelCleanup={duplicateCleanupApi?.cancelDuplicateCleanup}
             onResumeCleanup={duplicateCleanupApi?.resumeDuplicateCleanup}
