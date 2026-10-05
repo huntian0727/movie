@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { SubtitleCandidate, SubtitleCredentials, SubtitleProvider } from "../../shared/subtitles.js";
+import { parseCatDownload, parseCatResults } from "./subtitleCatHtml.js";
 
-export type SearchLanguage = "chinese" | "bilingual" | "english";
+export type SearchLanguage = "any" | "chinese" | "bilingual" | "english";
 export interface ProviderCandidate extends SubtitleCandidate { sourceId: string; sourceFile: string }
 const name = z.string().max(2000).nullish();
 const assrtItem = z.object({ id: z.number().int().positive(), native_name: z.union([name, z.array(z.string())]), videoname: name,
@@ -37,7 +38,8 @@ export function validateDownloadUrl(input: string, provider: SubtitleProvider): 
   const url = new URL(input);
   if (url.protocol === "http:") url.protocol = "https:";
   const host = url.hostname.toLowerCase();
-  const allowed = provider === "assrt" ? /(^|\.)(assrt\.net|makedie\.me)$/ : /(^|\.)(opensubtitles\.(com|org)|osdb\.link)$/;
+  const allowed = { assrt: /(^|\.)(assrt\.net|makedie\.me)$/, opensubtitles: /(^|\.)(opensubtitles\.(com|org)|osdb\.link)$/,
+    thunder: /^subtitle\.v\.geilijiasu\.com$/, subtitlecat: /^(www\.)?subtitlecat\.com$/ }[provider];
   if (url.protocol !== "https:" || url.username || url.password || url.port && url.port !== "443" || !allowed.test(host)) throw new Error("字幕下载地址不受信任，请选择其他版本");
   return url;
 }
@@ -94,7 +96,9 @@ export class SubtitleProviders {
   private osHeaders(c: SubtitleCredentials): Record<string, string> {
     return { "Api-Key": c.openSubtitlesApiKey!, "User-Agent": "YingXia v0.1.15", "Content-Type": "application/json", Accept: "application/json" };
   }
-  async search(provider: SubtitleProvider, c: SubtitleCredentials, query: string, language: SearchLanguage): Promise<ProviderCandidate[]> {
+  async search(provider: SubtitleProvider, c: SubtitleCredentials, query: string, language: SearchLanguage, filename = query): Promise<ProviderCandidate[]> {
+    if (provider === "thunder") return this.searchThunder(query, language, filename);
+    if (provider === "subtitlecat") return this.searchCat(query, language);
     if (provider === "assrt") {
       const body = await this.assrt("sub/search", c.assrtToken!, { q: query, cnt: "15", filelist: "1" });
       const parsed = z.object({ subs: z.array(z.unknown()).max(100) }).safeParse(body);
@@ -104,7 +108,7 @@ export class SubtitleProviders {
         const s = result.data, desc = s.lang?.desc ?? "未知语言", languages = s.lang?.langlist ?? {};
         const bilingual = "langdou" in languages || /双语|雙語/.test(desc);
         const matches = language === "bilingual" ? bilingual : language === "english" ? "langeng" in languages || /英/.test(desc) : bilingual || Object.keys(languages).some(l => /lang(chs|cht|chi|zho)/.test(l)) || /中|汉|漢|简|繁/.test(desc);
-        if (!matches) return [];
+        if (language !== "any" && !matches) return [];
         const files = s.filelist?.filter(f => /\.(srt|ass|ssa|vtt)$/i.test(f.f)) ?? [];
         const title = Array.isArray(s.native_name) ? s.native_name.join(" / ") : s.native_name ?? query;
         const base = { provider, title, language: desc, release: s.videoname ?? "未标注版本", score: 0, matches: [], downloads: null, sourceId: String(s.id) };
@@ -114,7 +118,7 @@ export class SubtitleProviders {
       });
     }
     const languages = language === "bilingual" ? "ze" : language === "english" ? "en" : "zh-cn,zh-tw,ze";
-    const result = await this.json(`https://api.opensubtitles.com/api/v1/subtitles?${new URLSearchParams({ query, languages, order_by: "download_count", order_direction: "desc" })}`, { headers: this.osHeaders(c) });
+    const result = await this.json(`https://api.opensubtitles.com/api/v1/subtitles?${new URLSearchParams({ query, ...(language === "any" ? {} : { languages }), order_by: "download_count", order_direction: "desc" })}`, { headers: this.osHeaders(c) });
     const parsed = z.object({ data: z.array(z.unknown()).max(1000) }).safeParse(result);
     if (!parsed.success) throw new Error("字幕服务返回格式异常，请稍后重试");
     return parsed.data.data.flatMap(raw => {
@@ -124,6 +128,41 @@ export class SubtitleProviders {
         language: ({ "zh-cn": "简体中文", "zh-tw": "繁体中文", ze: "中英双语", en: "英语" } as Record<string, string>)[s.language] ?? s.language,
         release: s.release ?? "未标注版本", filename: f.file_name ?? s.release ?? "字幕", format: "srt",
         score: 0, matches: [], downloads: s.download_count ?? null, sourceId: String(f.file_id), sourceFile: f.file_name ?? "" }));
+    });
+  }
+  private async searchThunder(query: string, language: SearchLanguage, filename: string): Promise<ProviderCandidate[]> {
+    // Filename is a useful release clue; an explicitly edited query takes precedence.
+    const nameQuery = query === suggestSubtitleQuery(filename) ? filename : query;
+    const raw = await this.json(`https://api-shoulei-ssl.xunlei.com/oracle/subtitle?${new URLSearchParams({ name: nameQuery })}`);
+    const body = z.object({ code: z.number(), result: z.string(), data: z.array(z.unknown()).max(500).nullish() }).safeParse(raw);
+    if (!body.success || body.data.code !== 0 || body.data.result !== "ok") throw new Error("字幕服务查询失败，请稍后重试或换用其他来源");
+    const itemSchema = z.object({ name: z.string().min(1).max(2000), extra_name: name, ext: z.string().max(16), url: z.string().max(8192), score: z.number().finite().optional(), gcid: name, cid: name });
+    return (body.data.data ?? []).flatMap(value => {
+      const result = itemSchema.safeParse(value); if (!result.success) return [];
+      const item = result.data, format = item.ext.replace(/^\./, "").toLowerCase();
+      if (!["srt", "ass", "ssa", "vtt"].includes(format)) return [];
+      try { validateDownloadUrl(item.url, "thunder"); } catch { return []; }
+      const bilingual = /双语|雙語|中英|chs[._-]eng|zh[._-]en/i.test(item.name);
+      const chinese = bilingual || /中文|简体|繁体|汉化|[._\s-](?:chs|cht|chn|chi|zho|zh)(?:[._\s-]|$)/i.test(item.name);
+      const english = /英文|英语|[._\s-](?:eng|en)(?:[._\s-]|$)/i.test(item.name);
+      if (language === "bilingual" && !bilingual || language === "chinese" && !chinese || language === "english" && !english && !bilingual) return [];
+      const description = bilingual ? "可能中英双语（文件名线索）" : chinese ? "可能中文（文件名线索）" : english ? "可能英语（文件名线索）" : "语言未确认";
+      return [{ id: randomUUID(), provider: "thunder" as const, title: item.name.replace(/\.(srt|ass|ssa|vtt)$/i, ""), language: description,
+        release: item.extra_name ?? "版本未标注", filename: item.name, format, score: 0, matches: [], downloads: null,
+        sourceId: `${item.gcid ?? ""}:${item.cid ?? ""}`, sourceFile: item.url }];
+    }).slice(0, 100);
+  }
+  private async searchCat(query: string, language: SearchLanguage): Promise<ProviderCandidate[]> {
+    if (language === "bilingual") throw new Error("字幕网站未提供可核实的中英双语筛选，请选择中文、英语或不限语言");
+    const html = (await this.bytes(`https://subtitlecat.com/index.php?${new URLSearchParams({ search: query })}`)).toString("utf8");
+    const targets = language === "any" ? ["zh-CN", "en"] : language === "english" ? ["en"] : ["zh-CN"];
+    return parseCatResults(html, query).flatMap(item => {
+      let detail: URL;
+      try { detail = validateDownloadUrl(new URL(item.href, "https://subtitlecat.com/").href, "subtitlecat"); } catch { return []; }
+      if (!detail.pathname.startsWith("/subs/") || !detail.pathname.endsWith(".html")) return [];
+      return targets.map(target => ({ id: randomUUID(), provider: "subtitlecat" as const, title: item.title,
+        language: target === "en" ? "英语（网站版本）" : "中文（网站版本）", release: "网站字幕，所选语言下载链接将在下载时核实；译文请核对",
+        filename: `${item.title}.${target}.srt`, format: "srt", score: 0, matches: [], downloads: item.downloads, sourceId: detail.href, sourceFile: target }));
     });
   }
   private async login(c: SubtitleCredentials): Promise<{ token: string; host: string }> {
@@ -140,7 +179,14 @@ export class SubtitleProviders {
   }
   async download(candidate: ProviderCandidate, credentials: SubtitleCredentials): Promise<Buffer> {
     let url: string;
-    if (candidate.provider === "assrt") {
+    if (candidate.provider === "thunder") {
+      url = candidate.sourceFile;
+    } else if (candidate.provider === "subtitlecat") {
+      const detail = validateDownloadUrl(candidate.sourceId, "subtitlecat");
+      if (!detail.pathname.startsWith("/subs/") || !detail.pathname.endsWith(".html")) throw new Error("字幕详情地址无效，请重新搜索");
+      const html = (await this.bytes(detail.href)).toString("utf8");
+      url = new URL(parseCatDownload(html, candidate.sourceFile), detail).href;
+    } else if (candidate.provider === "assrt") {
       const response = await this.assrt("sub/detail", credentials.assrtToken!, { id: candidate.sourceId });
       const parsed = z.object({ subs: z.array(z.object({ url: z.string().optional(), filename: z.string().optional(), filelist: z.array(z.object({ f: z.string(), url: z.string() })).optional() })).min(1).max(100) }).safeParse(response);
       if (!parsed.success) throw new Error("字幕详情已失效，请重新搜索");

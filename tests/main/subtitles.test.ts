@@ -21,7 +21,7 @@ async function fixture() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "yingxia-subtitles-")); roots.push(root);
   const credentials = createSubtitleCredentialStore(root); await credentials.save({ assrtToken: "fixture-token" });
   const candidate: ProviderCandidate = { id: randomUUID(), provider: "assrt", title: "Movie 2024", language: "简体中文", release: "Movie.2024.WEB-DL", filename: "Movie.srt", format: "srt", score: 0, matches: [], downloads: null, sourceId: "123", sourceFile: "Movie.srt" };
-  const providers = { search: vi.fn(async () => [candidate]), download: vi.fn(async () => Buffer.from(srt)) };
+  const providers = { search: vi.fn(async (provider: string) => provider === "assrt" ? [candidate] : []), download: vi.fn(async () => Buffer.from(srt)) };
   const video = { id: "v1", filename: "Movie.2024.1080p.WEB-DL.mkv", sizeBytes: 1000, modifiedAt: "2026-10-05T00:00:00.000Z" } as VideoRecord;
   const repo = { getVideo: vi.fn((id: string) => ({ ...video, id })) };
   const service = new SubtitleService(repo, path.join(root, "subtitles"), credentials, providers as unknown as SubtitleProviders);

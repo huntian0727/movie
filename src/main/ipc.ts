@@ -1,7 +1,7 @@
 import { dialog, ipcMain as electronIpcMain, shell } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
 import type { SubtitleService } from "./subtitles/subtitleService.js";
-import { subtitleActionSchema, subtitleConfigSchema, subtitleSearchSchema, subtitleProviderSchema } from "../shared/subtitles.js";
+import { subtitleActionSchema, subtitleConfigSchema, subtitleSearchSchema, subtitleProviderSchema, subtitleProviderWebsites } from "../shared/subtitles.js";
 import { z } from "zod";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -425,7 +425,7 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
   const subtitles = () => { if (!dependencies.subtitles) throw new Error("字幕服务未就绪"); return dependencies.subtitles; };
   ipcMain.handle(IPC_CHANNELS.subtitleConfigGet, () => subtitles().credentials.status());
-  ipcMain.handle(IPC_CHANNELS.subtitleWebsite, (_event, payload) => shell.openExternal(subtitleProviderSchema.parse(payload) === "assrt" ? "https://assrt.net/" : "https://www.opensubtitles.com/"));
+  ipcMain.handle(IPC_CHANNELS.subtitleWebsite, (_event, payload) => shell.openExternal(subtitleProviderWebsites[subtitleProviderSchema.parse(payload)]));
   ipcMain.handle(IPC_CHANNELS.subtitleConfigSave, (_event, payload) => subtitles().credentials.save(subtitleConfigSchema.parse(payload)));
   ipcMain.handle(IPC_CHANNELS.subtitleSearch, (_event, payload) => subtitles().search(subtitleSearchSchema.parse(payload)));
   ipcMain.handle(IPC_CHANNELS.subtitleState, (_event, videoId) => subtitles().getState(z.string().min(1).max(128).parse(videoId)));

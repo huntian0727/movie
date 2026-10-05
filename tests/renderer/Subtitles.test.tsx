@@ -16,6 +16,17 @@ function apiFixture(): PlayerSubtitleApi {
 }
 afterEach(() => vi.restoreAllMocks());
 describe("subtitle interaction", () => {
+  it("defaults to no-key Thunder and keeps Cat an explicit optional selection", async () => {
+    const api = apiFixture();
+    render(<SubtitleDialog video={video} api={api} state={empty} onState={vi.fn()} onClose={() => undefined} external={false} />);
+    expect(screen.getByLabelText("来源")).toHaveValue("thunder"); expect(screen.getByLabelText("语言")).toHaveValue("any");
+    fireEvent.click(screen.getByRole("button", { name: "搜索字幕" }));
+    await waitFor(() => expect(api.searchSubtitles).toHaveBeenCalledWith({ videoId: "v1", query: "Movie 2024", provider: "thunder", language: "any" }));
+    fireEvent.change(screen.getByLabelText("来源"), { target: { value: "subtitlecat" } });
+    expect(screen.getByText(/网站字幕可能包含机器翻译/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "搜索字幕" }));
+    await waitFor(() => expect(api.searchSubtitles).toHaveBeenLastCalledWith({ videoId: "v1", query: "Movie 2024", provider: "subtitlecat", language: "any" }));
+  });
   it("shows saved-state read failures with a local retry instead of endless loading", () => {
     const retry = vi.fn();
     render(<SubtitleDialog video={video} api={apiFixture()} state={null} stateError="保存记录读取失败" onRetryState={retry} onState={vi.fn()} onClose={() => undefined} external={false} />);

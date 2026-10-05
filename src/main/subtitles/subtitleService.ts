@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import type { VideoRecord } from "../../shared/videoTypes.js";
-import { subtitleActionSchema, subtitleSearchSchema, subtitleProviderSchema, type SubtitleAction, type SubtitleSearchRequest, type SubtitleState, type SavedSubtitle } from "../../shared/subtitles.js";
+import { subtitleActionSchema, subtitleSearchSchema, subtitleProviderSchema, type SubtitleAction, type SubtitleSearchRequest, type SubtitleState, type SavedSubtitle, type SubtitleCredentials } from "../../shared/subtitles.js";
 import { atomicWrite, type SubtitleCredentialStore } from "./secureStore.js";
 import { SubtitleProviders, scoreCandidate, suggestSubtitleQuery, type ProviderCandidate } from "./providers.js";
 import { decodeSubtitle, parseSubtitle, toVtt } from "./subtitleText.js";
@@ -69,11 +69,16 @@ export class SubtitleService {
     if (this.searches.has(video.id) || this.searches.size >= 2) throw new Error("字幕搜索正在进行，请稍后再试");
     this.searches.add(video.id);
     try {
-      const c = await this.credentials.get();
-      const names = request.provider === "all" ? ["assrt", "opensubtitles"] as const : [request.provider];
+      const names = request.provider === "all" ? ["thunder", "assrt", "opensubtitles"] as const : [request.provider];
+      // An unreadable credential file must not block the sources that need no account.
+      let configError = false;
+      const c: SubtitleCredentials = names.some(p => p === "assrt" || p === "opensubtitles") ? await this.credentials.get().catch(() => { configError = true; return {}; }) : {};
       const results = await Promise.all(names.map(async provider => {
-        if (!(provider === "assrt" ? c.assrtToken : c.openSubtitlesApiKey)) return { provider, status: "unconfigured" as const, message: "请先在设置中配置此字幕来源", candidates: [] as ProviderCandidate[] };
-        try { return { provider, status: "ok" as const, message: "", candidates: (await this.providers.search(provider, c, query, request.language)).slice(0, 100) }; }
+        if (provider === "assrt" || provider === "opensubtitles") {
+          if (configError) return { provider, status: "failed" as const, message: "字幕账号配置无法读取，请在设置中重新保存", candidates: [] as ProviderCandidate[] };
+          if (!(provider === "assrt" ? c.assrtToken : c.openSubtitlesApiKey)) return { provider, status: "unconfigured" as const, message: "请先在设置中配置此字幕来源", candidates: [] as ProviderCandidate[] };
+        }
+        try { return { provider, status: "ok" as const, message: "", candidates: (await this.providers.search(provider, c, query, request.language, video.filename)).slice(0, 100) }; }
         catch (error) { return { provider, status: "failed" as const, message: error instanceof Error && /^字幕|^请/.test(error.message) ? error.message : "字幕来源返回异常，请稍后重试", candidates: [] as ProviderCandidate[] }; }
       }));
       const publicCandidates = results.flatMap(r => r.candidates).map(candidate => {
@@ -101,7 +106,8 @@ export class SubtitleService {
       const entry = this.candidates.get(request.id!);
       if (!entry || entry.videoId !== video.id || entry.version !== versionOf(video) || entry.until < this.now()) throw new Error("字幕搜索结果已过期，请重新搜索");
       if (value.items.length >= 50) throw new Error("这部影片已保存 50 个字幕版本，请选择已保存字幕");
-      const data = await this.providers.download(entry.candidate, await this.credentials.get());
+      const accountRequired = entry.candidate.provider === "assrt" || entry.candidate.provider === "opensubtitles";
+      const data = await this.providers.download(entry.candidate, accountRequired ? await this.credentials.get() : {});
       const text = decodeSubtitle(data), parsed = parseSubtitle(text);
       if (Buffer.byteLength(text, "utf8") > 4 * 1024 * 1024) throw new Error("字幕转换后的文件超过 4 MiB 限制，请选择其他版本");
       const item: SavedSubtitle = { id: randomUUID(), provider: entry.candidate.provider, title: entry.candidate.title,

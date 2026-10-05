@@ -1,11 +1,13 @@
 import { z } from "zod";
 
-export const subtitleProviderSchema = z.enum(["assrt", "opensubtitles"]);
+export const subtitleProviderSchema = z.enum(["assrt", "opensubtitles", "thunder", "subtitlecat"]);
 export type SubtitleProvider = z.infer<typeof subtitleProviderSchema>;
+export const subtitleProviderLabels: Record<SubtitleProvider, string> = { assrt: "ASSRT 射手网", opensubtitles: "OpenSubtitles", thunder: "迅雷字幕", subtitlecat: "Subtitle Cat" };
+export const subtitleProviderWebsites: Record<SubtitleProvider, string> = { assrt: "https://assrt.net/", opensubtitles: "https://www.opensubtitles.com/", thunder: "https://www.xunlei.com/", subtitlecat: "https://subtitlecat.com/" };
 export const subtitleSearchSchema = z.object({
   videoId: z.string().min(1).max(128), query: z.string().trim().max(240).optional(),
-  language: z.enum(["chinese", "bilingual", "english"]).default("chinese"),
-  provider: z.enum(["all", "assrt", "opensubtitles"]).default("all")
+  language: z.enum(["any", "chinese", "bilingual", "english"]).default("chinese"),
+  provider: z.enum(["all", "assrt", "opensubtitles", "thunder", "subtitlecat"]).default("all")
 }).strict();
 export type SubtitleSearchRequest = z.input<typeof subtitleSearchSchema>;
 export const subtitleActionSchema = z.object({

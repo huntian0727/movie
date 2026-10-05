@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, Search, X } from "lucide-react";
 import type { SubtitleAction, SubtitleApi, SubtitleSearchResult, SubtitleState } from "../../shared/subtitles";
+import { subtitleProviderLabels, subtitleProviderWebsites, type SubtitleProvider } from "../../shared/subtitles";
 import type { VideoRecord } from "../../shared/videoTypes";
 
 export type PlayerSubtitleApi = Pick<SubtitleApi, "openSubtitleWebsite" | "getSubtitleConfig" | "searchSubtitles" | "getSubtitleState" | "subtitleAction">;
-const label = (p: string) => p === "assrt" ? "ASSRT 射手网" : "OpenSubtitles";
+const label = (p: SubtitleProvider) => subtitleProviderLabels[p];
 export function SubtitleDialog({ video, api, state, onState, onClose, external, stateError, onRetryState }: {
   video: VideoRecord; api: PlayerSubtitleApi; state: SubtitleState | null;
   onState(value: SubtitleState): void; onClose(): void; external: boolean;
   stateError?: string; onRetryState?(): void;
 }) {
   const [query, setQuery] = useState(video.filename.replace(/\.[a-z0-9]+$/i, "").replace(/[._]/g, " ").replace(/\b(?:720p|1080p|2160p|blu[ -]?ray|web[ -]?(?:dl|rip)|remux|x26[45]|hevc)\b.*$/i, "").trim());
-  const [language, setLanguage] = useState<"chinese" | "bilingual" | "english">("chinese");
-  const [provider, setProvider] = useState<"all" | "assrt" | "opensubtitles">("all");
+  const [language, setLanguage] = useState<"any" | "chinese" | "bilingual" | "english">("any");
+  const [provider, setProvider] = useState<"all" | SubtitleProvider>("thunder");
   const [result, setResult] = useState<SubtitleSearchResult | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,12 +61,13 @@ export function SubtitleDialog({ video, api, state, onState, onClose, external, 
           if (alive.current) { setResult(value); setQuery(value.query); }
         }); }}>
           <label>影片名称或发行版本<input value={query} maxLength={240} onChange={e => { setQuery(e.target.value); setResult(null); }} placeholder="例如：电影英文名 2024 / S01E02" disabled={!!busy} /></label>
-          <div className="subtitle-search-options"><label>语言<select value={language} onChange={e => { setLanguage(e.target.value as typeof language); setResult(null); }} disabled={!!busy}><option value="chinese">中文字幕</option><option value="bilingual">中英双语</option><option value="english">英语</option></select></label>
-          <label>来源<select value={provider} onChange={e => { setProvider(e.target.value as typeof provider); setResult(null); }} disabled={!!busy}><option value="all">全部已配置来源</option><option value="assrt">ASSRT 射手网</option><option value="opensubtitles">OpenSubtitles</option></select></label>
+          <div className="subtitle-search-options"><label>语言<select value={language} onChange={e => { setLanguage(e.target.value as typeof language); setResult(null); }} disabled={!!busy}><option value="any">不限语言</option><option value="chinese">中文字幕</option><option value="bilingual">中英双语</option><option value="english">英语</option></select></label>
+          <label>来源<select value={provider} onChange={e => { setProvider(e.target.value as typeof provider); setResult(null); }} disabled={!!busy}><option value="thunder">迅雷字幕（无需密钥）</option><option value="all">迅雷 + 已配置来源</option><option value="subtitlecat">Subtitle Cat（可选网站）</option><option value="assrt">ASSRT 射手网</option><option value="opensubtitles">OpenSubtitles</option></select></label>
           <button type="submit" className="primary-button" disabled={!!busy}><Search size={16} />{busy === "search" ? "搜索中…" : "搜索字幕"}</button></div>
         </form>
-        <p className="subtitle-note">在主窗口的设置中配置字幕来源。匹配分是片名、年份和版本线索的排序参考；请核对发行版本后下载。</p>
-        <p className="subtitle-note">字幕服务由 <a href="https://assrt.net/" onClick={e => { e.preventDefault(); void api.openSubtitleWebsite("assrt").catch(() => setError("无法打开字幕网站，请在浏览器访问 assrt.net")); }}>ASSRT 射手网</a> 和 <a href="https://www.opensubtitles.com/" onClick={e => { e.preventDefault(); void api.openSubtitleWebsite("opensubtitles").catch(() => setError("无法打开字幕网站，请在浏览器访问 opensubtitles.com")); }}>OpenSubtitles</a> 提供。</p>
+        <p className="subtitle-note">迅雷和 Subtitle Cat 无需填写密钥；ASSRT、OpenSubtitles 需在设置中配置。匹配分只反映名称和版本线索，请核对发行版本后下载。</p>
+        {provider === "thunder" || provider === "all" ? <p className="subtitle-note">迅雷语言筛选依据文件名线索，不能保证实际语言；“不限语言”可查看未标注候选。选中后才下载。</p> : provider === "subtitlecat" ? <p className="subtitle-note">Subtitle Cat 单独按需查询，网站字幕可能包含机器翻译。所选语言是否有下载文件将在下载时确认。</p> : null}
+        <p className="subtitle-note">字幕来源：{(["thunder", "subtitlecat", "assrt", "opensubtitles"] as const).map((source, index) => <span key={source}>{index > 0 ? " · " : ""}<a href={subtitleProviderWebsites[source]} onClick={e => { e.preventDefault(); void api.openSubtitleWebsite(source).catch(() => setError("无法打开字幕来源网站，请稍后重试")); }}>{label(source)}</a></span>)}</p>
         {external && <p className="subtitle-note">外部播放器请导出字幕后手动载入；已保存的选择会用于内置播放器。</p>}
         {error && <p role="alert" className="subtitle-error">{error}</p>}
         {(hint || state?.message) && <p role="status" className="subtitle-note">{state?.message || hint}</p>}

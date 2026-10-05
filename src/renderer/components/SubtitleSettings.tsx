@@ -9,6 +9,13 @@ export function SubtitleSettings({ api }: { api: Pick<SubtitleApi, "openSubtitle
   const input = (key: keyof SubtitleCredentials, title: string, type = "password") => <label>{title}<input type={type} autoComplete="off" value={draft[key] ?? ""} maxLength={key === "openSubtitlesUsername" ? 128 : 512} placeholder="留空保留已保存的值" disabled={busy} onChange={e => setDraft({ ...draft, [key]: e.target.value || undefined })} /></label>;
   return <section id="settings-subtitles" className="settings-section subtitle-settings"><h2>在线字幕</h2>
     <p className="subtitle-note">在播放窗口按“查找字幕”，从字幕网站搜索、下载并选用已有字幕。</p>
+    <div className="subtitle-provider-settings"><h3>迅雷字幕 <small>无需账号或密钥</small></h3>
+      <p className="subtitle-note">播放器默认使用迅雷查询；选择候选后才下载。若没有结果，可修改片名或发行版本。语言未标注的候选会明确提示，匹配和实际语言请在播放时核对。</p>
+    </div>
+    <div className="subtitle-provider-settings"><h3>Subtitle Cat <small>可选网站来源，无需密钥</small></h3>
+      <p className="subtitle-note">在播放器来源列表中单独选择后查询，不加入默认聚合。网站字幕可能包含机器翻译，页面或下载链接变化时可换用其他来源。</p>
+      <button onClick={() => void api.openSubtitleWebsite("subtitlecat").catch(() => { setFailed(true); setMessage("无法打开网站，请在浏览器访问 subtitlecat.com"); })}>打开 Subtitle Cat 网站</button>
+    </div>
     <div className="subtitle-provider-settings"><h3>ASSRT 射手网 <small>{status?.assrtConfigured ? "已配置" : "未配置"}</small></h3>
       <p className="subtitle-note">在 ASSRT 注册并登录后，从用户面板获取自己的 API Token。</p>
       <button onClick={() => void api.openSubtitleWebsite("assrt").catch(() => { setFailed(true); setMessage("无法打开网站，请在浏览器访问 assrt.net"); })}>打开 ASSRT 网站</button>
