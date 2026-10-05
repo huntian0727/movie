@@ -1099,23 +1099,23 @@ export const IPC_CHANNELS = {
 
 export interface VideoManagerApi {
   listVideos(query: LibraryQuery): Promise<VideoRecord[]>;
-  listVideoPage(query: LibraryPageQuery): Promise<LibraryPage>;
-  listDirectoryBrowser(query: DirectoryBrowserQuery): Promise<DirectoryBrowserResult>;
+  listVideoPage(query: LibraryPageQuery, purpose?: string): Promise<LibraryPage>;
+  listDirectoryBrowser(query: DirectoryBrowserQuery, purpose?: string): Promise<DirectoryBrowserResult>;
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
   getAssetCenterSummary(): Promise<AssetCenterSummary>;
   listVideoData(query: import("./videoDataTable.js").VideoDataQuery): Promise<import("./videoDataTable.js").VideoDataPage>;
   exportVideoData(query: import("./videoDataTable.js").VideoDataQuery, selection: import("./videoDataTable.js").VideoDataSelection): Promise<import("./videoDataTable.js").VideoDataExportResult>;
   deleteVideoData(query: import("./videoDataTable.js").VideoDataQuery, selection: import("./videoDataTable.js").VideoDataSelection): Promise<BatchDeleteResult>;
-  listAssetCenterSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
+  listAssetCenterSources(query: AssetCenterSourceQuery, purpose?: string): Promise<AssetCenterSourcePage>;
   searchPlaybackDiagnosticVideos(query: PlaybackDiagnosticSearchQuery): Promise<LibraryPage>;
   listMissingVideos(): Promise<VideoRecord[]>;
   listMissingVideoPage(query: MissingVideoPageQuery): Promise<MissingVideoPage>;
   recheckMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
   forgetMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
-  listMetadataIssuePage(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
+  listMetadataIssuePage(query: MetadataIssuePageQuery, purpose?: string): Promise<MetadataIssuePage>;
   refreshMetadataFileSizes(videoIds: string[]): Promise<MetadataSizeRefreshResult>;
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
-  listDuplicateGroups(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
+  listDuplicateGroups(query: DuplicateGroupPageQuery, purpose?: string): Promise<DuplicateGroupPage>;
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   fastDeleteDuplicateCandidates(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
@@ -1148,7 +1148,7 @@ export interface VideoManagerApi {
   retryScanFailures(folderId: string): Promise<boolean>;
   getScanFailureSummary(folderId: string): Promise<ScanFailureSummary>;
   listScanFailures(folderId: string): Promise<ScanFailure[]>;
-  listScanFailureReviewPage(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
+  listScanFailureReviewPage(query: ScanFailureReviewQuery, purpose?: string): Promise<ScanFailureReviewPage>;
   retryScanFailure(failureId: string): Promise<boolean>;
   deleteScanFailureFile(failureId: string): Promise<boolean>;
   cleanupScanFailures(failureIds: string[], action: ScanFailureCleanupAction): Promise<ScanFailureCleanupResult>;

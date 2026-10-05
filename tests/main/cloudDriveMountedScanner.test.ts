@@ -202,7 +202,7 @@ describe("CloudDrive mounted scanner", () => {
     expect(elapsedMs).toBeLessThan(350);
   });
 
-  it("commits API file imports once per directory instead of once per video", async () => {
+  it("keeps small API directory imports in one video transaction and one final snapshot transaction", async () => {
     const { repo, source } = createRepository();
     const transaction = vi.spyOn(repo, "runInTransaction");
     const readMetadata = vi.fn();
@@ -217,13 +217,55 @@ describe("CloudDrive mounted scanner", () => {
     });
 
     expect(result).toMatchObject({ state: "completed", totalFiles: 2, failureCount: 0 });
-    expect(transaction).toHaveBeenCalledOnce();
+    expect(transaction).toHaveBeenCalledTimes(2);
     expect(readMetadata).not.toHaveBeenCalled();
     expect(repo.getVideoByPath(`${ROOT}\\one.mp4`)).toMatchObject({
       metadataStatus: "pending",
       providerFileId: "id-one.mp4",
       providerPath: "/remote/one.mp4"
     });
+  });
+
+  it("yields between bounded writes for a large API directory and reconciles only after completion", async () => {
+    const { repo, source } = createRepository();
+    const transaction = vi.spyOn(repo, "runInTransaction");
+    const files = Array.from({ length: 320 }, (_, index) => providerFile(`clip-${index}.mp4`, index + 1, MODIFIED));
+    let yielded = false;
+    let scheduled = false;
+    let responsiveAfterFirstBatch = false;
+    const result = await scanSourceFolder(repo, source, {
+      cloudDirectorySource: async () => directorySource({ [ROOT]: files }),
+      onMetadataPending: vi.fn(),
+      onProgress: ({ processedFiles }) => {
+        if (!scheduled && processedFiles === 1) {
+          scheduled = true;
+          setImmediate(() => { yielded = true; });
+        }
+        if (processedFiles > 128 && yielded) responsiveAfterFirstBatch = true;
+      }
+    });
+    expect(result).toMatchObject({ state: "completed", totalFiles: 320, failureCount: 0 });
+    expect(transaction.mock.calls.length).toBeGreaterThanOrEqual(4);
+    expect(responsiveAfterFirstBatch).toBe(true);
+    expect(repo.getDirectorySnapshot(source.id, ROOT)).toMatchObject({ isComplete: true, directVideoCount: 320 });
+  });
+
+  it("does not mark absent videos missing or publish a complete snapshot when a large API import is cancelled", async () => {
+    const { repo, source } = createRepository();
+    await scanSourceFolder(repo, source, {
+      cloudDirectorySource: async () => directorySource({ [ROOT]: [providerFile("old.mp4", 1, MODIFIED)] }),
+      onMetadataPending: vi.fn()
+    });
+    const files = Array.from({ length: 320 }, (_, index) => providerFile(`new-${index}.mp4`, index + 2, MODIFIED));
+    let cancelled = false;
+    await expect(scanSourceFolder(repo, source, {
+      cloudDirectorySource: async () => directorySource({ [ROOT]: files }),
+      onMetadataPending: vi.fn(),
+      onProgress: ({ processedFiles }) => { if (processedFiles >= 160) cancelled = true; },
+      isCancelled: () => cancelled
+    })).rejects.toThrow("Scan cancelled");
+    expect(repo.getVideoByPath(`${ROOT}\\old.mp4`)?.isMissing).toBe(false);
+    expect(repo.getDirectorySnapshot(source.id, ROOT)).toMatchObject({ isComplete: true, directVideoCount: 1 });
   });
 
   it("includes cloud metadata in snapshot identity so same-name changes are processed", async () => {

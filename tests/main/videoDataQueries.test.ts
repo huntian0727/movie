@@ -2,7 +2,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { beforeEach, afterEach, describe, expect, it } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database.js";
 import { VideoRepository } from "../../src/main/db/videoRepository.js";
 import { queryVideoData, iterateVideoData, selectVideoDataIds, csvCell } from "../../src/main/videoData/videoDataQueries.js";
@@ -48,6 +48,18 @@ describe("video data table queries", () => {
     const query = videoDataQuerySchema.parse({ directory: "F:\\Videos" });
     expect(selectVideoDataIds(db, query, { all: true, ids: [], excludedIds: [b.id] })).toEqual([a.id]);
     expect(selectVideoDataIds(db, query, { all: false, ids: [b.id], excludedIds: [] })).toEqual([b.id]);
+  });
+  it("filters explicit IDs in SQL without losing the active filter or hitting variable limits", () => {
+    const a = add("a.mp4"), b = add("b.mp4");
+    const outside = add("outside.mp4", "F:\\Other");
+    const query = videoDataQuerySchema.parse({ directory: "F:\\Videos", sort: "filename", direction: "desc" });
+    const selection = { all: false, ids: [a.id, b.id, outside.id, ...Array.from({ length: 1500 }, (_, i) => `absent-${i}`)], excludedIds: [] };
+    const spy = vi.spyOn(db, "prepare");
+    expect([...iterateVideoData(db, query, selection)].map((row) => row.id)).toEqual([b.id, a.id]);
+    expect(selectVideoDataIds(db, query, selection)).toEqual([b.id, a.id]);
+    expect(spy.mock.calls.filter(([sql]) => sql.includes("json_each(@selectedIds)"))).toHaveLength(2);
+    spy.mockRestore();
+    expect(selectVideoDataIds(db, query, { all: false, ids: [], excludedIds: [] })).toEqual([]);
   });
   it("rejects invalid query sort and unbounded page sizes", () => {
     expect(() => videoDataQuerySchema.parse({ sort: "DROP TABLE videos" })).toThrow();

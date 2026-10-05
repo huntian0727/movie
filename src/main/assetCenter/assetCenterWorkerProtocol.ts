@@ -17,11 +17,13 @@ export type AssetCenterWorkerRequest =
   | { id: number; operation: "directories"; query: DirectoryBrowserQuery }
   | { id: number; operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { id: number; operation: "folders" }
+  | { id: number; operation: "retainedCachePaths" }
   | { id: number; operation: "metadataIssues"; query: MetadataIssuePageQuery }
   | { id: number; operation: "scanFailures"; query: ScanFailureReviewQuery }
   | { id: number; operation: "navigation" }
   | { id: number; operation: "summary" }
   | { id: number; operation: "sources"; query: AssetCenterSourceQuery };
+
 
 export type AssetCenterWorkerResponse =
   | {
@@ -35,6 +37,7 @@ export type AssetCenterWorkerResponse =
         | LibraryNavigationSnapshot
         | MetadataIssuePage
         | ScanFailureReviewPage
-        | SourceFolder[];
+        | SourceFolder[]
+        | string[];
     }
   | { id: number; ok: false; error: { name: string; message: string; stack?: string } };

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { CoalescingReadQueue } from "../../src/main/queries/coalescingReadQueue";
+import { CoalescingReadQueue, SupersededReadError } from "../../src/main/queries/coalescingReadQueue";
 
 function deferred<Result>() {
   let resolve!: (result: Result) => void;
@@ -49,6 +49,36 @@ describe("coalescing read queue", () => {
     await expect(next).resolves.toBe(2);
     await expect(queue.run("throws", () => { throw new Error("sync"); })).rejects.toThrow("sync");
     await expect(queue.run("new", async () => 3)).resolves.toBe(3);
+  });
+
+  it("supersedes only queued reads from the same scope, preserving other windows and active work", async () => {
+    const queue = new CoalescingReadQueue<string>();
+    const gate = deferred<string>();
+    const active = queue.runLatest("window-1:library", "active", () => gate.promise);
+    const staleExecute = vi.fn(async () => "stale");
+    const stale = queue.runLatest("window-1:library", "old-filter", staleExecute);
+    const otherWindow = queue.runLatest("window-2:library", "old-filter", staleExecute);
+    const latest = queue.runLatest("window-1:library", "new-filter", async () => "latest");
+    await expect(stale).rejects.toBeInstanceOf(SupersededReadError);
+    gate.resolve("active-result");
+    await expect(active).resolves.toBe("active-result");
+    await expect(otherWindow).resolves.toBe("stale");
+    await expect(latest).resolves.toBe("latest");
+    expect(staleExecute).toHaveBeenCalledOnce();
+  });
+
+  it("does not replace the same pending query or unrelated purposes", async () => {
+    const queue = new CoalescingReadQueue<number>();
+    const gate = deferred<number>();
+    const active = queue.run("gate", () => gate.promise);
+    const first = queue.runLatest("window-1:library", "same", async () => 3);
+    const second = queue.runLatest("window-1:library", "same", async () => 4);
+    const navigation = queue.runLatest("window-1:navigation", "other", async () => 5);
+    gate.resolve(1);
+    await expect(active).resolves.toBe(1);
+    await expect(first).resolves.toBe(3);
+    await expect(second).resolves.toBe(3);
+    await expect(navigation).resolves.toBe(5);
   });
 
   it("rejects all consumers on shutdown and ignores late completions from a failed worker", async () => {

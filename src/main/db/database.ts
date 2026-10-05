@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { LATEST_SCHEMA_VERSION, migrations } from "./migrations/index.js";
 import { listColumns, listTables, requireColumns, requireTables } from "./migrations/types.js";
+import { QUERY_REVISION_DOMAINS } from "./queryRevisions.js";
 
 export type DatabaseConnection = Database.Database;
 
@@ -206,6 +207,7 @@ function validateDatabase(db: DatabaseConnection, dbPath: string, verifyIntegrit
     );
   }
   requireTables(db, ["source_folders", "videos", "timeline_previews", "play_history", "directory_snapshots", "scan_failures", "scan_tasks", "duplicate_cleanup_jobs", "duplicate_cleanup_items", "duplicate_cleanup_reservations", "duplicate_preferred_directories"]);
+  requireColumns(db, "query_cache_revisions", ["id", "batch_mask", ...QUERY_REVISION_DOMAINS]);
   requireColumns(db, "source_folders", [
     "id", "path", "recursive", "enabled", "last_scanned_at", "created_at", "updated_at", "scan_error",
     "provider_type", "provider_root_path", "provider_name", "provider_read_only"

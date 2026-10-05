@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { readdir, rename, stat } from "node:fs/promises";
+import os from "node:os";
+import { Worker } from "node:worker_threads";
+import { mkdtemp, readdir, rename, rm, stat } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import type {
   DuplicateCleanupAccepted, DuplicateCleanupConfirmRequest, DuplicateCleanupJob,
@@ -24,6 +26,7 @@ type Inspection =
   | { status: "unreadable"; message: string };
 
 interface DuplicateCleanupServiceOptions {
+  databasePath?: string;
   deleteFile?: (filePath: string) => Promise<void>;
   hashFile?: (filePath: string, signal?: AbortSignal) => Promise<string>;
   renameFile?: (source: string, destination: string) => Promise<void>;
@@ -50,6 +53,9 @@ export class DuplicateCleanupService {
   private readonly renameFile: (source: string, destination: string) => Promise<void>;
   private readonly deleteCloudFiles: NonNullable<DuplicateCleanupServiceOptions["deleteCloudFiles"]>;
   private readonly recoveryPromise: Promise<void>;
+  private preparationTail: Promise<unknown> = Promise.resolve();
+  private readonly preparationWorkers = new Set<Worker>();
+  private readonly preparationDatabasePath?: string;
 
   constructor(
     private readonly jobs: DuplicateCleanupRepository,
@@ -59,6 +65,7 @@ export class DuplicateCleanupService {
     private readonly domainEvents: DomainEventBus,
     options: DuplicateCleanupServiceOptions = {}
   ) {
+    this.preparationDatabasePath = options.databasePath;
     this.deleteFile = options.deleteFile ?? permanentlyDeleteFile;
     this.hashFile = options.hashFile ?? buildFullContentHash;
     this.renameFile = options.renameFile ?? rename;
@@ -90,7 +97,33 @@ export class DuplicateCleanupService {
     return accepted;
   }
 
-  submitFiltered(request: DuplicateCleanupFilteredSubmitRequest): DuplicateCleanupAccepted {
+  async submitFiltered(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted> {
+    if (this.stopped) throw new Error("Duplicate cleanup service has stopped");
+    if (this.preparationDatabasePath) {
+      const snapshot = structuredClone(request);
+      const pending = this.preparationTail.catch(() => undefined).then(async () => {
+        if (this.stopped) throw new Error("Duplicate cleanup service has stopped");
+        const existing = this.jobs.findAcceptedRequest(snapshot.requestId);
+        if (existing) return existing;
+        const temporary = await mkdtemp(path.join(os.tmpdir(), "lamian-cleanup-plan-"));
+        try {
+          const stagePath = path.join(temporary, "plan.sqlite");
+          await this.prepareFilteredInWorker(snapshot, stagePath);
+          if (this.stopped) throw new Error("Duplicate cleanup service has stopped");
+          const accepted = this.jobs.submitFastStaged({
+            requestId: snapshot.requestId,
+            sourceView: snapshot.sourceView ?? "duplicates-filtered"
+          }, stagePath);
+          if (accepted.status === "queued") this.enqueue(accepted.jobId);
+          return accepted;
+        } finally { await rm(temporary, { recursive: true, force: true }); }
+      });
+      this.preparationTail = pending;
+      return pending;
+    }
+    // Isolated in-memory test repositories have no path usable by a worker.
+    const existing = this.jobs.findAcceptedRequest(request.requestId);
+    if (existing) return existing;
     const entries = this.videos.buildDuplicateResolveEntriesForQuery(request.query);
     if (entries.length === 0) {
       throw new Error("当前筛选结果中没有可通过 CloudDrive API 删除的候选项");
@@ -146,9 +179,35 @@ export class DuplicateCleanupService {
 
   stop(): void {
     this.stopped = true;
+    for (const worker of this.preparationWorkers) void worker.terminate();
     this.currentVerificationAbort?.abort();
     if (this.changeTimer) clearTimeout(this.changeTimer);
     this.jobs.interruptActiveJobs();
+  }
+
+  private prepareFilteredInWorker(request: DuplicateCleanupFilteredSubmitRequest, stagePath: string): Promise<void> {
+    if (this.stopped || !this.preparationDatabasePath) {
+      return Promise.reject(new Error("Duplicate cleanup service has stopped"));
+    }
+    const worker = new Worker(new URL("./duplicateCleanupPreparationWorker.js", import.meta.url), {
+      workerData: { databasePath: this.preparationDatabasePath, request, stagePath }
+    });
+    this.preparationWorkers.add(worker);
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const settle = (result: { ok: true } | { ok: false; error: string }) => {
+        if (settled) return;
+        settled = true;
+        if (result.ok) resolve();
+        else reject(new Error(result.error));
+      };
+      worker.once("message", settle);
+      worker.once("error", (error) => settle({ ok: false, error: error.message }));
+      worker.once("exit", (code) => {
+        this.preparationWorkers.delete(worker);
+        if (!settled) settle({ ok: false, error: `Duplicate cleanup preparation worker exited with code ${code}` });
+      });
+    });
   }
 
   private enqueue(jobId: string): void {

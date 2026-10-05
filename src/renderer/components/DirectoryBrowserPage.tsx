@@ -92,7 +92,7 @@ export function DirectoryBrowserPage({
       parentPath: search ? undefined : currentPath,
       search,
       limit: 100
-    }).then((result) => {
+    }, compact ? "directory-picker" : "directory-page").then((result) => {
       if (!disposed) setDirectories(result);
     }).catch((cause) => {
       if (!disposed) setError(cause instanceof Error ? cause.message : String(cause));
@@ -118,7 +118,7 @@ export function DirectoryBrowserPage({
       sortDirection: "desc",
       page: 1,
       pageSize: 30
-    }).then((result) => {
+    }, "directory-preview").then((result) => {
       if (!disposed) setVideos(result);
     }).catch((cause) => {
       if (!disposed) setError(cause instanceof Error ? cause.message : String(cause));

@@ -525,7 +525,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
           sortDirection: "asc",
           page,
           pageSize: 100
-        })}
+        }, "player-playlist")}
         onSelectPlaylistVideo={async (nextVideo, loadedVideos) => {
           setDirectoryPlaybackQueue(loadedVideos);
           if (isPlayerWindow) {

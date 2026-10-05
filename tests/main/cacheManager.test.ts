@@ -27,6 +27,16 @@ afterEach(async () => {
 }, 30_000);
 
 describe("MediaCacheManager", () => {
+  it("defers the catalog read and complete sweep until after window startup", async () => {
+    const root = await createRoot();
+    const retained = vi.fn(() => new Set<string>());
+    const manager = new MediaCacheManager(root, generousLimits, { getRetainedCachePaths: retained });
+    await manager.initialize({ deferMaintenance: true });
+    expect(retained).not.toHaveBeenCalled();
+    manager.scheduleStartupMaintenance(1);
+    await vi.waitFor(() => expect(retained).toHaveBeenCalledOnce());
+    manager.stop();
+  });
   it("serves cached images during startup and resumes interrupted generation without publishing partial output", async () => {
     const root = await createRoot();
     const manager = new MediaCacheManager(root, generousLimits);

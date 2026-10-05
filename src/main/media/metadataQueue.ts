@@ -4,6 +4,7 @@ import { readDuration, readMetadata, type MediaMetadata } from "./metadataServic
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { detectKnownNonVideoContent, type KnownNonVideoContent } from "./fileSignature.js";
+import { mediaReadBudget } from "./mediaReadBudget.js";
 
 type MetadataReader = (filePath: string) => Promise<MediaMetadata>;
 type DurationReader = (filePath: string) => Promise<number | null>;
@@ -25,6 +26,8 @@ export class MetadataQueue {
   private readonly activeVideoIds = new Set<string>();
   private active = 0;
   private stopped = false;
+  private readonly stopController = new AbortController();
+  private readonly pendingReadControllers = new Map<string, AbortController>();
   private paused = false;
   private playbackPaused = false;
   private resumePendingBatches = false;
@@ -82,6 +85,7 @@ export class MetadataQueue {
     const releaseConsumer = () => {
       if (!consumers.delete(consumer) || consumers.size > 0) return;
       this.visibleConsumers.delete(videoId);
+      if (!this.backgroundOwned.has(videoId)) this.pendingReadControllers.get(videoId)?.abort();
       const index = this.waiting.indexOf(videoId);
       if (index >= 0 && !this.backgroundOwned.has(videoId)) {
         this.waiting.splice(index, 1);
@@ -155,6 +159,7 @@ export class MetadataQueue {
 
   stop(): void {
     this.stopped = true;
+    this.stopController.abort();
     for (const videoId of this.waiting) {
       this.scheduled.delete(videoId);
       this.backgroundOwned.delete(videoId);
@@ -219,12 +224,18 @@ export class MetadataQueue {
     }
     if (video.isMissing || video.metadataStatus !== "pending") return;
 
+    const readController = new AbortController();
+    this.pendingReadControllers.set(videoId, readController);
+    const readSignal = AbortSignal.any([this.stopController.signal, readController.signal]);
+
     try {
       if (video.sizeBytes === 0) {
         throw Object.assign(new Error("文件大小为 0B，已跳过媒体分析；请先重新读取 CloudDrive 文件大小"), { code: "EMPTY_FILE" });
       }
       if (video.providerFileId && video.providerPath) {
-        const durationMs = await this.durationReader(video.path);
+        const durationMs = await mediaReadBudget.run({ sourceKey: video.sourceFolderId, remote: true,
+          priority: this.visibleConsumers.has(video.id) || this.explicitRetries.has(video.id) ? 2 : 0,
+          signal: readSignal }, () => this.durationReader(video.path));
         if (this.stopped) return;
         if (durationMs !== null) {
           if (this.repo.markDurationReady(video.id, video.path, video.sizeBytes, video.modifiedAt, durationMs)) {
@@ -235,7 +246,10 @@ export class MetadataQueue {
           return;
         }
       }
-      const metadata = await this.metadataReader(video.path);
+      const metadata = await mediaReadBudget.run({ sourceKey: video.sourceFolderId,
+        remote: Boolean(video.providerFileId || video.providerPath || video.path.startsWith("\\\\")),
+        priority: this.visibleConsumers.has(video.id) || this.explicitRetries.has(video.id) ? 2 : 0,
+        signal: readSignal }, () => this.metadataReader(video.path));
       if (this.stopped) return;
       if (this.repo.markMetadataReady(video.id, video.path, video.sizeBytes, video.modifiedAt, metadata)) {
         this.repo.resolveScanFailuresForObjectStage?.(video.sourceFolderId, video.path, "file", "metadata");
@@ -243,7 +257,7 @@ export class MetadataQueue {
         this.onVideoUpdated?.(video.id);
       }
     } catch (error) {
-      if (this.stopped) return;
+      if (this.stopped || readSignal.aborted) return;
       let failureError = error;
       if (isMissingFileError(error)) {
         const missingResult = await this.resolveMissingMetadataTarget(video);
@@ -272,6 +286,8 @@ export class MetadataQueue {
         context: { videoId: video.id, extension: video.extension },
         error: failureError
       });
+    } finally {
+      this.pendingReadControllers.delete(videoId);
     }
   }
 

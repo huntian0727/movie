@@ -10,6 +10,7 @@ import type {
 import { isVideoExtension } from "../../shared/videoTypes.js";
 import { CloudDriveGrpcClient, type CloudDriveMountPoint } from "./grpcClient.js";
 import type { CloudDriveFileOperationResult } from "./grpcClient.js";
+import { WeightedExpiringCache } from "../queries/weightedExpiringCache.js";
 
 const DEFAULT_ENDPOINT = "http://127.0.0.1:19798";
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -88,7 +89,7 @@ let sharedClientKey = "";
 let sharedClient: CloudDriveGrpcClient | null = null;
 let cachedMountPointsKey = "";
 let cachedMountPoints: CloudDriveMountPoint[] = [];
-const directoryListingCache = new Map<string, { expiresAt: number; listing: CloudDriveDirectoryListing }>();
+const directoryListingCache = new WeightedExpiringCache<string, CloudDriveDirectoryListing>(256, 100_000);
 let runtimeEnvironment: NodeJS.ProcessEnv | null = null;
 
 export function configureCloudDriveRuntime(
@@ -557,7 +558,7 @@ function createDirectorySource(
       const remoteDirectory = joinRemotePath(mapping.remoteRoot, relative);
       const cacheKey = `${sharedClientKey}\n${normalizeRemotePath(remoteDirectory)}`;
       const cached = directoryListingCache.get(cacheKey);
-      if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.listing;
+      if (!forceRefresh && cached) return cached;
       const entries: CloudDriveDirectoryEntry[] = [];
       const entryNames = new Set<string>();
       let directoryMtime = EPOCH;
@@ -587,7 +588,7 @@ function createDirectorySource(
         });
       }
       const listing = { entries, directoryMtime };
-      directoryListingCache.set(cacheKey, { expiresAt: Date.now() + DIRECTORY_CACHE_TTL_MS, listing });
+      directoryListingCache.set(cacheKey, listing, Date.now() + DIRECTORY_CACHE_TTL_MS, entries.length);
       return listing;
     }
   };

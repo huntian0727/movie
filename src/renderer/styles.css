@@ -385,7 +385,7 @@ button { color: inherit; }
 .card-actions .danger-action:hover, .row-actions .danger-action:hover { color: #ff7b68; background: #392522; }
 
 .table-scroll { padding: 18px 26px 34px; overflow-x: auto; }
-.video-table { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 12px; }
+.video-table { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
 .video-table th { height: 38px; padding: 0 12px; border-bottom: 1px solid #30312f; color: #777a75; font-size: 11px; font-weight: 600; text-align: left; }
 .video-table td { height: 58px; padding: 0 12px; border-bottom: 1px solid #242524; color: #aeb1ac; }
 .video-table tbody tr:hover { background: #191a19; }
@@ -394,6 +394,8 @@ button { color: inherit; }
 .table-title strong, .table-title small { display: block; }
 .table-title strong { max-width: 360px; overflow: hidden; color: #eceeeb; font-size: 12px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .table-title small { margin-top: 2px; color: #626560; font-size: 9px; }
+.video-table .table-title, .video-table .table-title > div { min-width: 0; }
+.video-table .table-title strong { max-width: 100%; }
 .video-table .video-table-info-row td { border-bottom: 0; }
 .video-table .video-table-storyboard-row td { height: auto; padding: 0 12px 18px 46px; }
 .video-storyboard { max-width: 1120px; }

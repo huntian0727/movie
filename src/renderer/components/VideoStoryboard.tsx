@@ -5,10 +5,12 @@ import { getStoryboardFrameCount, getStoryboardFrameUrl, getStoryboardTimes } fr
 import { PreviewImage, type PreviewImageState } from "./PreviewImage";
 import { formatDuration } from "./formatters";
 
-export const VideoStoryboard = memo(function VideoStoryboard({ video, onPlay }: {
-  video: VideoRecord; onPlay(timeMs: number): void;
+export const VideoStoryboard = memo(function VideoStoryboard({ video, onPlay, expanded: controlledExpanded, onExpandedChange }: {
+  video: VideoRecord; onPlay(timeMs: number): void; expanded?: boolean; onExpandedChange?(expanded: boolean): void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = controlledExpanded ?? localExpanded;
+  const setExpanded = (next: boolean) => { setLocalExpanded(next); onExpandedChange?.(next); };
   const [retryVersion, setRetryVersion] = useState(0);
   const [frameStates, setFrameStates] = useState<Record<string, PreviewImageState>>({});
   const updateFrameState = useCallback((key: string, state: PreviewImageState) => {
@@ -20,7 +22,7 @@ export const VideoStoryboard = memo(function VideoStoryboard({ video, onPlay }: 
   const progress = [count("queued") && `排队 ${count("queued")}`, count("loading") && `生成中 ${count("loading")}`,
     count("failed") && `失败 ${count("failed")}`, count("paused") && `暂停 ${count("paused")}`].filter(Boolean).join(" · ");
   const remote = Boolean(video.providerFileId || video.providerPath);
-  if (times.length === 0) return <StoryboardMetadataGate key={JSON.stringify([video.id, video.path, video.sizeBytes, video.modifiedAt])} video={video} onPlay={onPlay} />;
+  if (times.length === 0) return <StoryboardMetadataGate key={JSON.stringify([video.id, video.path, video.sizeBytes, video.modifiedAt])} video={video} onPlay={onPlay} expanded={controlledExpanded} onExpandedChange={onExpandedChange} />;
   return <div className={`video-storyboard${expanded ? " is-expanded" : ""}`} aria-label={`${video.filename} 截图预览`}>
     <div className="video-storyboard-frames">
       {times.map((timeMs, index) => <StoryboardFrame key={getStoryboardFrameUrl(video, timeMs)} video={video} timeMs={timeMs}
@@ -29,7 +31,7 @@ export const VideoStoryboard = memo(function VideoStoryboard({ video, onPlay }: 
     </div>
     <div className="video-storyboard-footer">
       <span role="status">已加载 {count("ready")}/{times.length} 张{progress ? ` · ${progress}` : ""} · 点击从对应位置播放</span>
-      {getStoryboardFrameCount(video.durationMs!) > 6 && <button type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+      {getStoryboardFrameCount(video.durationMs!) > 6 && <button type="button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
         {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}{expanded ? "收起截图" : `查看全部 ${getStoryboardFrameCount(video.durationMs!)} 张`}
       </button>}
       <button type="button" title="只重新尝试未能加载的截图" onClick={() => setRetryVersion((value) => value + 1)}><RotateCw size={12} />重试失败截图</button>
@@ -39,7 +41,9 @@ export const VideoStoryboard = memo(function VideoStoryboard({ video, onPlay }: 
 });
 
 /** Duration is a prerequisite; merely waiting for the duplicate-only cloud queue would never start it. */
-function StoryboardMetadataGate({ video, onPlay }: { video: VideoRecord; onPlay(timeMs: number): void }) {
+function StoryboardMetadataGate({ video, onPlay, expanded, onExpandedChange }: {
+  video: VideoRecord; onPlay(timeMs: number): void; expanded?: boolean; onExpandedChange?(expanded: boolean): void;
+}) {
   const root = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [pageVisible, setPageVisible] = useState(!document.hidden);
@@ -100,7 +104,7 @@ function StoryboardMetadataGate({ video, onPlay }: { video: VideoRecord; onPlay(
     };
   }, [api, pageVisible, resolved, retryVersion, video.id, video.isMissing, video.metadataStatus, video.modifiedAt, video.path, video.sizeBytes, visible]);
 
-  if (resolved) return <VideoStoryboard video={resolved} onPlay={onPlay} />;
+  if (resolved) return <VideoStoryboard video={resolved} onPlay={onPlay} expanded={expanded} onExpandedChange={onExpandedChange} />;
   const blocked = video.isMissing || video.sizeBytes <= 0 || video.metadataStatus === "ready";
   const failed = state === "failed" || video.metadataStatus === "failed" && state !== "queued" && state !== "active";
   const message = video.isMissing ? "文件当前不可访问，无法生成截图预览"

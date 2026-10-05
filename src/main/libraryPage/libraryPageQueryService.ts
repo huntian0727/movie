@@ -24,10 +24,13 @@ export class LibraryPageQueryService {
     private readonly workerFactory?: (databasePath: string) => LibraryPageQueryWorker
   ) {}
 
-  page(query: LibraryPageQuery): Promise<LibraryPage> {
+  page(query: LibraryPageQuery, scope?: string): Promise<LibraryPage> {
     if (this.disposed) return Promise.reject(new Error("Library page service has stopped"));
     const snapshot = structuredClone(query);
-    return this.reads.run(JSON.stringify(snapshot), () => this.dispatch(snapshot));
+    const key = JSON.stringify(snapshot);
+    return scope
+      ? this.reads.runLatest(scope, key, () => this.dispatch(snapshot))
+      : this.reads.run(key, () => this.dispatch(snapshot));
   }
 
   private dispatch(query: LibraryPageQuery): Promise<LibraryPage> {

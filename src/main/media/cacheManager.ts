@@ -3,6 +3,7 @@ import { access, mkdir, opendir, readFile, rename, rm, stat, unlink, utimes } fr
 import path from "node:path";
 import type { StructuredLogger } from "../logging/logger.js";
 import { ImageGenerationQueue, ImageRequestCancelledError, type ImageRequestOptions } from "./imageGenerationQueue.js";
+import { mediaReadBudget } from "./mediaReadBudget.js";
 
 export interface MediaCacheLimits {
   totalBytes: number;
@@ -90,6 +91,8 @@ export class MediaCacheManager {
   private maintenance: Promise<MediaCacheCleanupResult> | null = null;
   private epoch = 0;
   private stopping = false;
+  private playbackPaused = false;
+  private startupMaintenanceTimer: ReturnType<typeof setTimeout> | undefined;
   private lastMaintenanceStartedAt = 0;
   private status: MediaCacheStatus;
 
@@ -104,10 +107,13 @@ export class MediaCacheManager {
     this.status = emptyStatus(this.limits.totalBytes);
   }
 
-  async initialize(): Promise<MediaCacheStatus> {
+  async initialize(options: { deferMaintenance?: boolean } = {}): Promise<MediaCacheStatus> {
     await this.ensureOwnedDirectories();
-    await this.removeAbandonedTempFiles();
-    await this.runMaintenance("startup", true);
+    if (options.deferMaintenance) this.lastMaintenanceStartedAt = this.now();
+    else {
+      await this.removeAbandonedTempFiles();
+      await this.runMaintenance("startup", true);
+    }
     return this.getStatus();
   }
 
@@ -116,7 +122,24 @@ export class MediaCacheManager {
   }
 
   setPlaybackPaused(paused: boolean): void {
+    this.playbackPaused = paused;
     this.generationQueue.setPlaybackPaused(paused);
+  }
+
+  scheduleStartupMaintenance(delayMs = 15_000): void {
+    if (this.stopping || this.startupMaintenanceTimer) return;
+    this.startupMaintenanceTimer = setTimeout(() => {
+      this.startupMaintenanceTimer = undefined;
+      if (this.stopping) return;
+      if (this.playbackPaused || this.clearing || this.maintenance) {
+        this.scheduleStartupMaintenance(delayMs);
+        return;
+      }
+      void this.runMaintenance("startup", true).catch((error) => this.dependencies.logger?.error({
+        module: "media.cache", event: "maintenance_failed", message: "Deferred cache maintenance failed", error
+      }));
+    }, delayMs);
+    this.startupMaintenanceTimer.unref?.();
   }
 
   async getOrCreateImage(
@@ -238,6 +261,7 @@ export class MediaCacheManager {
 
   stop(): void {
     this.stopping = true;
+    if (this.startupMaintenanceTimer) clearTimeout(this.startupMaintenanceTimer);
     this.epoch += 1;
   }
 
@@ -321,7 +345,7 @@ export class MediaCacheManager {
       // Protect its partial file until the writer and cleanup have both settled.
       this.acquire(temporaryPath);
       try {
-        await generate(temporaryPath, signal);
+        await mediaReadBudget.run({ ...options, signal }, () => generate(temporaryPath, signal));
         const temporaryStat = await stat(temporaryPath);
         if (!temporaryStat.isFile() || temporaryStat.size <= 0) {
           throw new Error("Generated cache image is empty");

@@ -22,7 +22,8 @@ export async function loadPreviewImage(
   const video = repo.getVideo(videoId);
   const cacheKey = buildCacheKey(video.path, video.sizeBytes, video.modifiedAt);
   // Remote classification is authoritative in Main, never supplied by Renderer.
-  const readOptions = { ...options, remote: Boolean(video.providerFileId || video.providerPath), cachedOnly: options.cachedOnly || video.isMissing };
+  const readOptions = { ...options, sourceKey: video.sourceFolderId,
+    remote: Boolean(video.providerFileId || video.providerPath || video.path.startsWith("\\\\")), cachedOnly: options.cachedOnly || video.isMissing };
   try {
     if (preview) {
       const framePath = getTimelineFramePath(cacheManager.root, cacheKey, preview.timeMs);

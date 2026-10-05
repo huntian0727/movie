@@ -4,6 +4,7 @@ export class ImageRequestCancelledError extends Error {
 
 export interface ImageRequestOptions {
   signal?: AbortSignal; priority?: number; cachedOnly?: boolean; remote?: boolean;
+  sourceKey?: string;
   onStateChange?(state: "queued" | "active"): void;
 }
 type Subscriber = { priority: number; onStateChange?: ImageRequestOptions["onStateChange"]; resolve(): void; reject(error: unknown): void; detach(): void };

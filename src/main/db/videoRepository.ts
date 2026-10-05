@@ -193,6 +193,14 @@ interface DuplicateStatsRow {
   total_unbound_deletion_candidate_files?: number;
 }
 
+/** Worker-owned ranking only; page videos are always read fresh. */
+export interface DuplicatePageRankingCache {
+  candidateStats?: DuplicateStatsRow;
+  identities?: DuplicateIdentityRow[];
+  overallTotalGroups?: number;
+  directoryOptions?: DuplicateDirectoryOption[];
+}
+
 interface CountRow {
   count: number;
 }
@@ -1377,7 +1385,7 @@ export class VideoRepository {
     return rows.map(mapVideo);
   }
 
-  listVideoPage(query: LibraryPageQuery): LibraryPage {
+  listVideoPage(query: LibraryPageQuery, cachedTotalCount?: number): LibraryPage {
     if (query.view === "folder" && !query.directoryPath) {
       return { videos: [], page: 1, pageSize: query.pageSize, totalPages: 1, totalCount: 0 };
     }
@@ -1407,7 +1415,7 @@ export class VideoRepository {
     }
 
     const fromClause = `FROM videos ${joins} WHERE ${where.join(" AND ")}`;
-    const totalCount = (this.db.prepare(`SELECT COUNT(*) AS count ${fromClause}`).get(params) as CountRow).count;
+    const totalCount = cachedTotalCount ?? (this.db.prepare(`SELECT COUNT(*) AS count ${fromClause}`).get(params) as CountRow).count;
     const totalPages = Math.max(1, Math.ceil(totalCount / query.pageSize));
     const page = Math.min(Math.max(1, query.page), totalPages);
     const direction = query.sortDirection === "desc" ? "DESC" : "ASC";
@@ -2052,7 +2060,7 @@ export class VideoRepository {
     return result.changes > 0;
   }
 
-  listDuplicateGroupsPage(query: DuplicateGroupPageQuery): DuplicateGroupPage {
+  listDuplicateGroupsPage(query: DuplicateGroupPageQuery, cache?: DuplicatePageRankingCache): DuplicateGroupPage {
     const scopedSizeParams: Record<string, unknown> = {};
     const preferredDirectoryPaths = normalizePreferredDirectoryPaths(query);
     const preferredTreeClauses = preferredDirectoryPaths.map((directoryPath, index) => {
@@ -2083,7 +2091,7 @@ export class VideoRepository {
         ${candidateScopeClause}
       GROUP BY size_bytes
       HAVING COUNT(*) >= 2`;
-    const candidateStats = this.db
+    const candidateStats = cache?.candidateStats ?? this.db
       .prepare(
         `SELECT
            COUNT(*) AS total_groups,
@@ -2091,6 +2099,7 @@ export class VideoRepository {
          FROM (${candidateSizesQuery})`
       )
       .get(scopedSizeParams) as DuplicateStatsRow;
+    if (cache) cache.candidateStats = candidateStats;
 
     const cloudItemExpression = "provider_file_id IS NOT NULL AND provider_file_id != '' AND provider_path IS NOT NULL AND provider_path != ''";
     const preferredLocalCountExpression = preferredTreeClause
@@ -2164,7 +2173,7 @@ export class VideoRepository {
       ? "deletable_count * size_bytes DESC, size_bytes DESC, duration_seconds ASC"
       : "file_count DESC, size_bytes DESC, duration_seconds ASC";
     const requestedPage = Math.max(1, query.page);
-    const identityRows = this.db
+    const rankedRows = cache?.identities ?? this.db
       .prepare(
         `${duplicateGroupsCte}, ranked_groups AS (
            SELECT *,
@@ -2179,12 +2188,13 @@ export class VideoRepository {
          SELECT size_bytes, duration_seconds, total_groups, total_candidate_files, total_reclaimable_bytes,
                 total_deletable_files, total_unbound_deletion_candidate_files
          FROM ranked_groups
-         WHERE row_number > (MIN(@requestedPage, CAST((total_groups + @limit - 1) / @limit AS INTEGER)) - 1) * @limit
-           AND row_number <= MIN(@requestedPage, CAST((total_groups + @limit - 1) / @limit AS INTEGER)) * @limit
+         ${cache ? "" : `WHERE row_number > (MIN(@requestedPage, CAST((total_groups + @limit - 1) / @limit AS INTEGER)) - 1) * @limit
+           AND row_number <= MIN(@requestedPage, CAST((total_groups + @limit - 1) / @limit AS INTEGER)) * @limit`}
          ORDER BY row_number`
       )
-      .all({ ...scopedSizeParams, limit: query.pageSize, requestedPage }) as DuplicateIdentityRow[];
-    const verifiedStats: DuplicateStatsRow = identityRows[0] ?? {
+      .all(cache ? scopedSizeParams : { ...scopedSizeParams, limit: query.pageSize, requestedPage }) as DuplicateIdentityRow[];
+    if (cache) cache.identities = rankedRows;
+    const verifiedStats: DuplicateStatsRow = rankedRows[0] ?? {
       total_groups: 0,
       total_candidate_files: 0,
       total_reclaimable_bytes: 0,
@@ -2193,23 +2203,27 @@ export class VideoRepository {
     };
     const totalPages = Math.max(1, Math.ceil(verifiedStats.total_groups / query.pageSize));
     const page = Math.min(requestedPage, totalPages);
+    const identityRows = cache ? rankedRows.slice((page - 1) * query.pageSize, page * query.pageSize) : rankedRows;
     const groups = identityRows
       .map((group) => this.buildDuplicateGroup(buildSizeDurationGroupKey(group.size_bytes, group.duration_seconds * 1000), preferredDirectoryPaths))
       .filter((group): group is DuplicateGroup => group !== null);
 
+    const overallTotalGroups = cache?.overallTotalGroups ?? (filterTreeClause ? this.countAllDuplicateGroups() : verifiedStats.total_groups);
+    const directoryOptions = cache?.directoryOptions ?? this.listDuplicateDirectoryOptions();
+    if (cache) { cache.overallTotalGroups = overallTotalGroups; cache.directoryOptions = directoryOptions; }
     return {
       groups,
       page,
       pageSize: query.pageSize,
       totalPages,
       totalGroups: verifiedStats.total_groups,
-      overallTotalGroups: filterTreeClause ? this.countAllDuplicateGroups() : verifiedStats.total_groups,
+      overallTotalGroups,
       totalCandidateGroups: candidateStats.total_groups,
       totalCandidateFiles: candidateStats.total_candidate_files,
       totalReclaimableBytes: verifiedStats.total_reclaimable_bytes ?? 0,
       totalDeletableFiles: verifiedStats.total_deletable_files ?? 0,
       totalUnboundDeletionCandidateFiles: verifiedStats.total_unbound_deletion_candidate_files ?? 0,
-      directoryOptions: this.listDuplicateDirectoryOptions()
+      directoryOptions
     };
   }
 

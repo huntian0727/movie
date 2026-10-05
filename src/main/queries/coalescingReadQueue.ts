@@ -1,7 +1,15 @@
 interface ReadJob<Result> {
   key: string;
   execute(): Promise<Result>;
-  consumers: Array<{ resolve(result: Result): void; reject(error: unknown): void }>;
+  consumers: Array<{ scope?: string; resolve(result: Result): void; reject(error: unknown): void }>;
+}
+
+export class SupersededReadError extends Error {
+  readonly code = "ERR_QUERY_SUPERSEDED";
+  constructor() {
+    super("A newer query replaced this pending read");
+    this.name = "SupersededReadError";
+  }
 }
 
 /** Keep work in the parent, not the worker's opaque message queue. */
@@ -10,12 +18,30 @@ export class CoalescingReadQueue<Result> {
   private readonly queued = new Map<string, ReadJob<Result>>();
 
   run(key: string, execute: () => Promise<Result>): Promise<Result> {
+    return this.enqueue(key, execute);
+  }
+
+  /** Replace only waiting reads from this consumer; never interrupt an in-flight SQL statement. */
+  runLatest(scope: string, key: string, execute: () => Promise<Result>): Promise<Result> {
+    for (const [queuedKey, job] of this.queued) {
+      if (queuedKey === key) continue;
+      job.consumers = job.consumers.filter((consumer) => {
+        if (consumer.scope !== scope) return true;
+        consumer.reject(new SupersededReadError());
+        return false;
+      });
+      if (job.consumers.length === 0) this.queued.delete(queuedKey);
+    }
+    return this.enqueue(key, execute, scope);
+  }
+
+  private enqueue(key: string, execute: () => Promise<Result>, scope?: string): Promise<Result> {
     return new Promise((resolve, reject) => {
       const existing = this.queued.get(key);
       if (existing) {
-        existing.consumers.push({ resolve, reject });
+        existing.consumers.push({ scope, resolve, reject });
       } else {
-        this.queued.set(key, { key, execute, consumers: [{ resolve, reject }] });
+        this.queued.set(key, { key, execute, consumers: [{ scope, resolve, reject }] });
       }
       this.pump();
     });

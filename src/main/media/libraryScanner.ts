@@ -63,6 +63,11 @@ export interface ScannerDependencies {
 const FILE_STAT_TIMEOUT_MS = 15_000;
 const DIRECTORY_ENTRY_TIMEOUT_MS = 30_000;
 const DEFAULT_CLOUD_DIRECTORY_CONCURRENCY = 16;
+// Keep CloudDrive's database writes bounded even when one remote directory
+// contains tens of thousands of videos. Missing reconciliation and the
+// complete snapshot are committed only after every listed entry is handled.
+const CLOUD_WRITE_BATCH_LIMIT = 128;
+const CLOUD_WRITE_BATCH_BUDGET_MS = 8;
 const SKIPPED_SUFFIXES = [".crdownload", ".part", ".tmp"];
 
 export class ScanCancelledError extends Error {
@@ -419,17 +424,29 @@ async function scanDirectoryTree(
       && directVideos.every((entry) => entry.fileInfo?.providerFileId && entry.fileInfo.providerPath)
     );
     if (canBatchCloudDirectory) {
+      let nextVideo = 0;
+      while (nextVideo < directVideos.length) {
+        await context.dependencies.waitIfPaused?.();
+        throwIfCancelled(context.dependencies);
+        const batchStartedAt = performance.now();
+        context.repo.runInTransaction(() => {
+          const batchEnd = Math.min(nextVideo + CLOUD_WRITE_BATCH_LIMIT, directVideos.length);
+          do {
+            const entry = directVideos[nextVideo]!;
+            const filePath = path.join(directoryPath, entry.name);
+            throwIfCancelled(context.dependencies);
+            reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
+            if (!processCloudVideoFile(context, filePath, entry.fileInfo!)) directFailures += 1;
+            context.processedFiles += 1;
+            nextVideo += 1;
+            reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
+          } while (nextVideo < batchEnd && performance.now() - batchStartedAt < CLOUD_WRITE_BATCH_BUDGET_MS);
+        });
+        if (nextVideo < directVideos.length) await new Promise<void>((resolve) => setImmediate(resolve));
+      }
       await context.dependencies.waitIfPaused?.();
       throwIfCancelled(context.dependencies);
       context.repo.runInTransaction(() => {
-        for (const entry of directVideos) {
-          const filePath = path.join(directoryPath, entry.name);
-          throwIfCancelled(context.dependencies);
-          reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
-          if (!processCloudVideoFile(context, filePath, entry.fileInfo!)) directFailures += 1;
-          context.processedFiles += 1;
-          reportProgress(context, context.mode === "retry-failures" ? "retrying-failures" : "processing", filePath);
-        }
         context.counters.missingVideos += safeReconcileDirectory(context.repo, context.sourceFolder.id, directoryPath, directVideoPaths);
         safeUpsertSnapshot(context.repo, {
           sourceFolderId: context.sourceFolder.id,

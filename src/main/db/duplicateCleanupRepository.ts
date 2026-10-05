@@ -6,6 +6,7 @@ import type {
 } from "../../shared/videoTypes.js";
 import type { DatabaseConnection } from "./database.js";
 import type { PreparedDuplicateResolveEntry, VideoRepository } from "./videoRepository.js";
+import { withCleanupRevisionBatch } from "./queryRevisions.js";
 
 interface JobRow {
   id: string; request_id: string; status: DuplicateCleanupJob["status"]; source_view: string | null;
@@ -95,16 +96,89 @@ export class DuplicateCleanupRepository {
     return this.submitFastPrepared(request, this.videos.validateDuplicateResolvePlan(request.plan));
   }
 
+  findAcceptedRequest(requestId: string): DuplicateCleanupAccepted | null {
+    const existing = this.findByRequestId(requestId);
+    return existing ? toAccepted(existing) : null;
+  }
+
+  /** Bulk copy from an internally owned, completed plan. No JS per-row work on
+   * the main thread and no competing library writer. Admission remains atomic. */
+  submitFastStaged(request: Pick<DuplicateCleanupSubmitRequest, "requestId" | "sourceView">, stagePath: string): DuplicateCleanupAccepted {
+    const existing = this.findAcceptedRequest(request.requestId);
+    if (existing) return existing;
+    this.db.prepare("ATTACH DATABASE ? AS cleanup_preparation").run(stagePath);
+    try {
+      return this.db.transaction(() => withCleanupRevisionBatch(this.db, () => {
+        const raced = this.findAcceptedRequest(request.requestId);
+        if (raced) return raced;
+        const summary = this.db.prepare("SELECT * FROM cleanup_preparation.summary").get() as {
+          total_groups: number; total_items: number; planned_bytes: number;
+        };
+        if (!summary || summary.total_items < 1 || summary.total_groups < 1) throw new Error("Empty cleanup preparation");
+        const actual = this.db.prepare(`SELECT COUNT(*) AS total_items, COUNT(DISTINCT group_key) AS total_groups,
+          COALESCE(SUM(planned_reclaimable_bytes), 0) AS planned_bytes FROM cleanup_preparation.items`).get() as typeof summary;
+        if (actual.total_items !== summary.total_items || actual.total_groups !== summary.total_groups
+          || actual.planned_bytes !== summary.planned_bytes) throw new Error("Incomplete cleanup preparation");
+        const stale = this.db.prepare(`SELECT 1 FROM cleanup_preparation.expected e LEFT JOIN videos v ON v.id = e.id
+          WHERE v.id IS NULL OR v.path IS NOT e.path OR v.size_bytes IS NOT e.size_bytes
+          OR v.modified_at IS NOT e.modified_at OR v.duration_ms IS NOT e.duration_ms
+          OR v.metadata_status != 'ready' OR v.is_missing != 0
+          OR v.provider_file_id IS NOT e.provider_file_id OR v.provider_path IS NOT e.provider_path LIMIT 1`).get();
+        if (stale) throw new Error("Duplicate candidates changed during preparation. Refresh the candidates and retry.");
+        const reserved = this.db.prepare(`SELECT 1 FROM cleanup_preparation.expected e
+          JOIN duplicate_cleanup_reservations r ON r.video_id = e.id WHERE r.released_at IS NULL LIMIT 1`).get();
+        if (reserved) throw new Error("Selected videos are reserved by a duplicate verification or deletion task.");
+        const jobId = crypto.randomUUID(); const now = new Date().toISOString();
+        this.db.prepare(`INSERT INTO duplicate_cleanup_jobs (
+          id, request_id, status, source_view, total_groups, total_items, planned_reclaimable_bytes,
+          created_at, updated_at, workflow_version, phase) VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, 3, 'deletion')`)
+          .run(jobId, request.requestId, request.sourceView ?? "duplicates-filtered", summary.total_groups,
+            summary.total_items, summary.planned_bytes, now, now);
+        this.db.prepare(`INSERT INTO duplicate_cleanup_items (
+          id, job_id, group_key, keep_video_id, delete_video_id, keep_path, delete_path, filename, directory,
+          expected_keep_size_bytes, expected_keep_modified_at, expected_delete_size_bytes, expected_delete_modified_at,
+          planned_reclaimable_bytes, status, created_at, updated_at, verification_status,
+          delete_transport, delete_provider_file_id, delete_provider_path)
+          SELECT id, ?, group_key, keep_video_id, delete_video_id, keep_path, delete_path, filename, directory,
+          expected_keep_size_bytes, expected_keep_modified_at, expected_delete_size_bytes, expected_delete_modified_at,
+          planned_reclaimable_bytes, 'pending', ?, ?, 'unverified', 'clouddrive', delete_provider_file_id, delete_provider_path
+          FROM cleanup_preparation.items`).run(jobId, now, now);
+        this.db.prepare(`INSERT INTO duplicate_cleanup_reservations (id, job_id, video_id, role, created_at, released_at)
+          SELECT reservation_id, ?, id, role, ?, NULL FROM cleanup_preparation.expected`).run(jobId, now);
+        return { jobId, requestId: request.requestId, status: "queued" as const,
+          totalGroups: summary.total_groups, totalItems: summary.total_items, plannedReclaimableBytes: summary.planned_bytes };
+      })).immediate();
+    } finally { this.db.exec("DETACH DATABASE cleanup_preparation"); }
+  }
+
   submitFastPrepared(
     request: Pick<DuplicateCleanupSubmitRequest, "requestId" | "sourceView">,
     entries: PreparedDuplicateResolveEntry[]
   ): DuplicateCleanupAccepted {
     const existing = this.findByRequestId(request.requestId);
     if (existing) return toAccepted(existing);
-    return this.db.transaction(() => {
+    return this.db.transaction(() => withCleanupRevisionBatch(this.db, () => {
       const raced = this.findByRequestId(request.requestId);
       if (raced) return toAccepted(raced);
       if (entries.length === 0) throw new Error("Duplicate cleanup plan has no deletable CloudDrive candidates.");
+      // Read-only preparation can run concurrently with scans or file changes.
+      // Check its exact snapshot again inside the same transaction as admission.
+      const expected = new Map(entries.flatMap((entry) => [entry.keepVideo, ...entry.deleteVideos]).map((video) => [video.id, video]));
+      const expectedIds = [...expected.keys()];
+      for (let offset = 0; offset < expectedIds.length; offset += 500) {
+        const ids = expectedIds.slice(offset, offset + 500);
+        const rows = this.db.prepare(`SELECT id, path, size_bytes, modified_at, duration_ms, metadata_status,
+          is_missing, provider_file_id, provider_path FROM videos WHERE id IN (${ids.map(() => "?").join(",")})`).all(...ids) as Array<{
+            id: string; path: string; size_bytes: number; modified_at: string; duration_ms: number | null;
+            metadata_status: string; is_missing: number; provider_file_id: string | null; provider_path: string | null;
+          }>;
+        if (rows.length !== ids.length || rows.some((row) => {
+          const video = expected.get(row.id)!;
+          return row.path !== video.path || row.size_bytes !== video.sizeBytes || row.modified_at !== video.modifiedAt
+            || row.duration_ms !== video.durationMs || row.metadata_status !== "ready" || row.is_missing !== 0
+            || row.provider_file_id !== (video.providerFileId ?? null) || row.provider_path !== (video.providerPath ?? null);
+        })) throw new Error("Duplicate candidates changed during preparation. Refresh the candidates and retry.");
+      }
       for (const entry of entries) {
         for (const video of entry.deleteVideos) {
           if (!video.providerFileId || !video.providerPath) {
@@ -127,33 +201,31 @@ export class DuplicateCleanupRepository {
       ) VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, 3, 'deletion')`)
         .run(jobId, request.requestId, request.sourceView ?? "duplicates-api-fast", entries.length,
           totalItems, plannedReclaimableBytes, now, now);
-      const insertItem = this.db.prepare(`INSERT INTO duplicate_cleanup_items (
+      const insertItemPrefix = `INSERT INTO duplicate_cleanup_items (
         id, job_id, group_key, keep_video_id, delete_video_id, keep_path, delete_path, filename, directory,
         expected_keep_size_bytes, expected_keep_modified_at, expected_delete_size_bytes, expected_delete_modified_at,
         planned_reclaimable_bytes, status, created_at, updated_at, verification_status,
         delete_transport, delete_provider_file_id, delete_provider_path
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, 'unverified', 'clouddrive', ?, ?)`);
-      for (const entry of entries) {
-        for (const video of entry.deleteVideos) {
-          insertItem.run(
+      ) VALUES `;
+      insertRowsInBatches(this.db, insertItemPrefix,
+        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, 'unverified', 'clouddrive', ?, ?)",
+        (function* () { for (const entry of entries) for (const video of entry.deleteVideos) {
+          yield [
             crypto.randomUUID(), jobId, entry.groupKey, entry.keepVideo.id, video.id,
             entry.keepVideo.path, video.path, video.filename, video.directory,
             entry.keepVideo.sizeBytes, entry.keepVideo.modifiedAt, video.sizeBytes, video.modifiedAt,
             video.sizeBytes, now, now, video.providerFileId, video.providerPath
-          );
-        }
-      }
-      const insertReservation = this.db.prepare(`INSERT INTO duplicate_cleanup_reservations
-        (id, job_id, video_id, role, created_at, released_at) VALUES (?, ?, ?, ?, ?, NULL)`);
-      for (const entry of entries) {
-        insertReservation.run(crypto.randomUUID(), jobId, entry.keepVideo.id, "keep", now);
-        for (const video of entry.deleteVideos) {
-          insertReservation.run(crypto.randomUUID(), jobId, video.id, "delete", now);
-        }
-      }
+          ];
+        } })());
+      insertRowsInBatches(this.db, `INSERT INTO duplicate_cleanup_reservations
+        (id, job_id, video_id, role, created_at, released_at) VALUES `, "(?, ?, ?, ?, ?, NULL)",
+        (function* () { for (const entry of entries) {
+          yield [crypto.randomUUID(), jobId, entry.keepVideo.id, "keep", now];
+          for (const video of entry.deleteVideos) yield [crypto.randomUUID(), jobId, video.id, "delete", now];
+        } })());
       return { jobId, requestId: request.requestId, status: "queued" as const,
         totalGroups: entries.length, totalItems, plannedReclaimableBytes };
-    })();
+    }))();
   }
 
   assertVideosAvailable(videoIds: string[]): void {
@@ -689,4 +761,23 @@ function mapItem(row: ItemRow): DuplicateCleanupItem {
 function toAccepted(job: JobRow): DuplicateCleanupAccepted {
   return { jobId: job.id, requestId: job.request_id, status: job.status, totalGroups: job.total_groups,
     totalItems: job.total_items, plannedReclaimableBytes: job.planned_reclaimable_bytes };
+}
+
+/** SQL batches, not transaction batches: all rows still commit or roll back together.
+ * 50 rows keep the widest statement below even SQLite's legacy 999 bind limit. */
+function insertRowsInBatches(db: DatabaseConnection, prefix: string, tuple: string, rows: Iterable<unknown[]>): void {
+  const statements = new Map<number, import("better-sqlite3").Statement<unknown[]>>();
+  let batch: unknown[][] = [];
+  const flush = () => {
+    if (!batch.length) return;
+    let statement = statements.get(batch.length);
+    if (!statement) {
+      statement = db.prepare<unknown[]>(prefix + Array(batch.length).fill(tuple).join(","));
+      statements.set(batch.length, statement);
+    }
+    statement.run(...batch.flat());
+    batch = [];
+  };
+  for (const row of rows) { batch.push(row); if (batch.length === 50) flush(); }
+  flush();
 }

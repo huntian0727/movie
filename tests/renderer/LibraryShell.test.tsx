@@ -499,7 +499,7 @@ describe("LibraryShell", () => {
       parentPath: folder.path,
       search: "",
       limit: 100
-    }));
+    }, "directory-picker"));
     expect(currentDirectory).toHaveAttribute("aria-expanded", "true");
     expect(await screen.findByText("Drama")).toBeInTheDocument();
     expect(onLoadVideoPage).toHaveBeenCalledWith(expect.objectContaining({
@@ -507,7 +507,7 @@ describe("LibraryShell", () => {
       directoryPath: folder.path,
       folderScope: "recursive",
       page: 1
-    }));
+    }), "library-main");
     expect(onLoadVideoPage).toHaveBeenCalledTimes(2);
   });
 
@@ -1042,10 +1042,10 @@ describe("LibraryShell", () => {
     );
 
     expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
-    expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ view: "all", page: 1, pageSize: 100 }));
+    expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ view: "all", page: 1, pageSize: 100 }), "library-main");
     fireEvent.click(screen.getByRole("button", { name: "下一页" }));
     expect(await screen.findByText("episode-01.mp4")).toBeInTheDocument();
-    expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, pageSize: 100 }));
+    expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, pageSize: 100 }), "library-main");
   });
 
   it("reloads the active backend page when a domain event sequence changes", async () => {

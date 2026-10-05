@@ -40,20 +40,29 @@ export function queryVideoData(database: DatabaseConnection, query: VideoDataQue
   })();
 }
 export function* iterateVideoData(database: DatabaseConnection, query: VideoDataQuery, selection: VideoDataSelection): Generator<VideoDataRow> {
-  const { from, params, order } = build(query);
-  const ids = new Set(selection.ids), excluded = new Set(selection.excludedIds);
+  const { from, params, order } = buildSelection(query, selection);
   for (const row of database.prepare(`${select} ${from} ORDER BY ${order}`).iterate(params) as Iterable<Row>) {
-    if (selection.all ? !excluded.has(row.id) : ids.has(row.id)) yield map(row);
+    yield map(row);
   }
 }
 export function selectVideoDataIds(database: DatabaseConnection, query: VideoDataQuery, selection: VideoDataSelection): string[] {
-  const { from, params, order } = build(query);
-  const ids = new Set(selection.ids), excluded = new Set(selection.excludedIds);
+  const { from, params, order } = buildSelection(query, selection);
   const selected: string[] = [];
   for (const row of database.prepare(`SELECT v.id ${from} ORDER BY ${order}`).iterate(params) as Iterable<{ id: string }>) {
-    if (selection.all ? !excluded.has(row.id) : ids.has(row.id)) selected.push(row.id);
+    selected.push(row.id);
   }
   return selected;
+}
+
+function buildSelection(query: VideoDataQuery, selection: VideoDataSelection) {
+  const built = build(query);
+  if (selection.all && selection.excludedIds.length === 0) return built;
+  // One JSON binding avoids SQLite variable limits; explicit selection uses the
+  // primary-key index instead of fetching and mapping the complete result set.
+  built.from += `${built.from.includes(" WHERE ") ? " AND" : " WHERE"} v.id ${selection.all ? "NOT IN" : "IN"}
+    (SELECT value FROM json_each(@selectedIds))`;
+  built.params.selectedIds = JSON.stringify(selection.all ? selection.excludedIds : selection.ids);
+  return built;
 }
 export function csvCell(value: unknown): string {
   let text = value == null ? "" : String(value);

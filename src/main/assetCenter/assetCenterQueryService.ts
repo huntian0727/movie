@@ -28,14 +28,14 @@ export interface AssetCenterQueryWorker {
 }
 
 export interface AssetCenterReadService {
-  listDirectories(query: DirectoryBrowserQuery): Promise<DirectoryBrowserResult>;
-  listDuplicates(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage>;
+  listDirectories(query: DirectoryBrowserQuery, scope?: string): Promise<DirectoryBrowserResult>;
+  listDuplicates(query: DuplicateGroupPageQuery, scope?: string): Promise<DuplicateGroupPage>;
   listFolders(): Promise<SourceFolder[]>;
-  listMetadataIssues(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
-  listScanFailures(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage>;
+  listMetadataIssues(query: MetadataIssuePageQuery, scope?: string): Promise<MetadataIssuePage>;
+  listScanFailures(query: ScanFailureReviewQuery, scope?: string): Promise<ScanFailureReviewPage>;
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
   getSummary(): Promise<AssetCenterSummary>;
-  listSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage>;
+  listSources(query: AssetCenterSourceQuery, scope?: string): Promise<AssetCenterSourcePage>;
 }
 
 interface AssetCenterQueryServiceOptions {
@@ -55,12 +55,14 @@ type AssetCenterQueryResult =
   | LibraryNavigationSnapshot
   | MetadataIssuePage
   | ScanFailureReviewPage
-  | SourceFolder[];
+  | SourceFolder[]
+  | string[];
 
 type AssetCenterWorkerOperation =
   | { operation: "directories"; query: DirectoryBrowserQuery }
   | { operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { operation: "folders" }
+  | { operation: "retainedCachePaths" }
   | { operation: "metadataIssues"; query: MetadataIssuePageQuery }
   | { operation: "scanFailures"; query: ScanFailureReviewQuery }
   | { operation: "navigation" }
@@ -83,32 +85,36 @@ export class AssetCenterQueryService implements AssetCenterReadService {
     return this.request<AssetCenterSummary>({ operation: "summary" });
   }
 
-  listDirectories(query: DirectoryBrowserQuery): Promise<DirectoryBrowserResult> {
-    return this.request<DirectoryBrowserResult>({ operation: "directories", query });
+  listDirectories(query: DirectoryBrowserQuery, scope?: string): Promise<DirectoryBrowserResult> {
+    return this.request<DirectoryBrowserResult>({ operation: "directories", query }, scope);
   }
 
-  listDuplicates(query: DuplicateGroupPageQuery): Promise<DuplicateGroupPage> {
-    return this.request<DuplicateGroupPage>({ operation: "duplicates", query });
+  listDuplicates(query: DuplicateGroupPageQuery, scope?: string): Promise<DuplicateGroupPage> {
+    return this.request<DuplicateGroupPage>({ operation: "duplicates", query }, scope);
   }
 
   listFolders(): Promise<SourceFolder[]> {
     return this.request<SourceFolder[]>({ operation: "folders" });
   }
 
-  listMetadataIssues(query: MetadataIssuePageQuery): Promise<MetadataIssuePage> {
-    return this.request<MetadataIssuePage>({ operation: "metadataIssues", query });
+  listRetainedCachePaths(): Promise<string[]> {
+    return this.request<string[]>({ operation: "retainedCachePaths" });
   }
 
-  listScanFailures(query: ScanFailureReviewQuery): Promise<ScanFailureReviewPage> {
-    return this.request<ScanFailureReviewPage>({ operation: "scanFailures", query });
+  listMetadataIssues(query: MetadataIssuePageQuery, scope?: string): Promise<MetadataIssuePage> {
+    return this.request<MetadataIssuePage>({ operation: "metadataIssues", query }, scope);
+  }
+
+  listScanFailures(query: ScanFailureReviewQuery, scope?: string): Promise<ScanFailureReviewPage> {
+    return this.request<ScanFailureReviewPage>({ operation: "scanFailures", query }, scope);
   }
 
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot> {
     return this.request<LibraryNavigationSnapshot>({ operation: "navigation" });
   }
 
-  listSources(query: AssetCenterSourceQuery): Promise<AssetCenterSourcePage> {
-    return this.request<AssetCenterSourcePage>({ operation: "sources", query });
+  listSources(query: AssetCenterSourceQuery, scope?: string): Promise<AssetCenterSourcePage> {
+    return this.request<AssetCenterSourcePage>({ operation: "sources", query }, scope);
   }
 
   dispose(): void {
@@ -123,13 +129,17 @@ export class AssetCenterQueryService implements AssetCenterReadService {
   }
 
   private request<Result extends AssetCenterQueryResult>(
-    request: AssetCenterWorkerOperation
+    request: AssetCenterWorkerOperation,
+    scope?: string
   ): Promise<Result> {
     if (this.disposed) {
       return Promise.reject(new Error("Asset Center query service has stopped"));
     }
     const snapshot = structuredClone(request);
-    return this.reads.run(JSON.stringify(snapshot), () => this.dispatch(snapshot)) as Promise<Result>;
+    const key = JSON.stringify(snapshot);
+    return (scope
+      ? this.reads.runLatest(scope, key, () => this.dispatch(snapshot))
+      : this.reads.run(key, () => this.dispatch(snapshot))) as Promise<Result>;
   }
 
   private dispatch(request: AssetCenterWorkerOperation): Promise<AssetCenterQueryResult> {

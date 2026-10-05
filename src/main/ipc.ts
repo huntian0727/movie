@@ -57,6 +57,12 @@ import type { SettingsStore } from "./settings/settingsStore.js";
 
 type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => unknown;
 
+const readPurposeSchema = z.string().min(1).max(64).regex(/^[a-z0-9-]+$/);
+function readScope(event: IpcMainInvokeEvent, operation: string, purpose: unknown): string {
+  const validatedPurpose = purpose === undefined ? "default" : readPurposeSchema.parse(purpose);
+  return `${event.sender.id}:${operation}:${validatedPurpose}`;
+}
+
 let ipcLogger: StructuredLogger | undefined;
 const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.duplicateFastDelete,
@@ -465,16 +471,16 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.libraryList, (_event, query) => {
     return repo.listVideos(libraryQuerySchema.parse(query));
   });
-  ipcMain.handle(IPC_CHANNELS.libraryPage, (_event, query) =>
-    dependencies.libraryPageQueries.page(libraryPageQuerySchema.parse(query))
+  ipcMain.handle(IPC_CHANNELS.libraryPage, (event, query, purpose) =>
+    dependencies.libraryPageQueries.page(libraryPageQuerySchema.parse(query), readScope(event, "library-page", purpose))
   );
-  ipcMain.handle(IPC_CHANNELS.libraryDirectoryBrowser, (_event, query) =>
-    dependencies.assetCenterQueries.listDirectories(directoryBrowserQuerySchema.parse(query))
+  ipcMain.handle(IPC_CHANNELS.libraryDirectoryBrowser, (event, query, purpose) =>
+    dependencies.assetCenterQueries.listDirectories(directoryBrowserQuerySchema.parse(query), readScope(event, "directories", purpose))
   );
   ipcMain.handle(IPC_CHANNELS.libraryNavigation, () => dependencies.assetCenterQueries.getLibraryNavigation());
   ipcMain.handle(IPC_CHANNELS.assetCenterSummary, () => dependencies.assetCenterQueries.getSummary());
-  ipcMain.handle(IPC_CHANNELS.assetCenterSources, (_event, query) =>
-    dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query))
+  ipcMain.handle(IPC_CHANNELS.assetCenterSources, (event, query, purpose) =>
+    dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query), readScope(event, "sources", purpose))
   );
   ipcMain.handle(IPC_CHANNELS.playbackDiagnosticSearch, (_event, query) =>
     dependencies.playbackDiagnosticQueries.search(playbackDiagnosticSearchQuerySchema.parse(query))
@@ -508,8 +514,8 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return result;
   });
   ipcMain.handle(IPC_CHANNELS.libraryMissingPage, (_event, query) => repo.listMissingVideoPage(missingVideoPageQuerySchema.parse(query)));
-  ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, async (_event, query) => {
-    const page = await dependencies.assetCenterQueries.listMetadataIssues(metadataIssuePageQuerySchema.parse(query));
+  ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, async (event, query, purpose) => {
+    const page = await dependencies.assetCenterQueries.listMetadataIssues(metadataIssuePageQuerySchema.parse(query), readScope(event, "metadata-issues", purpose));
     const queueStatus = dependencies.metadataQueue.getStatus();
     return {
       ...page,
@@ -546,8 +552,8 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
   ipcMain.handle(IPC_CHANNELS.videoListByIds, (_event, videoIds) => repo.listVideosByIds(z.array(z.string().min(1)).max(300).parse(videoIds)));
 
-  ipcMain.handle(IPC_CHANNELS.duplicateList, (_event, query) =>
-    dependencies.assetCenterQueries.listDuplicates(duplicateGroupPageQuerySchema.parse(query))
+  ipcMain.handle(IPC_CHANNELS.duplicateList, (event, query, purpose) =>
+    dependencies.assetCenterQueries.listDuplicates(duplicateGroupPageQuerySchema.parse(query), readScope(event, "duplicates", purpose))
   );
 
   ipcMain.handle(IPC_CHANNELS.duplicatePreviewResolve, async (_event, payload) => {
@@ -749,8 +755,8 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.folderScanFailureList, (_event, folderId: unknown) =>
     repo.listScanFailures(z.string().min(1).parse(folderId))
   );
-  ipcMain.handle(IPC_CHANNELS.scanFailureReviewPage, (_event, query) =>
-    dependencies.assetCenterQueries.listScanFailures(scanFailureReviewQuerySchema.parse(query))
+  ipcMain.handle(IPC_CHANNELS.scanFailureReviewPage, (event, query, purpose) =>
+    dependencies.assetCenterQueries.listScanFailures(scanFailureReviewQuerySchema.parse(query), readScope(event, "scan-failures", purpose))
   );
   ipcMain.handle(IPC_CHANNELS.scanFailureReviewRetry, (_event, payload) => {
     const { failureId } = scanFailureIdSchema.parse(payload);

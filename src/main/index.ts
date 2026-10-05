@@ -20,6 +20,7 @@ import { MEDIA_SCHEME, registerMediaProtocol } from "./media/mediaProtocol.js";
 import { MetadataQueue } from "./media/metadataQueue.js";
 import { PlaybackMetadataEnricher } from "./media/playbackMetadataEnricher.js";
 import { PlaybackStartupPriority } from "./media/playbackStartupPriority.js";
+import { mediaReadBudget } from "./media/mediaReadBudget.js";
 import { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import {
   createDiagnosticEnvironment,
@@ -175,11 +176,11 @@ app.whenReady().then(async () => {
     });
   }
   mediaCacheManager = new MediaCacheManager(cacheRoot, {}, {
-    getRetainedCachePaths: () => new Set(repo.listRetainedMediaCachePaths()),
+    getRetainedCachePaths: async () => new Set(await assetCenterQueries!.listRetainedCachePaths()),
     onEntriesRemoved: (cachePaths) => repo.forgetMediaCachePaths(cachePaths),
     logger
   });
-  await mediaCacheManager.initialize();
+  await mediaCacheManager.initialize({ deferMaintenance: true });
   const domainEvents = new DomainEventBus();
   metadataQueue = new MetadataQueue(
     repo,
@@ -191,9 +192,11 @@ app.whenReady().then(async () => {
   );
   const scanManager = new ScanManager(repo, undefined, metadataQueue, logger);
   const duplicateCleanupJobs = new DuplicateCleanupRepository(database, repo);
-  duplicateCleanup = new DuplicateCleanupService(duplicateCleanupJobs, repo, metadataQueue, mediaCacheManager, domainEvents);
+  duplicateCleanup = new DuplicateCleanupService(duplicateCleanupJobs, repo, metadataQueue, mediaCacheManager, domainEvents,
+    { databasePath });
   const playbackMetadata = new PlaybackMetadataEnricher(repo, undefined, logger);
   const playbackStartup = new PlaybackStartupPriority((paused) => {
+    mediaReadBudget.setPlaybackPaused(paused);
     mediaCacheManager?.setPlaybackPaused(paused);
     metadataQueue?.setPlaybackPaused(paused);
   }, logger);
@@ -263,6 +266,7 @@ app.whenReady().then(async () => {
     return;
   }
   await createWindow();
+  mediaCacheManager.scheduleStartupMaintenance();
   logger.info({
     module: "application",
     operationId: startupOperationId,

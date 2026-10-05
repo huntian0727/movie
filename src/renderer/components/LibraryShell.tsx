@@ -76,7 +76,7 @@ interface LibraryShellProps {
   onRetryMetadata?(video: VideoRecord): void | Promise<void>;
   getCoverUrl?(video: VideoRecord): string | null;
   navigation?: LibraryNavigationSnapshot;
-  onLoadVideoPage?(query: LibraryPageQuery): Promise<LibraryPage>;
+  onLoadVideoPage?(query: LibraryPageQuery, purpose?: string): Promise<LibraryPage>;
   onLoadDirectoryBrowser?: VideoManagerApi["listDirectoryBrowser"];
   onLoadVideosByIds?(videoIds: string[]): Promise<VideoRecord[]>;
   onSearchPlaybackDiagnosticVideos?: VideoManagerApi["searchPlaybackDiagnosticVideos"];
@@ -285,7 +285,7 @@ export function LibraryShell({
       sortDirection,
       page,
       pageSize
-    }).then((result) => {
+    }, "library-main").then((result) => {
       if (disposed) return;
       setVideoPage(result);
       if (result.page !== page) setPage(result.page);
