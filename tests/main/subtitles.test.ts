@@ -28,6 +28,30 @@ async function fixture() {
   return { root, credentials, providers, video, repo, service, candidate };
 }
 describe("subtitle security and persistence", () => {
+  it("reuses an identical downloaded source across new searches and restart while preserving its offset", async () => {
+    const f = await fixture();
+    const result = await f.service.search({ videoId: "v1" });
+    const first = await f.service.action({ op: "download", videoId: "v1", id: result.candidates[0].id });
+    await f.service.action({ op: "offset", videoId: "v1", offsetSeconds: 1.5 });
+    const restart = new SubtitleService(f.repo, path.join(f.root, "subtitles"), f.credentials, f.providers as unknown as SubtitleProviders);
+    f.candidate.id = randomUUID();
+    const next = await restart.search({ videoId: "v1" });
+    const reused = await restart.action({ op: "download", videoId: "v1", id: next.candidates[0].id });
+    expect(reused.selectedId).toBe(first.selectedId); expect(reused.items).toHaveLength(1);
+    expect(reused.offsetSeconds).toBe(1.5); expect(reused.items[0]).not.toHaveProperty("sourceKey");
+    expect(f.providers.download).toHaveBeenCalledOnce();
+  });
+  it("replaces a missing saved download and separates different source files", async () => {
+    const f = await fixture(), result = await f.service.search({ videoId: "v1" });
+    const first = await f.service.action({ op: "download", videoId: "v1", id: result.candidates[0].id });
+    await fs.rm((await f.service.getPlaybackSubtitle("v1")).path!);
+    const restored = await f.service.action({ op: "download", videoId: "v1", id: result.candidates[0].id });
+    expect(restored.selectedId).not.toBe(first.selectedId); expect(restored.items).toHaveLength(1);
+    f.candidate.filename = "Movie.other.srt"; f.candidate.sourceFile = "Movie.other.srt"; f.candidate.id = randomUUID();
+    const other = await f.service.search({ videoId: "v1" });
+    expect((await f.service.action({ op: "download", videoId: "v1", id: other.candidates[0].id })).items).toHaveLength(2);
+    expect(f.providers.download).toHaveBeenCalledTimes(3);
+  });
   it("bounds provider metadata before persistence so saved records remain readable", async () => {
     const f = await fixture(); f.candidate.title = "长".repeat(3000); f.candidate.language = "\u0001".repeat(2000) + "x".repeat(3000);
     const result = await f.service.search({ videoId: "v1" });

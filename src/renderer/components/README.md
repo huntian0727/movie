@@ -1,6 +1,6 @@
 # UI 组件模块
 
-`SubtitleSettings` adds independently saved, encrypted ASSRT/OpenSubtitles account configuration, showing only configured flags. `SubtitleDialog` provides explicit online search, version/language/source clues, download/select, per-video offset and original export. It suppresses stale responses after unmount, traps keyboard focus, and hides the native playback surface while open. `useSavedSubtitles` reads durable associations locally on video changes and revokes temporary VTT blobs. Subtitle operations do not pause or seek the video. External-player mode explains manual export/load.
+`SubtitleSettings` adds encrypted ASSRT/OpenSubtitles configuration, showing flags only. `SubtitleDialog` stays mounted per file identity: explicit click opens a quick sidebar and searches, three candidates favor Chinese/bilingual clues, successful selection closes it. The sidebar reserves native-video space; only advanced search hides the native surface and traps focus. `subtitleSearchCache` remembers local source/language preferences and session queries, joins requests and caches successful searches for five minutes with a 30-entry limit and manual refresh. `SubtitleQuickControls` applies +/- 0.5 second offsets, switches or disables subtitles immediately. `useSavedSubtitles` restores local associations, rejects stale file-identity updates and revokes VTT blobs. Operations do not pause or seek playback. External players still need export/load through advanced controls.
 
 ## 操作反馈与只读恢复
 

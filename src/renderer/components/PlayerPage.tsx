@@ -8,6 +8,8 @@ import { formatBytes, formatDuration } from "./formatters";
 import { PreviewImage } from "./PreviewImage";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 import { SubtitleDialog, type PlayerSubtitleApi } from "./SubtitleDialog";
+import { SubtitleQuickControls } from "./SubtitleQuickControls";
+import { subtitleVideoKey } from "./subtitleSearchCache";
 import { useSavedSubtitles } from "./useSavedSubtitles";
 
 const FULLSCREEN_CONTROLS_HIDE_DELAY_MS = 2200;
@@ -91,8 +93,9 @@ export function PlayerPage({
   const [failedPreviewUrls, setFailedPreviewUrls] = useState<Set<string>>(() => new Set());
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [subtitleOpen, setSubtitleOpen] = useState(false);
-  const subtitles = useSavedSubtitles(subtitleApi, video.id);
-  useEffect(() => { setSubtitleOpen(false); }, [video.id]);
+  const [subtitleAdvanced, setSubtitleAdvanced] = useState(false);
+  const subtitles = useSavedSubtitles(subtitleApi, video.id, subtitleVideoKey(video));
+  useEffect(() => { setSubtitleOpen(false); setSubtitleAdvanced(false); }, [subtitleVideoKey(video)]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const windowFullscreen = usePlayerWindowFullscreen(embeddedApi, setIsFullscreen);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -144,8 +147,8 @@ export function PlayerPage({
     api: embeddedApi, enabled: isEmbeddedPlayback, videoId: video.id, autoplay: autoPlayOnOpen,
     positionMs: nativeFailedId === video.id ? fallbackPositionRef.current : startPositionMs,
     requestId: startRequestId, stage: embeddedStageRef,
-    visible: !detailsOpen && !deleteConfirmOpen && !subtitleOpen && !externalLaunching,
-    layoutKey: `${playlistOpen}:${isFullscreen}:${controlsVisible}`,
+    visible: !detailsOpen && !deleteConfirmOpen && !subtitleAdvanced && !externalLaunching,
+    layoutKey: `${playlistOpen}:${subtitleOpen}:${subtitleAdvanced}:${Boolean(subtitles.state?.selectedId)}:${isFullscreen}:${controlsVisible}`,
     overlay: { active: isFullscreen && controlsVisible, top: topbarRef, bottom: controlsRef },
     onInput: input => {
       if (detailsOpen || deleteConfirmOpen || subtitleOpen) return;
@@ -566,6 +569,7 @@ export function PlayerPage({
       setPlaylistOpen(false);
       return;
     }
+    setSubtitleOpen(false); setSubtitleAdvanced(false);
     setPlaylistOpen(true);
     setControlsVisible(true);
     if (!sameDirectory(playlistDirectory, video.directory) || playlistVideos.length === 0) {
@@ -662,7 +666,7 @@ export function PlayerPage({
     <section
       ref={pageRef}
       tabIndex={-1}
-      className={`player-page${isFullscreen ? " is-fullscreen" : ""}${isEmbeddedPlayback ? " uses-embedded-engine" : ""}${playlistOpen ? " has-playlist" : ""}`}
+      className={`player-page${isFullscreen ? " is-fullscreen" : ""}${isEmbeddedPlayback ? " uses-embedded-engine" : ""}${playlistOpen ? " has-playlist" : ""}${subtitleOpen && !subtitleAdvanced ? " has-subtitle-panel" : ""}${subtitles.state?.selectedId ? " has-active-subtitle" : ""}`}
       onMouseMove={event => {
         if (isFullscreen) {
           if (surfaceRef.current?.contains(event.target as Node)) showControlsFromVideo();
@@ -704,7 +708,7 @@ export function PlayerPage({
           </p>
         </div>
         <div className="player-topbar-actions">
-          {subtitleApi && <button className="player-icon-button player-subtitles-button" aria-label="查找字幕" title="查找、选用和调整字幕" onClick={() => { showControls(); void subtitles.refresh(); setSubtitleOpen(true); }}>字幕</button>}
+          {subtitleApi && <button className="player-icon-button player-subtitles-button" aria-label="查找字幕" title="查找、选用和调整字幕" onClick={() => { showControls(); setPlaylistOpen(false); setSubtitleOpen(true); }}>找字幕</button>}
           {isFullscreen && (
             <button
               className="player-icon-button player-exit-fullscreen"
@@ -1020,10 +1024,11 @@ export function PlayerPage({
             </button>
           </div>
         </div>
+        {subtitleApi && subtitles.state?.selectedId && <SubtitleQuickControls key={subtitleVideoKey(video)} api={subtitleApi} state={subtitles.state} onState={subtitles.update} onSwitch={() => { showControls(); setPlaylistOpen(false); setSubtitleOpen(true); }} />}
       </footer>
 
       {(subtitles.error || embedded.state?.subtitleError) && <div className="player-subtitle-status" role="status">{subtitles.error || embedded.state?.subtitleError}</div>}
-      {subtitleOpen && subtitleApi && <SubtitleDialog key={video.id} video={video} api={subtitleApi} state={subtitles.state} stateError={subtitles.error} onRetryState={() => void subtitles.refresh()} onState={subtitles.update} onClose={() => setSubtitleOpen(false)} external={isExternalPlayback} />}
+      {subtitleApi && <SubtitleDialog key={subtitleVideoKey(video)} open={subtitleOpen} quick onAdvancedChange={setSubtitleAdvanced} video={video} api={subtitleApi} state={subtitles.state} stateError={subtitles.error} onRetryState={() => void subtitles.refresh()} onState={subtitles.update} onClose={() => setSubtitleOpen(false)} external={isExternalPlayback} />}
       {detailsOpen && <VideoDetailsDialog video={video} onClose={() => setDetailsOpen(false)} />}
 
       {deleteConfirmOpen && (

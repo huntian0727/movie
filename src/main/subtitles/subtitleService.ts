@@ -10,7 +10,7 @@ import { decodeSubtitle, parseSubtitle, toVtt } from "./subtitleText.js";
 
 const savedSchema = z.object({ id: z.string().uuid(), provider: subtitleProviderSchema, title: z.string().max(2000),
   language: z.string().max(2000), release: z.string().max(2000), filename: z.string().max(2000),
-  format: z.enum(["srt", "ass", "vtt"]), downloadedAt: z.string().datetime() }).strict();
+  format: z.enum(["srt", "ass", "vtt"]), downloadedAt: z.string().datetime(), sourceKey: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict();
 const manifestSchema = z.object({ version: z.string(), items: z.array(savedSchema).max(50), selectedId: z.string().uuid().nullable(),
   offsetSeconds: z.number().finite().min(-600).max(600) }).strict();
 type Manifest = z.infer<typeof manifestSchema>;
@@ -45,7 +45,7 @@ export class SubtitleService {
     } catch { throw new Error("保存的字幕文件缺失或无法读取，请重新搜索下载"); }
   }
   private async state(video: VideoRecord, value: Manifest): Promise<SubtitleState> {
-    const result: SubtitleState = { videoId: video.id, items: value.items, selectedId: value.selectedId, offsetSeconds: value.offsetSeconds, nativeVtt: null };
+    const result: SubtitleState = { videoId: video.id, items: value.items.map(({ sourceKey: _key, ...item }) => item), selectedId: value.selectedId, offsetSeconds: value.offsetSeconds, nativeVtt: null };
     const selected = value.items.find(i => i.id === value.selectedId);
     if (selected) {
       try { const data = await this.asset(video.id, selected); result.nativeVtt = toVtt(parseSubtitle(data.text).cues, value.offsetSeconds); }
@@ -105,6 +105,24 @@ export class SubtitleService {
     if (request.op === "download") {
       const entry = this.candidates.get(request.id!);
       if (!entry || entry.videoId !== video.id || entry.version !== versionOf(video) || entry.until < this.now()) throw new Error("字幕搜索结果已过期，请重新搜索");
+      const sourceKey = createHash("sha256").update(JSON.stringify([entry.candidate.provider, entry.candidate.sourceId.replace(/:/g, "") ? entry.candidate.sourceId : entry.candidate.sourceFile, entry.candidate.filename, entry.candidate.language])).digest("hex");
+      const existing = value.items.find(item => item.sourceKey === sourceKey);
+      if (existing) {
+        // Validate the cached asset; a removed/corrupt file is downloaded again.
+        let valid = false;
+        try {
+          const asset = await this.asset(video.id, existing); parseSubtitle(asset.text);
+          valid = true;
+        } catch {
+          value.items = value.items.filter(item => item.id !== existing.id);
+        }
+        if (versionOf(this.repo.getVideo(video.id)) !== value.version) throw new Error("影片文件已改变，请重新搜索字幕");
+        if (valid) {
+          value.selectedId = existing.id;
+          await atomicWrite(path.join(this.directory(video.id), "selection.json"), Buffer.from(JSON.stringify(value), "utf8"));
+          return this.state(video, value);
+        }
+      }
       if (value.items.length >= 50) throw new Error("这部影片已保存 50 个字幕版本，请选择已保存字幕");
       const accountRequired = entry.candidate.provider === "assrt" || entry.candidate.provider === "opensubtitles";
       const data = await this.providers.download(entry.candidate, accountRequired ? await this.credentials.get() : {});
@@ -115,7 +133,7 @@ export class SubtitleService {
         format: parsed.format, downloadedAt: new Date(this.now()).toISOString() };
       if (versionOf(this.repo.getVideo(video.id)) !== value.version) throw new Error("影片文件已改变，请重新搜索字幕");
       await atomicWrite(path.join(this.directory(video.id), `${item.id}.${item.format}`), Buffer.from(text, "utf8"));
-      value.items.push(savedSchema.parse(item)); value.selectedId = item.id; value.offsetSeconds = 0;
+      value.items.push(savedSchema.parse({ ...item, sourceKey })); value.selectedId = item.id; value.offsetSeconds = 0;
     } else if (request.op === "select") {
       if (request.id && !value.items.some(i => i.id === request.id)) throw new Error("字幕记录不存在，请重新选择");
       if (request.id) await this.asset(video.id, value.items.find(i => i.id === request.id)!);

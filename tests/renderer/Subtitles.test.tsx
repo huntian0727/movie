@@ -14,7 +14,7 @@ function apiFixture(): PlayerSubtitleApi {
     getSubtitleState: vi.fn(async () => empty), subtitleAction: vi.fn(async () => empty),
     searchSubtitles: vi.fn(async () => ({ query: "Movie 2024", candidates: [candidate], providers: [{ provider: "assrt" as const, status: "ok" as const, message: "" }] })) };
 }
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); localStorage.clear(); });
 describe("subtitle interaction", () => {
   it("defaults to no-key Thunder and keeps Cat an explicit optional selection", async () => {
     const api = apiFixture();
@@ -71,7 +71,7 @@ describe("subtitle interaction", () => {
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: vi.fn() });
     const view = render(<PlayerPage video={video} subtitleApi={api} mediaUrl="local-video://media/v1" />);
     fireEvent.click(screen.getByRole("button", { name: "查找字幕" }));
-    fireEvent.click(screen.getByRole("button", { name: "搜索字幕" })); await screen.findByText("2024 WEB-DL");
+    await screen.findByText("2024 WEB-DL");
     fireEvent.click(screen.getByRole("button", { name: "下载并使用" }));
     fireEvent.click(screen.getByRole("button", { name: "关闭字幕面板" }));
     await act(async () => resolve({ ...empty, nativeVtt: "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n中文\n" }));
