@@ -1,5 +1,9 @@
 # UI 组件模块
 
+`DirectoryFilterTree.tsx` 在左侧按需读取已展开的目录分支，不使用全量视频或 `navigation.directoryPaths` 构树。箭头仅展开，目录名调用 `LibraryShell.browseDirectory`；后者清除视频搜索并重置页码，以 exact 范围进入目录。当前目录与祖先同步高亮/展开，手动收起不清除筛选。分支按 `source id + normalized path` 缓存，`refreshSequence` 变化后失效；每分支使用独立只读 purpose，防止并行查询相互取代。
+
+`DirectoryBrowserPage` 的 compact 模式默认读取并展示直属子文件夹卡片（网格）或紧凑行（列表），保留面包屑、范围选择与扫描按钮。文件夹只用于导航，不参与视频计数、分页或多选。查询仅使用已有有效视频索引；空目录、未索引目录不展示。单层最多 100 项，截断时提供目录搜索；搜索定位到截断之外的目录时，左侧仍显示其祖先和选中节点。
+
 `SubtitleSettings` adds encrypted ASSRT/OpenSubtitles configuration, showing flags only. `SubtitleDialog` stays mounted per file identity: explicit click opens a quick sidebar and searches, three candidates favor Chinese/bilingual clues, successful selection closes it. The sidebar reserves native-video space; only advanced search hides the native surface and traps focus. `subtitleSearchCache` remembers local source/language preferences and session queries, joins requests and caches successful searches for five minutes with a 30-entry limit and manual refresh. `SubtitleQuickControls` applies +/- 0.5 second offsets, switches or disables subtitles immediately. `useSavedSubtitles` restores local associations, rejects stale file-identity updates and revokes VTT blobs. Operations do not pause or seek playback. External players still need export/load through advanced controls.
 
 ## 操作反馈与只读恢复

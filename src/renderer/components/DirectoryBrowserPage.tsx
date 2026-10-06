@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AlertTriangle, ChevronRight, Clock3, Cloud, Folder, HardDrive, LoaderCircle, RefreshCw, Search, Server, X } from "lucide-react";
 import type { DirectoryBrowserResult, FolderScanStatus, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
@@ -6,6 +6,9 @@ import "./directoryBrowserPage.css";
 
 interface DirectoryBrowserPageProps {
   compact?: boolean;
+  cardWidth?: number;
+  viewMode?: "grid" | "table";
+  onSearchDirectories?(): void;
   onScanDirectory?: VideoManagerApi["scanDirectory"];
   scanStatus?: FolderScanStatus;
   folders: SourceFolder[];
@@ -30,6 +33,9 @@ const EMPTY_VIDEOS: LibraryPage = { videos: [], page: 1, pageSize: 30, totalPage
 
 export function DirectoryBrowserPage({
   compact = false,
+  cardWidth = 260,
+  viewMode = "grid",
+  onSearchDirectories,
   onScanDirectory,
   scanStatus,
   folders,
@@ -53,7 +59,7 @@ export function DirectoryBrowserPage({
   const [directories, setDirectories] = useState(EMPTY_RESULT);
   const [videos, setVideos] = useState(EMPTY_VIDEOS);
   const [directoryLoading, setDirectoryLoading] = useState(false);
-  const [directoryListExpanded, setDirectoryListExpanded] = useState(false);
+  const [directoryListExpanded, setDirectoryListExpanded] = useState(compact);
   const [videoLoading, setVideoLoading] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -85,6 +91,7 @@ export function DirectoryBrowserPage({
     }
 
     let disposed = false;
+    setDirectories(EMPTY_RESULT);
     setDirectoryLoading(true);
     setError("");
     void loadDirectories({
@@ -162,17 +169,23 @@ export function DirectoryBrowserPage({
         </button>
       </div>
     </div>
-    <button type="button" className="directory-context-children-toggle" aria-expanded={directoryListExpanded} onClick={() => setDirectoryListExpanded((value) => !value)}>
+    <button type="button" className="directory-context-children-toggle" aria-label="子目录" aria-expanded={directoryListExpanded} onClick={() => setDirectoryListExpanded((value) => !value)}>
       <ChevronRight size={15} className={directoryListExpanded ? "expanded" : undefined} />子目录{directoryListExpanded && !directoryLoading ? ` ${directories.totalCount}` : ""}
     </button>
-    {directoryListExpanded && <div className="directory-context-children" aria-busy={directoryLoading}>
-      {directoryLoading ? <span><LoaderCircle size={15} className="spin" />正在读取子目录</span> : directories.items.map((item) => <button type="button" key={`${item.sourceFolderId}:${item.path}`} title={item.path} onClick={() => onNavigate(item.path, item.sourceFolderId)}><Folder size={15} />{item.name}<small>{item.videoCount}</small></button>)}
-      {!directoryLoading && directories.items.length === 0 && <span>当前没有已索引的子目录</span>}
-      {directories.truncated && <small>仅显示前 100 个子目录，请使用“浏览目录”搜索其他目录。</small>}
-    </div>}
+    {directoryListExpanded && <>
+      <div className={`directory-folder-cards${viewMode === "table" ? " directory-folder-cards--list" : ""}`} style={{ "--video-card-width": `${cardWidth}px` } as CSSProperties} aria-label="子文件夹" aria-busy={directoryLoading}>
+        {directoryLoading ? <span className="directory-folder-status" role="status"><LoaderCircle size={15} className="spin" />正在读取子目录</span> : directories.items.map((item) => <button type="button" className="directory-folder-card" key={`${item.sourceFolderId}:${item.path}`} title={item.path} aria-label={`打开文件夹 ${item.name}`} onClick={() => onNavigate(item.path, item.sourceFolderId)}>
+          <span className="directory-folder-icon"><Folder size={42} strokeWidth={1.4} /></span>
+          <span className="directory-folder-info"><strong>{item.name}</strong><small>含子目录 · {item.videoCount.toLocaleString("zh-CN")} 个视频</small></span>
+          <ChevronRight className="directory-folder-enter" size={16} />
+        </button>)}
+        {!directoryLoading && !error && directories.items.length === 0 && <span className="directory-folder-status">当前没有已索引的子文件夹</span>}
+      </div>
+      {directories.truncated && <div className="directory-folder-limit">仅显示前 100 个子文件夹。<button type="button" onClick={onSearchDirectories}>搜索其他目录</button></div>}
+    </>}
     {scanPending && <p className="directory-context-status" role="status">正在后台扫描当前范围…{scanStatus?.currentPath ? ` ${scanStatus.currentPath}` : ""}</p>}
     {scanResult && <p className="directory-context-status" role="status">{scanResult.state === "completed" || scanResult.state === "completed-with-errors" ? `扫描结束：新增 ${scanResult.counters.addedVideos}，更新 ${scanResult.counters.updatedVideos}，异常 ${scanResult.counters.fileFailures + scanResult.counters.directoryFailures}` : `扫描状态：${scanResult.state}${scanResult.message ? ` · ${scanResult.message}` : ""}`}</p>}
-    {error && <p className="directory-browser-error" role="alert">{error}</p>}
+    {error && <div className="directory-browser-error" role="alert">{error} <button type="button" className="secondary-button" onClick={() => setRevision((value) => value + 1)}>重新读取目录</button></div>}
   </section>;
 
   const openSource = (folder: SourceFolder) => onNavigate(folder.path, folder.id);

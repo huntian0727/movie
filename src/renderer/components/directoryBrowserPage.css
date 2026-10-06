@@ -89,6 +89,25 @@
 .directory-context-actions > button:disabled { opacity: .5; cursor: default; }
 .directory-context-children-toggle { margin-top: 9px; padding: 5px 2px; border: 0; display: inline-flex; align-items: center; gap: 6px; color: #a4aaa1; background: transparent; cursor: pointer; }
 .directory-context-children-toggle .expanded { transform: rotate(90deg); }
+.directory-folder-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--video-card-width, 260px)), 1fr)); gap: 12px; padding-top: 8px; }
+.directory-folder-card { min-width: 0; min-height: 150px; padding: 18px 15px 14px; border: 1px solid #343936; border-radius: 7px; display: flex; flex-direction: column; align-items: center; gap: 14px; color: #bfc5be; background: #222624; text-align: center; cursor: pointer; }
+.directory-folder-card:hover { border-color: #5a829c; background: #29312f; }
+.directory-folder-icon { color: #65b5e6; }
+.directory-folder-icon svg { fill: #2789bc33; }
+.directory-folder-info { min-width: 0; width: 100%; display: grid; gap: 6px; }
+.directory-folder-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; color: #e1e6df; }
+.directory-folder-info small { font-size: 10px; color: #8b948b; }
+.directory-folder-enter { display: none; color: #708474; }
+.directory-folder-status { grid-column: 1 / -1; padding: 10px 2px; display: flex; align-items: center; gap: 7px; color: #8b9388; font-size: 11px; }
+.directory-folder-cards--list { grid-template-columns: 1fr; gap: 4px; }
+.directory-folder-cards--list .directory-folder-card { min-height: 48px; padding: 8px 12px; flex-direction: row; gap: 12px; text-align: left; }
+.directory-folder-cards--list .directory-folder-icon svg { width: 24px; height: 24px; }
+.directory-folder-cards--list .directory-folder-info { flex: 1; }
+.directory-folder-cards--list .directory-folder-enter { display: block; }
+.directory-folder-limit { margin-top: 9px; color: #a4aaa1; font-size: 11px; }
+.directory-folder-limit button { margin-left: 8px; padding: 3px 6px; border: 0; border-radius: 3px; color: #91c7e8; background: #26332e; cursor: pointer; }
+.directory-browser-context :is(button, input):focus-visible { outline: 2px solid #80bfe4; outline-offset: 2px; }
+@media (max-width: 1100px) { .directory-context-top { flex-wrap: wrap; } .directory-context-actions { flex-wrap: wrap; } }
 .directory-context-children { max-height: 220px; overflow-y: auto; padding: 6px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 5px; }
 .directory-context-children > button { min-width: 0; padding: 8px; border: 1px solid #353934; border-radius: 5px; display: flex; align-items: center; gap: 7px; overflow: hidden; color: #d8dcd5; background: #20231f; text-overflow: ellipsis; white-space: nowrap; text-align: left; cursor: pointer; }
 .directory-context-children > button:hover { background: #2b302a; }

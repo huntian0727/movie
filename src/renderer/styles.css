@@ -317,6 +317,23 @@ button { color: inherit; }
 .source-root-warning:hover { color: #ffd06f; background: #3b3020; }
 .source-root-menu { position: relative; margin-right: 2px; }
 .source-root-empty { margin: 9px; color: #70746e; font-size: 10px; }
+.directory-tree-root { display: flex; align-items: center; }
+.directory-tree-root > .source-root-row { flex: 1; }
+.directory-tree-toggle { flex: 0 0 24px; width: 24px; height: 32px; border: 0; padding: 0; display: grid; place-items: center; background: transparent; color: #7c8b84; cursor: pointer; }
+.directory-tree-toggle:hover:not(:disabled) { color: #dce8df; }
+.directory-tree-toggle:disabled { visibility: hidden; cursor: default; }
+.directory-tree-toggle .expanded { transform: rotate(90deg); }
+.directory-tree-row { min-width: 0; min-height: 32px; display: flex; align-items: center; border-radius: 4px; }
+.directory-tree-row:hover { background: #242c27; }
+.directory-tree-row.active { background: #223846; box-shadow: inset 2px 0 #68b5df; }
+.directory-tree-name { flex: 1; min-width: 0; padding: 7px 6px 7px 0; border: 0; display: flex; align-items: center; gap: 7px; color: #bac3b8; background: transparent; text-align: left; font-size: 11px; cursor: pointer; }
+.directory-tree-name svg { flex-shrink: 0; color: #65b5e6; }
+.directory-tree-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.directory-tree-row.active .directory-tree-name { color: #bde4fb; }
+.directory-tree-message { margin: 4px 6px 4px 25px; display: flex; align-items: center; gap: 5px; color: #8b9489; font-size: 10px; }
+.directory-tree-message button, .directory-tree-more { border: 0; border-radius: 4px; padding: 4px 6px; background: #252e28; color: #98c9e6; cursor: pointer; font-size: 10px; }
+.directory-tree-more { margin: 4px 4px 7px 25px; }
+.directory-tree-row button:focus-visible, .directory-tree-root > button:focus-visible { outline: 2px solid #80bfe4; outline-offset: -2px; }
 .sidebar-recent-directories { margin-top: 9px; padding-top: 9px; border-top: 1px solid #2b2d2b; display: grid; gap: 2px; }
 .sidebar-recent-directories > strong { padding: 0 9px 4px; color: #747871; font-size: 9px; letter-spacing: .05em; }
 .sidebar-recent-directories > button { min-width: 0; height: 31px; padding: 0 9px; border: 0; border-radius: 5px; display: flex; align-items: center; gap: 8px; color: #90948d; background: transparent; text-align: left; cursor: pointer; }

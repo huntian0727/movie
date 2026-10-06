@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryShell } from "../../src/renderer/components/LibraryShell";
-import type { DuplicateGroup, DuplicateGroupPageQuery, SourceFolder, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
+import type { DuplicateGroup, DuplicateGroupPageQuery, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
 const folder: SourceFolder = {
@@ -455,8 +455,8 @@ describe("LibraryShell", () => {
     expect(titles).toEqual(["second.mp4", "first.mp4"]);
   });
 
-  it("keeps the current-directory list collapsed until the user expands it", async () => {
-    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({
+  it("shows folder cards above paginated videos and navigates in exact scope", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockImplementation((query) => Promise.resolve(query.parentPath === folder.path ? {
       items: [{
         sourceFolderId: folder.id,
         path: nestedVideo.directory,
@@ -467,7 +467,7 @@ describe("LibraryShell", () => {
       }],
       totalCount: 1,
       truncated: false
-    });
+    } : { items: [], totalCount: 0, truncated: false }));
     const onLoadVideoPage = vi.fn().mockResolvedValue({
       videos: [video],
       page: 1,
@@ -489,10 +489,7 @@ describe("LibraryShell", () => {
 
     expect(await screen.findByRole("navigation", { name: "当前目录路径" })).toBeInTheDocument();
     const currentDirectory = screen.getByRole("button", { name: "子目录" });
-    expect(currentDirectory).toHaveAttribute("aria-expanded", "false");
-    expect(onLoadDirectoryBrowser).not.toHaveBeenCalled();
-
-    fireEvent.click(currentDirectory);
+    expect(currentDirectory).toHaveAttribute("aria-expanded", "true");
 
     await waitFor(() => expect(onLoadDirectoryBrowser).toHaveBeenCalledWith({
       sourceFolderId: folder.id,
@@ -501,14 +498,40 @@ describe("LibraryShell", () => {
       limit: 100
     }, "directory-picker"));
     expect(currentDirectory).toHaveAttribute("aria-expanded", "true");
-    expect(await screen.findByText("Drama")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "打开文件夹 Drama" })).toBeInTheDocument();
     expect(onLoadVideoPage).toHaveBeenCalledWith(expect.objectContaining({
       view: "folder",
       directoryPath: folder.path,
-      folderScope: "recursive",
+      folderScope: "exact",
       page: 1
     }), "library-main");
     expect(onLoadVideoPage).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "打开文件夹 Drama" }));
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ directoryPath: nestedVideo.directory, folderScope: "exact", page: 1 }), "library-main"));
+    expect(within(screen.getByRole("navigation", { name: "资料库来源" })).getByTitle(nestedVideo.directory)).toHaveAttribute("aria-current", "location");
+  });
+
+  it("expands the sidebar without filtering videos, caches collapse, and keeps selection when collapsed", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockImplementation((query) => Promise.resolve({
+      items: query.parentPath === folder.path ? [{ sourceFolderId: folder.id, path: nestedVideo.directory, name: "Drama", videoCount: 2, sizeBytes: 2048, modifiedAt: null }] : [],
+      totalCount: query.parentPath === folder.path ? 1 : 0,
+      truncated: false
+    }));
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 30, totalPages: 1, totalCount: 1 });
+    render(<LibraryShell videos={[]} folders={[folder]} onLoadDirectoryBrowser={onLoadDirectoryBrowser} onLoadVideoPage={onLoadVideoPage} />);
+    const sidebar = within(screen.getByRole("navigation", { name: "资料库来源" }));
+    fireEvent.click(sidebar.getByRole("button", { name: "展开或收起 Movies" }));
+    expect(await sidebar.findByTitle(nestedVideo.directory)).toBeInTheDocument();
+    expect(onLoadVideoPage).toHaveBeenCalledTimes(1);
+    fireEvent.click(sidebar.getByRole("button", { name: "展开或收起 Movies" }));
+    fireEvent.click(sidebar.getByRole("button", { name: "展开或收起 Movies" }));
+    expect(onLoadDirectoryBrowser).toHaveBeenCalledTimes(1);
+    fireEvent.click(sidebar.getByTitle(nestedVideo.directory));
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ directoryPath: nestedVideo.directory, folderScope: "exact" }), "library-main"));
+    fireEvent.click(sidebar.getByRole("button", { name: "展开或收起 Movies" }));
+    expect(screen.getByRole("heading", { name: "同目录 · Drama" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看所有视频" }));
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ view: "all", directoryPath: undefined }), "library-main"));
   });
 
   it("scans the selected directory using the same scope as the video list", async () => {
@@ -525,6 +548,28 @@ describe("LibraryShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "包含子目录" }));
     fireEvent.click(screen.getByRole("button", { name: "扫描此目录及子目录" }));
     await waitFor(() => expect(onScanDirectory).toHaveBeenLastCalledWith({ sourceFolderId: folder.id, directoryPath: folder.path, scope: "recursive" }));
+  });
+
+  it("clears the previous directory's videos and selection while the next directory loads", async () => {
+    let resolveNext!: (page: LibraryPage) => void;
+    const nextPage = new Promise<LibraryPage>((resolve) => { resolveNext = resolve; });
+    const onLoadDirectoryBrowser = vi.fn().mockImplementation((query) => Promise.resolve({ items: query.parentPath === folder.path ? [{ sourceFolderId: folder.id, path: nestedVideo.directory, name: "Drama", videoCount: 1, sizeBytes: 1024, modifiedAt: null }] : [], totalCount: query.parentPath === folder.path ? 1 : 0, truncated: false }));
+    const onLoadVideoPage = vi.fn().mockImplementation((query) => query.directoryPath === nestedVideo.directory ? nextPage : Promise.resolve({ videos: [video], page: 1, pageSize: 30, totalPages: 1, totalCount: 1 }));
+    const { container } = render(<LibraryShell videos={[]} folders={[folder]} onLoadDirectoryBrowser={onLoadDirectoryBrowser} onLoadVideoPage={onLoadVideoPage} />);
+    fireEvent.click(screen.getByTitle(folder.path));
+    expect(await screen.findByRole("button", { name: "打开文件夹 Drama" })).toBeInTheDocument();
+    expect(await screen.findByText(video.filename)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "多选" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: `选择 ${video.filename}` }));
+    const scrollTo = vi.fn();
+    (container.querySelector(".content") as HTMLElement).scrollTo = scrollTo;
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "打开文件夹 Drama" })));
+    expect(screen.queryByText(video.filename)).not.toBeInTheDocument();
+    expect(screen.getByText("已选 0 个")).toBeInTheDocument();
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
+    await act(async () => resolveNext({ videos: [nestedVideo], page: 1, pageSize: 30, totalPages: 1, totalCount: 1 }));
+    expect(await screen.findByText(nestedVideo.filename)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: `选择 ${nestedVideo.filename}` })).not.toBeChecked();
   });
 
   it("opens directory search with Ctrl+K without materializing the directory tree", async () => {

@@ -10,6 +10,7 @@ import { ScanFailuresPage } from "./ScanFailuresPage";
 import { MissingVideosPage } from "./MissingVideosPage";
 import { MetadataIssuesPage } from "./MetadataIssuesPage";
 import { DirectoryBrowserPage } from "./DirectoryBrowserPage";
+import { DirectoryFilterTree } from "./DirectoryFilterTree";
 import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 import { VideoGrid } from "./VideoGrid";
@@ -176,7 +177,7 @@ export function LibraryShell({
   const [missingVideoCount, setMissingVideoCount] = useState(0);
   const [metadataIssueSourceFolderId, setMetadataIssueSourceFolderId] = useState<string | undefined>();
   const [metadataIssueCount, setMetadataIssueCount] = useState(0);
-  const [folderScope, setFolderScope] = useState<"recursive" | "exact">("recursive");
+  const [folderScope, setFolderScope] = useState<"recursive" | "exact">("exact");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [search, setSearch] = useState("");
   const [querySearch, setQuerySearch] = useState("");
@@ -449,7 +450,7 @@ export function LibraryShell({
 
   useEffect(() => {
     contentRef.current?.scrollTo?.({ top: 0, behavior: "auto" });
-  }, [currentPage, pageSize]);
+  }, [currentPage, folderScope, pageSize, selectedFolderPath]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -498,29 +499,36 @@ export function LibraryShell({
   const viewVideoDetails = (video: VideoRecord) => {
     setDetailsTarget(video);
   };
-  const selectDirectory = (directoryPath: string, scope: "recursive" | "exact" = "recursive") => {
+  const selectDirectory = (directoryPath: string, scope: "recursive" | "exact" = "exact") => {
+    if (onLoadVideoPage && (view !== "folder" || selectedFolderPath !== directoryPath || folderScope !== scope || page !== 1 || querySearch)) {
+      setVideoPage({ videos: [], page: 1, pageSize, totalPages: 1, totalCount: 0 });
+      setVideoPageLoading(true);
+    }
+    setSelectedVideoIds(new Set());
     setSearch("");
+    setQuerySearch("");
+    setPage(1);
     setFolderScope(scope);
     setSelectedFolderPath(directoryPath);
+    setDirectoryBrowserSourceId(folders.filter((folder) => isPathWithin(directoryPath, folder.path)).sort((a, b) => b.path.length - a.path.length)[0]?.id);
     setView("folder");
     rememberDirectory(directoryPath, setRecentDirectoryPaths);
   };
   const browseDirectory = (directoryPath: string, sourceFolderId: string) => {
-    setDirectoryBrowserSourceId(sourceFolderId || folders.find((folder) => isPathWithin(directoryPath, folder.path))?.id);
-    selectDirectory(directoryPath, folderScope);
+    selectDirectory(directoryPath);
+    if (sourceFolderId) setDirectoryBrowserSourceId(sourceFolderId);
   };
   const openDirectoryBrowser = (folder?: SourceFolder) => {
     if (!folder) {
       setDirectoryBrowserSourceId(undefined);
       setSelectedFolderPath(null);
     } else {
-      setDirectoryBrowserSourceId(folder.id);
-      selectDirectory(folder.path);
+      browseDirectory(folder.path, folder.id);
       return;
     }
     setView("directoryBrowser");
   };
-  const showVideoDirectory = (video: VideoRecord) => selectDirectory(video.directory, "exact");
+  const showVideoDirectory = (video: VideoRecord) => browseDirectory(video.directory, video.sourceFolderId);
   const openFolderIssueDialog = async (
     folder: SourceFolder,
     warning: { message: string; state: "offline" | "error" | "previous" }
@@ -696,12 +704,19 @@ export function LibraryShell({
           <header>
             <div><strong>资料库</strong><small>{folders.length}</small></div>
           </header>
-          <nav className="source-root-list" aria-label="资料库来源">
-            {folders.map((folder) => {
+          <DirectoryFilterTree
+            folders={folders}
+            load={onLoadDirectoryBrowser}
+            currentPath={view === "folder" ? selectedFolderPath : null}
+            selectedSourceId={directoryBrowserSourceId}
+            refreshSequence={refreshSequence}
+            onNavigate={browseDirectory}
+            onSearch={() => { openDirectoryBrowser(); setDirectoryBrowserFocusSequence((value) => value + 1); }}
+            renderSource={(folder) => {
               const scanStatus = scanStatusByFolder.get(folder.id);
               const warning = getSourceWarning(folder, scanStatus);
               const isScanning = scanStatus?.state === "queued" || scanStatus?.state === "scanning";
-              const selected = (view === "directoryBrowser" || view === "folder") && directoryBrowserSourceId === folder.id;
+              const selected = view === "folder" && directoryBrowserSourceId === folder.id && normalizeDirectoryPath(selectedFolderPath ?? "") === normalizeDirectoryPath(folder.path);
               return <div
                 key={folder.id}
                 className={`source-root-row${selected ? " active" : ""}${warning ? " has-warning" : ""}`}
@@ -723,9 +738,8 @@ export function LibraryShell({
                   </div>
                 </details>
               </div>;
-            })}
-            {folders.length === 0 && <p className="source-root-empty">还没有添加资料库</p>}
-          </nav>
+            }}
+          />
         </section>
         <div
           className="sidebar-resizer"
@@ -822,6 +836,9 @@ export function LibraryShell({
         {view === "folder" && selectedFolderPath && onLoadDirectoryBrowser && onLoadVideoPage && <DirectoryBrowserPage
           key={`folder-context:${selectedFolderPath}`}
           compact
+          cardWidth={gridCardWidth}
+          viewMode={viewMode}
+          onSearchDirectories={() => { openDirectoryBrowser(); setDirectoryBrowserFocusSequence((value) => value + 1); }}
           folders={folders}
           recentDirectories={recentDirectories}
           selectedSourceId={directoryBrowserSourceId}
@@ -1081,9 +1098,9 @@ export function LibraryShell({
         ) : visibleVideos.length === 0 ? (
           <div className="empty-state">
             <div><PlaySquare size={36} /></div>
-            <h3>{search ? "没有匹配的视频" : "这里还没有视频"}</h3>
-            <p>{search ? "试试其他文件名" : "添加一个本地文件夹，视频会自动出现在这里。"}</p>
-            {!search && <button onClick={() => void onAddFolder?.()}><FolderPlus size={17} />添加文件夹</button>}
+            <h3>{search ? "没有匹配的视频" : view === "folder" ? "当前范围没有视频" : "这里还没有视频"}</h3>
+            <p>{search ? "试试其他文件名" : view === "folder" ? "可以打开上方的文件夹，或切换到“包含子目录”。" : "添加一个本地文件夹，视频会自动出现在这里。"}</p>
+            {!search && view !== "folder" && <button onClick={() => void onAddFolder?.()}><FolderPlus size={17} />添加文件夹</button>}
           </div>
         ) : viewMode === "grid" ? (
           <>
