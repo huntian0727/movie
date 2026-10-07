@@ -27,7 +27,7 @@ jobs:
       - id: npm-cache
         shell: pwsh
         run: '"path=$(npm config get cache)" >> $env:GITHUB_OUTPUT'
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.npm-cache.outputs.path }}
           key: windows-node-22.23.1-npm-10.9.8-electron-33.4.11-${{ hashFiles('package-lock.json') }}-abi-packaged
