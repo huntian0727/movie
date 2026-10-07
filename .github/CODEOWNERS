@@ -1,0 +1,11 @@
+# Security-sensitive surfaces
+/.github/workflows/ @huntian0727
+/src/main/security.ts @huntian0727
+/src/main/preload.cts @huntian0727
+/src/main/ipc.ts @huntian0727
+/src/main/files/ @huntian0727
+/src/main/clouddrive/ @huntian0727
+/src/main/subtitles/secureStore.ts @huntian0727
+/src/main/settings/ @huntian0727
+/electron-builder.yml @huntian0727
+/SECURITY.md @huntian0727
