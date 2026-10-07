@@ -5,6 +5,7 @@ interface ToolbarProps {
   title: string;
   count: number;
   countLabel?: string;
+  backLabel?: string;
   search: string;
   sortField: SortField;
   sortDirection: SortDirection;
@@ -26,7 +27,7 @@ export function Toolbar(props: ToolbarProps) {
   return (
     <header className="toolbar">
       <div className="toolbar-title">
-        {props.onBack && <button type="button" className="toolbar-back" aria-label="返回全部视频" title="返回全部视频" onClick={props.onBack}><ArrowLeft size={17} /></button>}
+        {props.onBack && <button type="button" className="toolbar-back" aria-label={props.backLabel ?? "返回全部视频"} title={props.backLabel ?? "返回全部视频"} onClick={props.onBack}><ArrowLeft size={17} /></button>}
         <div>
           <h2>{props.title}</h2>
           <span>{props.count} {props.countLabel ?? "部视频"}</span>

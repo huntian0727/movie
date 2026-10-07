@@ -57,7 +57,7 @@ describe("DirectoryFilterTree", () => {
     const selected = await screen.findByTitle(path);
     expect(selected).toHaveAttribute("aria-current", "location");
     fireEvent.click(screen.getByRole("button", { name: "仅显示前 100 个，搜索其他目录" }));
-    expect(screen.getByRole("searchbox", { name: "搜索资料库目录" })).toHaveFocus();
+    expect(defaults.onSearch).toHaveBeenCalledOnce();
     const scopes = load.mock.calls.map((call) => call[1]);
     expect(new Set(scopes).size).toBe(scopes.length);
   });
@@ -135,24 +135,4 @@ describe("DirectoryFilterTree", () => {
     expect(defaults.onNavigate).not.toHaveBeenCalled();
   });
 
-  it("temporarily replaces the tree with search results while retaining cached expansion and manual order", async () => {
-    const other = { ...source, id: "other", path: "E:\\Other" };
-    const load = vi.fn().mockImplementation((query) => Promise.resolve(query.search ? childResult("Season 101") : query.parentPath === source.path ? childResult("Drama") : empty));
-    render(<DirectoryFilterTree {...defaults} folders={[source, other]} load={load} />);
-    fireEvent.click(screen.getByRole("button", { name: "展开或收起 Library" }));
-    await screen.findByTitle(`${source.path}\\Drama`);
-    fireEvent.keyDown(screen.getByRole("button", { name: "拖拽排序 Other" }), { key: "ArrowUp", altKey: true });
-    const saved = localStorage.getItem(DIRECTORY_TREE_ORDER_KEY);
-    fireEvent.change(screen.getByRole("searchbox", { name: "搜索资料库目录" }), { target: { value: "Season" } });
-    const choice = await screen.findByRole("button", { name: "进入目录 Season 101" });
-    expect(screen.queryByRole("navigation", { name: "资料库来源" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^拖拽排序 / })).not.toBeInTheDocument();
-    fireEvent.click(choice);
-    expect(defaults.onNavigate).toHaveBeenCalledWith(`${source.path}\\Season 101`, source.id);
-    fireEvent.click(screen.getByRole("button", { name: "清除目录搜索" }));
-    expect(handles()).toEqual(["拖拽排序 Other", "拖拽排序 Library", "拖拽排序 Drama"]);
-    expect(screen.getByRole("button", { name: "展开或收起 Library" })).toHaveAttribute("aria-expanded", "true");
-    expect(load).toHaveBeenCalledTimes(2);
-    expect(localStorage.getItem(DIRECTORY_TREE_ORDER_KEY)).toBe(saved);
-  });
 });

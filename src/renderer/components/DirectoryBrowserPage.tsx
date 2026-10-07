@@ -12,6 +12,7 @@ interface DirectoryBrowserPageProps {
   cardWidth?: number;
   viewMode?: "grid" | "table";
   onSearchDirectories?(): void;
+  onRoot?(): void;
   onScanDirectory?: VideoManagerApi["scanDirectory"];
   scanStatus?: FolderScanStatus;
   folders: SourceFolder[];
@@ -40,6 +41,7 @@ export function DirectoryBrowserPage({
   cardWidth = 260,
   viewMode = "grid",
   onSearchDirectories,
+  onRoot,
   onScanDirectory,
   scanStatus,
   folders,
@@ -180,6 +182,7 @@ export function DirectoryBrowserPage({
   if (compact && currentPath) return <section className="directory-browser-context" aria-label="当前目录">
     <div className="directory-context-top">
       <nav aria-label="当前目录路径">
+        {onRoot && <span><button type="button" onClick={onRoot}>资料库目录</button><ChevronRight size={13} /></span>}
         {breadcrumb.map((entry, index) => <span key={entry.path}>
           {index > 0 && <ChevronRight size={13} />}
           <button type="button" title={entry.path} onClick={() => onNavigate(entry.path, selectedSource?.id ?? selectedSourceId ?? "")}>{entry.label}</button>

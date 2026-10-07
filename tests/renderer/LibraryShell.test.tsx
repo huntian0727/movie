@@ -107,6 +107,100 @@ beforeEach(() => {
 });
 
 describe("LibraryShell", () => {
+  it("opens all registered roots independently of folding and filters them without querying videos or descendants", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({ items: [], totalCount: 0, truncated: false });
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0 });
+    const emptyRoot = { ...folder, id: "empty", path: "E:\\课程资料", videoCount: 0 };
+    render(<LibraryShell videos={[]} folders={[folder, nestedFolder, emptyRoot]} onLoadDirectoryBrowser={onLoadDirectoryBrowser} onLoadVideoPage={onLoadVideoPage} />);
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "展开或收起资料库目录菜单" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看资料库目录" }));
+    expect(screen.getByRole("heading", { name: "资料库目录" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "展开或收起资料库目录菜单" })).toHaveAttribute("aria-expanded", "false");
+    const roots = () => within(screen.getByLabelText("一级目录列表"));
+    expect(roots().getAllByRole("button")).toHaveLength(3);
+    const search = screen.getByRole("searchbox", { name: "搜索一级目录" });
+    fireEvent.change(search, { target: { value: "课程" } });
+    expect(roots().getAllByRole("button")).toHaveLength(1);
+    expect(roots().getByRole("button", { name: "打开一级目录 课程资料" }).querySelector("mark")).toHaveTextContent("课程");
+    fireEvent.change(search, { target: { value: "d:/movies/DRAMA" } });
+    expect(roots().getAllByRole("button")).toHaveLength(1);
+    expect(roots().getByRole("button", { name: "打开一级目录 Drama" })).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: "no root" } });
+    expect(screen.getByText("没有匹配的一级目录")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "显示全部一级目录" }));
+    expect(roots().getAllByRole("button")).toHaveLength(3);
+    expect(onLoadDirectoryBrowser).not.toHaveBeenCalled();
+    expect(onLoadVideoPage).toHaveBeenCalledOnce();
+  });
+
+  it("preserves root search and scroll on entry and return, keeping folder navigation and exact video queries", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({ items: [], totalCount: 0, truncated: false });
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 30, totalPages: 1, totalCount: 1 });
+    const { container, unmount } = render(<LibraryShell videos={[]} folders={[folder, nestedFolder]} onLoadDirectoryBrowser={onLoadDirectoryBrowser} onLoadVideoPage={onLoadVideoPage} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看资料库目录" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "搜索一级目录" }), { target: { value: "Movies" } });
+    const content = container.querySelector(".content") as HTMLElement;
+    const scrollTo = vi.fn();
+    content.scrollTo = scrollTo;
+    content.scrollTop = 240;
+    fireEvent.scroll(content);
+    fireEvent.click(screen.getByRole("button", { name: "打开一级目录 Movies" }));
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ view: "folder", directoryPath: folder.path, folderScope: "exact", search: "" }), "library-main"));
+    expect(screen.getByRole("button", { name: "返回资料库目录" })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("navigation", { name: "当前目录路径" })).getByRole("button", { name: "资料库目录" }));
+    expect(screen.getByRole("searchbox", { name: "搜索一级目录" })).toHaveValue("Movies");
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 240, behavior: "auto" });
+    fireEvent.click(screen.getByRole("button", { name: "打开一级目录 Movies" }));
+    fireEvent.click(screen.getByRole("button", { name: "返回资料库目录" }));
+    expect(screen.getByRole("searchbox", { name: "搜索一级目录" })).toHaveValue("Movies");
+    fireEvent.keyDown(screen.getByRole("searchbox", { name: "搜索一级目录" }), { key: "Escape" });
+    expect(screen.getByRole("searchbox", { name: "搜索一级目录" })).toHaveValue("");
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+    unmount();
+    render(<LibraryShell videos={[]} folders={[folder]} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看资料库目录" }));
+    expect(screen.getByRole("searchbox", { name: "搜索一级目录" })).toHaveValue("");
+  });
+
+  it("synchronizes root order from the sidebar immediately, while filtering and after reset", () => {
+    const props = { videos: [], folders: [folder, nestedFolder] };
+    const first = render(<LibraryShell {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看资料库目录" }));
+    const names = () => within(screen.getByLabelText("一级目录列表")).getAllByRole("button").map(button => button.getAttribute("aria-label"));
+    expect(names()).toEqual(["打开一级目录 Movies", "打开一级目录 Drama"]);
+    fireEvent.keyDown(screen.getByRole("button", { name: "拖拽排序 Drama" }), { key: "ArrowUp", altKey: true });
+    expect(names()).toEqual(["打开一级目录 Drama", "打开一级目录 Movies"]);
+    fireEvent.change(screen.getByRole("searchbox", { name: "搜索一级目录" }), { target: { value: "Movies" } });
+    fireEvent.keyDown(screen.getByRole("button", { name: "拖拽排序 Movies" }), { key: "ArrowUp", altKey: true });
+    expect(names()).toEqual(["打开一级目录 Movies", "打开一级目录 Drama"]);
+    fireEvent.click(screen.getByRole("button", { name: "恢复默认排序" }));
+    expect(names()).toEqual(["打开一级目录 Movies", "打开一级目录 Drama"]);
+    fireEvent.keyDown(screen.getByRole("button", { name: "拖拽排序 Drama" }), { key: "ArrowUp", altKey: true });
+    first.unmount();
+    render(<LibraryShell {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看资料库目录" }));
+    expect(names()).toEqual(["打开一级目录 Drama", "打开一级目录 Movies"]);
+  });
+
+  it("refreshes the registered root list, shows an empty state, and keeps source identity for nested roots", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({ items: [], totalCount: 0, truncated: false });
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0 });
+    const onAddFolder = vi.fn();
+    const props = { videos: [], onLoadDirectoryBrowser, onLoadVideoPage, onAddFolder };
+    const rendered = render(<LibraryShell {...props} folders={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看资料库目录" }));
+    expect(screen.getByText("还没有添加资料库目录")).toBeInTheDocument();
+    fireEvent.click(within(screen.getByLabelText("一级目录总览")).getByRole("button", { name: "添加本地或挂载目录" }));
+    expect(onAddFolder).toHaveBeenCalledOnce();
+    rendered.rerender(<LibraryShell {...props} folders={[folder, nestedFolder]} />);
+    expect(within(screen.getByLabelText("一级目录列表")).getAllByRole("button")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "打开一级目录 Drama" }));
+    await waitFor(() => expect(onLoadDirectoryBrowser).toHaveBeenCalledWith(expect.objectContaining({ sourceFolderId: nestedFolder.id, parentPath: nestedFolder.path }), expect.any(String)));
+    fireEvent.click(screen.getByRole("button", { name: "查看资料库目录" }));
+    rendered.rerender(<LibraryShell {...props} folders={[folder]} />);
+    expect(within(screen.getByLabelText("一级目录列表")).queryByRole("button", { name: "打开一级目录 Drama" })).not.toBeInTheDocument();
+  });
   it("collapses menu groups without changing the current page or its query and restores the preference", async () => {
     const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 });
     const props = { videos: [], folders: [folder], onLoadVideoPage };
@@ -601,29 +695,6 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(onScanDirectory).toHaveBeenLastCalledWith({ sourceFolderId: folder.id, directoryPath: folder.path, scope: "recursive" }));
   });
 
-  it("searches directories in the sidebar without changing the video page until a result is selected", async () => {
-    const onLoadDirectoryBrowser = vi.fn().mockImplementation((query) => Promise.resolve({
-      items: query.search || query.parentPath === folder.path ? [{ sourceFolderId: folder.id, path: nestedVideo.directory, name: "Drama", videoCount: 2, sizeBytes: 2048, modifiedAt: null }] : [],
-      totalCount: query.search || query.parentPath === folder.path ? 1 : 0, truncated: false
-    }));
-    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 30, totalPages: 1, totalCount: 1 });
-    render(<LibraryShell videos={[]} folders={[folder]} onLoadDirectoryBrowser={onLoadDirectoryBrowser} onLoadVideoPage={onLoadVideoPage} />);
-    await waitFor(() => expect(onLoadVideoPage).toHaveBeenCalledOnce());
-    const search = screen.getByRole("searchbox", { name: "搜索资料库目录" });
-    fireEvent.change(search, { target: { value: "Drama" } });
-    const choice = await screen.findByRole("button", { name: "进入目录 Drama" });
-    expect(onLoadVideoPage).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "展开或收起资料库目录菜单" }));
-    expect(screen.queryByRole("searchbox", { name: "搜索资料库目录" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "展开或收起资料库目录菜单" }));
-    expect(search).toHaveValue("Drama");
-    fireEvent.click(choice);
-    await waitFor(() => expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ view: "folder", directoryPath: nestedVideo.directory, folderScope: "exact", search: "" }), "library-main"));
-    expect(screen.getByRole("heading", { name: "同目录 · Drama" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "清除目录搜索" }));
-    await waitFor(() => expect(within(screen.getByRole("navigation", { name: "资料库来源" })).getByTitle(nestedVideo.directory)).toHaveAttribute("aria-current", "location"));
-    expect(screen.getByRole("heading", { name: "同目录 · Drama" })).toBeInTheDocument();
-  });
 
   it("clears the previous directory's videos and selection while the next directory loads", async () => {
     let resolveNext!: (page: LibraryPage) => void;
@@ -661,12 +732,12 @@ describe("LibraryShell", () => {
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
 
-    expect(await screen.findByRole("heading", { name: "目录浏览" })).toBeInTheDocument();
-    expect(screen.getByRole("searchbox", { name: "搜索目录" })).toHaveFocus();
+    expect(await screen.findByRole("heading", { name: "资料库目录" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "搜索一级目录" })).toHaveFocus();
     expect(onLoadDirectoryBrowser).not.toHaveBeenCalled();
   });
 
-  it("shows recently visited directories on the directory browser home", async () => {
+  it("opens root cards from the global directory entry and returns through the breadcrumb", async () => {
     const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({ items: [], totalCount: 0, truncated: false });
     const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [], page: 1, pageSize: 30, totalPages: 1, totalCount: 0 });
     const { container } = render(
@@ -679,16 +750,14 @@ describe("LibraryShell", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /浏览目录/ }));
-    const sourceCard = container.querySelector(".directory-source-grid > button");
+    const sourceCard = container.querySelector(".library-directory-card");
     expect(sourceCard).not.toBeNull();
     fireEvent.click(sourceCard as HTMLElement);
     expect(await screen.findByRole("navigation", { name: "当前目录路径" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /浏览目录/ }));
-    expect(await screen.findByRole("heading", { name: "最近目录" })).toBeInTheDocument();
-    const recentGrid = container.querySelector(".directory-recent-grid");
-    expect(recentGrid).not.toBeNull();
-    expect(within(recentGrid as HTMLElement).getByTitle(folder.path)).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("navigation", { name: "当前目录路径" })).getByRole("button", { name: "资料库目录" }));
+    expect(await screen.findByRole("heading", { name: "资料库目录" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开一级目录 Movies" })).toBeInTheDocument();
   });
 
   it("remembers the resized sidebar width and supports keyboard resizing", () => {

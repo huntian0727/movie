@@ -11,6 +11,8 @@ import { MissingVideosPage } from "./MissingVideosPage";
 import { MetadataIssuesPage } from "./MetadataIssuesPage";
 import { DirectoryBrowserPage } from "./DirectoryBrowserPage";
 import { DirectoryFilterTree } from "./DirectoryFilterTree";
+import { LibraryDirectoryOverview } from "./LibraryDirectoryOverview";
+import { readDirectoryTreeOrders } from "./directoryTreeOrder";
 import { SidebarMenuGroup } from "./SidebarMenuGroup";
 import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
@@ -174,6 +176,10 @@ export function LibraryShell({
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [directoryBrowserSourceId, setDirectoryBrowserSourceId] = useState<string | undefined>();
   const [directoryBrowserFocusSequence, setDirectoryBrowserFocusSequence] = useState(0);
+  const [directoryOverviewSearch, setDirectoryOverviewSearch] = useState("");
+  const [directoryOverviewFocusSequence, setDirectoryOverviewFocusSequence] = useState(0);
+  const [directoryOrders, setDirectoryOrders] = useState(readDirectoryTreeOrders);
+  const directoryOverviewScroll = useRef(0);
   const [recentDirectoryPaths, setRecentDirectoryPaths] = useState<string[]>(readStoredRecentDirectoryPaths);
   const [scanFailureSourceFolderId, setScanFailureSourceFolderId] = useState<string | undefined>();
   const [missingVideoSourceFolderId, setMissingVideoSourceFolderId] = useState<string | undefined>();
@@ -262,9 +268,9 @@ export function LibraryShell({
   const favoriteCount = useMemo(() => navigation?.favoriteVideos ?? videos.reduce((count, video) => count + (video.isFavorite ? 1 : 0), 0), [navigation?.favoriteVideos, videos]);
   const pendingDeleteCount = navigation?.pendingDeleteVideos ?? videos.reduce((count, video) => count + (video.isPendingDelete ? 1 : 0), 0);
   const pendingDeleteBytes = navigation?.pendingDeleteBytes ?? videos.reduce((total, video) => total + (video.isPendingDelete ? video.sizeBytes : 0), 0);
-  const isStandaloneView = view === "videoData" || view === "assetCenter" || view === "playbackDiagnostic" || view === "directoryBrowser" || view === "duplicates" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
+  const isStandaloneView = view === "videoData" || view === "assetCenter" || view === "playbackDiagnostic" || view === "directoryBrowser" || view === "libraryDirectories" || view === "duplicates" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const isVideoBrowseView = !isStandaloneView;
-  const usesCommonToolbar = view !== "videoData" && view !== "assetCenter" && view !== "playbackDiagnostic" && view !== "directoryBrowser";
+  const usesCommonToolbar = view !== "videoData" && view !== "assetCenter" && view !== "playbackDiagnostic" && view !== "directoryBrowser" && view !== "libraryDirectories";
 
   useEffect(() => {
     setPage(1);
@@ -373,8 +379,10 @@ export function LibraryShell({
       const target = event.target;
       if (target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], [role='alertdialog']")) return;
       event.preventDefault();
-      setView("directoryBrowser");
-      setDirectoryBrowserFocusSequence((value) => value + 1);
+      setView("libraryDirectories");
+      setSelectedFolderPath(null);
+      setDirectoryBrowserSourceId(undefined);
+      setDirectoryOverviewFocusSequence((value) => value + 1);
     };
     window.addEventListener("keydown", openDirectoryLauncher);
     return () => window.removeEventListener("keydown", openDirectoryLauncher);
@@ -452,8 +460,8 @@ export function LibraryShell({
     .slice(0, 5);
 
   useEffect(() => {
-    contentRef.current?.scrollTo?.({ top: 0, behavior: "auto" });
-  }, [currentPage, folderScope, pageSize, selectedFolderPath]);
+    contentRef.current?.scrollTo?.({ top: view === "libraryDirectories" ? directoryOverviewScroll.current : 0, behavior: "auto" });
+  }, [currentPage, folderScope, pageSize, selectedFolderPath, view]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -530,6 +538,15 @@ export function LibraryShell({
       return;
     }
     setView("directoryBrowser");
+  };
+  const openDirectoryOverview = () => {
+    setSelectedFolderPath(null);
+    setDirectoryBrowserSourceId(undefined);
+    setView("libraryDirectories");
+  };
+  const searchIndexedDirectories = () => {
+    openDirectoryBrowser();
+    setDirectoryBrowserFocusSequence((value) => value + 1);
   };
   const showVideoDirectory = (video: VideoRecord) => browseDirectory(video.directory, video.sourceFolderId);
   const openFolderIssueDialog = async (
@@ -704,7 +721,7 @@ export function LibraryShell({
           </button>
           </SidebarMenuGroup>
         </nav>
-        <SidebarMenuGroup id="directories" title="资料库目录" className="sidebar-library-sources" count={folders.length} active={view === "folder"}>
+        <SidebarMenuGroup id="directories" title="资料库目录" className="sidebar-library-sources" count={folders.length} active={view === "folder" || view === "libraryDirectories"} onOpen={openDirectoryOverview}>
           <DirectoryFilterTree
             folders={folders}
             load={onLoadDirectoryBrowser}
@@ -712,6 +729,8 @@ export function LibraryShell({
             selectedSourceId={directoryBrowserSourceId}
             refreshSequence={refreshSequence}
             onNavigate={browseDirectory}
+            onSearch={searchIndexedDirectories}
+            onOrderChange={setDirectoryOrders}
             renderSource={(folder) => {
               const scanStatus = scanStatusByFolder.get(folder.id);
               const warning = getSourceWarning(folder, scanStatus);
@@ -761,10 +780,10 @@ export function LibraryShell({
         />
       </aside>
 
-      <section className="content" ref={contentRef}>
+      <section className="content" ref={contentRef} onScroll={(event) => { if (view === "libraryDirectories") directoryOverviewScroll.current = event.currentTarget.scrollTop; }}>
         <header className="global-top-menu" aria-label="全局菜单栏">
           <nav aria-label="全局操作">
-            <button type="button" className={view === "directoryBrowser" ? "active" : undefined} onClick={() => openDirectoryBrowser()}>
+            <button type="button" className={view === "directoryBrowser" || view === "libraryDirectories" ? "active" : undefined} onClick={openDirectoryOverview}>
               <FolderSearch size={15} /><span>浏览目录</span><kbd>Ctrl+K</kbd>
             </button>
             <details className="global-add-source">
@@ -789,7 +808,8 @@ export function LibraryShell({
           gridCardSizeMaxIndex={GRID_CARD_WIDTH_OPTIONS.length - 1}
           loading={loading}
           showBrowseControls={view !== "duplicates" && view !== "scanFailures" && view !== "missingVideos" && view !== "metadataIssues"}
-          onBack={view === "folder" ? () => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); } : isHealthView ? () => { setView("assetCenter"); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); } : undefined}
+          backLabel={view === "folder" ? "返回资料库目录" : undefined}
+          onBack={view === "folder" ? openDirectoryOverview : isHealthView ? () => { setView("assetCenter"); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); } : undefined}
           onSearch={setSearch}
           onSortField={setSortField}
           onToggleDirection={() => setSortDirection((current) => (current === "asc" ? "desc" : "asc"))}
@@ -839,7 +859,8 @@ export function LibraryShell({
           imageApi={imageApi}
           cardWidth={gridCardWidth}
           viewMode={viewMode}
-          onSearchDirectories={() => { openDirectoryBrowser(); setDirectoryBrowserFocusSequence((value) => value + 1); }}
+          onSearchDirectories={searchIndexedDirectories}
+          onRoot={openDirectoryOverview}
           folders={folders}
           recentDirectories={recentDirectories}
           selectedSourceId={directoryBrowserSourceId}
@@ -858,7 +879,16 @@ export function LibraryShell({
           onVideoDetails={viewVideoDetails}
         />}
         {view === "folder" && videoDataApi && <button className="secondary-button" onClick={() => setView("videoData")}>在视频数据表中查看此目录</button>}
-        {view === "directoryBrowser" ? (
+        {view === "libraryDirectories" ? <LibraryDirectoryOverview
+          folders={folders}
+          scanStatuses={scanStatuses}
+          orders={directoryOrders}
+          search={directoryOverviewSearch}
+          focusSequence={directoryOverviewFocusSequence}
+          onSearch={(value) => { setDirectoryOverviewSearch(value); directoryOverviewScroll.current = 0; contentRef.current?.scrollTo?.({ top: 0, behavior: "auto" }); }}
+          onNavigate={browseDirectory}
+          onAddFolder={onAddFolder}
+        /> : view === "directoryBrowser" ? (
           onLoadDirectoryBrowser && onLoadVideoPage
             ? <DirectoryBrowserPage
                 key={selectedFolderPath ?? "directory-browser-root"}
