@@ -330,6 +330,16 @@ button { color: inherit; }
 .directory-tree-name svg { flex-shrink: 0; color: #65b5e6; }
 .directory-tree-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .directory-tree-row.active .directory-tree-name { color: #bde4fb; }
+.directory-tree-drag { flex-shrink: 0; width: 18px; height: 26px; margin-right: 2px; padding: 0; border: 0; border-radius: 3px; display: grid; place-items: center; color: #76887d; background: transparent; cursor: grab; opacity: .5; touch-action: none; user-select: none; }
+.directory-tree-row:hover .directory-tree-drag, .directory-tree-root:hover .directory-tree-drag, .directory-tree-drag:focus-visible { opacity: 1; }
+.directory-tree-drag:active { cursor: grabbing; }
+.directory-tree-root, .directory-tree-row { position: relative; }
+.directory-tree-root.is-dragging, .directory-tree-row.is-dragging { opacity: .45; }
+.directory-tree-root.drop-before::before, .directory-tree-root.drop-after::after, .directory-tree-row.drop-before::before, .directory-tree-row.drop-after::after { content: ""; position: absolute; z-index: 2; left: 4px; right: 4px; height: 2px; border-radius: 2px; background: #80c9f3; pointer-events: none; }
+.drop-before::before { top: 0; }
+.drop-after::after { bottom: 0; }
+.directory-tree-reset { margin: 8px 8px 4px; border: 0; padding: 4px; color: #95b6cd; background: transparent; cursor: pointer; font-size: 10px; }
+.directory-tree-order-status { margin: 4px 8px; color: #8faaa0; font-size: 10px; }
 .directory-tree-message { margin: 4px 6px 4px 25px; display: flex; align-items: center; gap: 5px; color: #8b9489; font-size: 10px; }
 .directory-tree-message button, .directory-tree-more { border: 0; border-radius: 4px; padding: 4px 6px; background: #252e28; color: #98c9e6; cursor: pointer; font-size: 10px; }
 .directory-tree-more { margin: 4px 4px 7px 25px; }

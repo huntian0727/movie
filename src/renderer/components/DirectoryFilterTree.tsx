@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Folder, LoaderCircle } from "lucide-react";
+import { ChevronRight, Folder, GripVertical, LoaderCircle } from "lucide-react";
 import type { DirectoryBrowserResult, SourceFolder, VideoManagerApi } from "../../shared/videoTypes";
+import { DIRECTORY_TREE_ORDER_KEY, ROOT_ORDER_SCOPE, moveDirectorySibling, orderDirectorySiblings, readDirectoryTreeOrders, type DirectoryTreeOrders } from "./directoryTreeOrder";
 
 interface Props {
   folders: SourceFolder[];
@@ -32,6 +33,84 @@ export function DirectoryFilterTree({ folders, load, currentPath, selectedSource
   const alive = useRef(true);
   const purposes = useRef(new Map<string, string>());
   const nextPurpose = useRef(0);
+  const [orders, setOrders] = useState(readDirectoryTreeOrders);
+  const [orderMessage, setOrderMessage] = useState("");
+  const drag = useRef<{ scope: string; id: string; ids: string[]; pointerId: number; fromX: number; fromY: number; active: boolean } | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ scope: string; id: string; after: boolean } | null>(null);
+
+  const saveOrders = (next: DirectoryTreeOrders) => {
+    setOrders(next);
+    try {
+      localStorage.setItem(DIRECTORY_TREE_ORDER_KEY, JSON.stringify({ version: 1, scopes: [...next] }));
+      setOrderMessage(next.size ? "目录顺序已保存" : "已恢复默认顺序");
+    } catch { setOrderMessage("顺序已调整，但无法保存；重启后可能丢失本次调整"); }
+  };
+  const reorder = (scope: string, ids: string[], dragged: string, target: string, after: boolean) => {
+    const moved = moveDirectorySibling(ids, dragged, target, after);
+    if (!moved) return;
+    const next = new Map(orders);
+    // Preserve saved siblings outside the first 100 indexed results.
+    next.set(scope, [...moved, ...(orders.get(scope) ?? []).filter((id) => !ids.includes(id))]);
+    saveOrders(next);
+  };
+  const endDrag = () => { drag.current = null; setDraggedId(null); setDropTarget(null); };
+  const targetAt = (x: number, y: number) => {
+    const row = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-order-scope]");
+    const scope = row?.dataset.orderScope;
+    const id = row?.dataset.orderId;
+    if (!row || !drag.current || scope !== drag.current.scope || !id || id === drag.current.id || !drag.current.ids.includes(id)) return null;
+    const bounds = row.getBoundingClientRect();
+    return { scope, id, after: y >= bounds.top + bounds.height / 2 };
+  };
+  const dragClass = (scope: string, id: string) => `${draggedId === id ? " is-dragging" : ""}${dropTarget?.scope === scope && dropTarget.id === id ? ` drop-${dropTarget.after ? "after" : "before"}` : ""}`;
+  const renderHandle = (scope: string, id: string, name: string, ids: string[]) => <button
+    type="button" className="directory-tree-drag" draggable={false} aria-label={`拖拽排序 ${name}`}
+    title="拖动调整同级顺序；Alt + ↑ / ↓ 也可排序"
+    onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
+    onPointerDown={(event) => {
+      if (event.button !== 0 || event.isPrimary === false) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.focus();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      drag.current = { scope, id, ids, pointerId: event.pointerId, fromX: event.clientX, fromY: event.clientY, active: false };
+    }}
+    onPointerMove={(event) => {
+      const pending = drag.current;
+      if (!pending || pending.pointerId !== event.pointerId) return;
+      if (!pending.active && Math.hypot(event.clientX - pending.fromX, event.clientY - pending.fromY) < 4) return;
+      pending.active = true;
+      setDraggedId(pending.id);
+      const nav = event.currentTarget.closest("nav");
+      if (nav) {
+        const bounds = nav.getBoundingClientRect();
+        if (event.clientY < bounds.top + 24) nav.scrollTop -= 12;
+        else if (event.clientY > bounds.bottom - 24) nav.scrollTop += 12;
+      }
+      const target = targetAt(event.clientX, event.clientY);
+      setDropTarget((previous) => previous?.scope === target?.scope && previous?.id === target?.id && previous?.after === target?.after ? previous : target);
+    }}
+    onPointerUp={(event) => {
+      const pending = drag.current;
+      if (!pending || pending.pointerId !== event.pointerId) return;
+      const target = pending.active ? targetAt(event.clientX, event.clientY) : null;
+      if (target) reorder(scope, pending.ids, id, target.id, target.after);
+      endDrag();
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    }}
+    onPointerCancel={endDrag}
+    onLostPointerCapture={endDrag}
+    onKeyDown={(event) => {
+      if (event.key === "Escape" && drag.current) { event.preventDefault(); event.stopPropagation(); endDrag(); return; }
+      if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const down = event.key === "ArrowDown";
+      const target = ids[ids.indexOf(id) + (down ? 1 : -1)];
+      if (target) reorder(scope, ids, id, target, down);
+    }}
+  ><GripVertical size={13} /></button>;
 
   useEffect(() => {
     alive.current = true;
@@ -107,16 +186,18 @@ export function DirectoryFilterTree({ folders, load, currentPath, selectedSource
     return <div className="directory-tree-children">
       {(!branch || branch.loading) && <p className="directory-tree-message" role="status"><LoaderCircle size={13} className="spin" />正在读取目录</p>}
       {branch?.error && <div className="directory-tree-message" role="alert"><span title={branch.error}>目录读取失败</span><button type="button" onClick={() => retry(key)}>重试</button></div>}
-      {items.map((item) => {
+      {orderDirectorySiblings(items, orders.get(key), (item) => keyFor(source, item.path)).map((item, _index, siblings) => {
         const childKey = keyFor(source, item.path);
+        const ids = siblings.map((sibling) => keyFor(source, sibling.path));
         const child = branches[childKey];
         const isExpanded = expanded.has(childKey);
         const leaf = child?.result?.totalCount === 0 && !child.loading && !child.error;
         const selected = currentPath && normalize(currentPath) === normalize(item.path) && (!selectedSourceId || selectedSourceId === source);
         return <div key={childKey}>
-          <div className={`directory-tree-row${selected ? " active" : ""}`} style={{ paddingLeft: `${Math.min(depth, 12) * 14}px` }}>
+          <div className={`directory-tree-row${selected ? " active" : ""}${dragClass(key, childKey)}`} style={{ paddingLeft: `${Math.min(depth, 12) * 14}px` }} data-order-scope={key} data-order-id={childKey}>
             <button type="button" className="directory-tree-toggle" disabled={leaf} aria-label={`展开或收起 ${item.name}`} aria-expanded={isExpanded} onClick={() => toggle(source, item.path)}><ChevronRight size={14} className={isExpanded ? "expanded" : undefined} /></button>
             <button type="button" className="directory-tree-name" title={item.path} aria-current={selected ? "location" : undefined} onClick={() => onNavigate(item.path, source)}><Folder size={16} /><span>{item.name}</span></button>
+            {renderHandle(key, childKey, item.name, ids)}
           </div>
           {renderChildren(source, item.path, depth + 1)}
         </div>;
@@ -125,14 +206,19 @@ export function DirectoryFilterTree({ folders, load, currentPath, selectedSource
     </div>;
   };
 
+  const orderedFolders = orderDirectorySiblings(folders, orders.get(ROOT_ORDER_SCOPE), (folder) => folder.id);
+  const sourceIds = orderedFolders.map((folder) => folder.id);
   return <nav className="source-root-list" aria-label="资料库来源">
-    {folders.map((folder) => <div key={folder.id}>
-      <div className="directory-tree-root">
+    {orderedFolders.map((folder) => <div key={folder.id}>
+      <div className={`directory-tree-root${dragClass(ROOT_ORDER_SCOPE, folder.id)}`} data-order-scope={ROOT_ORDER_SCOPE} data-order-id={folder.id}>
         {load && <button type="button" className="directory-tree-toggle" aria-label={`展开或收起 ${folder.path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1)}`} aria-expanded={expanded.has(keyFor(folder.id, folder.path))} onClick={() => toggle(folder.id, folder.path)}><ChevronRight size={15} className={expanded.has(keyFor(folder.id, folder.path)) ? "expanded" : undefined} /></button>}
         {renderSource(folder)}
+        {renderHandle(ROOT_ORDER_SCOPE, folder.id, folder.path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) ?? folder.path, sourceIds)}
       </div>
       {renderChildren(folder.id, folder.path, 1)}
     </div>)}
     {folders.length === 0 && <p className="source-root-empty">还没有添加资料库</p>}
+    {orders.size > 0 && <button type="button" className="directory-tree-reset" onClick={() => saveOrders(new Map())}>恢复默认排序</button>}
+    {orderMessage && <p className="directory-tree-order-status" role="status" aria-live="polite">{orderMessage}</p>}
   </nav>;
 }

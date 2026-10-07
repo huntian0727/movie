@@ -2,6 +2,8 @@
 
 `DirectoryFilterTree.tsx` 在左侧按需读取已展开的目录分支，不使用全量视频或 `navigation.directoryPaths` 构树。箭头仅展开，目录名调用 `LibraryShell.browseDirectory`；后者清除视频搜索并重置页码，以 exact 范围进入目录。当前目录与祖先同步高亮/展开，手动收起不清除筛选。分支按 `source id + normalized path` 缓存，`refreshSequence` 变化后失效；每分支使用独立只读 purpose，防止并行查询相互取代。
 
+目录行右侧手柄可拖拽同级排序（Alt + 上/下也可操作），落点上半部插入前、下半部插入后。`directoryTreeOrder.ts` 将根来源 ID、按来源/父路径隔离的子路径身份保存在当前 Electron profile 的 localStorage；刷新/重启保留自定义顺序，新发现项排在已排序项后。禁止跨父目录、跨来源及外部文件拖入，排序不调用导航或磁盘写入接口；保存失败显示提示，支持恢复全部默认排序。只影响左侧展示，不改变右侧目录卡片、视频排序、查询、扫描或播放队列。
+
 `DirectoryBrowserPage` 的 compact 模式默认读取并展示直属子文件夹卡片（网格）或紧凑行（列表），保留面包屑、范围选择与扫描按钮。文件夹只用于导航，不参与视频计数、分页或多选。查询仅使用已有有效视频索引；空目录、未索引目录不展示。单层最多 100 项，截断时提供目录搜索；搜索定位到截断之外的目录时，左侧仍显示其祖先和选中节点。
 
 `SubtitleSettings` adds encrypted ASSRT/OpenSubtitles configuration, showing flags only. `SubtitleDialog` stays mounted per file identity: explicit click opens a quick sidebar and searches, three candidates favor Chinese/bilingual clues, successful selection closes it. The sidebar reserves native-video space; only advanced search hides the native surface and traps focus. `subtitleSearchCache` remembers local source/language preferences and session queries, joins requests and caches successful searches for five minutes with a 30-entry limit and manual refresh. `SubtitleQuickControls` applies +/- 0.5 second offsets, switches or disables subtitles immediately. `useSavedSubtitles` restores local associations, rejects stale file-identity updates and revokes VTT blobs. Operations do not pause or seek playback. External players still need export/load through advanced controls.
