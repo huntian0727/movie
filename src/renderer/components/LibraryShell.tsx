@@ -712,7 +712,6 @@ export function LibraryShell({
             selectedSourceId={directoryBrowserSourceId}
             refreshSequence={refreshSequence}
             onNavigate={browseDirectory}
-            onSearch={() => { openDirectoryBrowser(); setDirectoryBrowserFocusSequence((value) => value + 1); }}
             renderSource={(folder) => {
               const scanStatus = scanStatusByFolder.get(folder.id);
               const warning = getSourceWarning(folder, scanStatus);

@@ -601,6 +601,30 @@ describe("LibraryShell", () => {
     await waitFor(() => expect(onScanDirectory).toHaveBeenLastCalledWith({ sourceFolderId: folder.id, directoryPath: folder.path, scope: "recursive" }));
   });
 
+  it("searches directories in the sidebar without changing the video page until a result is selected", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockImplementation((query) => Promise.resolve({
+      items: query.search || query.parentPath === folder.path ? [{ sourceFolderId: folder.id, path: nestedVideo.directory, name: "Drama", videoCount: 2, sizeBytes: 2048, modifiedAt: null }] : [],
+      totalCount: query.search || query.parentPath === folder.path ? 1 : 0, truncated: false
+    }));
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 30, totalPages: 1, totalCount: 1 });
+    render(<LibraryShell videos={[]} folders={[folder]} onLoadDirectoryBrowser={onLoadDirectoryBrowser} onLoadVideoPage={onLoadVideoPage} />);
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenCalledOnce());
+    const search = screen.getByRole("searchbox", { name: "搜索资料库目录" });
+    fireEvent.change(search, { target: { value: "Drama" } });
+    const choice = await screen.findByRole("button", { name: "进入目录 Drama" });
+    expect(onLoadVideoPage).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "展开或收起资料库目录菜单" }));
+    expect(screen.queryByRole("searchbox", { name: "搜索资料库目录" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "展开或收起资料库目录菜单" }));
+    expect(search).toHaveValue("Drama");
+    fireEvent.click(choice);
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ view: "folder", directoryPath: nestedVideo.directory, folderScope: "exact", search: "" }), "library-main"));
+    expect(screen.getByRole("heading", { name: "同目录 · Drama" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "清除目录搜索" }));
+    await waitFor(() => expect(within(screen.getByRole("navigation", { name: "资料库来源" })).getByTitle(nestedVideo.directory)).toHaveAttribute("aria-current", "location"));
+    expect(screen.getByRole("heading", { name: "同目录 · Drama" })).toBeInTheDocument();
+  });
+
   it("clears the previous directory's videos and selection while the next directory loads", async () => {
     let resolveNext!: (page: LibraryPage) => void;
     const nextPage = new Promise<LibraryPage>((resolve) => { resolveNext = resolve; });

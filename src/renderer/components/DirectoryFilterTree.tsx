@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronRight, Folder, GripVertical, LoaderCircle } from "lucide-react";
 import type { DirectoryBrowserResult, SourceFolder, VideoManagerApi } from "../../shared/videoTypes";
 import { DIRECTORY_TREE_ORDER_KEY, ROOT_ORDER_SCOPE, moveDirectorySibling, orderDirectorySiblings, readDirectoryTreeOrders, type DirectoryTreeOrders } from "./directoryTreeOrder";
+import { SidebarDirectorySearch } from "./SidebarDirectorySearch";
 
 interface Props {
   folders: SourceFolder[];
@@ -10,7 +11,6 @@ interface Props {
   selectedSourceId?: string;
   refreshSequence: number;
   onNavigate(path: string, sourceFolderId: string): void;
-  onSearch(): void;
   renderSource(folder: SourceFolder): ReactNode;
 }
 
@@ -25,7 +25,10 @@ const normalize = (path: string) => path.replace(/[\\/]+/g, "\\").replace(/\\+$/
 const keyFor = (source: string, path: string) => JSON.stringify([source, normalize(path)]);
 
 /** Only expanded branches are read. Source menus retain their existing actions. */
-export function DirectoryFilterTree({ folders, load, currentPath, selectedSourceId, refreshSequence, onNavigate, onSearch, renderSource }: Props) {
+export function DirectoryFilterTree({ folders, load, currentPath, selectedSourceId, refreshSequence, onNavigate, renderSource }: Props) {
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchFocus, setSearchFocus] = useState(0);
+  const tree = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState<Map<string, { source: string; path: string }>>(() => new Map());
   const [branches, setBranches] = useState<Record<string, Branch>>({});
   const requests = useRef(new Map<string, number>());
@@ -158,6 +161,10 @@ export function DirectoryFilterTree({ folders, load, currentPath, selectedSource
     }
   }, [branches, expanded, folders, load, refreshSequence]);
 
+  useEffect(() => {
+    if (!searchActive && currentPath) tree.current?.querySelector<HTMLElement>('[aria-current="location"]')?.scrollIntoView?.({ block: "nearest" });
+  }, [searchActive, currentPath, branches]);
+
   const toggle = (source: string, path: string) => {
     const key = keyFor(source, path);
     setExpanded((previous) => {
@@ -202,13 +209,15 @@ export function DirectoryFilterTree({ folders, load, currentPath, selectedSource
           {renderChildren(source, item.path, depth + 1)}
         </div>;
       })}
-      {branch?.result?.truncated && <button type="button" className="directory-tree-more" onClick={onSearch}>仅显示前 100 个，搜索其他目录</button>}
+      {branch?.result?.truncated && <button type="button" className="directory-tree-more" onClick={() => setSearchFocus((value) => value + 1)}>仅显示前 100 个，搜索其他目录</button>}
     </div>;
   };
 
   const orderedFolders = orderDirectorySiblings(folders, orders.get(ROOT_ORDER_SCOPE), (folder) => folder.id);
   const sourceIds = orderedFolders.map((folder) => folder.id);
-  return <nav className="source-root-list" aria-label="资料库来源">
+  return <div className="directory-tree-browser">
+    {load && <SidebarDirectorySearch folders={folders} load={load} currentPath={currentPath} selectedSourceId={selectedSourceId} refreshSequence={refreshSequence} focusSequence={searchFocus} onActiveChange={setSearchActive} onNavigate={onNavigate} />}
+    <nav ref={tree} hidden={searchActive} className="source-root-list" aria-label="资料库来源">
     {orderedFolders.map((folder) => <div key={folder.id}>
       <div className={`directory-tree-root${dragClass(ROOT_ORDER_SCOPE, folder.id)}`} data-order-scope={ROOT_ORDER_SCOPE} data-order-id={folder.id}>
         {load && <button type="button" className="directory-tree-toggle" aria-label={`展开或收起 ${folder.path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1)}`} aria-expanded={expanded.has(keyFor(folder.id, folder.path))} onClick={() => toggle(folder.id, folder.path)}><ChevronRight size={15} className={expanded.has(keyFor(folder.id, folder.path)) ? "expanded" : undefined} /></button>}
@@ -220,5 +229,6 @@ export function DirectoryFilterTree({ folders, load, currentPath, selectedSource
     {folders.length === 0 && <p className="source-root-empty">还没有添加资料库</p>}
     {orders.size > 0 && <button type="button" className="directory-tree-reset" onClick={() => saveOrders(new Map())}>恢复默认排序</button>}
     {orderMessage && <p className="directory-tree-order-status" role="status" aria-live="polite">{orderMessage}</p>}
-  </nav>;
+    </nav>
+  </div>;
 }

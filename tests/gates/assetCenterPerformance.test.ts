@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { listAssetCenterSources } from "../../src/main/assetCenter/assetCenterQueries.js";
+import { listAssetCenterSources, listDirectoryBrowserItems } from "../../src/main/assetCenter/assetCenterQueries.js";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database.js";
 import { VideoRepository } from "../../src/main/db/videoRepository.js";
 
@@ -95,6 +95,17 @@ describe("Asset Center performance gate", () => {
     expect(page.items).toHaveLength(30);
     expect(page.items[0]!.sizeBytes).toBeGreaterThanOrEqual(page.items[1]!.sizeBytes);
     expect(elapsedMs).toBeLessThan(SOURCE_PAGE_BUDGET_MS);
+
+    statementCount = 0;
+    const directoryStartedAt = performance.now();
+    const directories = listDirectoryBrowserItems(measuredDatabase, { search: "bucket", limit: 100 });
+    const directoryElapsedMs = performance.now() - directoryStartedAt;
+    console.info(`Directory search 320k/100-source: ${directoryElapsedMs.toFixed(2)} ms, ${statementCount} statements`);
+    expect(directories).toMatchObject({ truncated: true, totalCount: 101 });
+    expect(directories.items).toHaveLength(100);
+    expect(directories.items.every((item) => item.name.startsWith("bucket"))).toBe(true);
+    expect(statementCount).toBe(2);
+    expect(directoryElapsedMs).toBeLessThan(3_000);
 
     database.prepare("UPDATE videos SET metadata_status = CASE WHEN rowid % 4 = 0 THEN 'failed' ELSE 'pending' END").run();
     const insertFailure = database.prepare(`

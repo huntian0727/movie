@@ -204,6 +204,57 @@ describe("Asset Center repository", () => {
     expect(search).toMatchObject({ totalCount: 1, truncated: false });
     expect(search.items[0]).toMatchObject({ name: "Season 1", path: "D:\\Movies\\Drama\\Season 1" });
   });
+
+  it("searches virtual parents and registered empty roots, ranks names first and scopes duplicate names", () => {
+    const local = repo.addSourceFolder("D:\\Movies", true);
+    const other = repo.addSourceFolder("E:\\Archive", true);
+    repo.addSourceFolder("F:\\Travel Archive", true);
+    createVideo(local.id, "D:\\Movies\\Travel\\Europe\\a.mp4", 100, 1000);
+    createVideo(local.id, "D:\\Movies\\Travel\\Asia\\b.mp4", 200, 1000);
+    createVideo(local.id, "D:\\Movies\\Travel Notes\\c.mp4", 300, 1000);
+    createVideo(other.id, "E:\\Archive\\Travel\\d.mp4", 400, 1000);
+    const missing = createVideo(local.id, "D:\\Movies\\Travel\\Gone\\e.mp4", 500, 1000);
+    repo.markMissing(missing.id, true);
+    const all = listDirectoryBrowserItems(db!, { search: "travel", limit: 100 });
+    expect(all.items.slice(0, 2).map((item) => item.name)).toEqual(["Travel", "Travel"]);
+    expect(all.items.find((item) => item.path === "D:\\Movies\\Travel")).toMatchObject({ videoCount: 2, sizeBytes: 300 });
+    expect(all.items.find((item) => item.path === "F:\\Travel Archive")).toMatchObject({ videoCount: 0 });
+    expect(all.items.some((item) => item.name === "Gone")).toBe(false);
+    const scoped = listDirectoryBrowserItems(db!, { sourceFolderId: local.id, search: "travel", limit: 100 });
+    expect(scoped.items.every((item) => item.sourceFolderId === local.id)).toBe(true);
+    expect(scoped.items.filter((item) => item.name === "Travel")).toHaveLength(1);
+    expect(listDirectoryBrowserItems(db!, { search: "absent", limit: 100 }).items).toEqual([]);
+  });
+
+  it("finds name matches beyond the result limit and treats SQL wildcard characters literally", () => {
+    const source = repo.addSourceFolder("D:\\Library", true);
+    db!.transaction(() => {
+      for (let i = 0; i < 240; i++) createVideo(source.id, `D:\\Library\\Travel\\bucket-${i}\\a.mp4`, 10, 1000);
+      createVideo(source.id, "D:\\Library\\Z\\Travel\\b.mp4", 20, 1000);
+      createVideo(source.id, "D:\\Library\\100%_done!\\c.mp4", 30, 1000);
+    })();
+    const search = listDirectoryBrowserItems(db!, { search: "Travel", limit: 50 });
+    expect(search).toMatchObject({ truncated: true, totalCount: 51 });
+    expect(search.items).toHaveLength(50);
+    expect(search.items.slice(0, 2).map((item) => item.name)).toEqual(["Travel", "Travel"]);
+    expect(search.items.find((item) => item.path === "D:\\Library\\Travel")).toMatchObject({ videoCount: 240, sizeBytes: 2400 });
+    expect(listDirectoryBrowserItems(db!, { search: "D:/Library/Travel", limit: 50 }).items[0]).toMatchObject({ path: "D:\\Library\\Travel", videoCount: 240 });
+    expect(listDirectoryBrowserItems(db!, { search: "%_", limit: 100 }).items.map((item) => item.name)).toEqual(["100%_done!"]);
+    expect(listDirectoryBrowserItems(db!, { search: "D:/Library/Z/Travel", limit: 100 }).items.map((item) => item.path)).toEqual(["D:\\Library\\Z\\Travel"]);
+  });
+
+  it("keeps UNC ancestry, Unicode names and drive roots inside the registered source boundary", () => {
+    const unc = repo.addSourceFolder("\\\\server\\share", true);
+    const drive = repo.addSourceFolder("E:\\", true);
+    createVideo(unc.id, "\\\\server\\share\\旅行\\欧洲\\a.mp4", 100, 1000);
+    createVideo(unc.id, "\\\\server\\share-other\\旅行\\bad.mp4", 999, 1000);
+    createVideo(drive.id, "E:\\旅行\\b.mp4", 200, 1000);
+    const items = listDirectoryBrowserItems(db!, { search: "旅行", limit: 100 }).items;
+    expect(items.map((item) => item.path)).toContain("\\\\server\\share\\旅行");
+    expect(items.some((item) => item.path.includes("share-other"))).toBe(false);
+    expect(items.find((item) => item.path === "\\\\server\\share\\旅行")).toMatchObject({ videoCount: 1, sizeBytes: 100 });
+    expect(listDirectoryBrowserItems(db!, { search: "E:", limit: 100 }).items.find((item) => item.path === "E:\\")).toMatchObject({ videoCount: 1, sizeBytes: 200 });
+  });
 });
 
 function defaultQuery() {

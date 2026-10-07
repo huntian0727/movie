@@ -11,6 +11,7 @@ import type {
   ScanMode
 } from "../../shared/videoTypes.js";
 import type { DatabaseConnection } from "../db/database.js";
+import { searchIndexedDirectories } from "./indexedDirectorySearch.js";
 
 interface AssetCenterSummaryRow {
   total_video_count: number;
@@ -212,7 +213,7 @@ export function listAssetCenterSources(
         SUM(CASE WHEN is_missing = 0 THEN size_bytes ELSE 0 END) AS size_bytes,
         SUM(CASE WHEN is_missing = 1 THEN 1 ELSE 0 END) AS missing_video_count,
         SUM(CASE WHEN is_missing = 0 AND metadata_status IN ('pending', 'failed') THEN 1 ELSE 0 END) AS metadata_issue_count
-      FROM videos
+      FROM videos NOT INDEXED
       GROUP BY source_folder_id
     ), failure_stats AS MATERIALIZED (
       SELECT source_folder_id, COUNT(*) AS scan_failure_count
@@ -283,24 +284,20 @@ export function listDirectoryBrowserItems(
   db: DatabaseConnection,
   query: DirectoryBrowserQuery
 ): DirectoryBrowserResult {
-  const params: Record<string, unknown> = { limit: query.limit + 1 };
+  if (query.search.trim()) return searchIndexedDirectories(db, query);
+  const params: Record<string, unknown> = {};
   const filters = ["videos.is_missing = 0", "videos.directory IS NOT NULL", "TRIM(videos.directory) != ''"];
   if (query.sourceFolderId) {
     params.sourceFolderId = query.sourceFolderId;
     filters.push("videos.source_folder_id = @sourceFolderId");
   }
-  const search = query.search.trim();
-  if (search) {
-    params.search = `%${escapeLikePattern(search)}%`;
-    filters.push("videos.directory LIKE @search ESCAPE '!' COLLATE NOCASE");
-  } else if (query.parentPath) {
+  if (query.parentPath) {
     const parentPath = trimDirectorySeparators(query.parentPath);
     params.parentPath = parentPath;
     params.parentPrefix = `${escapeLikePattern(parentPath)}\\%`;
     filters.push("(videos.directory = @parentPath COLLATE NOCASE OR videos.directory LIKE @parentPrefix ESCAPE '!' COLLATE NOCASE)");
   }
 
-  const limitClause = search ? "LIMIT @limit" : "";
   const rows = db.prepare(`
     SELECT videos.source_folder_id, videos.directory,
       COUNT(*) AS video_count,
@@ -310,14 +307,7 @@ export function listDirectoryBrowserItems(
     WHERE ${filters.join(" AND ")}
     GROUP BY videos.source_folder_id, videos.directory
     ORDER BY videos.directory COLLATE NOCASE ASC
-    ${limitClause}
   `).all(params) as DirectoryBrowserDatabaseRow[];
-
-  if (search) {
-    const truncated = rows.length > query.limit;
-    const items = rows.slice(0, query.limit).map(mapDirectoryBrowserRow);
-    return { items, totalCount: truncated ? query.limit + 1 : items.length, truncated };
-  }
 
   const parentPath = query.parentPath ? trimDirectorySeparators(query.parentPath) : "";
   const grouped = new Map<string, DirectoryBrowserItem>();
@@ -425,17 +415,6 @@ function mapAssetCenterLatestScan(row: AssetCenterScanTaskRow): AssetCenterLates
 
 function escapeLikePattern(value: string): string {
   return value.replace(/!/g, "!!").replace(/%/g, "!%").replace(/_/g, "!_");
-}
-
-function mapDirectoryBrowserRow(row: DirectoryBrowserDatabaseRow): DirectoryBrowserItem {
-  return {
-    sourceFolderId: row.source_folder_id,
-    path: row.directory,
-    name: directoryName(row.directory),
-    videoCount: row.video_count,
-    sizeBytes: row.size_bytes,
-    modifiedAt: row.modified_at
-  };
 }
 
 function immediateChildPath(directoryPath: string, parentPath: string): string | null {

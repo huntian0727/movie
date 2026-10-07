@@ -1,5 +1,9 @@
 # UI 组件模块
 
+`SidebarDirectorySearch.tsx` 位于资料库目录标题下，提供 200ms 防抖、全部/当前来源范围、关键词高亮、来源与父路径、键盘上下/Enter/Esc、清空及只读失败重试。使用独立 `sidebar-directory-search` purpose 与 effect disposal 忽略过期响应。输入不导航，结果点击使用原 `browseDirectory`；目录树通过 hidden 保持挂载，搜索期间不显示拖拽手柄，清空后保留原展开/缓存/手动排序并将当前目录滚入视图。折叠外层分组保留临时查询，重新启动或重挂载后清空。单分支“搜索其他目录”聚焦左侧搜索框，不再跳转右侧。
+
+数据库 `indexedDirectorySearch.ts` 搜索注册根目录及有效视频目录的祖先，按目录名完全/前缀/包含匹配优先，再按路径确定顺序。来源与规范化路径共同去重，LIKE 特殊字符按字面处理，支持 Windows/UNC 路径；在 Worker 中流式处理聚合目录并保留有限候选，名称优先排序发生在截断之前。结果上限提示不把 limit+1 哨兵当精确总数。空来源根可搜索到，其他空/未入库目录不在此查询范围；原子目录展开和实际图片目录读取保持各自原有逻辑。
+
 `SidebarMenuGroup.tsx` 将概览、资料库、清理与健康、工具和下方资料库目录分组为可折叠一级菜单；原页面按钮是缩进的二级入口。每组使用独立 localStorage 偏好（首次默认展开），通过原生 button 的 aria-expanded/controls 与 hidden 内容控制可见性。折叠不触发页面/查询变化；内容保持挂载以保留目录树的展开、缓存、排序及事件状态，收起的当前页所属分组仍有高亮。资料库目录内部保留真实文件夹的多级展开，不限制为两层。
 
 `DirectoryFilterTree.tsx` 在左侧按需读取已展开的目录分支，不使用全量视频或 `navigation.directoryPaths` 构树。箭头仅展开，目录名调用 `LibraryShell.browseDirectory`；后者清除视频搜索并重置页码，以 exact 范围进入目录。当前目录与祖先同步高亮/展开，手动收起不清除筛选。分支按 `source id + normalized path` 缓存，`refreshSequence` 变化后失效；每分支使用独立只读 purpose，防止并行查询相互取代。
