@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { opendir, realpath, stat } from "node:fs/promises";
+import { createReadStream, realpath as resolveRealPath } from "node:fs";
+import { opendir, stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { promisify } from "node:util";
 import { IMAGE_EXTENSIONS, IMAGE_PAGE_SIZE, type DirectoryImagePage, type DirectoryImageQuery } from "../../shared/imageViewing.js";
 import type { SourceFolder } from "../../shared/videoTypes.js";
 import { isManagedPathWithin } from "../files/pathNormalization.js";
@@ -15,10 +16,15 @@ interface ImageSession {
   sourcePath: string;
   names: string[];
   directories: DirectoryImagePage["directories"];
+  directoriesTruncated: boolean;
   truncated: boolean;
   touchedAt: number;
 }
 const SESSION_TTL_MS = 30 * 60_000;
+// fs/promises.realpath uses the native resolver, which returns UNKNOWN on some
+// Windows virtual mounts. The asynchronous compatibility resolver still follows
+// junctions/symlinks, preserving the managed-source boundary without blocking UI.
+const realpath = promisify(resolveRealPath);
 const MAX_IMAGES = 20_000;
 const MAX_ORIGINAL_BYTES = 256 * 1024 * 1024;
 const CONTENT_TYPES: Record<string, string> = {
@@ -45,12 +51,16 @@ export class DirectoryImageService {
       const names: string[] = [];
       const directories: DirectoryImagePage["directories"] = [];
       let truncated = false;
+      let directoriesTruncated = false;
       let inspected = 0;
       const startedAt = Date.now();
       const entries = await opendir(directory, { bufferSize: 128 });
       for await (const entry of entries) {
         if (++inspected > 100_000 || Date.now() - startedAt > 30_000) { truncated = true; break; }
-        if (entry.isDirectory() && directories.length < 200) directories.push({ name: entry.name, path: path.join(query.directoryPath, entry.name) });
+        if (entry.isDirectory()) {
+          if (directories.length < 200) directories.push({ name: entry.name, path: path.join(query.directoryPath, entry.name) });
+          else directoriesTruncated = true;
+        }
         if (!entry.isFile() || !IMAGE_EXTENSIONS.includes(path.extname(entry.name).toLowerCase() as typeof IMAGE_EXTENSIONS[number])) continue;
         names.push(entry.name);
         if (names.length >= MAX_IMAGES) { truncated = true; break; }
@@ -58,7 +68,7 @@ export class DirectoryImageService {
       names.sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }));
       directories.sort((a, b) => a.name.localeCompare(b.name, "zh-CN", { numeric: true }));
       id = randomUUID();
-      session = { sourceFolderId: folder.id, sourcePath: folder.path, directory: query.directoryPath, names, directories, truncated, touchedAt: Date.now() };
+      session = { sourceFolderId: folder.id, sourcePath: folder.path, directory: query.directoryPath, names, directories, directoriesTruncated, truncated, touchedAt: Date.now() };
       // A bounded number of name lists; browsing never builds a persistent image index.
       this.prune();
       while (this.sessions.size >= 8) this.sessions.delete(this.sessions.keys().next().value!);
@@ -68,7 +78,7 @@ export class DirectoryImageService {
     const offset = query.offset ?? 0;
     if (!Number.isInteger(offset) || offset < 0) throw new Error("图片页码无效");
     return {
-      sessionId: id!, offset, totalCount: session.names.length, truncated: session.truncated, directories: session.directories,
+      sessionId: id!, offset, totalCount: session.names.length, truncated: session.truncated, directories: session.directories, directoriesTruncated: session.directoriesTruncated,
       files: session.names.slice(offset, offset + IMAGE_PAGE_SIZE).map((name, index) => ({
         name, thumbnailUrl: `local-video://image/${id}/${offset + index}/thumbnail`, originalUrl: `local-video://image/${id}/${offset + index}/original`
       }))

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AlertTriangle, ChevronRight, Clock3, Cloud, Folder, HardDrive, LoaderCircle, RefreshCw, Search, Server, X } from "lucide-react";
 import type { DirectoryBrowserResult, FolderScanStatus, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
 import "./directoryBrowserPage.css";
 import { DirectoryImageGallery } from "./DirectoryImageGallery";
-import type { ImageViewingApi } from "../../shared/imageViewing";
+import type { DirectoryImagePage, ImageViewingApi } from "../../shared/imageViewing";
 
 interface DirectoryBrowserPageProps {
   compact?: boolean;
@@ -60,7 +60,13 @@ export function DirectoryBrowserPage({
 }: DirectoryBrowserPageProps) {
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
-  const [directories, setDirectories] = useState(EMPTY_RESULT);
+  const [indexedDirectories, setDirectories] = useState(EMPTY_RESULT);
+  const [liveDirectories, setLiveDirectories] = useState<DirectoryImagePage["directories"] | null>(null);
+  const [liveDirectoriesTruncated, setLiveDirectoriesTruncated] = useState(false);
+  const onDirectoriesLoaded = useCallback((value: DirectoryImagePage["directories"] | null, truncated = false) => {
+    setLiveDirectories(value);
+    setLiveDirectoriesTruncated(truncated);
+  }, []);
   const [videos, setVideos] = useState(EMPTY_VIDEOS);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryListExpanded, setDirectoryListExpanded] = useState(compact);
@@ -76,6 +82,22 @@ export function DirectoryBrowserPage({
     [currentPath, folders, selectedSourceId]
   );
   const breadcrumb = useMemo(() => buildBreadcrumb(selectedSource, currentPath), [currentPath, selectedSource]);
+  const directories = useMemo(() => {
+    if (search || !liveDirectories || !selectedSource || !currentPath) return indexedDirectories;
+    const items = [...indexedDirectories.items];
+    const known = new Set(items.map(item => normalizePath(item.path)));
+    for (const directory of liveDirectories) {
+      if (known.has(normalizePath(directory.path))) continue;
+      items.push({ ...directory, sourceFolderId: selectedSource.id, videoCount: 0, sizeBytes: 0, modifiedAt: null });
+    }
+    items.sort((a, b) => a.name.localeCompare(b.name, "zh-CN", { numeric: true }));
+    return { ...indexedDirectories, items, totalCount: Math.max(indexedDirectories.totalCount, items.length), truncated: indexedDirectories.truncated || liveDirectoriesTruncated };
+  }, [currentPath, indexedDirectories, liveDirectories, liveDirectoriesTruncated, search, selectedSource]);
+
+  useEffect(() => {
+    setLiveDirectories(null);
+    if (compact && currentPath) setDirectoryListExpanded(true);
+  }, [compact, currentPath, selectedSource?.id]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchText.trim()), 160);
@@ -183,14 +205,14 @@ export function DirectoryBrowserPage({
           <span className="directory-folder-info"><strong>{item.name}</strong><small>含子目录 · {item.videoCount.toLocaleString("zh-CN")} 个视频</small></span>
           <ChevronRight className="directory-folder-enter" size={16} />
         </button>)}
-        {!directoryLoading && !error && directories.items.length === 0 && <span className="directory-folder-status">当前没有已索引的子文件夹</span>}
+        {!directoryLoading && !error && directories.items.length === 0 && <span className="directory-folder-status">当前没有可浏览的子文件夹</span>}
       </div>
-      {directories.truncated && <div className="directory-folder-limit">仅显示前 100 个子文件夹。<button type="button" onClick={onSearchDirectories}>搜索其他目录</button></div>}
+      {directories.truncated && <div className="directory-folder-limit">子目录较多，当前仅显示部分目录。<button type="button" onClick={onSearchDirectories}>搜索已索引目录</button></div>}
     </>}
     {scanPending && <p className="directory-context-status" role="status">正在后台扫描当前范围…{scanStatus?.currentPath ? ` ${scanStatus.currentPath}` : ""}</p>}
     {scanResult && <p className="directory-context-status" role="status">{scanResult.state === "completed" || scanResult.state === "completed-with-errors" ? `扫描结束：新增 ${scanResult.counters.addedVideos}，更新 ${scanResult.counters.updatedVideos}，异常 ${scanResult.counters.fileFailures + scanResult.counters.directoryFailures}` : `扫描状态：${scanResult.state}${scanResult.message ? ` · ${scanResult.message}` : ""}`}</p>}
     {error && <div className="directory-browser-error" role="alert">{error} <button type="button" className="secondary-button" onClick={() => setRevision((value) => value + 1)}>重新读取目录</button></div>}
-    {imageApi && selectedSource && <DirectoryImageGallery api={imageApi} sourceFolderId={selectedSource.id} directoryPath={currentPath} refreshSequence={refreshSequence} onNavigate={onNavigate} />}
+    {imageApi && selectedSource && <DirectoryImageGallery api={imageApi} sourceFolderId={selectedSource.id} directoryPath={currentPath} refreshSequence={refreshSequence + revision} onNavigate={onNavigate} onDirectoriesLoaded={onDirectoriesLoaded} />}
   </section>;
 
   const openSource = (folder: SourceFolder) => onNavigate(folder.path, folder.id);
@@ -278,7 +300,7 @@ export function DirectoryBrowserPage({
         </div>}
       </section>}
 
-      {!search && currentPath && selectedSource && imageApi && <DirectoryImageGallery api={imageApi} sourceFolderId={selectedSource.id} directoryPath={currentPath} refreshSequence={refreshSequence + revision} onNavigate={onNavigate} />}
+      {!search && currentPath && selectedSource && imageApi && <DirectoryImageGallery api={imageApi} sourceFolderId={selectedSource.id} directoryPath={currentPath} refreshSequence={refreshSequence + revision} onNavigate={onNavigate} onDirectoriesLoaded={onDirectoriesLoaded} />}
       {!search && currentPath && <section className="directory-video-section">
         <div className="directory-section-title">
           <div><h2>当前范围的视频</h2><small>{videos.totalCount.toLocaleString("zh-CN")} 个视频</small></div>

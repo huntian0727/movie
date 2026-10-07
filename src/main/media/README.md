@@ -1,5 +1,7 @@
 # 媒体模块
 
+图片路径校验使用异步 `fs.realpath` 兼容 resolver；部分 Windows 虚拟挂载盘不支持 `fs/promises.realpath` 的原生 resolver（UNKNOWN）。根目录、当前目录和图片文件仍按真实路径校验，不以失败后直接使用原始路径的方式跳过 junction/链接边界。
+
 - `directoryImageService.ts`：仅在进入目录时浅层列出 JPG/JPEG、PNG、WebP、GIF、BMP、AVIF；只保留最多 8 个短期文件名会话，每页 120 张，不写视频索引、不启动 FFprobe/指纹/全库扫描。原图和缩略图使用不可猜测会话 URL，读取前校验来源仍存在、真实目录/文件在授权边界内，离屏 AbortSignal 传给流与既有缓存队列。缩略图以单线程 FFmpeg 输出最长边 480px JPG，复用 covers 配额/清理/两并发与云盘单并发；原图只按需流式读取当前一张（上限 256 MB）。
 
 - `fileDiscovery.ts`：基于 `opendir` 流式递归枚举支持的视频，跳过临时后缀并隔离子目录错误；网盘保护采用单次目录条目读取 30 秒无响应超时，而不是整个目录的固定总时限。

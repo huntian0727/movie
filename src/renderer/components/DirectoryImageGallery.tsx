@@ -9,10 +9,11 @@ interface Props {
   sourceFolderId: string;
   directoryPath: string;
   refreshSequence: number;
+  onDirectoriesLoaded?(directories: DirectoryImagePage["directories"] | null, truncated?: boolean): void;
   onNavigate(path: string, sourceFolderId: string): void;
 }
 
-export function DirectoryImageGallery({ api, sourceFolderId, directoryPath, refreshSequence, onNavigate }: Props) {
+export function DirectoryImageGallery({ api, sourceFolderId, directoryPath, refreshSequence, onNavigate, onDirectoriesLoaded }: Props) {
   const [result, setResult] = useState<DirectoryImagePage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -32,6 +33,7 @@ export function DirectoryImageGallery({ api, sourceFolderId, directoryPath, refr
     setLoading(true); setError(""); setResult(null); setPage(0); setSelected(null);
     viewerWanted.current = false;
     sessionRef.current = undefined;
+    onDirectoriesLoaded?.(null);
     let ownedSession: string | undefined;
     void api.listDirectoryImages({ sourceFolderId, directoryPath }).then((data) => {
       ownedSession = data.sessionId;
@@ -39,13 +41,14 @@ export function DirectoryImageGallery({ api, sourceFolderId, directoryPath, refr
       if (sequence !== requestSequence.current) return;
       sessionRef.current = data.sessionId;
       setResult(data);
+      onDirectoriesLoaded?.(data.directories, data.directoriesTruncated);
     }).catch((cause) => { if (!disposed) setError(message(cause)); }).finally(() => { if (!disposed) setLoading(false); });
     return () => {
       disposed = true;
       requestSequence.current++;
       if (ownedSession) void api.closeImageDirectory(ownedSession).catch(() => undefined);
     };
-  }, [api, directoryPath, sourceFolderId, refreshSequence, revision]);
+  }, [api, directoryPath, sourceFolderId, refreshSequence, revision, onDirectoriesLoaded]);
 
   const movePage = async (nextPage: number, selection: number | null = null) => {
     if (!sessionRef.current || loading) return;
@@ -80,7 +83,7 @@ export function DirectoryImageGallery({ api, sourceFolderId, directoryPath, refr
     </header>
     {error && <div role="alert" className="image-gallery-error">{error}<button type="button" onClick={() => setRevision(value => value + 1)}>重新读取</button></div>}
     {loading && <p role="status"><LoaderCircle size={15} className="spin" />正在读取图片目录…</p>}
-    {result && result.directories.length > 0 && <details className="image-subdirectories"><summary>浏览子文件夹 · {result.directories.length}</summary><div>
+    {!onDirectoriesLoaded && result && result.directories.length > 0 && <details open className="image-subdirectories"><summary>浏览子文件夹 · {result.directories.length}</summary><div>
       {result.directories.map(directory => <button type="button" key={directory.path} onClick={() => onNavigate(directory.path, sourceFolderId)}><Folder size={16} />{directory.name}<ChevronRight size={14} /></button>)}
     </div></details>}
     {result && !loading && <>

@@ -19,6 +19,7 @@ export interface DirectoryImagePage {
   truncated: boolean;
   files: DirectoryImageItem[];
   directories: Array<{ name: string; path: string }>;
+  directoriesTruncated?: boolean;
 }
 export interface ImageViewingApi {
   listDirectoryImages(query: DirectoryImageQuery): Promise<DirectoryImagePage>;

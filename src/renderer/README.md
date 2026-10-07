@@ -1,6 +1,6 @@
 # Renderer 模块
 
-目录中的 `DirectoryImageGallery` 只负责图片查看：浅层目录分页、屏幕可见缩略图、大图与左右切换。缩略图通过 IntersectionObserver 延迟 120ms 请求，离屏/隐藏/卸载取消 fetch 并释放 Blob；打开大图时暂停缩略图读取，只保留当前原图，Esc 关闭并恢复焦点。没有图片搜索、收藏、去重或递归索引。
+目录中的 `DirectoryImageGallery` 只负责图片查看：浅层目录分页、屏幕可见缩略图、大图与左右切换。实际子目录通过稳定回调合并到 DirectoryBrowserPage 原有目录区域，按路径去重并保留已有视频统计；独立使用时直接显示子文件夹。缩略图通过 IntersectionObserver 延迟 120ms 请求，离屏/隐藏/卸载取消 fetch 并释放 Blob；打开大图时暂停缩略图读取，只保留当前原图，Esc 关闭并恢复焦点。没有图片搜索、收藏、去重或递归索引。
 
 Electron Renderer 的 React 展示层，不拥有磁盘/数据库权限。`App.tsx` 在入口验证 preload API：缺失时只显示 unsupported-runtime，存在时把必需的 `DesktopVideoManagerApi` 注入 `DesktopApp` 并负责页面状态与业务编排；`api/client.ts` 定义运行时边界；`components/` 放资料库、播放器和设置；`styles.css` 是全局视觉系统。
 
