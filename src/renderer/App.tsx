@@ -558,6 +558,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       shortcuts={settings.shortcuts}
       onLoadVideoPage={api.listVideoPage}
       onLoadDirectoryBrowser={api.listDirectoryBrowser}
+      imageApi={api}
       onSearchPlaybackDiagnosticVideos={api.searchPlaybackDiagnosticVideos}
       onLoadVideosByIds={api.listVideosByIds}
       playbackPreference={settings.playbackPreference}

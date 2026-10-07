@@ -3,9 +3,12 @@ import { AlertTriangle, ChevronRight, Clock3, Cloud, Folder, HardDrive, LoaderCi
 import type { DirectoryBrowserResult, FolderScanStatus, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDateTime, formatDuration } from "./formatters";
 import "./directoryBrowserPage.css";
+import { DirectoryImageGallery } from "./DirectoryImageGallery";
+import type { ImageViewingApi } from "../../shared/imageViewing";
 
 interface DirectoryBrowserPageProps {
   compact?: boolean;
+  imageApi?: ImageViewingApi;
   cardWidth?: number;
   viewMode?: "grid" | "table";
   onSearchDirectories?(): void;
@@ -33,6 +36,7 @@ const EMPTY_VIDEOS: LibraryPage = { videos: [], page: 1, pageSize: 30, totalPage
 
 export function DirectoryBrowserPage({
   compact = false,
+  imageApi,
   cardWidth = 260,
   viewMode = "grid",
   onSearchDirectories,
@@ -186,6 +190,7 @@ export function DirectoryBrowserPage({
     {scanPending && <p className="directory-context-status" role="status">正在后台扫描当前范围…{scanStatus?.currentPath ? ` ${scanStatus.currentPath}` : ""}</p>}
     {scanResult && <p className="directory-context-status" role="status">{scanResult.state === "completed" || scanResult.state === "completed-with-errors" ? `扫描结束：新增 ${scanResult.counters.addedVideos}，更新 ${scanResult.counters.updatedVideos}，异常 ${scanResult.counters.fileFailures + scanResult.counters.directoryFailures}` : `扫描状态：${scanResult.state}${scanResult.message ? ` · ${scanResult.message}` : ""}`}</p>}
     {error && <div className="directory-browser-error" role="alert">{error} <button type="button" className="secondary-button" onClick={() => setRevision((value) => value + 1)}>重新读取目录</button></div>}
+    {imageApi && selectedSource && <DirectoryImageGallery api={imageApi} sourceFolderId={selectedSource.id} directoryPath={currentPath} refreshSequence={refreshSequence} onNavigate={onNavigate} />}
   </section>;
 
   const openSource = (folder: SourceFolder) => onNavigate(folder.path, folder.id);
@@ -273,6 +278,7 @@ export function DirectoryBrowserPage({
         </div>}
       </section>}
 
+      {!search && currentPath && selectedSource && imageApi && <DirectoryImageGallery api={imageApi} sourceFolderId={selectedSource.id} directoryPath={currentPath} refreshSequence={refreshSequence + revision} onNavigate={onNavigate} />}
       {!search && currentPath && <section className="directory-video-section">
         <div className="directory-section-title">
           <div><h2>当前范围的视频</h2><small>{videos.totalCount.toLocaleString("zh-CN")} 个视频</small></div>

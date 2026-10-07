@@ -15,6 +15,8 @@ describe("IPC_CHANNELS", () => {
       libraryList: "library:list",
       libraryPage: "library:page",
       libraryDirectoryBrowser: "library:directory-browser",
+      imageDirectoryList: "image-directory:list",
+      imageDirectoryClose: "image-directory:close",
       libraryNavigation: "library:navigation",
       assetCenterSummary: "asset-center:summary",
       assetCenterSources: "asset-center:sources",

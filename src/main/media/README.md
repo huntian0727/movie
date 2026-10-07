@@ -1,5 +1,7 @@
 # 媒体模块
 
+- `directoryImageService.ts`：仅在进入目录时浅层列出 JPG/JPEG、PNG、WebP、GIF、BMP、AVIF；只保留最多 8 个短期文件名会话，每页 120 张，不写视频索引、不启动 FFprobe/指纹/全库扫描。原图和缩略图使用不可猜测会话 URL，读取前校验来源仍存在、真实目录/文件在授权边界内，离屏 AbortSignal 传给流与既有缓存队列。缩略图以单线程 FFmpeg 输出最长边 480px JPG，复用 covers 配额/清理/两并发与云盘单并发；原图只按需流式读取当前一张（上限 256 MB）。
+
 - `fileDiscovery.ts`：基于 `opendir` 流式递归枚举支持的视频，跳过临时后缀并隔离子目录错误；网盘保护采用单次目录条目读取 30 秒无响应超时，而不是整个目录的固定总时限。
 - `metadataService.ts`：调用静态 ffprobe；一次解析时长、分辨率、容器和首个视频/音频流的 codec、profile、pixel format，不得为 codec 再启动第二次 probe。
 - `playbackMetadataEnricher.ts`：只为历史 metadata ready 且 `codec_probe_status = unprobed`、并且真正准备播放的视频懒补全编码信息；同视频并发合并，成功写 `ready`（包括 codec 为空），失败写 `failed` 且普通播放不重试。播放器最多等待 2 秒，后台 probe 自行收尾并按文件版本更新。禁止把它改成启动时或迁移时的全库回填。

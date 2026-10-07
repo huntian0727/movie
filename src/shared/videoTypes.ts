@@ -1,4 +1,5 @@
 import type { SubtitleApi } from "./subtitles.js";
+import type { ImageViewingApi } from "./imageViewing.js";
 export const VIDEO_EXTENSIONS = [".mp4", ".mkv", ".avi", ".mov", ".flv", ".webm", ".wmv", ".m4v", ".ts"] as const;
 
 export const SORT_FIELDS = ["filename", "sizeBytes", "durationMs", "modifiedAt"] as const;
@@ -1008,6 +1009,8 @@ export const IPC_CHANNELS = {
   libraryList: "library:list",
   libraryPage: "library:page",
   libraryDirectoryBrowser: "library:directory-browser",
+  imageDirectoryList: "image-directory:list",
+  imageDirectoryClose: "image-directory:close",
   libraryNavigation: "library:navigation",
   assetCenterSummary: "asset-center:summary",
   assetCenterSources: "asset-center:sources",
@@ -1108,6 +1111,8 @@ export interface VideoManagerApi extends SubtitleApi {
   listVideos(query: LibraryQuery): Promise<VideoRecord[]>;
   listVideoPage(query: LibraryPageQuery, purpose?: string): Promise<LibraryPage>;
   listDirectoryBrowser(query: DirectoryBrowserQuery, purpose?: string): Promise<DirectoryBrowserResult>;
+  listDirectoryImages: ImageViewingApi["listDirectoryImages"];
+  closeImageDirectory: ImageViewingApi["closeImageDirectory"];
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
   getAssetCenterSummary(): Promise<AssetCenterSummary>;
   listVideoData(query: import("./videoDataTable.js").VideoDataQuery): Promise<import("./videoDataTable.js").VideoDataPage>;

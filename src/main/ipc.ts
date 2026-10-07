@@ -43,6 +43,7 @@ import type { StructuredLogger } from "./logging/logger.js";
 import { buildCacheKey, getCoverPath, getCoverTimeSeconds } from "./media/cacheService.js";
 import { loadPreviewImage } from "./media/mediaProtocol.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
+import type { DirectoryImageService } from "./media/directoryImageService.js";
 import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js";
 import { bindLegacyCloudDriveDuplicateCandidates } from "./media/cloudDriveLegacyBindingService.js";
 import type { ScanManager } from "./media/scanManager.js";
@@ -352,6 +353,7 @@ interface IpcDependencies {
   settings: SettingsStore;
   cacheRoot: string;
   cacheManager: MediaCacheManager;
+  directoryImages?: DirectoryImageService;
   playerWindows: PlayerWindowCoordinator;
   embeddedPlayer?: EmbeddedPlayer;
   subtitles?: SubtitleService;
@@ -423,6 +425,12 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
 }
 
 export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDependencies): void {
+  ipcMain.handle(IPC_CHANNELS.imageDirectoryList, (_event, query) => {
+    const parsed = z.object({ sourceFolderId: z.string().min(1).max(100), directoryPath: z.string().min(1).max(32767), sessionId: z.string().uuid().optional(), offset: z.number().int().min(0).max(20_000).optional() }).strict().parse(query);
+    if (!dependencies.directoryImages) throw new Error("图片查看服务未连接");
+    return dependencies.directoryImages.list(parsed);
+  });
+  ipcMain.handle(IPC_CHANNELS.imageDirectoryClose, (_event, id) => dependencies.directoryImages?.close(z.string().uuid().parse(id)));
   const subtitles = () => { if (!dependencies.subtitles) throw new Error("字幕服务未就绪"); return dependencies.subtitles; };
   ipcMain.handle(IPC_CHANNELS.subtitleConfigGet, () => subtitles().credentials.status());
   ipcMain.handle(IPC_CHANNELS.subtitleWebsite, (_event, payload) => shell.openExternal(subtitleProviderWebsites[subtitleProviderSchema.parse(payload)]));

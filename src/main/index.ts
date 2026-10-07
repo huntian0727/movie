@@ -19,6 +19,7 @@ import { ScanManager } from "./media/scanManager.js";
 import { getMediaCacheRoot, migrateLegacyMediaCache } from "./media/cacheService.js";
 import { MediaCacheManager } from "./media/cacheManager.js";
 import { MEDIA_SCHEME, registerMediaProtocol } from "./media/mediaProtocol.js";
+import { DirectoryImageService } from "./media/directoryImageService.js";
 import { MetadataQueue } from "./media/metadataQueue.js";
 import { PlaybackMetadataEnricher } from "./media/playbackMetadataEnricher.js";
 import { PlaybackStartupPriority } from "./media/playbackStartupPriority.js";
@@ -184,6 +185,7 @@ app.whenReady().then(async () => {
     logger
   });
   await mediaCacheManager.initialize({ deferMaintenance: true });
+  const directoryImages = new DirectoryImageService(() => repo.listSourceFolders(), mediaCacheManager);
   const domainEvents = new DomainEventBus();
   metadataQueue = new MetadataQueue(
     repo,
@@ -240,6 +242,7 @@ app.whenReady().then(async () => {
     settings,
     cacheRoot,
     cacheManager: mediaCacheManager,
+    directoryImages,
     scanManager,
     metadataQueue,
     playerWindows,
@@ -249,7 +252,7 @@ app.whenReady().then(async () => {
     duplicateCleanup,
     duplicateCleanupJobs
   });
-  registerMediaProtocol(repo, mediaCacheManager, () => settings.get().coverFrameTimeSeconds);
+  registerMediaProtocol(repo, mediaCacheManager, () => settings.get().coverFrameTimeSeconds, directoryImages);
   const packagedSmokePhase = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_PHASE;
   const packagedSmokeResult = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_RESULT;
   if ((packagedSmokePhase === "create" || packagedSmokePhase === "verify") && packagedSmokeResult) {

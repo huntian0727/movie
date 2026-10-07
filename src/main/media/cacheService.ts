@@ -107,11 +107,17 @@ export async function generateTimelineFrame(
   );
 }
 
+export async function generateStillThumbnail(inputPath: string, outputPath: string, dependencies: CacheGenerationDependencies = {}): Promise<void> {
+  await generateImage(inputPath, outputPath,
+    ["-y", "-threads", "1", "-i", inputPath, "-frames:v", "1", "-update", "1", "-vf", "scale=480:480:force_original_aspect_ratio=decrease", "-threads", "1", outputPath],
+    "image thumbnail", dependencies);
+}
+
 async function generateImage(
   inputPath: string,
   outputPath: string,
   args: string[],
-  imageType: "cover" | "timeline frame",
+  imageType: "cover" | "timeline frame" | "image thumbnail",
   dependencies: CacheGenerationDependencies
 ): Promise<void> {
   let ffmpegPath: string;

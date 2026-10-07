@@ -9,6 +9,7 @@ import { CacheGenerationSupersededError, ImageCacheMissError, type MediaCacheMan
 import { ImageRequestCancelledError, type ImageRequestOptions } from "./imageGenerationQueue.js";
 import { getTimelinePreviewFromUrl, getVideoIdFromCoverUrl, getVideoIdFromMediaUrl, MEDIA_SCHEME } from "./mediaUrl.js";
 import { getStoryboardTimes } from "../../shared/storyboard.js";
+import type { DirectoryImageService } from "./directoryImageService.js";
 
 export { MEDIA_SCHEME } from "./mediaUrl.js";
 
@@ -45,11 +46,14 @@ const imageResponseHeaders = {
 export function registerMediaProtocol(
   repo: VideoRepository,
   cacheManager: MediaCacheManager,
-  getCoverFrameTimeSeconds: () => number = () => 5
+  getCoverFrameTimeSeconds: () => number = () => 5,
+  directoryImages?: DirectoryImageService
 ): void {
   protocol.handle(MEDIA_SCHEME, async (request) => {
     try {
       const parsed = new URL(request.url);
+
+      if (parsed.hostname === "image" && directoryImages) return await directoryImages.respond(request);
 
       if (parsed.hostname === "media") {
         const videoId = getVideoIdFromMediaUrl(request.url);

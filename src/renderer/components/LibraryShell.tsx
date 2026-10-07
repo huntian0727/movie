@@ -80,6 +80,7 @@ interface LibraryShellProps {
   navigation?: LibraryNavigationSnapshot;
   onLoadVideoPage?(query: LibraryPageQuery, purpose?: string): Promise<LibraryPage>;
   onLoadDirectoryBrowser?: VideoManagerApi["listDirectoryBrowser"];
+  imageApi?: Pick<VideoManagerApi, "listDirectoryImages" | "closeImageDirectory">;
   onLoadVideosByIds?(videoIds: string[]): Promise<VideoRecord[]>;
   onSearchPlaybackDiagnosticVideos?: VideoManagerApi["searchPlaybackDiagnosticVideos"];
   playbackPreference?: PlaybackPreference;
@@ -151,6 +152,7 @@ export function LibraryShell({
   navigation,
   onLoadVideoPage,
   onLoadDirectoryBrowser,
+  imageApi,
   onLoadVideosByIds,
   onSearchPlaybackDiagnosticVideos,
   playbackPreference = "auto",
@@ -835,6 +837,7 @@ export function LibraryShell({
         {view === "folder" && selectedFolderPath && onLoadDirectoryBrowser && onLoadVideoPage && <DirectoryBrowserPage
           key={`folder-context:${selectedFolderPath}`}
           compact
+          imageApi={imageApi}
           cardWidth={gridCardWidth}
           viewMode={viewMode}
           onSearchDirectories={() => { openDirectoryBrowser(); setDirectoryBrowserFocusSequence((value) => value + 1); }}
@@ -860,6 +863,7 @@ export function LibraryShell({
           onLoadDirectoryBrowser && onLoadVideoPage
             ? <DirectoryBrowserPage
                 key={selectedFolderPath ?? "directory-browser-root"}
+                imageApi={imageApi}
                 folders={folders}
                 recentDirectories={recentDirectories}
                 selectedSourceId={directoryBrowserSourceId}
