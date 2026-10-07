@@ -20,6 +20,9 @@ status: completed
 
 ## Verification
 
+- 桌面实测发现展开较长目录会挤压上方菜单；目录区改用零基础高度分配剩余空间，使菜单高度不随目录数量变化。修复后重新执行质量门禁、提交、打包和桌面验证。
+- 最后 CSS 修复后的完整门禁完成 lint/build、Windows 文件、迁移、性能与 1003 项测试：1002 项通过，Asset Center 32 万视频性能项在并发批次中为 2053.89ms（门槛 2000ms），单独以一 worker 复测该原始检查通过，为 1553.86ms，异常查询 634.02ms。未放宽阈值；保留失败批次日志 `.tmp/directory-release-gate.log`。以该完整批次与失败项原样复测共同覆盖最终代码全部检查。
+
 - Node 22.23.1/npm 10.9.8；Node SQLite ABI 127 已恢复。
 - `typecheck` PASS。
 - 定向 renderer 3 文件 / 80 项 PASS（LibraryShell 64、DirectoryFilterTree 7、App 9）：折叠不改页面或查询、独立记忆、重挂载恢复、原导航可用、目录缓存和展开保留、存储写入失败仍可操作。

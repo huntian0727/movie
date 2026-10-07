@@ -291,7 +291,7 @@ button { color: inherit; }
 .folder-nav-row.source-folder:hover .folder-source-actions, .folder-source-actions:focus-within { opacity: 1; }
 .folder-source-actions button { width: 24px; height: 28px; padding: 0; border: 0; border-radius: 5px; display: grid; place-items: center; color: #777b75; background: transparent; cursor: pointer; }
 .folder-source-actions button:hover { color: #fff; background: #30332f; }
-.sidebar-library-sources { min-height: 32px; margin-top: 14px; flex: 1 1 auto; display: flex; flex-direction: column; }
+.sidebar-library-sources { min-height: 32px; margin-top: 14px; flex: 1 1 0; display: flex; flex-direction: column; }
 .sidebar-library-sources.is-collapsed { flex: 0 0 auto; }
 .sidebar-library-sources > .sidebar-menu-content { min-height: 0; flex: 1; display: flex; flex-direction: column; padding-left: 5px; margin-left: 16px; border-left: 1px solid #343b34; }
 .sidebar-add-source { position: relative; }
