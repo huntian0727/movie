@@ -530,9 +530,9 @@ export interface CloudDriveLegacyBindingProgress {
   errorMessage: string | null;
 }
 
-export interface CloudDriveConnectionSettings {
+export interface CloudDrivePublicSettings {
   endpoint: string;
-  apiToken: string;
+  configured: boolean;
   timeoutMs: number;
   mountMapJson: string;
 }
@@ -788,9 +788,14 @@ export interface AppSettings {
   seekStepSeconds: number;
   coverFrameTimeSeconds: 0 | 3 | 5 | 10 | 15;
   playbackPreference: PlaybackPreference;
-  cloudDrive: CloudDriveConnectionSettings;
+  cloudDrive: CloudDrivePublicSettings;
   shortcuts: ShortcutSettings;
 }
+
+/** Only settings:set accepts a credential replacement. No read API returns it. */
+export type AppSettingsUpdate = Omit<AppSettings, "cloudDrive"> & {
+  cloudDrive: CloudDrivePublicSettings & { apiToken?: string };
+};
 
 export type AssetCenterSourceType = "localOrMounted" | "nas" | "clouddrive";
 export type AssetCenterSourceAvailability = "reachable" | "offline" | "checkFailed" | "unknown" | "disabled";
@@ -1208,7 +1213,7 @@ export interface VideoManagerApi extends SubtitleApi {
   previewDiagnostics(includeFullPaths: boolean): Promise<DiagnosticsPreview>;
   exportDiagnostics(includeFullPaths: boolean): Promise<DiagnosticsExportResult>;
   getSettings(): Promise<SettingsSnapshot>;
-  setSettings(settings: AppSettings): Promise<AppSettings>;
+  setSettings(settings: AppSettingsUpdate): Promise<AppSettings>;
   clearCache(): Promise<MediaCacheCleanupResult>;
 }
 

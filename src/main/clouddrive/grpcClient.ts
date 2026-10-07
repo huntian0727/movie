@@ -1,5 +1,7 @@
 import http2, { type ClientHttp2Session, type IncomingHttpHeaders } from "node:http2";
 import { ProtoReader, decodeTimestamp, encodeBoolField, encodeStringField } from "./protobuf.js";
+import { parseCloudDriveEndpoint } from "../../shared/cloudDriveEndpoint.js";
+import { redactSensitiveValues, registerSensitiveValue } from "../logging/redaction.js";
 
 const SERVICE_NAME = "clouddrive.CloudDriveFileSrv";
 const DEFAULT_RPC_TIMEOUT_MS = 20_000;
@@ -45,14 +47,12 @@ export class CloudDriveGrpcClient {
   private session: ClientHttp2Session | null = null;
 
   constructor(options: CloudDriveGrpcClientOptions) {
-    const endpoint = new URL(options.endpoint);
-    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
-      throw new Error(`CloudDrive endpoint must be http(s), got ${endpoint.protocol}`);
-    }
+    const endpoint = parseCloudDriveEndpoint(options.endpoint);
     this.origin = endpoint.origin;
     this.apiToken = options.apiToken.trim();
     this.timeoutMs = options.timeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
     if (!this.apiToken) throw new Error("CloudDrive API token is empty");
+    registerSensitiveValue(this.apiToken);
     if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) throw new Error("CloudDrive RPC timeout must be positive");
   }
 
@@ -105,7 +105,9 @@ export class CloudDriveGrpcClient {
     if (payloads.length !== 1) {
       throw new Error(`CloudDrive ${method} returned ${payloads.length} gRPC messages; expected 1`);
     }
-    return { ...decodeFileOperationResult(payloads[0]), permanentlyDeleted: permanently };
+    const result = decodeFileOperationResult(payloads[0]);
+    result.errorMessage = redactSensitiveValues(result.errorMessage);
+    return { ...result, permanentlyDeleted: permanently };
   }
 
   close(): void {
@@ -115,6 +117,23 @@ export class CloudDriveGrpcClient {
   }
 
   private async *serverStream(
+    method: string,
+    requestPayload: Buffer,
+    isCancelled?: () => boolean
+  ): AsyncGenerator<Buffer> {
+    try {
+      yield* this.serverStreamRaw(method, requestPayload, isCancelled);
+    } catch (cause) {
+      // Never propagate raw header/native error objects, stacks or nested causes.
+      const error = new Error(redactSensitiveValues(cause instanceof Error ? cause.message : "CloudDrive RPC failed")) as Error & { code?: string };
+      if (cause && typeof cause === "object" && "code" in cause && typeof cause.code === "string") {
+        error.code = redactSensitiveValues(cause.code);
+      }
+      throw error;
+    }
+  }
+
+  private async *serverStreamRaw(
     method: string,
     requestPayload: Buffer,
     isCancelled?: () => boolean
@@ -186,6 +205,7 @@ export class CloudDriveGrpcClient {
     if (httpStatus !== 200) throw new Error(`CloudDrive ${method} returned HTTP ${String(httpStatus ?? "unknown")}`);
     const grpcStatus = headerValue(trailers, "grpc-status") ?? headerValue(responseHeaders, "grpc-status");
     if (grpcStatus === null) throw new Error(`CloudDrive ${method} response omitted grpc-status`);
+    if (!/^\d{1,2}$/.test(grpcStatus)) throw new Error(`CloudDrive ${method} response has invalid grpc-status`);
     if (grpcStatus !== "0") {
       const message = decodeGrpcMessage(
         headerValue(trailers, "grpc-message") ?? headerValue(responseHeaders, "grpc-message") ?? "Unknown gRPC error"

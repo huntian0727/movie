@@ -4,6 +4,7 @@ import type { SubtitleApi } from "../../shared/subtitles";
 import { ArrowLeft, Cloud, Database, FileDown, FolderSearch, Keyboard, RotateCcw } from "lucide-react";
 import type {
   AppSettings,
+  AppSettingsUpdate,
   CloudDriveConnectionTestResult,
   DiagnosticsExportResult,
   DiagnosticsPreview,
@@ -12,6 +13,7 @@ import type {
   PlaybackPreference,
   ShortcutActionId
 } from "../../shared/videoTypes";
+import { parseCloudDriveEndpoint } from "../../shared/cloudDriveEndpoint";
 import {
   DEFAULT_SHORTCUTS,
   SHORTCUT_DEFINITIONS,
@@ -25,7 +27,7 @@ interface SettingsPageProps {
   cacheLocation: string;
   cacheStatus: MediaCacheStatus;
   onBack?(): void;
-  onChange?(settings: AppSettings): void | Promise<void>;
+  onChange?(settings: AppSettingsUpdate): void | Promise<void>;
   onTestCloudDrive?(): Promise<CloudDriveConnectionTestResult>;
   onClearCache?(): MediaCacheCleanupResult | null | Promise<MediaCacheCleanupResult | null>;
   onPreviewDiagnostics?(includeFullPaths: boolean): Promise<DiagnosticsPreview>;
@@ -53,22 +55,24 @@ export function SettingsPage({
   const [capturingShortcut, setCapturingShortcut] = useState<ShortcutActionId | null>(null);
   const [shortcutMessage, setShortcutMessage] = useState<string | null>(null);
   const [cloudDriveDraft, setCloudDriveDraft] = useState({ ...settings.cloudDrive });
+  const [tokenReplacement, setTokenReplacement] = useState("");
   const [cloudDriveBusy, setCloudDriveBusy] = useState(false);
   const [cloudDriveMessage, setCloudDriveMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   useEffect(() => setCloudDriveDraft({ ...settings.cloudDrive }), [settings.cloudDrive]);
   const update = (patch: Partial<AppSettings>) => void onChange?.({ ...settings, ...patch });
   const validateCloudDriveDraft = () => {
-    const endpoint = new URL(cloudDriveDraft.endpoint);
-    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") throw new Error("API 地址必须使用 http:// 或 https://");
-    if (!cloudDriveDraft.apiToken.trim()) throw new Error("请填写 CloudDrive API Token");
+    parseCloudDriveEndpoint(cloudDriveDraft.endpoint);
     if (cloudDriveDraft.mountMapJson.trim()) {
-      const mountMap = JSON.parse(cloudDriveDraft.mountMapJson) as unknown;
+      let mountMap: unknown;
+      try { mountMap = JSON.parse(cloudDriveDraft.mountMapJson); }
+      catch { throw new Error("挂载映射必须是有效的 JSON 数组"); }
       if (!Array.isArray(mountMap)) throw new Error("挂载映射必须是 JSON 数组");
     }
   };
   const saveCloudDrive = async (showSuccess = true) => {
     validateCloudDriveDraft();
-    await onChange?.({ ...settings, cloudDrive: { ...cloudDriveDraft } });
+    await onChange?.({ ...settings, cloudDrive: { ...cloudDriveDraft, ...(tokenReplacement.trim() ? { apiToken: tokenReplacement } : {}) } });
+    setTokenReplacement("");
     if (showSuccess) setCloudDriveMessage({ kind: "success", text: "CloudDrive API 配置已保存。" });
   };
   const testCloudDrive = async () => {
@@ -183,7 +187,7 @@ export function SettingsPage({
             </label>
             <label>
               <span>API Token</span>
-              <input aria-label="CloudDrive API Token" type="password" autoComplete="off" value={cloudDriveDraft.apiToken} placeholder="填写 CloudDrive API Token" onChange={(event) => setCloudDriveDraft((current) => ({ ...current, apiToken: event.target.value }))} />
+              <input aria-label="CloudDrive API Token" type="password" autoComplete="off" value={tokenReplacement} placeholder={settings.cloudDrive.configured ? "已配置；留空保留，输入新 Token 替换" : "填写 CloudDrive API Token"} onChange={(event) => setTokenReplacement(event.target.value)} />
             </label>
             <label>
               <span>请求超时（毫秒）</span>

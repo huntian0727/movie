@@ -165,7 +165,7 @@ app.whenReady().then(async () => {
   libraryPageQueries = new LibraryPageQueryService(databasePath);
   sourceFolderRemoval = new SourceFolderRemovalService(databasePath);
   const settings = await createSettingsStore();
-  configureCloudDriveRuntime(settings.get().cloudDrive, process.env);
+  configureCloudDriveRuntime(settings.get().cloudDrive, settings.getCloudDriveToken(), process.env);
   const userDataPath = app.getPath("userData");
   const subtitles = new SubtitleService(repo, path.join(userDataPath, "subtitles"), createSubtitleCredentialStore(userDataPath));
   const cacheRoot = getMediaCacheRoot(userDataPath);

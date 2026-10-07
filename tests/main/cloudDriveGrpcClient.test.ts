@@ -83,6 +83,24 @@ describe("CloudDrive gRPC client", () => {
     await expect(readAll(client)).rejects.toThrow("omitted grpc-status");
   });
 
+  it("redacts a server's raw/encoded credential echo in gRPC errors and delete results", async () => {
+    const endpoint = await startServer((stream, headers) => {
+      const credential = String(headers.authorization).slice("Bearer ".length);
+      if (String(headers[":path"]).endsWith("DeleteFilesPermanently")) {
+        respond(stream);
+        stream.end(grpcFrame(encodeStringField(2, `Rejected ${credential}`)));
+      } else {
+        stream.respond({ ":status": 200, "content-type": "application/grpc", "grpc-status": "7", "grpc-message": encodeURIComponent(`Rejected ${credential}`) });
+        stream.end();
+      }
+    });
+    const client = createClient(endpoint);
+    await expect(readAll(client)).rejects.toThrow("Rejected <redacted>");
+    const result = await client.deleteFiles(["/115/a.mp4"]);
+    expect(result.errorMessage).toBe("Rejected <redacted>");
+    expect(JSON.stringify(result)).not.toContain("test-token-never-logged");
+  });
+
   it("times out an unresponsive stream", async () => {
     const endpoint = await startServer(() => undefined);
     const client = createClient(endpoint, 30);

@@ -8,6 +8,20 @@ const POSIX_HOME_PATH = /\/(?:Users|home)\/[^\r\n)",]+/g;
 const MAX_STRING_LENGTH = 4_000;
 const MAX_ARRAY_ITEMS = 20;
 const MAX_DEPTH = 6;
+// Main-process memory only. Retain replaced values for delayed errors from old RPCs.
+const sensitiveValues = new Set<string>();
+export function registerSensitiveValue(value: string): void {
+  if (!value) return;
+  sensitiveValues.add(value);
+  sensitiveValues.add(encodeURIComponent(value));
+}
+
+export function redactSensitiveValues(value: string): string {
+  for (const secret of [...sensitiveValues].sort((a, b) => b.length - a.length)) {
+    value = value.split(secret).join("<redacted>");
+  }
+  return value;
+}
 
 export function hashIdentifier(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 12);
@@ -20,6 +34,7 @@ export function redactPath(value: string): string {
 }
 
 export function redactString(value: string): string {
+  value = redactSensitiveValues(value);
   const bounded = value.length > MAX_STRING_LENGTH ? `${value.slice(0, MAX_STRING_LENGTH)}…<truncated>` : value;
   if (path.win32.isAbsolute(bounded) || path.posix.isAbsolute(bounded)) {
     return redactPath(bounded);
@@ -41,10 +56,10 @@ export function sanitizeForLog(value: unknown, key = "", depth = 0): unknown {
   if (value instanceof Error) {
     const errorCode = "code" in value && typeof value.code === "string" ? value.code : undefined;
     return {
-      name: value.name,
+      name: redactString(value.name),
       message: redactString(value.message),
       stack: value.stack ? redactString(value.stack) : undefined,
-      code: errorCode
+      code: errorCode ? redactString(errorCode) : undefined
     };
   }
   if (Array.isArray(value)) {

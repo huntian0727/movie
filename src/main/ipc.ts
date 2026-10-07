@@ -57,6 +57,8 @@ import type { EmbeddedPlayer } from "./embeddedPlayer/embeddedPlayer.js";
 import type { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
 import { wrapTrustedIpcHandler } from "./security.js";
 import type { SettingsStore } from "./settings/settingsStore.js";
+import { toPublicSettings } from "./settings/settingsStore.js";
+import { isValidCloudDriveEndpoint } from "../shared/cloudDriveEndpoint.js";
 
 type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => unknown;
 
@@ -133,6 +135,15 @@ const ipcMain = {
         }
         return result;
       } catch (error) {
+        if (channel === IPC_CHANNELS.settingsSet) {
+          // Zod/filesystem errors may embed a write-only credential or invalid URL input.
+          // Report a fixed message; neither raw error nor arguments enter Electron/logs.
+          const message = error instanceof z.ZodError
+            ? "设置参数无效：CloudDrive 非本机地址必须使用 HTTPS，请检查地址、Token 和超时配置"
+            : "设置保存失败，请检查系统安全存储和数据目录权限";
+          ipcLogger?.warn({ module: "ipc", event: "settings_save_failed", context: { channel } });
+          throw new Error(message);
+        }
         if (channel.startsWith("subtitles:")) {
           // Native filesystem/network and schema diagnostics may contain sensitive input.
           // Only our own user-facing messages cross this boundary, with no error logging.
@@ -301,8 +312,9 @@ const settingsSchema = z.object({
   coverFrameTimeSeconds: z.union([z.literal(0), z.literal(3), z.literal(5), z.literal(10), z.literal(15)]),
   playbackPreference: z.enum(["auto", "native-first", "mpv-first", "embedded-first"]),
   cloudDrive: z.object({
-    endpoint: z.string().trim().url().refine((value) => value.startsWith("http://") || value.startsWith("https://"), "CloudDrive endpoint must use HTTP or HTTPS"),
-    apiToken: z.string().trim().max(16_384),
+    endpoint: z.string().trim().refine(isValidCloudDriveEndpoint, "CloudDrive non-loopback endpoints require HTTPS"),
+    configured: z.boolean(),
+    apiToken: z.string().trim().max(16_384).optional(),
     timeoutMs: z.number().int().min(1_000).max(120_000),
     mountMapJson: z.string().trim().max(100_000)
   }).strict(),
@@ -1124,16 +1136,16 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
 
   ipcMain.handle(IPC_CHANNELS.settingsGet, () => ({
-    settings: dependencies.settings.get(),
+    settings: toPublicSettings(dependencies.settings.get()),
     cacheLocation: dependencies.cacheRoot,
     cacheStatus: dependencies.cacheManager.getStatus()
   }));
 
   ipcMain.handle(IPC_CHANNELS.settingsSet, (_event, payload) => {
     const settings = dependencies.settings.set(settingsSchema.parse(payload));
-    configureCloudDriveRuntime(settings.cloudDrive, process.env);
+    configureCloudDriveRuntime(settings.cloudDrive, dependencies.settings.getCloudDriveToken(), process.env);
     dependencies.domainEvents.publish({ type: "settings:changed", videoIds: [] });
-    return settings;
+    return toPublicSettings(settings);
   });
 
   ipcMain.handle(IPC_CHANNELS.cacheClear, async () => {

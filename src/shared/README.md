@@ -1,5 +1,7 @@
 # Shared 契约模块
 
+CloudDrive 公开读取契约为 `CloudDrivePublicSettings`（endpoint、timeoutMs、mountMapJson、configured），不含 Token；仅 `AppSettingsUpdate` 的可选 `apiToken` 用于只写替换。真实凭据类型和读取方法只属于主进程。`cloudDriveEndpoint.ts` 不依赖 Node/Electron，供两侧共用 HTTPS/loopback 规则。
+
 `videoTypes.ts` 是主/预加载/渲染共享的领域类型、扩展名、排序白名单、IPC channel 和 `VideoManagerApi`；`playbackRouting.ts` 用扩展名与偏好选择 native/mpv。
 
 这是跨层变更起点而非实现层。新增字段/方法后必须追踪 DB、repository、preload、IPC Zod、renderer fixtures/UI 和测试。不要把 Node/Electron 类型引入此目录。覆盖见 `videoTypes.test.ts`、`playerRouting.test.ts`、`ipcContracts.test.ts`。

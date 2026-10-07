@@ -108,6 +108,22 @@ describe("project backup and rollback", () => {
     expect(result.stderr).toMatch(/Restore refused:.*closing every video manager/is);
   });
 
+  it("backs up, verifies and restores CloudDrive ciphertext with public settings", () => {
+    const { userDataPath, backupRoot } = fixture();
+    const file = path.join(userDataPath, "clouddrive-credentials.bin");
+    const originalBytes = Buffer.from([0, 255, 33, 42, 71, 96]);
+    writeFileSync(file, originalBytes);
+    writeFileSync(path.join(userDataPath, "settings.json"), JSON.stringify({ cloudDrive: { endpoint: "http://127.0.0.1:19798" } }));
+    const snapshot = runBackup("--action=create", `--backup-root=${backupRoot}`, `--user-data=${userDataPath}`);
+    expect(snapshot.manifest.files.cloudDriveCredentials.sha256).toHaveLength(64);
+    expect(readFileSync(path.join(snapshot.snapshotDirectory, "clouddrive-credentials.bin"))).toEqual(originalBytes);
+    writeFileSync(file, Buffer.from([1, 2, 3]));
+    runBackup("--action=restore", `--backup-root=${backupRoot}`, `--user-data=${userDataPath}`, `--snapshot=${snapshot.manifest.id}`, "--confirm-application-closed");
+    expect(readFileSync(file)).toEqual(originalBytes);
+    writeFileSync(path.join(snapshot.snapshotDirectory, "clouddrive-credentials.bin"), Buffer.alloc(originalBytes.length));
+    expect(invokeBackup(["--action=verify", `--backup-root=${backupRoot}`, `--snapshot=${snapshot.manifest.id}`]).stderr).toMatch(/checksum mismatch/i);
+  });
+
   it("detects a changed backup file before restore", () => {
     const { userDataPath, backupRoot } = fixture();
     const snapshot = runBackup("--action=create", `--backup-root=${backupRoot}`, `--user-data=${userDataPath}`, "--label=safe");

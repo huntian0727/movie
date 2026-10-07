@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "../../src/renderer/components/SettingsPage";
-import type { AppSettings, MediaCacheStatus } from "../../src/shared/videoTypes";
+import type { AppSettings, AppSettingsUpdate, MediaCacheStatus } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
-const settings: AppSettings = { defaultRecursiveScan: true, startupSync: true, autoPlayOnOpen: true, seekStepSeconds: 10, coverFrameTimeSeconds: 5, playbackPreference: "auto", cloudDrive: { endpoint: "http://127.0.0.1:19798", apiToken: "test-token", timeoutMs: 20_000, mountMapJson: "" }, shortcuts: { ...DEFAULT_SHORTCUTS } };
+const settings: AppSettings = { defaultRecursiveScan: true, startupSync: true, autoPlayOnOpen: true, seekStepSeconds: 10, coverFrameTimeSeconds: 5, playbackPreference: "auto", cloudDrive: { endpoint: "http://127.0.0.1:19798", configured: true, timeoutMs: 20_000, mountMapJson: "" }, shortcuts: { ...DEFAULT_SHORTCUTS } };
 const cacheStatus: MediaCacheStatus = {
   totalBytes: 1536,
   coverBytes: 512,
@@ -94,6 +94,42 @@ describe("SettingsPage", () => {
       cloudDrive: { ...settings.cloudDrive, apiToken: "new-token" }
     });
     expect(screen.getByText(/连接成功：API 返回 1 个挂载点/)).toBeInTheDocument();
+    expect(screen.getByLabelText("CloudDrive API Token")).toHaveValue("");
+  });
+
+  it("keeps a configured credential write-only and omits blank replacements", async () => {
+    const onChange = vi.fn(async (_settings: AppSettingsUpdate) => undefined);
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
+    expect(screen.getByLabelText("CloudDrive API Token")).toHaveValue("");
+    expect(screen.getByLabelText("CloudDrive API Token")).toHaveAttribute("placeholder", expect.stringContaining("已配置"));
+    fireEvent.change(screen.getByLabelText("CloudDrive API 请求超时"), { target: { value: "30000" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+    await waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    expect(onChange.mock.calls[0][0]).toEqual({ ...settings, cloudDrive: { ...settings.cloudDrive, timeoutMs: 30000 } });
+    expect(JSON.stringify(onChange.mock.calls)).not.toContain("apiToken");
+  });
+
+  it("rejects remote HTTP before saving or testing and allows HTTPS", async () => {
+    const onChange = vi.fn(async () => undefined);
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("CloudDrive API 地址"), { target: { value: "http://192.168.1.10:19798" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("HTTPS"));
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("CloudDrive API 地址"), { target: { value: "https://192.168.1.10:19798" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+    await waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+  });
+
+  it("retains an unsaved replacement across errors but never prefills from settings sync", async () => {
+    const onChange = vi.fn(async () => { throw new Error("设置保存失败"); });
+    const { rerender } = render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("CloudDrive API Token"), { target: { value: "new-token" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("设置保存失败"));
+    expect(screen.getByLabelText("CloudDrive API Token")).toHaveValue("new-token");
+    rerender(<SettingsPage settings={{ ...settings, cloudDrive: { ...settings.cloudDrive, timeoutMs: 40000 } }} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} onChange={onChange} />);
+    expect(screen.getByLabelText("CloudDrive API Token")).toHaveValue("new-token");
   });
 
   it("shows reclaimed space and cleanup failures returned by the main process", async () => {

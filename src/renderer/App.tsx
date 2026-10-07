@@ -22,7 +22,7 @@ const defaultSettings: AppSettings = {
   playbackPreference: "auto",
   cloudDrive: {
     endpoint: "http://127.0.0.1:19798",
-    apiToken: "",
+    configured: false,
     timeoutMs: 20_000,
     mountMapJson: ""
   },

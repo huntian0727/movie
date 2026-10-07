@@ -20,6 +20,7 @@ import { pathToFileURL } from "node:url";
 const FORMAT_VERSION = 1;
 const DATABASE_FILE = "library.sqlite";
 const SETTINGS_FILE = "settings.json";
+const CLOUDDRIVE_CREDENTIAL_FILE = "clouddrive-credentials.bin";
 
 export async function createSnapshot(options) {
   const createdAt = options.now?.toISOString() ?? new Date().toISOString();
@@ -47,6 +48,7 @@ export async function createSnapshot(options) {
     const files = {
       database: await describeFile(databasePath, DATABASE_FILE),
       settings: null,
+      cloudDriveCredentials: null,
       sourceBundle: null,
       installer: null
     };
@@ -61,6 +63,12 @@ export async function createSnapshot(options) {
       const sourceBundleDestination = path.join(temporaryDirectory, "source.bundle");
       await copyFile(path.resolve(options.sourceBundlePath), sourceBundleDestination);
       files.sourceBundle = await describeFile(sourceBundleDestination, "source.bundle");
+    }
+    const credentialSource = path.join(userDataPath, CLOUDDRIVE_CREDENTIAL_FILE);
+    if (await pathExists(credentialSource)) {
+      const destination = path.join(temporaryDirectory, CLOUDDRIVE_CREDENTIAL_FILE);
+      await copyFile(credentialSource, destination);
+      files.cloudDriveCredentials = await describeFile(destination, CLOUDDRIVE_CREDENTIAL_FILE);
     }
     if (options.installerPath) {
       const installerName = path.basename(options.installerPath);
@@ -176,6 +184,15 @@ export async function restoreSnapshot(options) {
 
   const originalFiles = [DATABASE_FILE, `${DATABASE_FILE}-wal`, `${DATABASE_FILE}-shm`];
   if (hasSettings) originalFiles.push(SETTINGS_FILE);
+  // Older manifests have no entry. Preserve existing ciphertext in that case;
+  // restored legacy plaintext is safely migrated again on next application startup.
+  const hasCloudDriveCredentials = Boolean(verified.manifest.files.cloudDriveCredentials);
+  let cloudDriveCredentialsInstalled = false;
+  if (hasCloudDriveCredentials) {
+    await copyFile(path.join(verified.snapshotDirectory, verified.manifest.files.cloudDriveCredentials.name),
+      path.join(replacementDirectory, CLOUDDRIVE_CREDENTIAL_FILE));
+    originalFiles.push(CLOUDDRIVE_CREDENTIAL_FILE);
+  }
   try {
     await writeJsonAtomic(path.join(transactionDirectory, "restore-journal.json"), {
       snapshotId: verified.manifest.id,
@@ -189,6 +206,10 @@ export async function restoreSnapshot(options) {
     }
     await rename(databaseReplacement, databaseTarget);
     if (hasSettings) await rename(settingsReplacement, settingsTarget);
+    if (hasCloudDriveCredentials) {
+      await rename(path.join(replacementDirectory, CLOUDDRIVE_CREDENTIAL_FILE), path.join(userDataPath, CLOUDDRIVE_CREDENTIAL_FILE));
+      cloudDriveCredentialsInstalled = true;
+    }
     await inspectDatabaseFile(databaseTarget);
     await rm(transactionDirectory, { recursive: true, force: true });
     return {
@@ -200,6 +221,7 @@ export async function restoreSnapshot(options) {
   } catch (error) {
     await rm(databaseTarget, { force: true });
     if (hasSettings) await rm(settingsTarget, { force: true });
+    if (cloudDriveCredentialsInstalled) await rm(path.join(userDataPath, CLOUDDRIVE_CREDENTIAL_FILE), { force: true });
     for (const fileName of originalFiles) {
       const originalPath = path.join(originalDirectory, fileName);
       if (await pathExists(originalPath)) await rename(originalPath, path.join(userDataPath, fileName));

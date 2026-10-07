@@ -2,7 +2,7 @@ import path from "node:path";
 import type {
   CloudDriveBrowseDirectory,
   CloudDriveBrowseRoot,
-  CloudDriveConnectionSettings,
+  CloudDrivePublicSettings,
   CloudDriveConnectionTestResult,
   CloudDriveSourceSelection,
   SourceFolder
@@ -11,6 +11,8 @@ import { isVideoExtension } from "../../shared/videoTypes.js";
 import { CloudDriveGrpcClient, type CloudDriveMountPoint } from "./grpcClient.js";
 import type { CloudDriveFileOperationResult } from "./grpcClient.js";
 import { WeightedExpiringCache } from "../queries/weightedExpiringCache.js";
+import { parseCloudDriveEndpoint } from "../../shared/cloudDriveEndpoint.js";
+import { registerSensitiveValue } from "../logging/redaction.js";
 
 const DEFAULT_ENDPOINT = "http://127.0.0.1:19798";
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -93,13 +95,13 @@ const directoryListingCache = new WeightedExpiringCache<string, CloudDriveDirect
 let runtimeEnvironment: NodeJS.ProcessEnv | null = null;
 
 export function configureCloudDriveRuntime(
-  settings: CloudDriveConnectionSettings,
+  settings: CloudDrivePublicSettings,
+  savedToken: string,
   fallbackEnvironment: NodeJS.ProcessEnv = process.env
 ): void {
-  const savedToken = settings.apiToken.trim();
   runtimeEnvironment = { ...fallbackEnvironment };
-  if (savedToken) {
-    runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TOKEN = savedToken;
+  if (savedToken.trim()) {
+    runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TOKEN = savedToken.trim();
     runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_ENDPOINT = settings.endpoint.trim();
     runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TIMEOUT_MS = String(settings.timeoutMs);
     if (settings.mountMapJson.trim()) {
@@ -598,7 +600,9 @@ function readEnvironmentConfig(env: NodeJS.ProcessEnv): CloudDriveEnvironmentCon
   const effectiveEnvironment = env === process.env && runtimeEnvironment ? runtimeEnvironment : env;
   const apiToken = (effectiveEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TOKEN ?? "").trim();
   if (!apiToken) return null;
+  registerSensitiveValue(apiToken);
   const endpoint = (effectiveEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_ENDPOINT ?? DEFAULT_ENDPOINT).trim();
+  parseCloudDriveEndpoint(endpoint); // Includes environment-only callers, before any network I/O.
   const parsedTimeout = Number(effectiveEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? Math.trunc(parsedTimeout) : DEFAULT_TIMEOUT_MS;
   return { endpoint, apiToken, timeoutMs, manualMounts: parseManualMounts(effectiveEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_MOUNT_MAP) };
@@ -609,8 +613,8 @@ function parseManualMounts(raw: string | undefined): CloudDriveMountPoint[] | nu
   let value: unknown;
   try {
     value = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`Invalid LOCAL_VIDEO_MANAGER_CLOUDDRIVE_MOUNT_MAP JSON: ${error instanceof Error ? error.message : String(error)}`);
+  } catch {
+    throw new Error("Invalid LOCAL_VIDEO_MANAGER_CLOUDDRIVE_MOUNT_MAP JSON");
   }
   if (!Array.isArray(value)) throw new Error("LOCAL_VIDEO_MANAGER_CLOUDDRIVE_MOUNT_MAP must be a JSON array");
   return value.map((entry, index) => {

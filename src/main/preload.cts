@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { AssetCenterSourceQuery, DirectoryBrowserQuery, DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, MetadataIssuePageQuery, MissingVideoPageQuery, PlaybackDiagnosticSearchQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
+import type { AppSettings, SettingsSnapshot, AssetCenterSourceQuery, DirectoryBrowserQuery, DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, MetadataIssuePageQuery, MissingVideoPageQuery, PlaybackDiagnosticSearchQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
 
 // Sandboxed preloads cannot load local modules, so keep a type-checked copy of the public channel names here.
 const channels: typeof SharedIpcChannels = {
@@ -237,10 +237,32 @@ const mainApi: VideoManagerApi = {
   },
   previewDiagnostics: (includeFullPaths: boolean) => ipcRenderer.invoke(channels.diagnosticsPreview, { includeFullPaths }),
   exportDiagnostics: (includeFullPaths: boolean) => ipcRenderer.invoke(channels.diagnosticsExport, { includeFullPaths }),
-  getSettings: () => ipcRenderer.invoke(channels.settingsGet),
-  setSettings: (settings) => ipcRenderer.invoke(channels.settingsSet, settings),
+  getSettings: async () => {
+    const snapshot: SettingsSnapshot = await ipcRenderer.invoke(channels.settingsGet);
+    return { settings: publicSettings(snapshot.settings), cacheLocation: snapshot.cacheLocation, cacheStatus: snapshot.cacheStatus };
+  },
+  setSettings: async (settings) => publicSettings(await ipcRenderer.invoke(channels.settingsSet, settings)),
   clearCache: () => ipcRenderer.invoke(channels.cacheClear)
 };
+
+// A second allowlist at the bridge keeps both window roles on the public read contract.
+function publicSettings(settings: AppSettings): AppSettings {
+  return {
+    defaultRecursiveScan: settings.defaultRecursiveScan,
+    startupSync: settings.startupSync,
+    autoPlayOnOpen: settings.autoPlayOnOpen,
+    seekStepSeconds: settings.seekStepSeconds,
+    coverFrameTimeSeconds: settings.coverFrameTimeSeconds,
+    playbackPreference: settings.playbackPreference,
+    shortcuts: settings.shortcuts,
+    cloudDrive: {
+      endpoint: settings.cloudDrive.endpoint,
+      timeoutMs: settings.cloudDrive.timeoutMs,
+      mountMapJson: settings.cloudDrive.mountMapJson,
+      configured: settings.cloudDrive.configured
+    }
+  };
+}
 
 const playerApi = {
   openSubtitleWebsite: mainApi.openSubtitleWebsite,
