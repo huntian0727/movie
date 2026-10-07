@@ -11,6 +11,7 @@ import { MissingVideosPage } from "./MissingVideosPage";
 import { MetadataIssuesPage } from "./MetadataIssuesPage";
 import { DirectoryBrowserPage } from "./DirectoryBrowserPage";
 import { DirectoryFilterTree } from "./DirectoryFilterTree";
+import { SidebarMenuGroup } from "./SidebarMenuGroup";
 import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 import { VideoGrid } from "./VideoGrid";
@@ -665,12 +666,12 @@ export function LibraryShell({
           <div><strong>拉面影视</strong><small>本地视频库</small></div>
         </div>
         <nav className="primary-nav" aria-label="视频库导航">
-          <span className="primary-nav-group">概览</span>
+          <SidebarMenuGroup id="overview" title="概览" active={view === "assetCenter"}>
           <button aria-label="查看资产中心" className={view === "assetCenter" ? "active" : undefined} onClick={() => { setView("assetCenter"); setSelectedFolderPath(null); }}>
             <PieChart size={18} /><span>资产中心</span>
           </button>
-
-          <span className="primary-nav-group">资料库</span>
+          </SidebarMenuGroup>
+          <SidebarMenuGroup id="library" title="资料库" active={["all", "videoData", "favorites", "recent", "directoryBrowser", "folder"].includes(view)}>
           <button aria-label="查看所有视频" className={view === "all" ? "active" : undefined} onClick={() => { setView("all"); setSelectedFolderPath(null); setFolderScope("recursive"); }}>
             <Library size={18} /><span>视频浏览</span><em>{navigation?.totalVideos ?? videos.length}</em>
           </button>
@@ -683,8 +684,8 @@ export function LibraryShell({
           <button aria-label="查看最近播放" className={`secondary-nav-item${view === "recent" ? " active" : ""}`} onClick={() => { setView("recent"); setSelectedFolderPath(null); }}>
             <Clock3 size={18} /><span>最近播放</span><em>{recentVideoIds.length}</em>
           </button>
-
-          <span className="primary-nav-group">清理与健康</span>
+          </SidebarMenuGroup>
+          <SidebarMenuGroup id="health" title="清理与健康" active={view === "duplicates" || isHealthView || view === "pendingDelete"}>
           <button aria-label="查看重复项" className={view === "duplicates" ? "active" : undefined} onClick={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}>
             <CopyMinus size={18} /><span>重复文件</span><em>{duplicatePage.overallTotalGroups}</em>
           </button>
@@ -694,16 +695,14 @@ export function LibraryShell({
           <button aria-label="查看待删除视频" className={view === "pendingDelete" ? "active" : undefined} onClick={() => { setView("pendingDelete"); setSelectedFolderPath(null); }}>
             <BookmarkX size={18} /><span>待删除</span><em>{pendingDeleteCount}</em>
           </button>
-
-          <span className="primary-nav-group">工具</span>
+          </SidebarMenuGroup>
+          <SidebarMenuGroup id="tools" title="工具" active={view === "playbackDiagnostic"}>
           <button aria-label="查看播放诊断" className={view === "playbackDiagnostic" ? "active" : undefined} onClick={() => { setView("playbackDiagnostic"); setSelectedFolderPath(null); }}>
             <CircleGauge size={18} /><span>播放诊断</span>
           </button>
+          </SidebarMenuGroup>
         </nav>
-        <section className="sidebar-library-sources">
-          <header>
-            <div><strong>资料库</strong><small>{folders.length}</small></div>
-          </header>
+        <SidebarMenuGroup id="directories" title="资料库目录" className="sidebar-library-sources" count={folders.length} active={view === "folder"}>
           <DirectoryFilterTree
             folders={folders}
             load={onLoadDirectoryBrowser}
@@ -740,7 +739,7 @@ export function LibraryShell({
               </div>;
             }}
           />
-        </section>
+        </SidebarMenuGroup>
         <div
           className="sidebar-resizer"
           role="separator"

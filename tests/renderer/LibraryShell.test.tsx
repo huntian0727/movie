@@ -107,6 +107,57 @@ beforeEach(() => {
 });
 
 describe("LibraryShell", () => {
+  it("collapses menu groups without changing the current page or its query and restores the preference", async () => {
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 });
+    const props = { videos: [], folders: [folder], onLoadVideoPage };
+    const first = render(<LibraryShell {...props} />);
+    await screen.findByText("clip.mp4");
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "展开或收起资料库菜单" }));
+    expect(screen.getByRole("button", { name: "展开或收起资料库菜单" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "查看收藏视频" })).not.toBeInTheDocument();
+    expect(screen.getByText("clip.mp4")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看资产中心" })).toBeVisible();
+    expect(onLoadVideoPage).toHaveBeenCalledOnce();
+    first.rerender(<LibraryShell {...props} />);
+    expect(screen.queryByRole("button", { name: "查看所有视频" })).not.toBeInTheDocument();
+    first.unmount();
+    render(<LibraryShell {...props} />);
+    expect(screen.queryByRole("button", { name: "查看所有视频" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "展开或收起资料库菜单" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看收藏视频" }));
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ view: "favorites" }), "library-main"));
+  });
+
+  it("preserves expanded directory branches and cached children when the whole directory group is folded", async () => {
+    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({ items: [{ sourceFolderId: folder.id, path: nestedVideo.directory, name: "Drama", videoCount: 1, sizeBytes: 1024, modifiedAt: null }], totalCount: 1, truncated: false });
+    render(<LibraryShell videos={[video]} folders={[folder]} onLoadDirectoryBrowser={onLoadDirectoryBrowser} />);
+    fireEvent.click(screen.getByRole("button", { name: "展开或收起 Movies" }));
+    const tree = () => within(screen.getByRole("navigation", { name: "资料库来源" }));
+    expect(await tree().findByRole("button", { name: "Drama" })).toBeVisible();
+    expect(onLoadDirectoryBrowser).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "展开或收起资料库目录菜单" }));
+    expect(screen.queryByRole("navigation", { name: "资料库来源" })).not.toBeInTheDocument();
+    expect(screen.getByText("clip.mp4")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "展开或收起资料库目录菜单" }));
+    expect(tree().getByRole("button", { name: "Drama" })).toBeVisible();
+    expect(tree().getByRole("button", { name: "展开或收起 Movies" })).toHaveAttribute("aria-expanded", "true");
+    expect(tree().getByRole("button", { name: "拖拽排序 Drama" })).toBeVisible();
+    expect(onLoadDirectoryBrowser).toHaveBeenCalledOnce();
+  });
+
+  it("keeps groups usable when their preference cannot be saved and marks the collapsed active group", () => {
+    const save = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("unavailable"); });
+    render(<LibraryShell videos={[video]} />);
+    const group = screen.getByRole("button", { name: "展开或收起资料库菜单" });
+    fireEvent.click(group);
+    expect(group).toHaveClass("has-active-page");
+    expect(screen.getByRole("button", { name: "展开或收起清理与健康菜单" })).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(group);
+    expect(screen.getByRole("button", { name: "查看所有视频" })).toBeVisible();
+    save.mockRestore();
+  });
+
   it("shows source roots without rendering the nested directory tree", () => {
     render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]} />);
 
