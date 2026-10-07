@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const timeoutMs = 30_000;
@@ -11,7 +11,8 @@ const smokeEntry = path.join(process.cwd(), "scripts", "electron-smoke-main.cjs"
 const childEnvironment = { ...process.env };
 delete childEnvironment.ELECTRON_RUN_AS_NODE;
 const nativeOnly = process.argv.includes("--native-only");
-const smokeRoot = mkdtempSync(path.join(tmpdir(), "movie-clouddrive-safe-storage-"));
+// Windows CI TEMP can contain an 8.3 user-directory alias; Chromium resolves it.
+const smokeRoot = realpathSync.native(mkdtempSync(path.join(tmpdir(), "movie-clouddrive-safe-storage-")));
 const completionFile = path.join(smokeRoot, "smoke-completed");
 
 const child = spawn(electronExecutable, [smokeEntry, `--smoke-root=${smokeRoot}`, ...(nativeOnly ? ["--native-only"] : [])], {

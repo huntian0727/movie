@@ -42,13 +42,18 @@ app.whenReady().then(async () => {
         for (const role of ["main", "player"]) {
           const window = new BrowserWindow({ show: false, webPreferences: {
             contextIsolation: true, sandbox: true, nodeIntegration: false,
-            preload: path.resolve("dist-main/main/preload.cjs"), additionalArguments: [
+            preload: path.resolve(__dirname, "../dist-main/main/preload.cjs"), additionalArguments: [
               `--video-manager-window-role=${role}`, `--video-manager-entry-url=${encodeURIComponent(entryUrl)}`
             ]
           } });
           configureWindowSecurity(window, { role, entryUrl });
+          window.webContents.on("preload-error", (_event, _preloadPath, error) => {
+            console.error(`Sandboxed ${role} preload failed:`, error);
+          });
           try {
-            await window.loadFile(entry);
+            await window.loadURL(entryUrl);
+            assert.equal(await window.webContents.executeJavaScript('typeof window.videoManager'), "object",
+              `Sandboxed ${role} bridge missing at ${window.webContents.getURL()} (expected ${entryUrl})`);
             const result = await window.webContents.executeJavaScript(`(async () => {
               const snapshot = await window.videoManager.getSettings();
               return { snapshot, hasTokenReader: Object.keys(window.videoManager).some(key => /token|secret|credential|invoke/i.test(key)),
