@@ -1,0 +1,38 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "state": "LOCAL_ACCEPTED",
+  "engineeringVerdict": "PASS_WITH_KNOWN_RISKS",
+  "publicReleaseVerdict": "FAIL",
+  "dateAsiaShanghai": "2026-10-08",
+  "sourceCommit": "d7e69072a1b7e944c23f86c140b3ab88283c0542",
+  "sourceProvenance": "Clean committed root worktree copied byte-for-byte to the isolated D package worktree:713 files verified. The package worktree Git HEAD remains the807c495 baseline; GITHUB_SHA is explicitly the verified source commit, not a claim that its Git HEAD advanced. Local ignored source snapshot records every copied file hash.",
+  "fullRegression": "Actual root test:release-gate PASS: lint/typecheck/build, Windows37, migrations40, performance31, Node ABI127,131 files/1175 tests,329.49s,no skips. Actual full Electron44.7.0/ABI149 and renderer-security smokes PASS after the final one-line CSS change.",
+  "independentQa": ["PUBLIC-RELEASE-AUDIT-final-source-cross-qa.json", "PUBLIC-RELEASE-AUDIT-empty-state-cross-qa.json", "PUBLIC-RELEASE-AUDIT-nsis-enumeration-rework-cross-qa.json", "PUBLIC-RELEASE-AUDIT-deletion-cross-qa.json", "PUBLIC-RELEASE-AUDIT-boundaries-cross-qa.json"],
+  "package": {
+    "releaseClass": "unsigned-test-build",
+    "directory": "D:/CodexReleaseAudit/movie-public-release-package/release/unsigned-test-build",
+    "installer": "拉面影视-0.1.15-x64-unsigned-test-build-Setup.exe",
+    "installerSha256": "db75ff59908c4a4e199fdd074ab8227b2c9552e847fd5f65d86e4fe53b68edcc",
+    "applicationSha256": "aa7d336e53b1686825f32f12bee5bc849555eaa89b4ecacc219fafe98f1852d0",
+    "asarSha256": "0d79e615cebacdd88651756479086b3df1ce793ad492198f0f2413e98c7f7d59",
+    "nativeHostSha256": "215a49e9b9dee51ce758b7a9e1408db2e3a0704670ca349c0e314416554171d7",
+    "signature": "Actual installer,application,NativeHost all NotSigned; no timestamp/publisher",
+    "artifactGate": "PASS:3625 ASAR entries,x64 binaries,source hashes,native N-API,roles,legal notices,no foreign-platform or development artifacts",
+    "packagedSmoke": "PASS: synthetic video/real SQLite creation then reopen and worker/diagnostic verification",
+    "installerSmoke": "PASS: reject unrelated nonempty target; install; repair with user sentinels; reject delete-app-data; uninstall; inside/outside/nested/profile SQLite/video preserved; production registry HKCU/HKLM32/64 and shortcuts unchanged"
+  },
+  "desktop": {
+    "shortcut": "%USERPROFILE%/Desktop/拉面影视-unsigned-test-build-发布验收.lnk",
+    "target": "D:/CodexReleaseAudit/movie-public-release-package/release/unsigned-test-build/win-unpacked/拉面影视-unsigned-test-build.exe",
+    "commitTimeAsiaShanghai": "2026-10-08T15:37:54+08:00",
+    "asarTimeAsiaShanghai": "2026-10-08T15:39:19.691+08:00",
+    "shortcutLaunchTimeAsiaShanghai": "2026-10-08T15:42:05.719+08:00",
+    "actualUi": "PASS:unsigned title,app-ui origin,one synthetic temporary source,asset center,video browse,normal-width duplicate empty state,permanent-delete warning opened then Cancel; video remains. No destructive UI confirmation or real CloudDrive RPC.",
+    "fixtureAfterExit": "Actual readonly SQLite quick_check OK and videoCount1",
+    "productionShortcutPreserved": true,
+    "screenshots": ["docs/screenshots/public-release-library.jpg", "docs/screenshots/public-release-delete-warning.jpg", "docs/screenshots/public-release-duplicate-empty.jpg"]
+  },
+  "notRun": ["Actual stable clean Windows11 without Node/development tools", "Previous formal signed-version upgrade", "Real CloudDrive permanent delete", "Physical-volume/SMB/ACL/power-loss destructive matrix", "Windows2025 cross-machine NativeHost reproducibility", "Malicious-media CVE exploitation on these exact binaries"],
+  "blockers": ["Code rights/project license and GPL corresponding-source closure", "Native media binary security patch/support-version closure", "Signing certificate/expected publisher/protected release environment", "Clean Windows11 and historical signed-upgrade acceptance", "Owner decision on default fast permanent cleanup and legacy auto-delete", "History privacy/author review"],
+  "nextActor": "Owner reviews the work-branch draft PR and concentrated decisions; engineering delivery does not approve public binary redistribution. No formal tag or public Release was created. Follow-up documentation changes do not change the verified functional package input."
+}

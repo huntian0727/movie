@@ -6,7 +6,7 @@
 - UI Required: YES (actual rebuilt desktop/shortcut and destructive-action confirmation review)
 - Web Advisor Required: NO (primary-source research is performed in this task)
 - Workflow Reason: public release, irreversible file actions and installer/security boundaries require FULL.
-- Status: UI_REVIEW
+- Status: DELIVERED (engineering; public release FAIL)
 - Owner: Local PM / primary implementation agent
 - Branch: ai/public-release-audit
 - Baseline: origin/main 807c495
@@ -24,3 +24,7 @@ Full-history and working-tree secret/privacy scan; production and development de
 ## Next actor
 
 Independent audit agents return evidence and findings to the Local PM. Implementation remains with the primary agent. Final independent QA reviews the final diff and actual verification evidence before delivery.
+
+## Final handoff
+
+Final runtime evidence: .agent/handoffs/PUBLIC-RELEASE-AUDIT-final-runtime.json. Actual source/package/UI gates accepted with known risks; owner reviews draft PR. Rights/license/GPL/native-media patches/certificate/protected environment/clean Windows11/historical signed upgrade/default-delete decisions remain release blockers. No formal tag/Release/main update.

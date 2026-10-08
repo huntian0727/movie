@@ -75,3 +75,29 @@ FFmpeg SHA-256 04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00�
 4. 安排一次真实干净Windows11/noNode及上一正式签名版升级验收，审查历史个人资料公开范围。
 
 普通用户完整步骤见 [Windows安装教程](windows-installation.md)：下载/哈希/签名核验、独立测试包安装、导入目录、SQLite备份、升级隔离限制、卸载数据保留及故障处理。正式安装包当前不存在批准的公众下载入口。
+
+
+## 最终已提交源码产物与桌面验收
+
+最终功能源码提交：d7e69072a1b7e944c23f86c140b3ab88283c0542。root干净工作树713份文件逐字节复制并验证到D盘隔离打包工作树；D工作树Git HEAD仍为807c495，明确设置GITHUB_SHA为经验证的root源码提交，不把D的HEAD冒称已更新。后续交付说明/截图提交仅含文档，功能输入保持不变。
+
+Windows x64的最终dist:win、artifact、release:metadata、packaged smoke、installer smoke全部实际PASS。ASAR3625项，better-sqlite3 N-API、FFmpeg、FFprobe、NativeHost及Electron皆验证目标平台/字节；应用版本0.1.15、ProductVersion0.1.15.0、测试产品名正确。安装/repair/卸载以及明确delete-app-data拒绝完整通过，内外及嵌套SQLite/video哨兵和正式注册项/快捷方式保持。实际installer、application、NativeHost均NotSigned，未冒充签名版本。
+
+产物目录：D:/CodexReleaseAudit/movie-public-release-package/release/unsigned-test-build。安装包：拉面影视-0.1.15-x64-unsigned-test-build-Setup.exe。
+
+SHA-256：db75ff59908c4a4e199fdd074ab8227b2c9552e847fd5f65d86e4fe53b68edcc。同目录SHA256SUMS.txt/build-metadata.json记录实际签名、版本和二进制校验。app.asar SHA-256为0d79e615cebacdd88651756479086b3df1ce793ad492198f0f2413e98c7f7d59。
+
+新桌面快捷方式为%USERPROFILE%/Desktop/拉面影视-unsigned-test-build-发布验收.lnk，目标是上述目录的win-unpacked/拉面影视-unsigned-test-build.exe；实际从该快捷方式启动。源码提交15:37:54、app.asar15:39:19、启动15:42:05（北京时间），来源一致。真实UI验证unsigned标识、app-ui入口、合成资料库/资产中心/视频、空状态修复、永久删除警告打开后取消；退出后合成SQLite quick_check为ok、视频仍1个。新测试快捷方式复用时核对目标及自身hash；旧正式快捷方式不变。
+
+最终截图见screenshots/public-release-library.jpg、public-release-delete-warning.jpg、public-release-duplicate-empty.jpg，全部来自当前测试包的合成资料。实际无CloudDrive任务，未声称远端永久删除确认或服务端删除已验收。最终运行证据见.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-runtime.json。正式公众发布仍FAIL。
+
+## 最终交付文档提交前的历史复查
+
+2026-10-08交付文档提交前，实际导出211个可达提交、2288个唯一历史blob和715份当前文件；当前树Gitleaks使用完整脱敏且不接受仓库allowlist，结果零secret命中。隐私规则累计260条候选：91条Windows用户路径、155条email-like、12条private-network、2条credential assignment。基线198条的分类及公开范围风险保持；新增62条逐类复核如下，未将候选原文或密钥写入报告。
+
+- 52条是上游公开许可证或版权声明中的联系地址：docs/legal/THIRD-PARTY-NOTICES.txt共50条；docs/legal/upstream/agent-base-6.0.2-LICENSE.txt:6和https-proxy-agent-5.0.1-LICENSE.txt:6各1条。保留法律归属材料，不把它们当作用户私人联系方式删除。
+- package-lock.json:526/1554/2565/4654共4条来自上游glob弃用说明中的公开维护者联系方式，不是registry URL，也不是应用凭据。弃用版本属于维护风险，零npm advisory并不消除弃用说明；它们没有构成新secret泄露证据。
+- tests中的4条private-network是固定合成端点：cloudDriveCredentialStore.test.ts:163、cloudDriveSecurity.test.ts:90、SettingsPage.test.tsx:122/126；不是实际用户配置。
+- docs/legal/nativehost-toolchain.json:61/62的2条private-network是NuGet官方漏洞索引URL中点分日期造成的规则误报，不是内部网络地址。
+
+3个Git作者身份仍需权属审查。历史中的2个JPEG和当前3张截图均为合成应用验收资料；当前截图仅保存应用窗口。此处记录提交前已完成的检查，最终文档提交后的完整refs与当前树Gitleaks复查另保留本地脱敏日志，并由PR安全工作流继续执行；不把尚未执行的检查写成PASS。

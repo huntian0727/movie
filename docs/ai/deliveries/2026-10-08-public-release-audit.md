@@ -42,3 +42,18 @@
 集中待决：代码权属及项目许可证、完整二进制源码/许可合规及原生媒体安全补丁/维护版本闭环、签名证书（仅 Secrets）、快速永久清理默认策略/旧自动删除参数、历史资料公开范围、干净 Windows 11 及旧签名升级验收。正式环境目前只读查询返回 404，严格环境守卫会阻断；NativeHost 已采用固定官方编译器/引用及 deterministic/pathmap，两份不同路径产物逐字节一致；跨机器复现仍待Windows2025 CI验证。没有降低 hash 或签名门禁。
 
 真实资料库、用户视频、旧生产桌面快捷方式和旧生产 package 均保持。所有破坏性测试使用自主创建的临时视频及真实 SQLite 哨兵。不同测试包 repair 不等于历史正式版升级。
+
+
+## Final artifact and desktop evidence
+
+最终功能源码提交：d7e69072a1b7e944c23f86c140b3ab88283c0542。root干净工作树713份文件逐字节复制并验证到D盘隔离打包工作树；D工作树Git HEAD仍为807c495，明确设置GITHUB_SHA为经验证的root源码提交，不把D的HEAD冒称已更新。后续交付说明/截图提交仅含文档，功能输入保持不变。
+
+Windows x64的最终dist:win、artifact、release:metadata、packaged smoke、installer smoke全部实际PASS。ASAR3625项，better-sqlite3 N-API、FFmpeg、FFprobe、NativeHost及Electron皆验证目标平台/字节；应用版本0.1.15、ProductVersion0.1.15.0、测试产品名正确。安装/repair/卸载以及明确delete-app-data拒绝完整通过，内外及嵌套SQLite/video哨兵和正式注册项/快捷方式保持。实际installer、application、NativeHost均NotSigned，未冒充签名版本。
+
+产物目录：D:/CodexReleaseAudit/movie-public-release-package/release/unsigned-test-build。安装包：拉面影视-0.1.15-x64-unsigned-test-build-Setup.exe。
+
+SHA-256：db75ff59908c4a4e199fdd074ab8227b2c9552e847fd5f65d86e4fe53b68edcc。同目录SHA256SUMS.txt/build-metadata.json记录实际签名、版本和二进制校验。app.asar SHA-256为0d79e615cebacdd88651756479086b3df1ce793ad492198f0f2413e98c7f7d59。
+
+新桌面快捷方式为%USERPROFILE%/Desktop/拉面影视-unsigned-test-build-发布验收.lnk，目标是上述目录的win-unpacked/拉面影视-unsigned-test-build.exe；实际从该快捷方式启动。源码提交15:37:54、app.asar15:39:19、启动15:42:05（北京时间），来源一致。真实UI验证unsigned标识、app-ui入口、合成资料库/资产中心/视频、空状态修复、永久删除警告打开后取消；退出后合成SQLite quick_check为ok、视频仍1个。新测试快捷方式复用时核对目标及自身hash；旧正式快捷方式不变。
+
+最终截图见screenshots/public-release-library.jpg、public-release-delete-warning.jpg、public-release-duplicate-empty.jpg，全部来自当前测试包的合成资料。实际无CloudDrive任务，未声称远端永久删除确认或服务端删除已验收。最终运行证据见.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-runtime.json。正式公众发布仍FAIL。

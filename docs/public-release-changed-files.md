@@ -88,7 +88,7 @@
 - [tests/scripts/releaseEngineering.test.mjs](../tests/scripts/releaseEngineering.test.mjs)
 - [tests/smoke/scaffold.test.ts](../tests/smoke/scaffold.test.ts)
 
-## 公开工程文档及独立 QA（49）
+## 公开工程文档及独立 QA（51）
 
 - [.agent/context/PROJECT_SNAPSHOT.md](../.agent/context/PROJECT_SNAPSHOT.md)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-boundaries-cross-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-boundaries-cross-qa.json)
@@ -100,6 +100,7 @@
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-distribution-dev.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-distribution-dev.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-empty-state-cross-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-empty-state-cross-qa.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-distribution-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-distribution-qa.json)
+- [.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-runtime.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-runtime.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-source-cross-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-source-cross-qa.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-nativehost-toolchain-dev.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-nativehost-toolchain-dev.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-nsis-empty-dir-cross-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-nsis-empty-dir-cross-qa.json)
@@ -135,6 +136,7 @@
 - [docs/release-workflow.md](../docs/release-workflow.md)
 - [docs/scan-optimization-final-report.md](../docs/scan-optimization-final-report.md)
 - [docs/screenshots/public-release-delete-warning.jpg](../docs/screenshots/public-release-delete-warning.jpg)
+- [docs/screenshots/public-release-duplicate-empty.jpg](../docs/screenshots/public-release-duplicate-empty.jpg)
 - [docs/screenshots/public-release-library.jpg](../docs/screenshots/public-release-library.jpg)
 - [docs/superpowers/plans/2026-07-09-video-manager-implementation.md](../docs/superpowers/plans/2026-07-09-video-manager-implementation.md)
 - [docs/verification-results.md](../docs/verification-results.md)
