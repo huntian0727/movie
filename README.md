@@ -32,7 +32,11 @@ Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理
 完整下载、SHA-256、签名核对、安装、迁移和卸载步骤见 [普通用户安装教程](docs/windows-installation.md)。
 遇到 SmartScreen 或发布者不符应停止并核实来源；不要为了安装测试包关闭系统防护。
 
-截图只使用合成测试资料，见本轮验收截图（验收完成后补充）。旧交付记录里的真实资料库截图不作为公众素材。
+截图来自实际 unsigned-test-build，仅使用合成蓝色视频及临时资料库；旧交付记录里的真实资料库截图不作为公众素材。
+
+![合成资料库浏览](docs/screenshots/public-release-library.jpg)
+
+![永久删除确认，验收时选择取消](docs/screenshots/public-release-delete-warning.jpg)
 
 ## 隐私与数据位置
 
@@ -82,6 +86,7 @@ SQLite13 官方 N-API 文件已在 Node 与 Electron 中分别实测验证；旧
 
 ## 已知限制与维护
 
+- npm audit不覆盖原生EXE。现有媒体二进制落后于官方后续安全修复，确切补丁适用性及替换方案未闭环，见 [二进制安全审查](docs/legal/native-binary-security.md)。
 - FFmpeg 6.1.1 / FFprobe 4.0.2 实际构建启用 GPL；对应源码及启用库材料尚未闭环，不能仅凭 npm 包许可证批准分发。
 - 无代码签名证书；干净无 Node 的 Windows 11、历史签名版升级、跨物理卷/SMB/ACL/磁盘满实机矩阵仍须验收。
 - 旧 NSIS 卸载器可能递归删除安装目录，新包拒绝未经审查的旧版升级；不要把用户文件放入应用安装目录。

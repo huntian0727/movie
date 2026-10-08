@@ -864,6 +864,7 @@ button.asset-health-row:hover { background: #1d1f1d; }
 .duplicate-preflight-dialog p { margin: 0; max-width: 440px; }
 .duplicate-preflight-dialog strong { color: #c6c9c3; font-size: 12px; font-variant-numeric: tabular-nums; }
 .duplicate-empty-state { min-height: max(260px, calc(100vh - 430px)); }
+.duplicate-empty-state > .read-state { width: 100%; height: auto; border-radius: 0; display: flex; background: transparent; }
 
 .settings-page { height: 100vh; display: grid; grid-template-rows: 88px minmax(0, 1fr); overflow: hidden; background: #111212; }
 .settings-topbar { height: 88px; padding: 0 26px; display: flex; align-items: center; gap: 13px; border-bottom: 1px solid #292a29; background: #171817; }

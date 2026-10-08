@@ -27,6 +27,7 @@
 | P1 / 已修复 | settings/settingsStore.ts；cloudDriveCredentialStore.ts | DPAPI 损坏/迁移失败导致启动或环境 Token 回退风险。现公开恢复状态、关闭凭据及环境 fallback、非空替换后验证保存；不曝光真实 Token。 |
 | P1 / 已修复 | package.json / lock；scripts/rebuild-electron.mjs | Electron33已不受支持，基线 npm audit 有34项（3 critical、23 high、8 moderate）。升级44.7.0/SQLite13及构建链；当前 full/prod audit零已知项。N-API用官方预编译并实际验证，不强制旧 ABI rebuild。 |
 | P1 / 已修复 | build/installer.nsh；scripts/release-engineering.mjs / run-installer-smoke.mjs | 原 NSIS 递归清理/删 userData 与旧危险升级。现精确 owned-files 清单、非递归清理、禁止 delete-app-data/reparse/未标记旧卸载器；全套合成哨兵验收保留。 |
+| P1 / 未解决，原生媒体安全阻断 | package.json:53/54；src/main/media/cacheService.ts:19；metadataService.ts:50 | 实测FFmpeg6.1.1/FFprobe4.0.2落后于官方后续安全修复，npm audit不覆盖EXE；确切补丁/启用库适用性未闭环，未声称漏洞利用已复现。应替换为同套维护中且源码/许可可核验的构建并重跑媒体与安装验收，详见 [二进制安全审查](legal/native-binary-security.md)。 |
 | P1 / 未解决，阻止公众发布 | LICENSE；docs/legal/RELEASE-COMPLIANCE.md；dependency-inventory.json | 未确认代码权属与项目许可证。LICENSE仅明确未授权占位，不授予MIT/Apache。实际 FFmpeg6.1.1、FFprobe4.0.2 均 GPL；完整对应源码/所有静态库构建材料未闭环，旧probe来源已停运。 |
 | P1 / 未解决，阻止正式发布 | build/release-approval.json；windows-release.yml | 无签名证书/批准发布者、干净 Windows11/noNode 与历史 signed upgrade 实测。默认fail closed；不能把本机Insider开发环境、同包repair或CI WindowsServer当验收。 |
 | P1 / 已修复，跨机器仍待验收 | scripts/build-native-player.mjs；native-player-toolchain.lock.json | 改用锁定官方 NuGet Roslyn 编译器和六份 .NET4.8 引用，验证归档及全部缓存 hash、拒绝重解析点和额外加载文件，显式 deterministic/noconfig/nostdlib/pathmap。两份不同绝对路径实际编译逐字节一致；未放宽正式输入hash门禁。Windows2025跨机器复现尚未验证。 |
@@ -56,7 +57,7 @@ FFmpeg SHA-256 04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00�
 
 ## 验证记录
 
-冻结所有功能源码后root同一工作区 `test:release-gate` **PASS**（2026-10-08，北京时间）：lint/typecheck、完整build、Windows文件37项、迁移40项、性能31项、Node原生ABI127、全量131文件/1175项，无跳过。全量323.61秒；320k准备及全部查询恢复main原始单个60秒总截止并通过。最终实际Electron44.7.0/ABI149完整main-process smoke **PASS**，运行器同时要求SQLite native-completed和完整smoke完成标记。此前失败记录仍保留。
+冻结所有功能源码后root同一工作区 `test:release-gate` **PASS**（2026-10-08，北京时间）：lint/typecheck、完整build、Windows文件37项、迁移40项、性能31项、Node原生ABI127、全量131文件/1175项，无跳过。全量329.49秒；320k准备及全部查询恢复main原始单个60秒总截止并通过。最终实际Electron44.7.0/ABI149完整main-process smoke **PASS**，运行器同时要求SQLite native-completed和完整smoke完成标记。此前失败记录仍保留。
 
 独立QA JSON位于 .agent/handoffs/PUBLIC-RELEASE-AUDIT-*-cross-qa.json；限定scope均为PASS_WITH_KNOWN_RISKS，不是整个公众发布PASS。完整门禁、打包、NSIS、本地UI最终状态在本节后续记录；未执行项必须保留NOT_RUN，失败不得作为通过。
 

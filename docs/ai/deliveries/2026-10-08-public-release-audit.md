@@ -13,6 +13,7 @@
 - 渲染入口改为受控 app-ui 协议，验证主窗口/播放器/时间轴角色、严格资源和媒体权限；损坏 DPAPI 凭据提供保留密文的恢复流程。
 - 升级到 Electron 44.7.0、better-sqlite3 13.0.3 和配套构建链。N-API 官方预编译文件同时执行 Node/Electron 实际验证；为 npm 10.9.8 的 gypfile 安装问题增加保留真实生命周期脚本的锁定安装入口。
 - 保留 electron-builder + NSIS，unsigned 身份、安装目录和资料库隔离。安装拒绝未知非空目录/旧危险卸载器；卸载仅删除明确拥有的文件，保留未知视频、SQLite 和子目录，拒绝 delete-app-data。
+- 修复重复页空状态ReadState继承62px方盒导致标题竖排的一行CSS覆盖；不改变删除、权限或后台逻辑。
 - Actions 固定版本 SHA；PR 执行真实无签名安装验收，公开上传仅含校验元数据。正式签名及上传要求受保护环境、所有者审批清单、源码授权、真实 Authenticode 和 SHA-256。
 - 新增安全、贡献、法律材料、完整依赖/notice 清单、普通用户教程、干净 Windows 11 验收工具。LICENSE 是明确未授予许可证的占位；没有替所有者选择许可证。现有文档个人路径脱敏，保留完整 Git 历史。
 
@@ -20,12 +21,12 @@
 
 ## Verification
 
-最终安装、桌面截图和产物身份将在实际执行完成后记录于本节，未执行项目不能计为通过。最终独立源码QA记录 PUBLIC-RELEASE-AUDIT-final-source-cross-qa.json 为 QA_COMPLETE / PASS_WITH_KNOWN_RISKS，本范围无新增可行动P0/P1；正式发布外部阻断项保持。代码提交c747ccf已推送工作分支，main未更新。
+初次已提交源码16c0e99已完成真实最终dist:win、3625 ASAR及五类x64二进制检查、PE版本/NotSigned/SHA元数据、packaged smoke和installer smoke；实际新桌面快捷方式启动合成资料库，永久删除警告打开后取消，视频保持。UI发现重复页ReadState继承62px方盒，现仅追加一行限定CSS修复，独立源码QA通过；修复后完整release gate再次通过131文件/1175测试（329.49秒、无跳过）及真实Electron/renderer安全smoke；新提交产物/UI验收随后记录。最终独立源码QA记录 PUBLIC-RELEASE-AUDIT-final-source-cross-qa.json 为 QA_COMPLETE / PASS_WITH_KNOWN_RISKS，本范围无新增可行动P0/P1；正式发布外部阻断项保持。代码提交c747ccf已推送工作分支，main未更新。
 
-- 2026-10-08 北京时间最终 `npm run test:release-gate` **PASS**：lint（两个 TypeScript 项目）、完整 build、Windows 文件专项37项、迁移40项、性能专项31项、Node原生ABI127、完整131文件/1175测试，无跳过；全量测试323.61秒。性能fixture与查询恢复main原始单个60秒总截止，数据与全部查询断言保留。记录：本地忽略文件 `.tmp/public-release-frozen-all-gate.log`。
-- 最终 `npm run test:electron-smoke` **PASS**：Electron44.7.0/ABI149、实际N-API SQLite完成标志、完整main-process smoke。记录 `.tmp/public-release-frozen-electron-smoke.log`。最终冻结源码的同一工作区实际lint/typecheck/test/build/Electron检查覆盖自动交付脚本全部实际存在的质量脚本；因此后续finish-and-push的SkipChecks仅复用已通过的等价检查（AGENTS允许），不删除、跳过或豁免测试。不适用的E2E脚本不存在，未声称执行。
+- 2026-10-08 北京时间最终 `npm run test:release-gate` **PASS**：lint（两个 TypeScript 项目）、完整 build、Windows 文件专项37项、迁移40项、性能专项31项、Node原生ABI127、完整131文件/1175测试，无跳过；全量测试329.49秒。性能fixture与查询恢复main原始单个60秒总截止，数据与全部查询断言保留。记录：本地忽略文件 `.tmp/public-release-ui-fixed-all-gate.log`。
+- 最终 `npm run test:electron-smoke` **PASS**：Electron44.7.0/ABI149、实际N-API SQLite完成标志、完整main-process smoke。记录 `.tmp/public-release-ui-fixed-electron-smoke.log`。最终冻结源码的同一工作区实际lint/typecheck/test/build/Electron检查覆盖自动交付脚本全部实际存在的质量脚本；因此后续finish-and-push的SkipChecks仅复用已通过的等价检查（AGENTS允许），不删除、跳过或豁免测试。不适用的E2E脚本不存在，未声称执行。
 
-- 最终renderer-security smoke通过实际三角色资源/typed bridge/媒体、DPAPI恢复和外部file/script/network及opaque origin拒绝，记录 .tmp/public-release-frozen-renderer-smoke.log。
+- 最终renderer-security smoke通过实际三角色资源/typed bridge/媒体、DPAPI恢复和外部file/script/network及opaque origin拒绝，记录 .tmp/public-release-ui-fixed-renderer-smoke.log。
 - NativeHost默认及两份不同绝对路径实际编译逐字节一致，x64 managed PE SHA-256 215a49e9b9dee51ce758b7a9e1408db2e3a0704670ca349c0e314416554171d7；15项工具链对抗测试通过。编译器缓存不分发；未运行NativeHost/libmpv。
 - 基线非 shallow Git：208 个可达提交、2116 个唯一历史 blob；Gitleaks 8.30.1 完整已获取历史及导出的当前源码零 secret 命中。另有 198 条元数据型隐私候选，报告不展示匹配原文。
 - 全量及生产 npm audit 零已知漏洞；许可清单覆盖 428 项锁定依赖、75 项 runtime notice。
@@ -38,6 +39,6 @@
 
 正式公众发布结论：**FAIL**。即使工程门禁通过，仍不能公开分发未完成 GPL 对应源码材料的测试二进制，也不能将未签名候选冒充正式签名发行。
 
-集中待决：代码权属及项目许可证、完整二进制源码/许可合规、签名证书（仅 Secrets）、快速永久清理默认策略/旧自动删除参数、历史资料公开范围、干净 Windows 11 及旧签名升级验收。正式环境目前只读查询返回 404，严格环境守卫会阻断；NativeHost 已采用固定官方编译器/引用及 deterministic/pathmap，两份不同路径产物逐字节一致；跨机器复现仍待Windows2025 CI验证。没有降低 hash 或签名门禁。
+集中待决：代码权属及项目许可证、完整二进制源码/许可合规及原生媒体安全补丁/维护版本闭环、签名证书（仅 Secrets）、快速永久清理默认策略/旧自动删除参数、历史资料公开范围、干净 Windows 11 及旧签名升级验收。正式环境目前只读查询返回 404，严格环境守卫会阻断；NativeHost 已采用固定官方编译器/引用及 deterministic/pathmap，两份不同路径产物逐字节一致；跨机器复现仍待Windows2025 CI验证。没有降低 hash 或签名门禁。
 
 真实资料库、用户视频、旧生产桌面快捷方式和旧生产 package 均保持。所有破坏性测试使用自主创建的临时视频及真实 SQLite 哨兵。不同测试包 repair 不等于历史正式版升级。

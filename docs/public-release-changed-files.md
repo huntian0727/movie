@@ -25,11 +25,12 @@
 - [src/main/settings/settingsStore.ts](../src/main/settings/settingsStore.ts)
 - [src/shared/videoTypes.ts](../src/shared/videoTypes.ts)
 
-## 界面确认和恢复（3）
+## 界面确认和恢复（4）
 
 - [src/renderer/components/DuplicateCleanupTasksPanel.tsx](../src/renderer/components/DuplicateCleanupTasksPanel.tsx)
 - [src/renderer/components/DuplicateGroupsPage.tsx](../src/renderer/components/DuplicateGroupsPage.tsx)
 - [src/renderer/components/SettingsPage.tsx](../src/renderer/components/SettingsPage.tsx)
+- [src/renderer/styles.css](../src/renderer/styles.css)
 
 ## 构建、安装和自动化（31）
 
@@ -87,7 +88,7 @@
 - [tests/scripts/releaseEngineering.test.mjs](../tests/scripts/releaseEngineering.test.mjs)
 - [tests/smoke/scaffold.test.ts](../tests/smoke/scaffold.test.ts)
 
-## 公开工程文档及独立 QA（45）
+## 公开工程文档及独立 QA（49）
 
 - [.agent/context/PROJECT_SNAPSHOT.md](../.agent/context/PROJECT_SNAPSHOT.md)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-boundaries-cross-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-boundaries-cross-qa.json)
@@ -97,6 +98,7 @@
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-deletion-rework-dev.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-deletion-rework-dev.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-distribution-cross-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-distribution-cross-qa.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-distribution-dev.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-distribution-dev.json)
+- [.agent/handoffs/PUBLIC-RELEASE-AUDIT-empty-state-cross-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-empty-state-cross-qa.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-distribution-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-distribution-qa.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-source-cross-qa.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-final-source-cross-qa.json)
 - [.agent/handoffs/PUBLIC-RELEASE-AUDIT-nativehost-toolchain-dev.json](../.agent/handoffs/PUBLIC-RELEASE-AUDIT-nativehost-toolchain-dev.json)
@@ -120,6 +122,7 @@
 - [docs/legal/RELEASE-COMPLIANCE.md](../docs/legal/RELEASE-COMPLIANCE.md)
 - [docs/legal/THIRD-PARTY-NOTICES.txt](../docs/legal/THIRD-PARTY-NOTICES.txt)
 - [docs/legal/dependency-inventory.json](../docs/legal/dependency-inventory.json)
+- [docs/legal/native-binary-security.md](../docs/legal/native-binary-security.md)
 - [docs/legal/nativehost-toolchain.json](../docs/legal/nativehost-toolchain.json)
 - [docs/legal/upstream/agent-base-6.0.2-LICENSE.txt](../docs/legal/upstream/agent-base-6.0.2-LICENSE.txt)
 - [docs/legal/upstream/agent-base-6.0.2-LICENSE.txt.provenance.json](../docs/legal/upstream/agent-base-6.0.2-LICENSE.txt.provenance.json)
@@ -131,6 +134,8 @@
 - [docs/release-engineering.md](../docs/release-engineering.md)
 - [docs/release-workflow.md](../docs/release-workflow.md)
 - [docs/scan-optimization-final-report.md](../docs/scan-optimization-final-report.md)
+- [docs/screenshots/public-release-delete-warning.jpg](../docs/screenshots/public-release-delete-warning.jpg)
+- [docs/screenshots/public-release-library.jpg](../docs/screenshots/public-release-library.jpg)
 - [docs/superpowers/plans/2026-07-09-video-manager-implementation.md](../docs/superpowers/plans/2026-07-09-video-manager-implementation.md)
 - [docs/verification-results.md](../docs/verification-results.md)
 - [docs/windows-installation.md](../docs/windows-installation.md)

@@ -6,7 +6,7 @@
 - UI Required: YES (actual rebuilt desktop/shortcut and destructive-action confirmation review)
 - Web Advisor Required: NO (primary-source research is performed in this task)
 - Workflow Reason: public release, irreversible file actions and installer/security boundaries require FULL.
-- Status: IN_DEVELOPMENT
+- Status: UI_REVIEW
 - Owner: Local PM / primary implementation agent
 - Branch: ai/public-release-audit
 - Baseline: origin/main 807c495
