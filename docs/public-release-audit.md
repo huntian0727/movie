@@ -103,3 +103,22 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 - docs/legal/nativehost-toolchain.json:61/62的2条private-network是NuGet官方漏洞索引URL中点分日期造成的规则误报，不是内部网络地址。
 
 3个Git作者身份仍需权属审查。历史中的2个JPEG和当前3张截图均为合成应用验收资料；当前截图仅保存应用窗口。此处记录提交前已完成的检查，最终文档提交后的完整refs与当前树Gitleaks复查另保留本地脱敏日志，并由PR安全工作流继续执行；不把尚未执行的检查写成PASS。
+
+## 2026-10-08 继续接手补充审计（原工程结论不被覆盖）
+
+复核家用机 MP2T8QB5 的本地干净分支与 PR #24：接手起点 `8c51e934ac4a91806138aff03f0b1f4e0cc47f45`，远端同一提交、`main` 仍 `807c49585d18c901b199fe0d3d8b0dbf31eb4114`，Draft 不合并。新备份 `2026-10-08_15-13-01-454_public-release-handoff-continuation` 的合成检查 SQLite quick_check OK（实际备份数据库约 0.87 GB、345892 条索引记录）。前述已通过 CI 和 NativeHost 跨机器 hash 结论继续有效，原始失败 run37747001533 继续保留。
+
+| 优先级 | 本轮状态 | 说明 |
+| --- | --- | --- |
+| P0 | 没有发现新的可证明 P0 | 不以旧 secret 扫描零命中证明历史所有个人信息已有公开授权；本轮没有授权改写历史 |
+| P1 | 候选二进制来源/版本校验 **PASS**，正式替换/授权 **未完成** | 锁定 BtbN Win64 LGPL 同构建二进制与 ZIP 精确 SHA，实测媒体 probe/生成封面/时间轴成功；原应用仍用旧 FFmpeg 6.1.1 / FFprobe 4.0.2。未拿齐全部启用库完整源码、补丁、构建材料和 notices；GPL JavaScript wrapper 仍需单独审查，详见 `docs/legal/native-binary-security.md` |
+| P1 | 发布环境仍 **FAIL** | 实际 GitHub API 查询 `public-release` 404；GitHub collaborators 当前仅拥有者，无法完成独立 reviewer 审批。未创建自审/绕过环境；证书及批准发布者不存在 |
+| P1 | 永久删除产品行为 **待决定** | `duplicateCleanupSubmit` 仍是现行快速清理入口，旧 `duplicateFastDelete` 禁用不代表此逻辑关闭；没有未经确认变更默认行为 |
+| P1 | 干净 Win11/noNode 和旧正式签名版升级 **NOT_RUN** | 两台在线电脑均不能凭开发环境或 Windows Server CI 冒充独立干净 Win11/历史升级验收 |
+| P2 | 历史隐私/版权身份 **待审** | 尚未得到维护者同意改写历史；没有清理或重置其他人的成果 |
+
+新增 `scripts/verify-native-media-candidate.mjs`、来源锁定文件和 5 项测试；候选脚本已加入完整质量门禁。候选二进制及证据仅在本机 D 盘隔离审计目录，**没有替换、重建或上传任何新的 Windows 安装器**；此前已验收 unsigned 安装器仍为原始 SHA `db75ff59908c4a4e199fdd074ab8227b2c9552e847fd5f65d86e4fe53b68edcc`（接手后已重新哈希，Authenticode 实测 NotSigned），新候选不能沿用旧包的安装器测试作为自己的通过证据。
+
+本轮首次本地 release gate **FAIL**：Vitest 意外纳入 `node:test` 新文件，原有 1175 项单测通过但多一个无法由 Vitest 加载的 suite（131/132 files）。原样保留 `.tmp/handoff-20261008-release-gate.log`。将新增测试更名为 `.node-test.mjs` 并保留为 `node --test` 明确执行后，完整 `test:release-gate` **PASS（退出码0，131 文件/1175 旧测试加5项新测试，无跳过，Vitest 阶段320.88秒）**；Electron 主进程 smoke **PASS**、renderer-security smoke **PASS**。全部实测日志本地忽略目录，首轮失败没有从记录中删除。
+
+需要维护者集中确认的权属/许可证、签名/独立审核、永久删除默认与旧参数、隐私公开范围和旧正式升级样本，单独记录于 [公众发布决策清单](public-release-owner-decisions.md)。**工程验收 PASS_WITH_RISKS，正式公众发布 FAIL；所有审批字段保持失败关闭。**

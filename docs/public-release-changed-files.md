@@ -187,3 +187,16 @@
 - [docs/ai/reports/2026-10-03-embedded-mpv-spike.md](../docs/ai/reports/2026-10-03-embedded-mpv-spike.md)
 - [docs/ai/reports/2026-10-05-performance-remaining-v2.md](../docs/ai/reports/2026-10-05-performance-remaining-v2.md)
 
+
+## 2026-10-08 接手后新增（在上列原始 167 文件 PR 变更以外）
+
+- `scripts/native-media-candidate.lock.json`：固定候选来源/版本/哈希，明确不授权分发。
+- `scripts/verify-native-media-candidate.mjs`：独立候选二进制检验、证据生成，拒绝错配及 GPL/nonfree 开关。
+- `tests/scripts/nativeMediaCandidate.node-test.mjs`：5 项快速候选契约单测。
+- `package.json`：将候选契约单测接入完整 release gate，不减少既有门禁。
+- `docs/legal/native-binary-security.md`：新增实际候选实测与剩余源代码许可阻塞。
+- `docs/public-release-owner-decisions.md`：业主需要批准的集中决策，不是批准文件。
+- `docs/public-release-audit.md`：接手状态和风险补充。
+- `docs/ai/deliveries/2026-10-08-release-handoff-media-candidate.md`：本轮真实交付记录。
+
+若与 PR 当前文件清单产生差异，以实际 `git diff` 及 PR 文件列表为准。未分发候选压缩包/EXE、临时合成媒体、证据 JSON 和测试日志。

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "status": "CANDIDATE_NOT_APPROVED",
+  "distributable": false,
+  "sourceProject": "BtbN/FFmpeg-Builds",
+  "sourceCommit": "9acad4a9ef1583096af7836cc1e9c8cbcb4d3950",
+  "releaseTag": "autobuild-2026-10-05-13-07",
+  "archive": "ffmpeg-n9.0.2-22-g46d8f462ee-win64-lgpl-9.0.zip",
+  "archiveUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-05-13-07/ffmpeg-n9.0.2-22-g46d8f462ee-win64-lgpl-9.0.zip",
+  "archiveSha256": "1c73d2256f0198805daf0f765feab8d3f21d3ab85e8dda0c2bb44ce1e3a126c7",
+  "expectedVersion": "n9.0.2-22-g46d8f462ee-20261005",
+  "expectedExecutables": {
+    "ffmpeg.exe": "5054ceae23d3d3bb1938c337838333be0a444305a3d89d53e184a9366a49edc9",
+    "ffprobe.exe": "2e9e184daf8a35da5ef0d8508ae8d9a0ba482896b1a03f06e03f458dc2266be5"
+  },
+  "expectedLicenseSha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
+  "platform": "win64",
+  "variant": "lgpl-static",
+  "notes": "Pinned evaluation input only. Binary source, enabled external libraries, corresponding source, notices, and distribution approval remain unverified. Never substitute this for build/release-approval.json."
+}
