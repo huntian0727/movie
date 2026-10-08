@@ -29,7 +29,11 @@ jobs:
           cache: npm
       - run: npm install --global npm@10.9.8
       - run: npm ci
-      - run: npm run test:release-gate
+      - name: Windows data-safety and release regression gate
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+        run: npm run test:release-gate
       - run: npm audit
       - run: npm run package:dir
       - run: npm run test:electron-smoke

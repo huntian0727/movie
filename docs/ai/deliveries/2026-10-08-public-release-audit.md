@@ -46,6 +46,8 @@
 
 ## Final artifact and desktop evidence
 
+首轮PR Windows CI（run37747001533，交付提交5060afa）保留失败：全量1174/1175通过，assetCenterPerformance单个原始60秒总时限在托管Windows运行器耗时约71.154秒；三个真实查询分别243.34/888.65/550.48ms，原2秒/3秒预算全部满足。后续安装QA因依赖失败未执行，不能写成CI PASS。仅把CI及发布流程现有完整release gate的TEMP/TMP明确指向GitHub runner.temp临时存储；不改测试、数据量、SQLite生产模式、索引/触发器或时间预算，不改安装包应用源码。使用运行器临时目录的路径规范见[GitHub官方说明](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context)。这是对托管存储环境的修正候选，须由下一次实际CI确认，不能推测性能改善已验证。
+
 最终功能源码提交：d7e69072a1b7e944c23f86c140b3ab88283c0542。root干净工作树713份文件逐字节复制并验证到D盘隔离打包工作树；D工作树Git HEAD仍为807c495，明确设置GITHUB_SHA为经验证的root源码提交，不把D的HEAD冒称已更新。后续交付说明/截图提交仅含文档，功能输入保持不变。
 
 Windows x64的最终dist:win、artifact、release:metadata、packaged smoke、installer smoke全部实际PASS。ASAR3625项，better-sqlite3 N-API、FFmpeg、FFprobe、NativeHost及Electron皆验证目标平台/字节；应用版本0.1.15、ProductVersion0.1.15.0、测试产品名正确。安装/repair/卸载以及明确delete-app-data拒绝完整通过，内外及嵌套SQLite/video哨兵和正式注册项/快捷方式保持。实际installer、application、NativeHost均NotSigned，未冒充签名版本。

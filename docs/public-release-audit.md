@@ -93,6 +93,8 @@ SHA-256：db75ff59908c4a4e199fdd074ab8227b2c9552e847fd5f65d86e4fe53b68edcc。同
 
 ## 最终交付文档提交前的历史复查
 
+PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过，32万行性能测试总准备和查询约71.154秒超过原60秒；查询本身243.34/888.65/550.48ms均在原预算。依赖检查、Electron主进程/渲染安全及全历史安全CI已PASS，安装CI被依赖失败阻止，未冒充执行。后续修正仅将两个工作流现有完整release gate的TEMP/TMP设为GitHub runner.temp，使用运行器临时存储；原测试和全部断言/预算不变。修正的CI验收结果另以PR检查实际状态为准，不将候选修正直接当作通过。
+
 2026-10-08交付文档提交前，实际导出211个可达提交、2288个唯一历史blob和715份当前文件；当前树Gitleaks使用完整脱敏且不接受仓库allowlist，结果零secret命中。隐私规则累计260条候选：91条Windows用户路径、155条email-like、12条private-network、2条credential assignment。基线198条的分类及公开范围风险保持；新增62条逐类复核如下，未将候选原文或密钥写入报告。
 
 - 52条是上游公开许可证或版权声明中的联系地址：docs/legal/THIRD-PARTY-NOTICES.txt共50条；docs/legal/upstream/agent-base-6.0.2-LICENSE.txt:6和https-proxy-agent-5.0.1-LICENSE.txt:6各1条。保留法律归属材料，不把它们当作用户私人联系方式删除。
