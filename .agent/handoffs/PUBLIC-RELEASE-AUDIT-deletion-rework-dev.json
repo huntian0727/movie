@@ -1,0 +1,37 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "scope": "Independent QA P1 rework: collision-safe isolation recovery and final staged-object validation",
+  "state": "DEV_COMPLETE",
+  "branch": "ai/public-release-audit",
+  "baseline": "807c495",
+  "date": "2026-10-08 Asia/Shanghai",
+  "previousHandoff": ".agent/handoffs/PUBLIC-RELEASE-AUDIT-deletion-dev.json",
+  "developerFiles": [
+    "src/main/media/duplicateCleanupService.ts",
+    "tests/main/duplicateCleanupJobs.test.ts"
+  ],
+  "independentQaFixture": "tests/main/stagedRestoreCollision.test.ts (authored by qa_distribution; this Developer did not modify its assertions)",
+  "changes": [
+    "Live and startup recovery share one persisted-item checked recovery path; it rejects unrecorded/different paths and requires original/staged same-directory isolation, enabled managed ordinary file, persisted stable identity, expected size and mtime.",
+    "Recovery uses atomic link(staged, original) then revalidates both names and unlinks only the staging name. Concurrent originals are never overwritten. Any collision, identity mismatch, junction or unsupported hardlink leaves staging evidence and media intact with manual recovery message; no rename fallback exists.",
+    "Missing staging path clears evidence only when the original is the persistently recorded object; an unrelated occupied original cannot silently clear recovery evidence.",
+    "Successful isolated full hash returns its stable/version identity; after final retained-file SHA and fresh deletion claim, the immediately pre-delete managed identity/version check rejects substituted or changed staging objects before the irreversible call.",
+    "The existing rename-count test now asserts one isolation rename, because rollback is a no-overwrite hard link. It additionally asserts recovered bytes are intact; no safety assertion was removed."
+  ],
+  "verification": {
+    "command": "rtk proxy node .tmp/run-node22.cjs exec -- vitest run tests/main/duplicateCleanupJobs.test.ts tests/main/publicReleaseDeletionAdversarial.test.ts tests/main/stagedRestoreCollision.test.ts --maxWorkers=2",
+    "result": "3 files / 44 tests PASS; final run 4.47s, Vitest5.0.3, Node22.23.1",
+    "independentCases": "7 PASS: live rollback collision, startup collision, substituted staged identity, ancestor junction, missing persistent identity, unsupported hardlink without rename fallback, actual staged replacement during final kept-file hash",
+    "intermediateFailures": "First original suite run had one obsolete expectation of two rename calls. First independent fixture startup run had a Windows bigint-vs-normal Stats date 1ms fixture mismatch; independent author aligned mtime to actual normal-stat repository records without changing safety assertions. Both corrected and final complete scoped suite passes.",
+    "typecheck": "PASS",
+    "scopedDiffCheck": "PASS",
+    "realUserMediaDbCloudDriveInstaller": "NOT RUN; only disposable fixtures and mocks",
+    "dependencyOrNativeChanges": "NONE"
+  },
+  "remainingRisks": [
+    "Portable Node path APIs do not eliminate same-privilege malicious mutation between the final filesystem check and syscall. The reproduced long-hash substitution window and recovery replacement race are closed.",
+    "Shares lacking hardlink support require manual recovery; staged media is intentionally retained rather than using overwrite-capable rename.",
+    "If interruption occurs after successful hardlink but before staging-name removal, both names may remain and need reviewed manual recovery; content is preserved."
+  ],
+  "nextActor": "Independent QA verifies the new final source and fixtures, then root reruns the complete integration/release gate on the final rework state. Developer does not self-accept public release."
+}

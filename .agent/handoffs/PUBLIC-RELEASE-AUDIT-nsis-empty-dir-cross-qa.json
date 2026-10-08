@@ -1,0 +1,82 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "stage": "independent-nsis-empty-directory-source-cross-qa",
+  "verdict": "PASS_WITH_KNOWN_RISKS",
+  "date": "2026-10-08 Asia/Shanghai",
+  "branch": "ai/public-release-audit",
+  "baseline": "807c495",
+  "developerHandoff": ".agent/handoffs/PUBLIC-RELEASE-AUDIT-nsis-empty-dir-dev.json",
+  "scope": "Read-only review of final empty-directory detection, preserved NSIS hook/guard order and isolated installer-smoke plan; not actual installer or formal release acceptance",
+  "independence": "Reviewer did not implement installer.nsh change and did not execute installer/uninstaller, heavy Node/build/native checks or user-data operations.",
+  "safeToProceedWithAbsoluteTemporaryFixtureSmoke": true,
+  "executionPrerequisites": [
+    "Rebuild the exact unsigned NSIS candidate using the reviewed root installer.nsh; compile-only Developer evidence is not candidate runtime evidence.",
+    "Current artifact/metadata gates verify the exact isolated unsigned identity and installer SHA/NotSigned status.",
+    "Run the existing guarded installer-smoke using only its mkdtemp absolute /D targets, with no preexisting isolated test registration."
+  ],
+  "confirmedSourceControls": [
+    {
+      "control": "Real empty directory allowed; any actual entry still requires matching appId and safeUninstaller marker",
+      "evidence": "build/installer.nsh:61-110: GetFileAttributes ordinary-directory check, FindFirst/FindNext ignore only . and ..; first other entry sets populated flag and requires marker. Normal not-found statuses accepted; enumeration/access failures abort."
+    },
+    {
+      "control": "Three install hooks retained, including final silent preflight before old uninstaller and extraction",
+      "evidence": "build/installer.nsh:137-154; installed electron-builder installer.nsi:45-47,49-88,94; installSection.nsh:52-66. Stock initial SetOutPath creates an empty directory, which explains the observed failure of the removed wildcard-only check. initMultiUser resolves /D before customInit; final hidden Section precedes stock install Section."
+    },
+    {
+      "control": "Literal drive/share roots, ordinary relative paths, root/ancestor reparse traversal and owned-file reparse paths rejected",
+      "evidence": "build/installer.nsh:16-49,112-135,175-196; PathIsRootW added and existing ancestor checks retained. Fully-qualified/canonical edge forms remain a listed risk, not claimed proven rejection."
+    },
+    {
+      "control": "Registered legacy uninstaller, per-machine install and explicit app-data deletion flags remain blocked",
+      "evidence": "build/installer.nsh:112-131,161-173; registry marker gate runs independently of final target emptiness and customUnInit still precedes stock data-removal branch at uninstaller.nsh:221-232."
+    },
+    {
+      "control": "Exact whitelist/nonrecursive uninstall policy unchanged",
+      "evidence": "build/installer.nsh:175-205 and release-engineering.mjs renderRemovalManifest; customRemoveFiles still replaces stock RMDir /r branch."
+    }
+  ],
+  "smokePlanReviewed": {
+    "evidence": "scripts/run-installer-smoke.mjs:11-105,115-143",
+    "checks": [
+      "Isolated flavor, exact metadata equality, installer SHA and actual NotSigned signature before launch; refuse preexisting test registration",
+      "Unrelated nonempty synthetic SQLite/video target must fail, preserve hashes/quick_check and create no registration",
+      "New empty disposable target must install with exact embedded flavor/application hash and safety marker",
+      "Same-candidate repair and packaged smoke preserve synthetic profile/external/inside/nested media and SQLite files",
+      "Explicit --delete-app-data uninstall must fail before deletion, normal uninstall removes owned executable but preserves sentinel hashes/quick_check",
+      "Production registry/shortcut snapshots unchanged; temporary cleanup restricted to own mkdtemp root with marker; failure diagnostics retained"
+    ],
+    "coverageLimits": [
+      "No actual runtime root/share/drive-relative/reparse/legacy-marker negative tests in this script; guards are source-reviewed only.",
+      "Same-candidate repair is not evidence of an actual prior signed-version upgrade or transactional rollback."
+    ]
+  },
+  "actionableRisks": [
+    {
+      "priority": "P2",
+      "id": "NSIS-FULLY-QUALIFIED-PATH",
+      "summary": "PathIsRelativeW is not a fully-qualified path test: Windows drive-relative C:child and root-relative backslash-child need explicit rejection or canonicalization. Current smoke uses strict absolute mkdtemp paths and does not validate those edge forms. PathIsRootW also must be applied to the canonical path before claiming all root aliases rejected.",
+      "evidence": "build/installer.nsh:26-48; Microsoft source https://devblogs.microsoft.com/oldnewthing/20180222-00/?p=98075 and https://learn.microsoft.com/dotnet/standard/io/file-path-formats",
+      "recommendation": "Accept explicitly fully-qualified drive-letter colon backslash or UNC server/share/subdirectory forms, canonicalize before root and ancestor checks, and add disposable fixture negative cases for drive-relative/root-relative/dot-root aliases. This source-only reviewer did not launch installers to prove a destructive bypass."
+    },
+    {
+      "priority": "P2",
+      "id": "NSIS-RUNTIME-EVIDENCE",
+      "summary": "Compile and source review do not prove final NSIS FindFirst/GetLastError/Section behavior. The prior actual first-install failure demonstrates that runtime evidence is required.",
+      "recommendation": "Root must run the complete rebuilt isolated smoke, retaining exact candidate SHA, phase exit codes and sentinel/registration outcome before marking installer PASS."
+    },
+    {
+      "priority": "P2",
+      "id": "NSIS-INTERRUPTED-REPAIR",
+      "summary": "Existing safe uninstall deletes its marker before replacement extraction/customInstall rewrites it. Interruption may leave a partial nonempty unmarked directory needing reviewed manual recovery; this empty-directory repair does not add transactional upgrade rollback.",
+      "evidence": "build/installer.nsh:156-159,198-205; stock installSection.nsh:52-82"
+    }
+  ],
+  "notExecuted": [
+    "Installer/uninstaller",
+    "Heavy Node/build/native regression",
+    "Real user media/database/profile mutation",
+    "Formal release or Tag creation"
+  ],
+  "nextActor": "Root runs rebuilt candidate gates and complete temporary-fixture installer smoke, handles listed path-validation edge risk, then combines actual results into release verdict."
+}

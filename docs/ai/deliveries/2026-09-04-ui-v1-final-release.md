@@ -22,7 +22,7 @@
 - `npm run dist:win`：通过，生成 `Local-Video-Manager-0.1.15-x64-Setup.exe`。
 - `npm run release:metadata`：通过。
 - `npm run test:installer-smoke`：通过，包含安装、覆盖安装、卸载和用户数据保留。
-- 桌面快捷方式目标已核对为 `C:\Users\test\Documents\视频管理\movie\release\win-unpacked\Local Video Manager.exe`。
+- 桌面快捷方式目标已核对为 `%USERPROFILE%\Documents\视频管理\movie\release\win-unpacked\Local Video Manager.exe`。
 - 最新桌面程序启动成功，版本 0.1.15 启动日志完成，窗口最大化。
 
 ## Risks and follow-up

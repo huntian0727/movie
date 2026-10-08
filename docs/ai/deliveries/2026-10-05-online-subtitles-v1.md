@@ -33,7 +33,7 @@ status: source-and-desktop-acceptance-complete
 - 独立 QA：6 个定向文件 / 60 项和 2 个临时对抗文件 / 4 项通过，PASS_WITH_KNOWN_RISKS。独立 UI：源码交互复核、9 项 Renderer 测试及两张真实桌面截图检查通过，UI_REVIEW_PASS。桌面操作由 root 执行，截图由 UI 独立复核。
 - 隔离 checkout 的 Electron ABI 130：Electron smoke、`package:dir`、`verify:artifact` PASS；打包 smoke 在候选包通过，交付文档提交后对最终重建包再执行。开发工作区 Node SQLite ABI 未被 Electron 覆盖。
 - 实际 Electron safeStorage + NativeHost/MPV 隔离运行 PASS：生成视频与 ASS、模拟提供方验证真实 MPV 选中 ASS、1.5 秒偏移确认、关闭/重选、暂停保持及服务重新实例化后的持久化；不等同于网站认证下载。
-- 真实桌面快捷方式 `C:/Users/test/Desktop/拉面影视.lnk` 指向 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。从原快捷方式启动新候选包，资产中心正常，设置 → 在线字幕可见；实际内嵌播放字幕面板搜索分别提示两个来源需配置；弹窗隐藏原生视频，Escape 关闭后视频、暂停与焦点恢复。
+- 真实桌面快捷方式 `%USERPROFILE%/Desktop/拉面影视.lnk` 指向 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。从原快捷方式启动新候选包，资产中心正常，设置 → 在线字幕可见；实际内嵌播放字幕面板搜索分别提示两个来源需配置；弹窗隐藏原生视频，Escape 关闭后视频、暂停与焦点恢复。
 - 审查截图在忽略目录 `.tmp/subtitle-ui-evidence/`，不上传真实媒体截图；未保存/修改用户字幕平台账户。
 - `git diff --check` PASS；通过 `finish-and-push.ps1 -SkipChecks` 正常推送功能分支与 main，更新前备份 main。SkipChecks 依据同工作区已完整执行的等价发布门禁；最终提交和备份标签以脚本 RESULT 及 Git 远程核对为准。
 - 交付原快捷方式指向的 unpacked 桌面程序。本记录提交后重新构建最终包、验证产物/打包 smoke、部署并从原快捷方式复核，比较 Commit 和 app.asar 时间/哈希。最终证明在忽略目录 `.tmp/final-subtitle-desktop-proof.json` 并在最终回复报告；不生成或声称更新 NSIS 安装器。

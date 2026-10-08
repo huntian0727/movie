@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "reviewDateAsiaShanghai": "2026-10-08",
+  "scope": "Build-only deterministic NativeHost C# compiler and .NET Framework reference assemblies. This does not approve the owner's NativeHost source rights, libmpv/FFmpeg distribution, signing, or clean Windows acceptance.",
+  "lockFile": "scripts/native-player-toolchain.lock.json",
+  "hashTrust": "The fixed SHA512 values were read from the official NuGet catalog entries and matched the official flatcontainer package downloads. SHA256 and individual-file SHA256 were then derived from those authenticated bytes and pinned in Git. Normal builds never obtain or enroll new expected hashes; downloads and all cached inputs must match both reviewed package hashes. No trust-on-first-use.",
+  "network": "Build downloads only exact HTTPS api.nuget.org flatcontainer URLs, rejects redirects, bounds bytes to the pinned package size and times out. Official registration/catalog/vulnerability metadata was read separately during this audit. No global NuGet cache is used.",
+  "compiler": {
+    "id": "Microsoft.Net.Compilers.Toolset", "version": "4.14.0",
+    "gallery": "https://www.nuget.org/packages/Microsoft.Net.Compilers.Toolset/4.14.0",
+    "catalog": "https://api.nuget.org/v3/catalog0/data/2025.05.15.20.16.33/microsoft.net.compilers.toolset.4.14.0.json",
+    "archive": "https://api.nuget.org/v3-flatcontainer/microsoft.net.compilers.toolset/4.14.0/microsoft.net.compilers.toolset.4.14.0.nupkg",
+    "archiveBytes": 21771766,
+    "sha512": "h5GExC3fx0fm0qHw8rQ6y5c0uk6cCiAsorLl9Hq/9VlotEvsv/oW60RNo8HOYApv66kNqJq4Bg/TkSAsgQAwbQ==",
+    "sha256": "941a9cf3ea618d88d01a3dd6b1a45a06bcf07716a9f81ce4031caa3edd24a845",
+    "authors": "Microsoft", "declaredLicenseExpression": "MIT",
+    "licenseUrl": "https://licenses.nuget.org/MIT",
+    "licenseEvidence": "The exact pinned package's Microsoft.Net.Compilers.Toolset.nuspec explicitly declares license type=expression MIT and identifies the Microsoft Roslyn source commit.",
+    "nuspecSha256": "58df33be594abc75076b598c1298cb3a19b8ccea0bbd10244d9c27d897011c0d",
+    "sourceCommit": "https://github.com/dotnet/roslyn/commit/8edf7bcd4f1594c3d68a6a567469f41dbd33dd1b",
+    "executable": "tasks/net472/csc.exe",
+    "executableFileVersion": "4.1400.25.26210",
+    "executableSha256": "2dc1461b1a6e95be9c1beceb4b263141b7bb90e704029344a0c2d1a5693d9007",
+    "configurationSha256": "ef55efdde1759bf1a1cb8893860881e85cdae21298fbd5e351736fa79a6ea06f",
+    "supportCaveat": "The package description warns that using this toolset as a long-term newer compiler on older MSBuild installations is unsupported and recommends updating SDK/Build Tools. This project directly invokes the pinned net472 csc.exe on Windows with Framework 4.8+, not MSBuild. Pins and standalone compatibility must be reviewed on upgrades; compilation success is not a general Microsoft support claim."
+  },
+  "references": {
+    "id": "Microsoft.NETFramework.ReferenceAssemblies.net48", "version": "1.0.3", "target": ".NET Framework 4.8",
+    "gallery": "https://www.nuget.org/packages/Microsoft.NETFramework.ReferenceAssemblies.net48/1.0.3",
+    "catalog": "https://api.nuget.org/v3/catalog0/data/2022.08.19.22.04.09/microsoft.netframework.referenceassemblies.net48.1.0.3.json",
+    "archive": "https://api.nuget.org/v3-flatcontainer/microsoft.netframework.referenceassemblies.net48/1.0.3/microsoft.netframework.referenceassemblies.net48.1.0.3.nupkg",
+    "archiveBytes": 20997929,
+    "sha512": "XWKgyeNadNcTQaIVvQB8BrdCNrEar6fo/de1OdQRZ9HFy0jcBSaM8IV5q64ZampsSnC8AlTsACaGZUuoFw41RA==",
+    "sha256": "8a7e348538e7eb91351696911689f49e3d4f63f8bab517432bbe159b8b1104a2",
+    "authors": "Microsoft", "declaredLicenseExpression": null,
+    "declaredLicenseUrl": "https://github.com/Microsoft/dotnet/blob/master/LICENSE",
+    "licenseEvidence": "The exact pinned nuspec uses a license URL, not an SPDX expression. The referenced Microsoft dotnet LICENSE resolves to MIT (Copyright 2019 Microsoft) when inspected on the review date. MIT attribution is based on that official license URL; no package-embedded SPDX declaration is claimed.",
+    "inspectedLicenseText": "https://raw.githubusercontent.com/microsoft/dotnet/main/LICENSE",
+    "nuspecSha256": "11b529552084c0d72e9ab1b20945cda82a6f6fd5a5123def11c1d109913ce0fd",
+    "allReferencedAssemblyVersion": "4.0.0.0",
+    "allReferencedFileVersion": "4.8.3761.0 (NET48REL1 except System.Web.Extensions file-version text has no build suffix)",
+    "assemblies": [
+      { "name": "mscorlib.dll", "publicKeyToken": "b77a5c561934e089", "sha256": "6b35530467b914b0b195146ca1d1485ddd219afaad6461103f16f54e952f75a9" },
+      { "name": "System.dll", "publicKeyToken": "b77a5c561934e089", "sha256": "2fe343569f794f2ca92ee14a41875571a9f21bf92637b8f8ee86306534209cca" },
+      { "name": "System.Core.dll", "publicKeyToken": "b77a5c561934e089", "sha256": "94a1fc97eb0d36f13acd209bb7207da504c8be10caf7e5096b2c46e671dc6fe2" },
+      { "name": "System.Windows.Forms.dll", "publicKeyToken": "b77a5c561934e089", "sha256": "0b0bc1f2ebfefe0cf827b2e2a0caa3fb8c772d84df26ab8e40abe98e0f2eb300" },
+      { "name": "System.Drawing.dll", "publicKeyToken": "b03f5f7f11d50a3a", "sha256": "65a42d3e5bd4508e3c75133cd1967301a84b5dae6698f300cd831ff79c54b611" },
+      { "name": "System.Web.Extensions.dll", "publicKeyToken": "31bf3856ad364e35", "sha256": "7512218c4a6a83de0cdbb8a25240b8b5ee542f93ff9b31acfbf9f7399394450e" }
+    ]
+  },
+  "vulnerabilityReview": {
+    "npmAuditCoverage": false,
+    "status": "No entries for these two package IDs in the reviewed official metadata; not a claim that no vulnerabilities exist or that bundled compiler dependencies were comprehensively audited.",
+    "registration": [
+      "https://api.nuget.org/v3/registration5-semver1/microsoft.net.compilers.toolset/index.json",
+      "https://api.nuget.org/v3/registration5-semver1/microsoft.netframework.referenceassemblies.net48/index.json"
+    ],
+    "registrationAndCatalogResult": "Exact versions listed; no vulnerabilities or deprecation entries present in inspected version records.",
+    "officialDiscovery": "https://api.nuget.org/v3/vulnerabilities/index.json",
+    "feeds": [
+      { "url": "https://api.nuget.org/v3-vulnerabilities/2026.10.06.23.47.38/vulnerability.base.json", "updated": "2026-10-06T23:47:38.9099889Z", "matchingPackageEntries": 0 },
+      { "url": "https://api.nuget.org/v3-vulnerabilities/2026.10.06.23.47.38/2026.10.07.23.47.44/vulnerability.update.json", "updated": "2026-10-07T23:47:44.6589434Z", "matchingPackageEntries": 0 }
+    ]
+  },
+  "buildPolicy": {
+    "compilerArgs": ["/deterministic+", "/noconfig", "/nostdlib+", "/langversion:5", "/platform:x64", "/optimize+", "/target:exe", "/debug-", "/codepage:65001", "/utf8output", "/preferreduilang:en-US", "explicit six /reference paths", "stable source/staging/repository /pathmap"],
+    "officialDeterminismReference": "https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/compiler-options/code-generation#deterministic",
+    "shell": false,
+    "compilerTimeoutMs": 60000,
+    "cache": ".tmp/native-player-toolchain",
+    "cacheIntegrity": "Every build verifies package hashes, all selected compiler files against the authenticated archive, the six locked reference hashes and the exact csc hash; unexpected adjacent cached files and reparse points are rejected.",
+    "archiveBoundary": "Preflight all ZIP names, directory/local records, size limits, duplicates and symlink/reparse metadata before writes; only compiler net472 files and six selected refs extracted under the owned repository cache. CRC and decompressed size checked.",
+    "machineDefaults": "No Framework csc, Visual Studio, SDK discovery, machine response file or machine reference search is used. LIB/LIBPATH/CSC/PLATFORM overrides are removed from the compiler process environment.",
+    "distributed": "Only compiled NativeHost.exe is a runtime artifact; NuGet archives/compiler/reference cache are build inputs, not added to Electron resource packaging. Reference assemblies are not a replacement for the Windows Framework runtime.",
+    "sourceChanged": false,
+    "helperExecuted": false,
+    "signed": false
+  },
+  "actualVerification": {
+    "status": "PASS_SCOPED_DEVELOPMENT",
+    "sourceSha256": "db5e94ee76f1b5fa3015e4f935d9fcad0c981eb8b9fb429322cdcf55696b5376",
+    "binarySha256": "215a49e9b9dee51ce758b7a9e1408db2e3a0704670ca349c0e314416554171d7",
+    "binaryBytes": 43520,
+    "pe": "Unsigned x64 managed PE; full byte equality in two isolated absolute source/output/compiler-working directories, one with spaces and one with Chinese characters. Default native-bin build has the same SHA256.",
+    "commands": ["rtk proxy node scripts/build-native-player.mjs", "rtk proxy node scripts/test-native-player-reproducibility.mjs", "rtk proxy node .tmp/run-node22.cjs exec -- vitest run tests/scripts/nativePlayerToolchain.test.mjs --maxWorkers=2"],
+    "tests": "1 suite, 15 tests passed",
+    "localEvidence": ".tmp/native-player-repro-lxF3d3/reproducibility.json",
+    "notVerified": ["Windows 2025 CI execution and cross-machine binary equality", "clean Windows 11 without any development tools", "runtime NativeHost/libmpv/UI behavior or signing"],
+    "next": "Independent cross-QA, final integrated gates and rebuilt package by Local Project Manager. Existing legal/certificate/clean-VM blockers remain."
+  }
+}

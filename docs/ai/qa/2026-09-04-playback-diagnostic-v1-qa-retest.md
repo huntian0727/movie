@@ -76,7 +76,7 @@ OR videos.path LIKE @search ESCAPE '!' COLLATE NOCASE
 
 ### 3. P1：真实生产 worker 与大库性能
 
-真实资料库：`C:\Users\test\AppData\Roaming\local-video-manager\library.sqlite`。
+真实资料库：`%USERPROFILE%\AppData\Roaming\local-video-manager\library.sqlite`。
 
 - 有效视频：319,986 条。
 - 文件大小：745,103,360 bytes。

@@ -40,6 +40,29 @@ export type DuplicateCleanupWorkItem = ItemRow;
 export class DuplicateCleanupRepository {
   constructor(private readonly db: DatabaseConnection, private readonly videos: VideoRepository) {}
 
+  bindCloudDriveConnection(jobId: string, binding: string): void {
+    if (!/^[a-f0-9]{64}$/.test(binding)) throw new Error("Invalid CloudDrive connection binding.");
+    this.db.prepare(`UPDATE duplicate_cleanup_jobs SET cloud_connection_binding = ?
+      WHERE id = ? AND workflow_version = 3 AND cloud_connection_binding IS NULL`).run(binding, jobId);
+  }
+
+  getCloudDriveConnectionBinding(jobId: string): string | null {
+    const row = this.db.prepare("SELECT cloud_connection_binding FROM duplicate_cleanup_jobs WHERE id = ?")
+      .get(jobId) as { cloud_connection_binding: string | null } | undefined;
+    return row?.cloud_connection_binding ?? null;
+  }
+
+  assertCloudDriveConnectionChangeAllowed(): void {
+    const pending = this.db.prepare(`SELECT 1 FROM duplicate_cleanup_jobs j
+      WHERE j.workflow_version = 3 AND EXISTS (
+        SELECT 1 FROM duplicate_cleanup_items i WHERE i.job_id = j.id AND i.status <> 'deleted') LIMIT 1`).get();
+    if (pending) {
+      const error = new Error("请先停止并清除包含未完成项的 CloudDrive 删除任务，再修改连接或 Token。") as Error & { code: string };
+      error.code = "CLOUDDRIVE_CLEANUP_CONNECTION_LOCKED";
+      throw error;
+    }
+  }
+
   preview(request: DuplicateCleanupSubmitRequest): Omit<DuplicateCleanupAccepted, "jobId" | "requestId" | "status"> {
     const entries = this.videos.validateDuplicateResolvePlan(request.plan);
     this.assertVideosAvailable(entries.flatMap((entry) => [entry.keepVideo.id, ...entry.deleteVideos.map((video) => video.id)]));
@@ -324,20 +347,25 @@ export class DuplicateCleanupRepository {
   recoverFastJobs(): string[] {
     const now = new Date().toISOString();
     return this.db.transaction(() => {
-      const rows = this.db.prepare(`SELECT id FROM duplicate_cleanup_jobs
+      const rows = this.db.prepare(`SELECT id, status FROM duplicate_cleanup_jobs
         WHERE workflow_version = 3 AND phase = 'deletion'
           AND status IN ('queued','running','cancelling','interrupted')
-        ORDER BY created_at`).all() as Array<{ id: string }>;
+        ORDER BY created_at`).all() as Array<{ id: string; status: string }>;
       for (const row of rows) {
+        if (row.status === "cancelling") {
+          this.finishCancelled(row.id);
+          continue;
+        }
         this.db.prepare(`UPDATE duplicate_cleanup_items
           SET status = CASE WHEN status = 'deleting' THEN 'pending' ELSE status END,
               updated_at = ?
           WHERE job_id = ? AND status <> 'deleted'`).run(now, row.id);
         this.db.prepare(`UPDATE duplicate_cleanup_jobs
-          SET status = 'queued', updated_at = ?, error_summary = 'Continuing API deletion after application restart.'
+          SET status = 'interrupted', updated_at = ?, error_summary = 'Review the current CloudDrive connection and explicitly resume remaining API deletion.'
           WHERE id = ?`).run(now, row.id);
       }
-      return rows.map((row) => row.id);
+      // A restart may also change endpoint/account. Never send a delete automatically.
+      return [];
     })();
   }
 
@@ -584,6 +612,11 @@ export class DuplicateCleanupRepository {
           delete_sha256 = NULL, keep_file_identity = NULL, delete_file_identity = NULL,
           verified_at = NULL, authorized_revision = NULL, updated_at = ?
           WHERE job_id = ? AND status <> 'deleted'`).run(now, jobId);
+      }
+      if (job.workflowVersion === 3) {
+        this.db.prepare(`UPDATE duplicate_cleanup_items SET status = 'cancelled', outcome_code = 'delete-stop-requested',
+          message = 'Remaining API deletions were stopped; interrupted in-flight results require remote review.', updated_at = ?
+          WHERE job_id = ? AND status IN ('pending','deleting')`).run(now, jobId);
       }
       this.db.prepare(`UPDATE duplicate_cleanup_jobs SET status = 'cancelled', phase = 'finished', authorized_revision = NULL,
         authorized_at = NULL, completed_at = ?, updated_at = ? WHERE id = ?`).run(now, now, jobId);

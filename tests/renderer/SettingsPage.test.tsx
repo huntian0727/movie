@@ -17,6 +17,13 @@ const cacheStatus: MediaCacheStatus = {
 };
 
 describe("SettingsPage", () => {
+  it("shows credential recovery status and keeps the replacement field empty", () => {
+    const recovery = { ...settings, cloudDrive: { ...settings.cloudDrive, configured: false,
+      credentialError: "CloudDrive 安全凭据暂不可用，连接已停用；请重新输入 Token 并保存以恢复。原凭据已保留。" } };
+    render(<SettingsPage settings={recovery} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("请重新输入 Token");
+    expect(screen.getByLabelText("CloudDrive API Token")).toHaveValue("");
+  });
   it("shows required settings and configurable shortcuts without the missing-file section", () => {
     render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} />);
     expect(screen.getByText("默认递归扫描")).toBeInTheDocument();

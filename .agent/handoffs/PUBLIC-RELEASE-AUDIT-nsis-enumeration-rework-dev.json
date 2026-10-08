@@ -1,0 +1,40 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "state": "DEV_COMPLETE",
+  "scope": "NSIS enumeration error capture and original /D syntax validation after the second parent-owned isolated installer smoke failed",
+  "productionFiles": ["build/installer.nsh"],
+  "branch": "ai/public-release-audit",
+  "rootCauseEvidence": [
+    "Parent's second actual installer smoke rejected the unrelated populated fixture correctly, but a new empty target still returned exit1.",
+    "An authorized read-only diagnostic executable instantiated copied actual root directory-check macros. The pre-fix empty fixture returned exit1 with exact abort 'The application directory enumeration failed safely.'; separately invoked System GetLastError after NSIS FindNext returned80(ERROR_FILE_EXISTS), rather than18(ERROR_NO_MORE_FILES). The nonempty fixture returned the expected missing safety-marker rejection.",
+    "Separate runtime input matrix showed NSIS special INSTDIR sanitizes assigned strings before the macro sees them: mixed slash, ADS colon and trailing separator were silently stripped. Those initial raw-input negative expectations failed; the shared raw syntax guard now executes on a dedicated ordinary variable before INSTDIR assignment/inspection."
+  ],
+  "changes": [
+    "Directory attribute reads and native FindFirstFileW/FindNextFileW calls now use System ?e to capture GetLastError immediately inside the same exported call. No later plugin invocation is used to infer enumeration status.",
+    "Allocate592-byte WIN32_FIND_DATAW, read cFileName at byte44, skip only . and .., require the existing marker whenever any real entry exists. Allocation, inspection and unexpected enumeration failures remain fatal. Search handles and buffers are released on normal and error branches; unexpected FindClose failure is also fatal.",
+    "Extracted strict shared movieValidatePathSyntax TARGET. Existing final INSTDIR checks reuse it. customInit additionally invokes stock GetDParameter into dedicated Var movieRawInstallTarget and validates unmodified raw /D syntax. Scratch R-registers cannot mutate this macro input.",
+    "After the actual builder rejected unused installer-only variable warning6001 in BUILD_UNINSTALLER, movieRawInstallTarget is now declared only under !ifndef BUILD_UNINSTALLER. Production warningsAsErrors remains enabled; no warning is suppressed.",
+    "Preserved current-user-only, dangerous flag rejection, fully-qualified non-root paths, all ancestor reparse guards, registered unsafe legacy-uninstaller refusal, populated directory marker requirement, exact owned-file preflight and nonrecursive Delete/RMDir cleanup. customInit/onVerifyInstDir/final preflight Section/uninstall hooks retain their original timing."
+  ],
+  "developerVerification": {
+    "readOnlyGuardMatrix": "PASS17/17 actual executable exit checks: empty/marked/missing=0; unrelated populated/junction/drive-relative/root-relative/drive-root/UNC-share-root/device-prefix/traversal/mixed-slash/repeated-separator/trailing-dot/trailing-separator/ADS/reserved-COM-superscript=1.",
+    "fixturePreservation": "PASS: exact known sentinel bytes remain intact in populated and marked temporary directories; empty directory remains empty; missing target remains absent. No remove macros exist in the diagnostic executable.",
+    "fullHookCompileOnly": "PASS: UTF8 makensis3.0.4.1 exit0 in0.66s, instantiating actual root installer/onVerify/final safety Section/uninstall macros and conditional GetDParameter branch. Only expected6020 warning because the compile-only stub intentionally never calls WriteUninstaller. That compile-only executable was not run.",
+    "finalBothBranchesWarningsAsErrors": "PASS: UTF8 makensis3.0.4.1 /WX exit0 with zero warnings for ordinary installer compile-only stub (0.81s) and explicit BUILD_UNINSTALLER compile-only stub (0.59s). Added an unexecuted bootstrap WriteUninstaller reference to those never-run compile stubs to avoid6020; neither executable was run and no standalone uninstaller was emitted. Previously recorded17-case read-only runtime matrix remains unchanged and does not contain WriteUninstaller or removal operations.",
+    "runtimeDiagnosticShape": "Only .onInit path/marker read macros, fixed autonomous temporary log output and Quit, with an empty never-reached Section. No payload, WriteUninstaller, registry writes, customInstall or customRemoveFiles. Run hidden with wait solely under explicit parent authorization; this is not an actual installer/uninstaller run.",
+    "fixture": ".tmp/nsis-guard-readonly-gFhoKs",
+    "results": ".tmp/nsis-guard-readonly-gFhoKs/matrix-results.json",
+    "diagnostics": ".tmp/nsis-guard-readonly-gFhoKs/guard-diagnostics.txt",
+    "generator": ".tmp/nsis-directory-compile-qa/create-guard-diagnostic.mjs",
+    "whitespace": "PASS entire NSIS source trailing-whitespace scan",
+    "DWorktreeMutation": "NONE",
+    "heavyBuildDbNativeTests": "NOT RUN",
+    "actualInstallerUninstaller": "NOT RUN by this actor; remains parent-owned"
+  },
+  "primaryReference": "https://nsis.sourceforge.io/Docs/System/System.html",
+  "pending": [
+    "Independent qa_deletion source review of the final macro version and raw-input lifetime/resource cleanup.",
+    "Parent rebuilds the real unsigned installer after heavy gate completion and reruns disposable nonempty rejection, empty install, safe marked reinstall and unknown-file/sentinel-preserving uninstall.",
+    "Developer read-only guard PASS does not establish actual installer runtime acceptance, formal historical upgrade safety, binary compliance, signing or clean-Windows11 readiness."
+  ]
+}

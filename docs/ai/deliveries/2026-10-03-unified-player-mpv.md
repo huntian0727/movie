@@ -58,7 +58,7 @@
 
 业务代码提交 `06ee8f6` 已同步功能分支及 GitHub main；旧 main 备份标签 `backup-main-20261003-172957-2b0cd7d`。
 
-提交后最终 `package:dir`、`verify:artifact`、`test:packaged-smoke` 全部成功。快捷方式 `C:/Users/test/Desktop/拉面影视.lnk` 的真实目标为本仓库 `release/win-unpacked/拉面影视.exe`，参数为空；代码提交时间 17:29:49，重新打包的 app.asar 时间 17:30:52，晚于该提交。
+提交后最终 `package:dir`、`verify:artifact`、`test:packaged-smoke` 全部成功。快捷方式 `%USERPROFILE%/Desktop/拉面影视.lnk` 的真实目标为本仓库 `release/win-unpacked/拉面影视.exe`，参数为空；代码提交时间 17:29:49，重新打包的 app.asar 时间 17:30:52，晚于该提交。
 
 从上述实际快捷方式重新启动，使用中性测试目录再次实机验证：原界面持续播放、点击暂停、Ctrl+Right 旋转 90 度且时间保持 00:24、Right 单次快进至 00:29、F 全屏与 Escape 返回窗口、原侧栏 6 项列表及封面完整加载均成功。验收后关闭测试播放器，不删除任何视频。本记录补充提交后会再生成同代码桌面包并启动核对。本轮为便携桌面包更新，不声称生成/安装新的 NSIS 安装器。
 

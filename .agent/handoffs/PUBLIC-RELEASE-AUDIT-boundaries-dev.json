@@ -1,0 +1,48 @@
+{
+  "task_id": "PUBLIC-RELEASE-AUDIT-boundaries",
+  "role": "Developer",
+  "status": "DEV_COMPLETE",
+  "commit": "807c49585d18c901b199fe0d3d8b0dbf31eb4114",
+  "commit_note": "Verified working tree on ai/public-release-audit; parent owns final integration commit and PR.",
+  "changed_files": [
+    "src/main/rendererProtocol.ts", "src/main/security.ts", "src/main/index.ts",
+    "src/main/playerWindow.ts", "src/main/playerTimelinePreview.ts", "src/main/preload.cts",
+    "src/main/packagedSmoke.ts", "src/main/media/mediaProtocol.ts",
+    "src/main/settings/settingsStore.ts", "src/main/settings/README.md",
+    "src/main/clouddrive/mountedScanner.ts", "src/shared/videoTypes.ts",
+    "src/renderer/components/SettingsPage.tsx", "vite.config.ts",
+    "tests/main/rendererProtocol.test.ts", "tests/main/security.test.ts",
+    "tests/main/cloudDriveCredentialStore.test.ts", "tests/main/cloudDriveSecurity.test.ts",
+    "tests/main/cloudDriveRecoveryRuntime.test.ts", "tests/main/preloadRendererTrust.test.ts",
+    "tests/main/mediaProtocol.test.ts", "tests/renderer/SettingsPage.test.tsx",
+    "scripts/renderer-security-smoke-main.cjs", "scripts/run-renderer-security-smoke.mjs"
+  ],
+  "tests": {
+    "status": "PASS",
+    "summary": "TEST=PASS SUITES=9 TESTS=96 FAILED=0",
+    "commands": [
+      "rtk proxy node .tmp/run-node22.cjs exec -- tsc -p tsconfig.node.json",
+      "rtk proxy node .tmp/run-node22.cjs exec -- tsc -p tsconfig.web.json --noEmit",
+      "rtk proxy node .tmp/run-node22.cjs exec -- vitest run tests/main/rendererProtocol.test.ts tests/main/security.test.ts tests/main/cloudDriveCredentialStore.test.ts tests/main/cloudDriveSecurity.test.ts tests/main/cloudDriveRecoveryRuntime.test.ts tests/main/preloadRendererTrust.test.ts tests/main/playerTimelinePreview.test.ts tests/main/mediaProtocol.test.ts tests/renderer/SettingsPage.test.tsx --maxWorkers=2",
+      "rtk proxy node .tmp/run-node22.cjs run test:renderer-security-smoke",
+      "rtk proxy node --check scripts/renderer-security-smoke-main.cjs",
+      "rtk proxy node --check scripts/run-renderer-security-smoke.mjs",
+      "rtk git diff --check"
+    ],
+    "real_electron": "Electron 44.7.0: exact app-ui build assets and main/player/timeline bridges/media allowed; external file fetch/script, network, opaque media origin denied; true Main net.fetch works; real Windows DPAPI ciphertext corruption recovers through nonblank write-only token replacement without public token exposure.",
+    "test_data": "Synthetic fixtures only; isolated temporary app profile, credentials, assets, media and local servers. No real user video/database/profile edits."
+  },
+  "implementation": [
+    "Production app-ui://bundle protocol serves only dist-renderer static assets with containment, symlink/junction rejection, fixed errors and production CSP.",
+    "Main and preload trust compare scheme, hostname, port and pathname instead of null custom URL origins.",
+    "Exact media ACAO is paired with actual trusted WebContents/main-frame authorization because Electron protocol.handle Request omits Origin. Timeline role remains preview/cover only; permissions explicitly denied.",
+    "Unreadable secure credentials preserve stored bytes and failed-migration plaintext, disable CloudDrive including environment fallback, leave public settings usable and permit durable verified replacement.",
+    "Main-only getCloudDriveConnectionBinding provides SHA256 canonical runtime endpoint/token identity for deletion-agent persisted job binding."
+  ],
+  "risks": [
+    "Implementation has not independently passed final QA acceptance; parent must assign separate review and run final release gates on integrated source.",
+    "Packaged actual application UI, installer, native playback, real remote accounts and clean Windows 11 remain parent release-gate scope.",
+    "Failed historical plaintext migration intentionally retains the original settings field until durable verified replacement; it never serves as network authentication fallback."
+  ],
+  "next": "Local Project Manager"
+}

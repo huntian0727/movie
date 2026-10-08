@@ -4,12 +4,15 @@
 
 ## 威胁模型
 
-renderer 不是文件系统权限的权威来源。即使发生 XSS、依赖注入或意外导航，页面也不能仅凭合法参数调用主进程的删除、移动、重命名、目录变更、设置修改或缓存清理能力。
+renderer 不能提供任意主进程文件路径或取得 Node 权限。未登记页面、错误角色、子 frame 和意外导航不能调用 IPC。
+但如果已授权主窗口本身被 XSS 或供应链代码攻陷，攻击代码能调用该角色已有的 bridge；入口信任检查不是用户意图证明。
+高风险删除的公众确认策略仍待所有者决定，不能据此宣称合法主窗口中的恶意代码绝无破坏能力。
 
 安全边界分为四层：
 
 1. 生产页面由严格 CSP 限制脚本、连接、媒体和对象来源。
-2. 每个 BrowserWindow 只允许加载登记的入口 URL；查询和 hash 可变化，协议、origin 和入口路径不能变化。
+2. 生产入口固定 `app-ui://bundle/index.html`，协议只服务 dist-renderer 构建资产并拒绝穿越、符号链接和未知资源；不使用宽泛 `file:` 同源。
+   每个窗口的协议、hostname、port 和入口路径必须一致，不能把自定义协议的 `null` origin 当作同源证明。
 3. preload 只有在当前页面与主进程传入的入口 URL 一致时才暴露 bridge，并按窗口角色缩减 API。
 4. IPC 主进程重新校验 WebContents ID、登记角色、顶层 senderFrame、frame 存活状态和当前 URL。renderer 传入的角色或路径不可信。
 
@@ -20,6 +23,7 @@ renderer 不是文件系统权限的权威来源。即使发生 XSS、依赖注�
 | `main` | 资料库主窗口 | 现有全部经过 schema/仓储复核的业务操作 |
 | `player` | 独立播放窗口 | 单视频收藏、待删除标记、单视频删除、外部播放和播放历史 |
 | `smoke` | 打包后自动验证窗口 | 不允许 IPC；仅验证 preload 表面、CSP、导航和新窗口策略 |
+| `timeline-preview` | 浮动时间轴图像预览 | 仅图像预览 IPC |
 
 播放器 preload 不暴露批量删除、重复项清理、移动、重命名、目录管理、设置写入或清缓存。即使页面伪造 preload 角色，主进程仍以登记的 WebContents 角色为准。
 
@@ -29,7 +33,7 @@ renderer 不是文件系统权限的权威来源。即使发生 XSS、依赖注�
 ERR_UNTRUSTED_IPC_SENDER
 ```
 
-安全拒绝日志只记录角色以及脱敏后的协议/origin；`file:` 路径、URL path、query 和本地视频路径不得进入该日志。结构化持久日志属于后续 T10。
+安全拒绝日志只记录角色以及脱敏后的协议/origin；`file:` 路径、URL path、query 和本地视频路径不得进入该日志。已有结构化持久日志采用脱敏白名单。
 
 ## CSP
 
@@ -41,7 +45,7 @@ ERR_UNTRUSTED_IPC_SENDER
 
 - `will-navigate` 只接受当前窗口登记的入口。
 - `setWindowOpenHandler` 一律 `deny`。
-- 当前产品没有必须从 renderer 打开的外部网页，因此没有 `shell.openExternal` 白名单。
+- 主进程仅对枚举的字幕提供方固定官网执行 `shell.openExternal`；不接受 Renderer 提供的任意 URL。
 - 将来如增加帮助链接，只能在主进程对固定 `https:` host 白名单校验后打开；不能接受 renderer 提供的任意 URL。
 
 ## 修改映射
@@ -59,5 +63,12 @@ ERR_UNTRUSTED_IPC_SENDER
 - `tests/main/security.test.ts`：CSP、可信 URL、导航、新窗口、伪造 frame、窗口角色和 destructive handler wrapper。
 - `npm run test:packaged-smoke`：在真实 packaged renderer 中注入 inline/data script，尝试外部导航和 `window.open`，检查播放器 bridge 最小化，并用未受保护的测试窗口证明非入口页面拿不到 bridge。
 - `npm run test:electron-smoke`：Electron ABI 与主进程启动基线。
+- `npm run test:renderer-security-smoke`：真实 Electron 的三种窗口、合法资产/媒体、外部本地文件/脚本、网络拒绝与 DPAPI 恢复。
 
-短期单次确认 token 尚未实现。当前删除/移动仍由 UI 二次确认，并由主进程按数据库 ID 重新查路径及执行 T01/T02 的内容/文件版本安全检查；若将来出现网页内容、插件或远程输入，应在扩大攻击面前增加主进程签发的一次性 token。
+自定义媒体响应 CORS 只允许准确的可信 Renderer origin。真实请求同时依据 WebContents/frame/initiatorOrigin 授权，
+不能依赖 protocol.handle 中可能缺失的 Origin/referrer。opaque/null-origin 页面在进入媒体服务前拒绝。
+摄像头、麦克风和其他不需要的会话权限默认拒绝。
+
+主进程签发的单次确认 token 尚未实现；不同删除入口的确认流程并不相同。
+通用及数据表删除会重新查数据库 ID、启用来源、当前对象版本和 reparse 边界；快速 CloudDrive 重复清理跳过全文哈希和二次确认，
+旧本地完整哈希流程还有隐藏自动确认兼容路径。详见发布审计与集中待决事项。

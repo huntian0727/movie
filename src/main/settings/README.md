@@ -1,8 +1,8 @@
 # 设置模块
 
-CloudDrive 的普通 `settings.json` 仅保存 endpoint、timeout 和挂载映射。`AppSettings.cloudDrive` 是公开读取契约，另有由主进程计算的 `configured`；`AppSettingsUpdate` 仅为写入提供可选 `apiToken`。Renderer/Player 的读取响应在 IPC 与 sandboxed preload 两处按公开字段重建，不返回凭据。留空保存保留 Token，成功替换后输入框清空。
+CloudDrive 的普通 `settings.json` 仅保存 endpoint、timeout 和挂载映射。`AppSettings.cloudDrive` 是公开读取契约，另有由主进程计算的 `configured` 和固定恢复提示 `credentialError`；`AppSettingsUpdate` 仅为写入提供可选 `apiToken`。Renderer/Player 的读取响应在 IPC 与 sandboxed preload 两处按公开字段重建，不返回凭据。留空保存保留 Token，成功替换后输入框清空。
 
-`src/main/clouddrive/credentialStore.ts` 将 Token 经 Electron `safeStorage` 加密后，原子写入 `app.getPath("userData")/clouddrive-credentials.bin`；Windows 使用 DPAPI，不提供明文回退，Linux `basic_text` 被拒绝。启动迁移先保存并校验密文，再移除旧 `cloudDrive.apiToken`，保留其余原配置。失败保留旧配置并以固定消息中止启动，供恢复系统安全存储/文件权限后重试；不会带着 plaintext 继续使用 CloudDrive。
+`src/main/clouddrive/credentialStore.ts` 将 Token 经 Electron `safeStorage` 加密后，原子写入 `app.getPath("userData")/clouddrive-credentials.bin`；Windows 使用 DPAPI，不提供明文回退，Linux `basic_text` 被拒绝。启动迁移先保存并校验密文，再移除旧 `cloudDrive.apiToken`，保留其余原配置。迁移、解密或存储失败时保留原配置/密文，公开固定恢复提示，禁用 CloudDrive（包括环境变量账户回退），但本地资料库和设置仍可打开。留空或修改普通设置不会删除保留的凭据；输入非空 Token 可在系统安全存储恢复可用后完成原子替换。不会带着 plaintext 继续使用 CloudDrive。
 
 项目快照包含密文并校验其 SHA-256，恢复旧快照时可再次迁移 legacy Token。历史快照中已有的明文不会被本轮自动删除；Windows 密文需要原 Windows 用户/系统的 DPAPI 密钥，不能视为跨机器可移植凭据。安全能力参考 [Electron safeStorage 文档](https://www.electronjs.org/docs/latest/api/safe-storage)。
 

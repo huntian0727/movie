@@ -34,7 +34,7 @@ status: completed
 - 测试环境使用本地隔离 Node 22.23.1 / npm 10.9.8，并分别匹配 Node 与 Electron SQLite ABI；未更改用户资料库。临时旧 npm 目录文件缺失，通过 npm 包缓存准备了新的临时工具环境。
 - `npm run verify:artifact`、`npm run test:packaged-smoke`、`npm run test:installer-smoke`：PASS。安装器测试使用隔离安装目录，未覆盖用户资料库；其卸载阶段移除了同名桌面快捷方式，随后已恢复并重新核对目标。
 - Windows 桌面包与 NSIS 安装包已重新生成。代码 Commit `91f906d` 时间 2026-10-01 22:38:19；`release/win-unpacked/resources/app.asar` 时间 22:41:12；`release/拉面影视-0.1.15-x64-Setup.exe` 时间 22:41:35（本地时间）。首轮打包因旧应用残留进程占用 DLL 失败，关闭对应旧程序进程后重试打包成功。
-- 桌面快捷方式 `C:/Users/test/Desktop/拉面影视.lnk` 实际目标为 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`，已从该快捷方式实际启动验证。
+- 桌面快捷方式 `%USERPROFILE%/Desktop/拉面影视.lnk` 实际目标为 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`，已从该快捷方式实际启动验证。
 - 真实 UI 验证：测试视频目录列表显示 6 张截图，横屏/竖屏比例正确；2:44 视频展开为 8 张均匀截图且成功加载；点击 01:12 截图后既有播放窗口显示起始位置 72.2 秒。返回列表后已加载图片仍存在。未执行文件删除或整库扫描。
 - 当前用户配置的外部播放实际回退到系统 PotPlayer，未发现运行中的 MPV。实际 MPV 指定时间播放和真实内置解码定位未完成人工验证；其参数和定位逻辑已由自动化测试覆盖，不将系统播放器回退声称为指定时间播放成功。
 - `project-backup -Action Verify`：PASS，SQLite quick_check 为 ok，schema 13、345480 条视频记录。

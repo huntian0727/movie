@@ -37,7 +37,7 @@ status: verified
 - `verify:artifact`：PASS，4111 asar entries，无禁止的开发产物。`test:packaged-smoke`：PASS，扫描 fixture、预览生成/缓存/重新生成、数据库重开、worker 查询、协议读取、Player 最小桥接、CSP/导航/IPC sender 限制全部通过；恶意页面探测中的拒绝日志属于预期结果。
 - `npm audit --omit=dev --audit-level=high`：首次 PR CI FAIL（fast-uri），兼容更新后本机 PASS / 0 漏洞；开发依赖审计仍有既存问题，不在此生产依赖结论内。更新依赖后重新执行上述 12 文件 / 112 项安全专项：PASS。
 - 首次远程 Electron job 的测试页缺少 preload bridge，未误报通过；测试 runner 规范化 Windows TEMP 的 8.3 路径、使用明确 entry URL 和相对脚本的绝对 preload 路径，并增加 preload-error/URL 诊断。修复后本机真实 Electron 两角色 smoke PASS，远程最终结果见 PR Checks。
-- 桌面实际交付：重新生成 `release/win-unpacked`；`C:\Users\test\Desktop\拉面影视.lnk` 实际目标为 `C:\Users\test\Documents\视频管理\movie\release\win-unpacked\拉面影视.exe`。从该快捷方式启动并检查设置页，Token 为空白且 placeholder 显示已配置；实际用户旧 apiToken 字段不存在、密文文件存在（仅输出布尔值）。留空“保存并测试连接”成功：API 返回 1 个挂载点，1 个已挂载、1 个可写。未输入/打印/轮换真实 Token，未执行媒体删除。
+- 桌面实际交付：重新生成 `release/win-unpacked`；`%USERPROFILE%\Desktop\拉面影视.lnk` 实际目标为 `%USERPROFILE%\Documents\视频管理\movie\release\win-unpacked\拉面影视.exe`。从该快捷方式启动并检查设置页，Token 为空白且 placeholder 显示已配置；实际用户旧 apiToken 字段不存在、密文文件存在（仅输出布尔值）。留空“保存并测试连接”成功：API 返回 1 个挂载点，1 个已挂载、1 个可写。未输入/打印/轮换真实 Token，未执行媒体删除。
 - 提交使用仓库交付脚本 `finish-and-push.ps1 -SkipMainUpdate -SkipChecks`：不更新 main；SkipChecks 依据上面同工作区已执行的等价检查，避免固定 Node/Electron ABI 切换和重复计时测试，失败和重跑均如实记录。无独立 `test:e2e`/`e2e` 脚本，打包 E2E 使用实际 `test:packaged-smoke`。
 
 ## Risks and follow-up

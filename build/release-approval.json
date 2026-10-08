@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "approved": false,
+  "ownersConfirmed": false,
+  "applicationLicense": "PENDING_OWNER_DECISION",
+  "licenseSha256": null,
+  "packageLockSha256": null,
+  "manualQaApproved": false,
+  "legacyUpgradeApproved": false,
+  "cleanWindows11Evidence": null,
+  "cleanWindows11EvidenceSha256": null,
+  "previousSignedUpgradeEvidence": null,
+  "previousSignedUpgradeEvidenceSha256": null,
+  "binaries": [
+    { "name": "ffmpeg.exe", "sha256": null, "sourceComplianceApproved": false, "sourceEvidence": null, "sourceEvidenceSha256": null },
+    { "name": "ffprobe.exe", "sha256": null, "sourceComplianceApproved": false, "sourceEvidence": null, "sourceEvidenceSha256": null },
+    { "name": "NativeHost.exe", "sha256": null, "sourceComplianceApproved": false, "sourceEvidence": null, "sourceEvidenceSha256": null }
+  ]
+}

@@ -72,7 +72,9 @@ describe("CloudDrive secure persistence and migration", () => {
     const persistence = { store: { cloudDrive: { apiToken: "migration-failure-value" }, startupSync: false } };
     const original = structuredClone(persistence.store);
     const unavailable = createCloudDriveCredentialStore(root, { ...encryption, isEncryptionAvailable: () => false });
-    expect(() => createSettingsStoreWithPersistence(persistence, unavailable, {})).toThrow("系统安全存储不可用");
+    const failed = createSettingsStoreWithPersistence(persistence, unavailable, {});
+    expect(failed.get().cloudDrive).toMatchObject({ configured: false, credentialError: expect.stringContaining("连接已停用") });
+    expect(failed.getCloudDriveToken()).toBe("");
     expect(persistence.store).toEqual(original);
     expect(readdirSync(root)).toEqual([]);
     const settings = createSettingsStoreWithPersistence(persistence, createCloudDriveCredentialStore(root, encryption), {});
@@ -87,12 +89,57 @@ describe("CloudDrive secure persistence and migration", () => {
     expect(readdirSync(root)).toEqual([]);
   });
 
+  it("allows local settings and verified replacement after corrupt ciphertext, without erasing a blank save", () => {
+    const { root, credentials } = setup();
+    const file = path.join(root, "clouddrive-credentials.bin");
+    writeFileSync(file, "synthetic-corrupted-ciphertext");
+    const persistence = { store: getDefaultSettings() as PersistedSettings };
+    const settings = createSettingsStoreWithPersistence(persistence, credentials, { LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TOKEN: "fallback-value" });
+    expect(settings.getCloudDriveToken()).toBe("");
+    expect(settings.get().cloudDrive).toMatchObject({ configured: false, credentialError: expect.stringContaining("连接已停用") });
+    settings.set({ seekStepSeconds: 25, cloudDrive: { ...settings.get().cloudDrive, apiToken: " " } });
+    expect(settings.get().seekStepSeconds).toBe(25);
+    expect(readFileSync(file, "utf8")).toBe("synthetic-corrupted-ciphertext");
+    expect(JSON.stringify(settings.get())).not.toMatch(/fallback-value|synthetic-corrupted/);
+    const result = settings.set({ cloudDrive: { ...settings.get().cloudDrive, apiToken: "recovery-value" } });
+    expect(result.cloudDrive).toMatchObject({ configured: true }); expect(result.cloudDrive.credentialError).toBeUndefined();
+    expect(settings.getCloudDriveToken()).toBe("recovery-value");
+    expect(readFileSync(file).includes(Buffer.from("recovery-value"))).toBe(false);
+  });
+
+  it("preserves failed migration plaintext and previous ciphertext until successful replacement", () => {
+    const { root, encryption, credentials } = setup();
+    credentials.writeToken("previous-safe-value");
+    const file = path.join(root, "clouddrive-credentials.bin"), originalCiphertext = readFileSync(file);
+    let broken = true;
+    const unstable = createCloudDriveCredentialStore(root, { ...encryption,
+      encryptString: value => { if (broken) throw new Error("synthetic-sensitive-native-value"); return encryption.encryptString(value); }
+    });
+    const persistence = { store: { startupSync: false, cloudDrive: { apiToken: "retained-legacy-value" } } as PersistedSettings };
+    const settings = createSettingsStoreWithPersistence(persistence, unstable, {});
+    settings.set({ seekStepSeconds: 30 });
+    expect(persistence.store.cloudDrive!.apiToken).toBe("retained-legacy-value");
+    expect(readFileSync(file)).toEqual(originalCiphertext);
+    expect(settings.getCloudDriveToken()).toBe("");
+    expect(() => settings.set({ cloudDrive: { ...settings.get().cloudDrive, apiToken: "new-recovery-value" } })).toThrow("无法安全保存");
+    expect(readFileSync(file)).toEqual(originalCiphertext);
+    expect(persistence.store.cloudDrive!.apiToken).toBe("retained-legacy-value");
+    broken = false;
+    const result = settings.set({ cloudDrive: { ...settings.get().cloudDrive, apiToken: "new-recovery-value" } });
+    expect(result.cloudDrive.credentialError).toBeUndefined();
+    expect(settings.getCloudDriveToken()).toBe("new-recovery-value");
+    expect(persistence.store.cloudDrive).not.toHaveProperty("apiToken");
+    expect(JSON.stringify([result, settings.get(), persistence.store])).not.toMatch(/retained-legacy|new-recovery|synthetic-sensitive/);
+  });
+
   it("leaves legacy config recoverable when clearing plaintext fails, including an old backup restore", () => {
     const { credentials } = setup();
     credentials.writeToken("newer-value");
     const old: PersistedSettings = { cloudDrive: { apiToken: "older-value" } };
     const persistence = { get store() { return old; }, set store(_value: PersistedSettings) { throw new Error("older-value"); } };
-    expect(() => createSettingsStoreWithPersistence(persistence, credentials, {})).toThrow("原配置已保留");
+    const failed = createSettingsStoreWithPersistence(persistence, credentials, {});
+    expect(failed.get().cloudDrive).toMatchObject({ configured: false, credentialError: expect.stringContaining("原凭据已保留") });
+    expect(failed.getCloudDriveToken()).toBe("");
     expect(old.cloudDrive!.apiToken).toBe("older-value");
     expect(credentials.readToken()).toBe("older-value");
   });

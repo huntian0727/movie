@@ -1,58 +1,23 @@
 # Windows CI 与发布工作流
 
-## Pull Request 门禁
+本页反映 2026-10-08 的实际工程，具体实测结果见 [发布审计](public-release-audit.md)。历史测试数字不能作为当前版本验收。
 
-`.github/workflows/windows-ci.yml` 在 `windows-latest` 和固定 Node/npm 下运行三个独立 job：
+PR 的 Windows CI 包含完整 Node release gate、独立 Electron native/security smoke、依赖审计和依赖上述检查的 unsigned x64 NSIS 安装 QA。独立安全工作流以非浅历史、固定版本 Gitleaks、全部 npm 依赖审计扫描 main/PR。Action 固定完整 commit SHA；checkout 不保留推送凭据。
 
-- `Node tests and Windows file safety`：安装、lint、build、Windows 文件操作回归和完整 Node 测试。
-- `Electron native and main-process smoke`：独立 checkout，重建 Electron ABI，并验证真实主进程与临时 SQLite。
-- `Dependency review`：只在 PR 上检查 lockfile 引入的依赖风险。
+Node 22.23.1 / npm 10.9.8 / Electron 44.7.0 固定，N-API 13.0.3 的实际兼容性须运行验证；无 C++ 环境安装入口详见 [原生模块工作流](native-abi-workflow.md)。普通 npm ci 也在具备 C++ 工具的 CI 中覆盖，不用缓存的 node_modules 冒充完整安装。
 
-建议在 GitHub 默认分支规则中要求以上三个 check，并要求分支与 `main` 保持最新。2026-07-25 本地固定环境的完整 Node 测试为 258/258；GitHub checks 仍需首次推送后实际通过，不能用 `continue-on-error` 或删减门禁替代。
+测试包始终使用 com.local.video.manager.unsignedtest、独立 NSIS GUID、独立 userData 与文件名，输出 release/unsigned-test-build/。正式 appId 为 com.local.video.manager；两类包不得混用。正式输出 release/signed-release/。旧 release/win-unpacked 与已有用户快捷方式不是本轮更新目标。
 
-Node job 统一调用 `npm run test:release-gate`。该入口依次执行 lint、build、Windows 文件安全矩阵、全部历史迁移、性能基线和完整 Node 测试，避免 release workflow 只打包却跳过数据安全回归。真实物理卷、ACL、独占文件锁和 SMB 断线仍须使用 [Windows 发布数据安全验收单](windows-release-checklist.md) 签字。
+完整顺序是 release gate → npm audit → package:dir → actual Electron smoke → verify:artifact → packaged smoke → dist:win → verify:artifact → release:metadata → installer smoke。所有失败必须中止，禁止 continue-on-error 或删减断言。打包内容必须包含 SQLite N-API、FFmpeg、FFprobe、x64 NativeHost、Electron/Chromium 与第三方法律材料。metadata 检查真实 Authenticode 与 SHA-256，不以存在证书环境变量作为签名证据。
 
-仓库管理员在 workflow 首次推送并产生 check 后，再配置 branch protection；在此之前提前要求不存在的 check 会锁死合并。建议规则：至少一名审查者、禁止 force push、要求 conversation resolved、要求上述 checks、管理员同样受规则约束。
+NSIS 使用已构建文件清单做精确删除、非递归空目录清理；拒绝 reparse/junction、未知未标记安装目录、旧未经审查卸载器与 --delete-app-data。临时 smoke 覆盖首次安装、同包修复、卸载、安装目录内外 SQLite/视频/嵌套哨兵，以及生产注册表和快捷方式不变。同包修复不是上一正式签名版升级。
 
-## 手工测试构建
+公开仓库的 unsigned QA 工作流仅上传无二进制的 build-metadata.json、build-flavor.json、SHA256SUMS.txt。未闭环的 GPL 对应源码义务同样适用于测试包，unsigned 标签不能豁免。完整本地候选只供维护者审查，不应公开传播。
 
-从 Actions 手动运行 `Windows Release`。未配置签名 secrets 时，产物元数据明确写为 `unsigned-test-build`，artifact 名称也包含 `unsigned-test-build`，不能作为正式发布。
+正式 tag 的签名 job 受 public-release environment 审查保护。还必须通过 build/release-approval.json 的 owner 权属/许可证、lockfile 与二进制输入哈希、对应源码材料、真实干净 Windows 11 和历史签名升级证据。默认 approved=false；环境变量不能替代证据。签名证书只在 GitHub Secrets WINDOWS_CSC_LINK / WINDOWS_CSC_KEY_PASSWORD 中配置，只传入实际签名步骤，不进入安装依赖、日志、smoke 或上传环境。
 
-本地或手动 CI 在没有 `CSC_LINK`/`WIN_CSC_LINK` 时，会明确关闭 Windows 可执行文件签名与资源编辑。这既避免把 unsigned 产物伪装成正式版本，也使没有“创建符号链接”权限的普通 Windows 开发机无需解包签名工具。只要配置了签名证书，构建脚本就不会应用该豁免，正式 tag 仍执行完整签名。
+正式 job 验证应用、NativeHost、安装器的有效发布者及时间戳，并再次核对 installer SHA-256 后才上传 Release。不得重新签名第三方 FFmpeg 以改变来源证明。本轮没有推正式版本 tag、触发发布 dispatch 或创建公开 Release；仅提交审核分支与 PR。
 
-工作流会依次执行：
+正式job还必须实时核对public-release环境：required reviewers、prevent self-review、禁止管理员绕过、唯一v* tag部署策略。本轮只读API返回404，配置尚未确认；不能仅凭YAML声明environment就认为已受人工批准保护。
 
-1. `test:release-gate` 完成 Node 数据安全、迁移和性能回归。
-2. `npm audit --omit=dev` 检查生产依赖；未处置的审计失败会阻断发布。
-3. `package:dir` 生成 `release/win-unpacked`。
-4. 检查 asar 不包含 `.env`、测试、SQLite、`.dbg` 或本机工作区路径。
-5. 对 unpacked 应用执行两阶段 packaged smoke。
-6. `dist:win` 生成真正的 NSIS installer。
-7. 生成 `SHA256SUMS.txt` 和 `build-metadata.json`。
-8. 静默首次安装后再次运行同一安装包，覆盖 NSIS 升级/修复路径；随后运行 packaged smoke。
-9. 静默卸载，并确认沙箱用户数据库与源视频哨兵内容未变化。
-10. 上传 installer、校验和及构建元数据。
-
-## 正式 tag 发布与签名
-
-GitHub Secrets 名称：
-
-- `WINDOWS_CSC_LINK`：代码签名证书内容或 electron-builder 支持的安全引用。
-- `WINDOWS_CSC_KEY_PASSWORD`：证书密码。
-
-推送 `v*` tag 时，如果任一 secret 缺失，发布 job 会立即失败。签名、installer smoke 和元数据成功后，workflow 才创建 GitHub Release。证书、密码和解码后的私钥不得写入仓库、日志或 artifact。
-
-## Packaged smoke 覆盖
-
-第一次进程启动验证：
-
-- `app.isPackaged`；
-- preload bridge 已加载；
-- `better-sqlite3` 建库和 `quick_check`；
-- ffmpeg/ffprobe 静态可执行文件可访问；
-- 自定义媒体协议已注册；
-- 临时目录中的小视频 fixture 被扫描入库。
-
-第一次进程退出后，第二次进程使用相同临时 userData 重新打开数据库，并确认记录仍存在。所有 smoke 数据都位于系统临时目录，不接触真实用户资料库或视频。
-
-installer smoke 的“升级”是同一候选安装包的重复安装，只验证 NSIS repair/overwrite 基线。正式发布仍必须拿上一正式签名版本执行真实跨版本升级，并在发布验收单记录证据。
+干净 Windows 11/no-Node、物理卷/SMB/ACL/磁盘满、实际历史签名版升级与人工 UI 验收仍需独立完成，见 [验收工具包](clean-windows11-acceptance.md) 和 [普通用户安装教程](windows-installation.md)。

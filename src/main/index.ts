@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, protocol, session } from "electron";
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import type { DatabaseConnection } from "./db/database.js";
 import { createDatabase, DatabaseMigrationError } from "./db/database.js";
 import { VideoRepository } from "./db/videoRepository.js";
@@ -32,11 +32,13 @@ import {
 import { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
 import { EmbeddedPlayer } from "./embeddedPlayer/embeddedPlayer.js";
 import { runPackagedSmoke } from "./packagedSmoke.js";
-import { configureSecurityLogger, configureWindowSecurity, installContentSecurityPolicy } from "./security.js";
+import { configureSecurityLogger, configureWindowSecurity, installContentSecurityPolicy, installSessionPermissionPolicy, installMediaRequestPolicy } from "./security.js";
+import { RENDERER_ENTRY_URL, RENDERER_ORIGIN, RENDERER_SCHEME, registerRendererProtocol } from "./rendererProtocol.js";
 import { createSettingsStore } from "./settings/settingsStore.js";
 import { configureCloudDriveRuntime } from "./clouddrive/mountedScanner.js";
 import { showMainWindowMaximized } from "./windowPresentation.js";
 import { legacyUserDataPath } from "./legacyUserDataPath.js";
+import { readReleaseFlavor } from "./releaseFlavor.js";
 
 // Renderer/webviews run without hardware acceleration so the app starts on
 // machines without a usable GPU (remote desktops, VMs, older GPUs). Without
@@ -46,11 +48,13 @@ app.setName("拉面影视");
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? "http://127.0.0.1:5173";
-const packagedRendererPath = path.join(currentDir, "../../dist-renderer/index.html");
-const rendererEntryUrl = app.isPackaged ? pathToFileURL(packagedRendererPath).href : devServerUrl;
+const rendererEntryUrl = app.isPackaged ? RENDERER_ENTRY_URL : devServerUrl;
 const packagedSmokeUserData = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_USER_DATA;
+const releaseFlavor = app.isPackaged ? readReleaseFlavor(process.resourcesPath, app.getVersion()) : undefined;
 if (packagedSmokeUserData) {
   app.setPath("userData", path.resolve(packagedSmokeUserData));
+} else if (releaseFlavor?.releaseClass === "unsigned-test-build") {
+  app.setPath("userData", path.join(app.getPath("appData"), releaseFlavor.userDataDirectoryName));
 } else {
   // Keep existing libraries/settings after changing the visible product name.
   app.setPath("userData", legacyUserDataPath(app.getPath("appData")));
@@ -74,7 +78,8 @@ let sourceFolderRemoval: SourceFolderRemovalService | undefined;
 let databaseOpened = false;
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: RENDERER_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
 ]);
 
 process.on("uncaughtException", (error) => {
@@ -108,7 +113,7 @@ async function createWindow(): Promise<void> {
     height: 800,
     minWidth: 980,
     minHeight: 640,
-    title: "拉面影视",
+    title: releaseFlavor?.releaseClass === "unsigned-test-build" ? "拉面影视 · unsigned-test-build" : "拉面影视",
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
@@ -123,9 +128,15 @@ async function createWindow(): Promise<void> {
     }
   });
   configureWindowSecurity(window, { role: "main", entryUrl: rendererEntryUrl });
+  if (releaseFlavor?.releaseClass === "unsigned-test-build") {
+    window.webContents.on("page-title-updated", (event) => {
+      event.preventDefault();
+      window.setTitle("拉面影视 · unsigned-test-build");
+    });
+  }
 
   if (app.isPackaged) {
-    await window.loadFile(packagedRendererPath);
+    await window.loadURL(RENDERER_ENTRY_URL);
   } else {
     await window.loadURL(devServerUrl);
   }
@@ -149,6 +160,9 @@ app.whenReady().then(async () => {
       nodeModuleVersion: process.versions.modules
     }
   });
+  installSessionPermissionPolicy(session.defaultSession);
+  installMediaRequestPolicy(session.defaultSession);
+  registerRendererProtocol(protocol, path.join(currentDir, "../../dist-renderer"));
   installContentSecurityPolicy(session.defaultSession, {
     isPackaged: app.isPackaged,
     devServerUrl,
@@ -252,7 +266,8 @@ app.whenReady().then(async () => {
     duplicateCleanup,
     duplicateCleanupJobs
   });
-  registerMediaProtocol(repo, mediaCacheManager, () => settings.get().coverFrameTimeSeconds, directoryImages);
+  registerMediaProtocol(repo, mediaCacheManager, () => settings.get().coverFrameTimeSeconds, directoryImages,
+    app.isPackaged ? RENDERER_ORIGIN : new URL(devServerUrl).origin);
   const packagedSmokePhase = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_PHASE;
   const packagedSmokeResult = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_RESULT;
   if ((packagedSmokePhase === "create" || packagedSmokePhase === "verify") && packagedSmokeResult) {

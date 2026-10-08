@@ -161,7 +161,9 @@ export function DuplicateCleanupTasksPanel(props: Props) {
               {selected.phase === "awaiting_confirmation" && <p role="status">只有“完整哈希相同”的文件可进入永久删除。其他结果不会删除。</p>}
               {selected.phase === "verification" && ["queued", "running", "cancelling"].includes(selected.status) && <p className="duplicate-task-safety-note">取消验证会等待当前读取安全停止；验证阶段不会删除任何文件。</p>}
               {selected.phase === "deletion" && ["queued", "running", "cancelling"].includes(selected.status) && <p className="duplicate-task-safety-note">停止剩余删除只阻止尚未开始的项目；已经完成的永久删除无法撤销。</p>}
-              {selected.status === "interrupted" && <p className="duplicate-task-safety-note">任务已中断；可以从尚未完成的 API删除项继续。</p>}
+              {selected.status === "interrupted" && <p className="duplicate-task-safety-note">{selected.workflowVersion === 3
+                ? "任务已中断；请先审核当前 CloudDrive 连接和剩余候选，再手动继续 API 删除。不会在启动时自动恢复。"
+                : "任务已中断；原删除授权已失效，必须重新完整验证并单独确认永久删除。"}</p>}
               <div className="duplicate-task-actions">
                 {selected.phase === "awaiting_confirmation" && props.onConfirm && <button disabled={busy || Boolean(jobsError)} ref={confirmTriggerRef} className="delete-review-action" onClick={() => { setError(null); setConfirmation(""); setConfirmOpen(true); }}>第二次确认永久删除</button>}
                 {["queued", "running", "interrupted"].includes(selected.status) && <button disabled={busy} onClick={() => void act(() => props.onCancel(selected.id))}><PauseCircle size={16} />{selected.phase === "deletion" ? "停止剩余删除" : "取消验证"}</button>}

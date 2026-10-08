@@ -49,8 +49,8 @@ status: desktop-delivered
 - `npm run prepare:electron`、`npm run test:electron-smoke`：PASS，Electron 33.4.11 / ABI 130。
 - `npm run verify:artifact`、`npm run test:packaged-smoke`、`npm run test:installer-smoke`：PASS，包含实际 Renderer、封面生成/缓存命中/重试/轮询稳定性、数据库重开及 Worker 查询验证。安装器在隔离目录测试，未改变用户资料库。
 - Code Commit `ee8e38c`：2026-10-02 02:42:08 +08:00；`app.asar`：02:42:52；NSIS 安装器：02:43:15。最终文档提交不改变运行代码，桌面包对应此 Code Commit。
-- 安装包：`C:/Users/test/Documents/视频管理/movie/release/拉面影视-0.1.15-x64-Setup.exe`。
-- 安装烟测后恢复并核对 `C:/Users/test/Desktop/拉面影视.lnk`，真实目标为 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。
+- 安装包：`%USERPROFILE%/Documents/视频管理/movie/release/拉面影视-0.1.15-x64-Setup.exe`。
+- 安装烟测后恢复并核对 `%USERPROFILE%/Desktop/拉面影视.lnk`，真实目标为 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。
 - 通过 Explorer 打开该桌面快捷方式，实际启动新包；在 `D:/测试视频` 验证网格和列表操作栏，详情入口加上 7 个公共操作完整显示，截图条正常。
 - 实际点击列表“查看同目录视频”：标题变为“同目录 · 测试视频”，范围切为“仅当前目录”，扫描按钮同步为“扫描此目录”；实际点击“打开所在文件夹”：打开 `D:/测试视频` 并定位 `11.mp4`。没有删除或重命名真实视频。
 - 当前最大化桌面布局无按钮裁切；未逐一验证所有窄窗口尺寸。

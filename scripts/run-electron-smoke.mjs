@@ -44,7 +44,7 @@ child.on("exit", (code, signal) => {
   } else if (code !== 0) {
     console.error(`Electron smoke exited with code ${code}. Run npm run rebuild:electron in this Electron-only checkout.`);
     process.exitCode = code ?? 1;
-  } else if (!nativeOnly && !existsSync(completionFile)) {
+  } else if (!existsSync(path.join(smokeRoot, "native-completed")) || (!nativeOnly && !existsSync(completionFile))) {
     console.error("Electron security smoke exited before all assertions completed.");
     process.exitCode = 1;
   }

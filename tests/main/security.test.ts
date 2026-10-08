@@ -8,6 +8,8 @@ import {
   configureWindowSecurity,
   getAllowedIpcRoles,
   installContentSecurityPolicy,
+  installSessionPermissionPolicy,
+  installMediaRequestPolicy,
   isTrustedRendererUrl,
   registerTrustedWebContents,
   wrapTrustedIpcHandler
@@ -18,6 +20,47 @@ afterEach(() => {
 });
 
 describe("Electron security policy", () => {
+  it("authorizes media requests by the registered live main frame, including opaque-origin denial", () => {
+    const target = { webRequest: { onBeforeRequest: vi.fn() } };
+    installMediaRequestPolicy(target as never);
+    const handler = target.webRequest.onBeforeRequest.mock.calls[0][1];
+    const main = createContents(701, "app-ui://bundle/index.html"), preview = createContents(702, "app-ui://bundle/index.html");
+    const unregisterMain = registerTrustedWebContents(main, "main", "app-ui://bundle/index.html");
+    const unregisterPreview = registerTrustedWebContents(preview, "timeline-preview", "app-ui://bundle/index.html");
+    const ask = (extra: Record<string, unknown>) => {
+      const answer = vi.fn(); handler({ url: "local-video://image/synthetic", method: "GET", ...extra }, answer);
+      return answer.mock.calls[0][0].cancel;
+    };
+    try {
+      expect(ask({})).toBe(false); // Main net.fetch has no renderer.
+      const trusted = { webContentsId: main.id, webContents: main, frame: main.mainFrame, initiatorOrigin: "app-ui://bundle" };
+      expect(ask(trusted)).toBe(false);
+      expect(ask({ ...trusted, initiatorOrigin: "null" })).toBe(true);
+      expect(ask({ ...trusted, initiatorOrigin: "https://evil.example" })).toBe(true);
+      expect(ask({ ...trusted, frame: { url: main.mainFrame.url } })).toBe(true);
+      expect(ask({ webContentsId: 999, initiatorOrigin: "null" })).toBe(true);
+      expect(ask({ ...trusted, method: "POST" })).toBe(true);
+      const floating = { webContentsId: preview.id, webContents: preview, frame: preview.mainFrame, initiatorOrigin: "app-ui://bundle" };
+      expect(ask(floating)).toBe(true);
+      expect(ask({ ...floating, url: "local-video://preview/synthetic/0" })).toBe(false);
+      main.mainFrame.url = "data:text/html,untrusted"; expect(ask(trusted)).toBe(true);
+    } finally { unregisterMain(); unregisterPreview(); }
+  });
+  it("denies permissions without touching camera/microphone devices", () => {
+    const policy = { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn() };
+    installSessionPermissionPolicy(policy as never);
+    const answer = vi.fn();
+    policy.setPermissionRequestHandler.mock.calls[0][0]({}, "media", answer);
+    expect(answer).toHaveBeenCalledWith(false);
+    expect(policy.setPermissionCheckHandler.mock.calls[0][0]()).toBe(false);
+  });
+  it("compares custom-scheme authorities even when both WHATWG origins are null", () => {
+    const trusted = "app-ui://bundle/index.html";
+    expect(isTrustedRendererUrl(`${trusted}?player=1#state`, trusted)).toBe(true);
+    for (const value of ["app-ui://evil/index.html", "app-ui://bundle:90/index.html", "app-ui://user@bundle/index.html", "app-ui://bundle/assets/index.html"]) {
+      expect(isTrustedRendererUrl(value, trusted)).toBe(false);
+    }
+  });
   it("restricts subtitle account writes to main and exposes only typed actions to players", () => {
     expect(getAllowedIpcRoles(IPC_CHANNELS.subtitleConfigSave)).toEqual(["main"]);
     for (const channel of [IPC_CHANNELS.subtitleConfigGet, IPC_CHANNELS.subtitleWebsite, IPC_CHANNELS.subtitleSearch, IPC_CHANNELS.subtitleState, IPC_CHANNELS.subtitleAction]) expect(getAllowedIpcRoles(channel)).toEqual(["main", "player"]);

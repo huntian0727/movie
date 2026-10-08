@@ -82,6 +82,7 @@ export const PRODUCTION_CSP = [
   "font-src 'self' data:",
   "worker-src 'self' blob:",
   "object-src 'none'",
+  "frame-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
   "frame-ancestors 'none'"
@@ -122,6 +123,35 @@ export function installContentSecurityPolicy(
         "Content-Security-Policy": [policy]
       }
     });
+  });
+}
+
+/** The application has no camera/microphone/geolocation/notification permission features. */
+export function installSessionPermissionPolicy(targetSession: Session): void {
+  targetSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  targetSession.setPermissionCheckHandler(() => false);
+}
+
+/** protocol.handle Request omits renderer Origin in Electron; authorize the actual requesting frame. */
+export function installMediaRequestPolicy(targetSession: Session): void {
+  targetSession.webRequest.onBeforeRequest({ urls: ["local-video://*/*"] }, (details, callback) => {
+    try {
+      if (details.method !== "GET" && details.method !== "HEAD") return callback({ cancel: true });
+      // Electron net.fetch in Main has no renderer/frame or initiator. It is not a browser window.
+      if ((!details.webContentsId || details.webContentsId < 0) && !details.webContents && !details.frame && !details.initiatorOrigin) {
+        return callback({ cancel: false });
+      }
+      const contents = details.webContents;
+      const registration = contents && trustedWebContents.get(contents.id);
+      if (!contents || contents.isDestroyed() || !registration || !details.frame || details.frame !== contents.mainFrame
+        || !isTrustedRendererUrl(details.frame.url, registration.entryUrl)) return callback({ cancel: true });
+      const entry = new URL(registration.entryUrl);
+      const expectedOrigin = entry.protocol === "app-ui:" ? `${entry.protocol}//${entry.host}` : entry.origin;
+      if (details.initiatorOrigin && details.initiatorOrigin !== expectedOrigin) return callback({ cancel: true });
+      const host = new URL(details.url).hostname;
+      if (registration.role === "timeline-preview" && host !== "preview" && host !== "cover") return callback({ cancel: true });
+      callback({ cancel: false });
+    } catch { callback({ cancel: true }); }
   });
 }
 
@@ -191,7 +221,10 @@ export function isTrustedRendererUrl(candidateUrl: string, entryUrl: string): bo
     if (entry.protocol === "file:") {
       return normalizedEntry(candidate) === normalizedEntry(entry);
     }
-    return candidate.origin === entry.origin && candidate.pathname === entry.pathname;
+    // WHATWG reports origin=null for custom schemes: compare each authority field instead.
+    return !candidate.username && !candidate.password && !entry.username && !entry.password
+      && candidate.hostname === entry.hostname && candidate.port === entry.port
+      && candidate.pathname === entry.pathname;
   } catch {
     return false;
   }

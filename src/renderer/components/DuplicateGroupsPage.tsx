@@ -578,7 +578,7 @@ export function DuplicateGroupsPage({
             </select>
           </label>
           <p className="duplicate-directory-ranking-note">
-            显示 {rankedDirectoryOptions.length.toLocaleString()} / {directoryOptions.length.toLocaleString()} 个目录；数值是候选估算，清理前仍会完整校验 SHA-256。
+            显示 {rankedDirectoryOptions.length.toLocaleString()} / {directoryOptions.length.toLocaleString()} 个目录；数值是候选估算。API 快速删除只核对缓存身份，不完整读取视频或比较 SHA-256，候选内容可能不同。
           </p>
           {currentPreferredDirectory && <div className="duplicate-directory-scope" aria-label="当前优先保留目录">
             <p>当前优先保留：<code title={currentPreferredDirectory.path}>{currentPreferredDirectory.path}</code>（含子目录）

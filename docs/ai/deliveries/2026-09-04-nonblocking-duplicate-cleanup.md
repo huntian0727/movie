@@ -29,7 +29,7 @@ status: completed
 - 完整 Node 套件：55 个测试文件、560 项测试全部通过。
 - `npm run dist:win`：PASS，生成 0.1.14 `win-unpacked` 与 NSIS 安装包；Electron 33.4.11 / ABI 130 native 与主进程 smoke 通过。
 - `npm run test:electron-smoke`、`npm run verify:artifact`、`npm run test:packaged-smoke` 与 `npm run test:installer-smoke`：PASS；asar 3,961 项且无禁止的开发产物。未授权 IPC 拒绝日志是安全负向测试的预期结果。
-- 0.1.14 已静默覆盖安装到 `C:\Users\test\AppData\Local\Programs\Local Video Manager`；正式桌面快捷方式目标已核对，并从该快捷方式成功启动，主窗口进程响应正常。
+- 0.1.14 已静默覆盖安装到 `%USERPROFILE%\AppData\Local\Programs\Local Video Manager`；正式桌面快捷方式目标已核对，并从该快捷方式成功启动，主窗口进程响应正常。
 - release 与正式安装目录的 `resources/app.asar` SHA-256 均为 `917c35faa86d689f9310ba4076abc98f20f8fba024b4d63152de84c33692cf08`。
 
 ## Risks and follow-up

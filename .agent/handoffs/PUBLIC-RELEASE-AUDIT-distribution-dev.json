@@ -1,0 +1,53 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "scope": "Windows release engineering, signing and isolated NSIS candidate QA",
+  "state": "DEV_COMPLETE",
+  "branch": "ai/public-release-audit",
+  "baseline": "807c495",
+  "date": "2026-10-08 Asia/Shanghai",
+  "files": [
+    "scripts/run-electron-builder.mjs",
+    "scripts/release-engineering.mjs",
+    "scripts/release-after-pack.cjs",
+    "scripts/run-installer-smoke.mjs",
+    "scripts/run-packaged-smoke.mjs",
+    "scripts/write-release-metadata.mjs",
+    "scripts/verify-packaged-artifact.mjs",
+    "build/installer.nsh",
+    "build/release-approval.json",
+    "electron-builder.yml",
+    ".github/workflows/windows-release.yml",
+    "tests/scripts/releaseEngineering.test.mjs",
+    "docs/release-engineering.md"
+  ],
+  "changes": [
+    "Unsigned files, appId, NSIS GUID, executable, package/updater cache, default install root and userData identities are separate; no shortcuts/associations. Output release/unsigned-test-build preserves original release/win-unpacked and actual user shortcut; signed candidate uses release/signed-release.",
+    "Flavor resource records x64/version/identity/commit and formal approval hash. afterPack builds exact regular-file removal whitelist and rejects linked inputs.",
+    "NSIS only removes known packaged files; RMDir is nonrecursive and preserves unknown contents. Both explicit appData-deletion flags and unsafe legacy registered uninstallers are blocked. Init, VerifyInstDir and a hidden final preflight Section run before old-uninstaller execution or extraction.",
+    "Installer smoke requires verified unsigned flavor/current installer SHA and no preexisting test registry. It first rejects unrelated nonempty fixture target; then install/repair/app smoke/data-delete rejection/uninstall preserve actual SQLite quick_check/hash and valid synthetic video inside/outside installation and temporary profile. It checks production registration/shortcut hash unchanged.",
+    "Metadata verifies real Authenticode for installer/application/NativeHost and expected publisher/timestamp for formal candidates, reads explicit system Security module, writes exact current candidate SHA256SUMS and metadata. It does not need certificate payloads.",
+    "Formal build is fail-closed on repository approval manifest false, pending LICENSE, ownership/license/lock/native binary/source evidence hashes and clean Windows11/previous signed upgrade QA evidence. Default template grants no license and is unapproved.",
+    "Release Actions use root-verified immutable SHAs and no persisted Git credentials; unsigned test QA has no signing secrets. Formal protected job exposes certificate/password only to signing build steps, not npm ci/postinstall or metadata/upload. Owned NativeHost/app/installer signing is required; third-party FFmpeg/FFprobe binary bytes preserved.",
+    "Artifact gate verifies actual nonempty x64 PE files, exact SQLite/FFmpeg/FFprobe/NativeHost inputs, Electron/Chromium and FFmpeg notices; no mere directory-existence claims. Missing user-supplied libmpv remains an explicit capability limit."
+  ],
+  "verification": {
+    "targetedCommand": "rtk proxy node .tmp/run-node22.cjs exec -- vitest run tests/scripts/releaseEngineering.test.mjs --maxWorkers=2",
+    "targetedResult": "20 tests PASS, Vitest5.0.3, Node22.23.1; last run 565 ms",
+    "scriptSyntax": "7 scripts PASS via node --check",
+    "yaml": "electron-builder.yml and windows-release.yml parse PASS",
+    "authenticodeReadOnly": "PASS: actual NativeHost.exe returned NotSigned, publisher null, timestamp false after explicit system module import",
+    "scopedDiffCheck": "PASS; normal autocrlf warnings only after own-files LF normalization",
+    "NSISCompilerAndRealInstaller": "NOT RUN by this Developer. Root must review final guards and compile candidate, then route independent installer QA before any host install test.",
+    "formalSigningAndPublicRelease": "NOT RUN and deliberately BLOCKED by false ownership/license/source/manual QA approval template; no keys/tags/releases/workflow dispatch used.",
+    "realUserFiles": "No actual videos, user databases, settings, shortcuts or installations changed by this Developer. Only read-only signature/registry design and disposable test fixtures."
+  },
+  "remainingRisks": [
+    "Full GPL FFmpeg/FFprobe exact corresponding-source/dependency provenance remains unapproved; current executable pair includes FFprobe4.0.2. Root licensing report retains formal release blocker.",
+    "A safe new uninstaller cannot fix a previously installed recursive uninstaller. Such upgrades are blocked, not declared supported; actual previous signed version/clean Win11 testing remains required.",
+    "File-lock preflight is not an atomic upgrade rollback or proof against same-user malicious races/power loss. NSIS known-file removal may partially complete if a later file becomes locked; unknown user files are retained.",
+    "NativeHost existing C# compiler output may include build time; binary approval must target concrete candidate or future reproducible-build/signing-input reuse. Recompilation is not silently covered by a previous hash approval.",
+    "Protected GitHub public-release environment/reviewers and approval variables must actually be configured by owner; workflow text is not evidence that remote protection exists.",
+    "Only template/static/unit verification has been completed for installer guards so far. Do not claim unknown install-file preservation or installer PASS until actual isolated NSIS test completes."
+  ],
+  "nextActor": "Local PM coordinates final independent QA, package compilation, actual temporary installer tests, full release gate and supported Electron regression; Developer does not self-accept release readiness."
+}

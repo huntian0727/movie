@@ -1,0 +1,76 @@
+# 公众发布安全与 QA 报告
+
+查询及审查日期：2026-10-08，Asia/Shanghai（北京时间）。仓库 [huntian0727/movie](https://github.com/huntian0727/movie)。实际起点为最新 origin/main 807c495；独立分支 ai/public-release-audit。审查源码、配置、迁移、测试及 Git，而非只读 README。
+
+**正式公众发布结论：FAIL。** 工程修复可交付审核，但项目权属/许可、GPL 二进制完整对应源码、代码签名、真实干净 Windows 11 与历史签名版升级证据尚未闭环。unsigned-test-build 是私下工程验收候选，不能作为正式签名版本或批准公众分发的证据。
+
+## 范围与数据保护
+
+先创建 backup snapshot 2026-10-08_01-49-50-638_public-release-audit 和 checkpoint-20261008-094944-807c495-public-release-audit，再开分支。checkpoint 是恢复点，不是正式版本 tag。数据库备份 quick_check 通过。所有删除、媒体编码、IPC/DPAPI、安装/卸载测试使用合成临时数据；实际资料库和媒体没有参与破坏性测试。原生产桌面快捷方式及旧 package 未覆盖。
+
+本地 Git 非 shallow，扫描全部已获取 refs：起点 208 个可达提交、2116 个唯一历史 blob。Gitleaks 8.30.1 固定官方发行 zip，SHA-256 d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e。git --redact=100 --ignore-gitleaks-allow --log-opts="--all --full-history --root" 扫描 207 个有 diff 的提交（空提交解释计数差异），零 secret 命中；当前全部 tracked/untracked 源码导出也零命中。最终提交后的复扫状态另见最终验证记录。
+
+这不是没有泄露的保证：模式扫描另发现 198 个历史候选（91 Windows 用户路径、99 email-like、6 内网地址、2 credential assignment）。内网地址均出自测试合成端点；两条赋值来自 tests/main/logging.test.ts:32/121 的脱敏测试值；email-like中76条为 package-lock.json 依赖链接候选，23条为脚本/字幕等测试合成地址。Git 作者另有 3 个匿名身份，需权属确认。所有扫描记录只写文件/行/blob/规则，不记录命中原文。一个历史 ScanFailuresPage.tsx 含 NUL，按文本规范化再扫描并保留警告；不能将它忽略为二进制。
+
+历史隐私示例：.agent/handoffs/TASK-SAFETY-001-qa.md:96（blob 54e6c62a77d583f34582a88e5537277b912dbdbe），docs/ai/START_HERE.md:7（ec09889f1896bbde0c8f309a009f3bb7aa9730be），docs/ai/deliveries/2026-08-18-fast-duplicate-permanent-delete.md:34（1db45a0e080a5e71791955a934f6b4d211b8e4e6）。当前约 45 份文档路径替换为 %USERPROFILE%，历史仍存在。真实媒体/目录叙述及统计需要维护者确认公开范围；没有删 Git 历史或扩大 allowlist。只覆盖已获取 refs；不可从本地扫描证明 GitHub 已删除对象、fork、Release、issue/附件无资料。
+
+## P0/P1/P2 风险
+
+| 级别 / 状态 | 具体位置 | 实际风险与处理 |
+| --- | --- | --- |
+| P0 / 当前未确认剩余 | 全仓库及已获取历史 | 未检出真实 Token/私钥。没有以零扫描结果冒充绝对无泄漏；未知 GitHub 隐藏对象不在证据范围。 |
+| P1 / 已修复 | src/main/files/safePermanentDelete.ts:10/41；ipc.ts、scanFailureActions.ts | 通用永久删除原来仅依赖索引路径。现在绑定 enabled source，拒绝祖先 reparse/越界，复核 identity/size/mtime，独立暂存后 unlink；失败无覆盖恢复或保留暂存。 |
+| P1 / 已修复 | src/main/media/duplicateCleanupService.ts，restoreStagedFile / processAuthorizedDelete | 恢复 stat→rename 可覆盖刚出现的新文件；保留副本 SHA 耗时期间暂存文件可被替换。现用 hard-link 无覆盖恢复、persisted identity 及最终 unlink 前版本检查。独立 QA 对运行期和启动恢复碰撞的两项临时文件复现先失败；最后keep哈希期间替换来自源码发现。修复后 7 项对抗测试通过。 |
+| P1 / 已修复 | src/main/db/duplicateCleanupRepository.ts:43/55；duplicateCleanupService.ts:172/191/200；迁移015 | 快速 CloudDrive job 原未持久绑定账户，设置变化可能删另一账户同路径。现 main-only endpoint+token SHA-256 绑定每次 RPC、retry、resume，未完成任务阻止账户切换，旧未绑定 job 需清除并重建。 |
+| P1 / 已修复 | duplicateCleanupService cancel/recover；clouddrive/mountedScanner.ts deleteCloudDriveFiles | 取消后递归拆批仍可能发送 RPC，重启自动推进破坏性任务。现 RPC 前/拆批重试检查取消，重启 cancelling→cancelled，其余 interrupted 需手动复核恢复。已发送服务端请求不能撤销。 |
+| P1 / 已修复 | rendererProtocol.ts:19/50；security.ts:75/130/136；preload.cts | file: 渲染入口转为受控 app-ui://bundle，只服务 immutable build assets，拒绝 traversal/links；CSP/IPC角色与真实 frame 策略、permission deny、媒体 exact origin。真实 Electron 的 protocol Request 丢 Origin，因此不能只依赖 Request headers。 |
+| P1 / 已修复 | settings/settingsStore.ts；cloudDriveCredentialStore.ts | DPAPI 损坏/迁移失败导致启动或环境 Token 回退风险。现公开恢复状态、关闭凭据及环境 fallback、非空替换后验证保存；不曝光真实 Token。 |
+| P1 / 已修复 | package.json / lock；scripts/rebuild-electron.mjs | Electron33已不受支持，基线 npm audit 有34项（3 critical、23 high、8 moderate）。升级44.7.0/SQLite13及构建链；当前 full/prod audit零已知项。N-API用官方预编译并实际验证，不强制旧 ABI rebuild。 |
+| P1 / 已修复 | build/installer.nsh；scripts/release-engineering.mjs / run-installer-smoke.mjs | 原 NSIS 递归清理/删 userData 与旧危险升级。现精确 owned-files 清单、非递归清理、禁止 delete-app-data/reparse/未标记旧卸载器；全套合成哨兵验收保留。 |
+| P1 / 未解决，阻止公众发布 | LICENSE；docs/legal/RELEASE-COMPLIANCE.md；dependency-inventory.json | 未确认代码权属与项目许可证。LICENSE仅明确未授权占位，不授予MIT/Apache。实际 FFmpeg6.1.1、FFprobe4.0.2 均 GPL；完整对应源码/所有静态库构建材料未闭环，旧probe来源已停运。 |
+| P1 / 未解决，阻止正式发布 | build/release-approval.json；windows-release.yml | 无签名证书/批准发布者、干净 Windows11/noNode 与历史 signed upgrade 实测。默认fail closed；不能把本机Insider开发环境、同包repair或CI WindowsServer当验收。 |
+| P1 / 已修复，跨机器仍待验收 | scripts/build-native-player.mjs；native-player-toolchain.lock.json | 改用锁定官方 NuGet Roslyn 编译器和六份 .NET4.8 引用，验证归档及全部缓存 hash、拒绝重解析点和额外加载文件，显式 deterministic/noconfig/nostdlib/pathmap。两份不同绝对路径实际编译逐字节一致；未放宽正式输入hash门禁。Windows2025跨机器复现尚未验证。 |
+| P1 / 未解决，发布治理 | GitHub public-release environment | 实时只读API返回404，当前不能证明保护环境已配置。正式job新增强制API检查required reviewers、禁止self-review/admin bypass、仅v* tag部署策略；未配置即失败。没有擅自创建宽松环境或改变仓库权限。 |
+| P1 / 待产品决策 | src/main/ipc.ts:655/658；DuplicateGroupsPage.tsx；duplicateCleanupService.ts:91 | 当前cleanup submit入口默认快速清理按规范化名称+大小与keep计划直接永久删除，不是整文件SHA相等证据。旧 duplicateFastDelete handler（ipc.ts:633）已直接拒绝，并非现行删除入口。UI已有明确永久确认，但公众默认是否需opt-in/更强确认需owner决定；隐藏legacy autoDeleteAfterVerification兼容参数也须策略审查。未偷偷换默认或关闭检查。 |
+| P2 / 保留并说明 | safePermanentDelete / duplicateCleanupService | 同权限恶意进程最后文件系统调用竞态不能由路径检查彻底消除；hard-link 不支持时保持暂存待人工恢复，异常退出暂存文件可能需人工恢复。 |
+| P2 / 待维护者确认 | docs/ai、.agent、Git作者 | 历史身份路径/真实资料库叙述仍在可达历史；受控历史清理必须另行批准，简单删当前文件无效。备份/旧迁移明文恢复材料须按用户权限保护。 |
+| P2 / 待完善 | electron-builder.yml、NativeHost、旧升级流程 | 当前Electron默认图标；安装替换不是事务式回滚，失败可能需人工修复。播放器libmpv不是本包分发内容，兼容性依赖用户另装。 |
+
+## 删除实现与确认
+
+duplicateFastDelete 的分组/keep 排序、data-table永久删除与扫描失败入口均检查实际源码。快速流程不应宣传“内容相同”；资料库索引必须属于当前 enabled source。CloudDrive provider identity/path 都在 main 解析；返回值、取消、部分RPC失败和恢复状态不能只依赖UI消息判断。workflow2 完整 SHA 复核必须在已暂存删除副本、有效keep及最终stage identity一致后才unlink。workflow3 快速远程计划不声称 SHA 验证；账户哈希不经preload传出。
+
+允许的 IPC、main/player/timeline 角色、sandbox/contextIsolation/nodeIntegration、preload typed bridge、CSP、窗口导航、shell外链白名单、媒体文件访问、CloudDrive URL/凭据、字幕网络入口均经过源码和专项测试审查。已受信 main 中的 XSS 仍可调用该角色允许的IPC，角色检查不能代替用户意图确认；没有写“XSS无法永久删除”的虚假保证。默认无后台遥测；用户启用CloudDrive/在线字幕或外部播放器时才触发相应网络/进程调用，日志和诊断可能含媒体路径，公开前应脱敏。
+
+## 依赖与权属
+
+lock inventory 覆盖428项（75 runtime），license表达式、resolved/integrity、文本及SHA都有记录。75 runtime 的notice均汇总；两个代理依赖发布包缺license文本，通过官方精确tag README的MIT段补齐并保留来源hash；parse-cache-control需人工确认BSD notice，不凭缺字段猜许可。平台开发依赖含MPL/Python等，详见JSON。
+
+NativeHost编译工具另见 [独立许可/来源清单](legal/nativehost-toolchain.json)，不属于npm audit覆盖；官方NuGet注册记录和漏洞feed未包含这两个包的条目，不代表所有编译器依赖均无漏洞。编译器/引用缓存不进入安装包，两份路径构建SHA-256均为215a49e9b9dee51ce758b7a9e1408db2e3a0704670ca349c0e314416554171d7。
+
+FFmpeg SHA-256 04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00，FFprobe SHA-256 4303ec85855340689b1f8aa5d9c1dc06ef3e3090682de3034edc3fca2b0798d5。ffmpeg-static wrapper自身也是GPL-3.0-or-later；不能仅讨论子进程隔离就略过wrapper义务。二进制 README 指向部分上游commit不等于所有对应源码齐全。
+
+建议候选：若权属清晰且需简明授权，可审查MIT；若需明确专利授权，可审查Apache2。应用自有代码许可证与GPL二进制分发合规分别确认；组合兼容性需实际法律评审。未擅自决定许可证，也没有声称软件开源已经完成。
+
+来源：[Electron44.7.0](https://releases.electronjs.org/release/v44.7.0)、[官方支持政策](https://www.electronjs.org/docs/latest/tutorial/electron-timelines)、[SQLite13 N-API](https://github.com/WiseLibs/better-sqlite3/releases/tag/v13.0.0)、[npm安装缺陷](https://github.com/npm/cli/issues/9837)、[FFmpeg法律说明](https://ffmpeg.org/legal.html)、[MIT文本](https://choosealicense.com/licenses/mit/)、[Apache2文本](https://www.apache.org/licenses/LICENSE-2.0)。
+
+## 验证记录
+
+冻结所有功能源码后root同一工作区 `test:release-gate` **PASS**（2026-10-08，北京时间）：lint/typecheck、完整build、Windows文件37项、迁移40项、性能31项、Node原生ABI127、全量131文件/1175项，无跳过。全量323.61秒；320k准备及全部查询恢复main原始单个60秒总截止并通过。最终实际Electron44.7.0/ABI149完整main-process smoke **PASS**，运行器同时要求SQLite native-completed和完整smoke完成标记。此前失败记录仍保留。
+
+独立QA JSON位于 .agent/handoffs/PUBLIC-RELEASE-AUDIT-*-cross-qa.json；限定scope均为PASS_WITH_KNOWN_RISKS，不是整个公众发布PASS。完整门禁、打包、NSIS、本地UI最终状态在本节后续记录；未执行项必须保留NOT_RUN，失败不得作为通过。
+
+保留的失败过程：旧契约断言、磁盘满、系统commit内存不足，以及D/C盘320k准备分别75/98秒超过60秒。曾试分离beforeAll与查询，最终已撤销分离，恢复main原始单个60秒总截止。最终fixture改为同一生产数据库、同一事务中的32批INSERT SELECT，保留全部26字段、逐行索引/FK/revision触发器及插入顺序；新增每批10000行、总320000行、100来源各3200行、rowid/id及revision严格校验。初次REAL绑定生成ID小数后缀被新增断言捕获，修正INTEGER seed后专项通过；最终单一60秒形态已在完整release gate实测通过。所有失败均保留，未删测试、减少数据、禁用索引/trigger或放宽2/3秒查询预算。
+
+本机为Windows11EnterpriseInsiderPreview26220，有开发工具；无WindowsSandbox可用，Hyper-V VM查询无权限，连接器不可用。实际干净稳定Windows11/noNode测试 **NOT_RUN**，提供PowerShell验收工具但不冒充已执行。无旧正式签名升级样本 **NOT_RUN**。没有真实CloudDrive永久删除或SMB/物理卷破坏性实机测试 **NOT_RUN**。
+
+已实测：D盘isolated lock安装通过，真实Electron44.7.0/full main-process smoke通过；package:dir、五种目标二进制/ASAR/法律材料验证及两阶段packaged smoke通过。系统空间恢复后NSIS已实际构建，Authenticode明确NotSigned。前两次首次安装返回失败，先修复空目录存在判断，再定位NSIS插件改写GetLastError导致误拒绝；现原子捕获错误码的守卫专项通过空/标记/非空/junction/missing临时夹具，最终孤立注册项守卫补齐后已实际重建，并通过完整 installer smoke：拒绝未知非空目录、首次安装、合成用户文件存在时 repair、拒绝 delete-app-data、卸载及 SQLite/video 哨兵保持，正式注册项/快捷方式保持。HKCU/HKLM 32/64 view 守卫拒绝没有同 view InstallLocation 的卸载命令，拒绝非固定无额外参数命令；只读临时注册项矩阵18项通过，未执行旧卸载器。最终已提交源码候选将再构建并验证，最终校验和另行记录。
+
+## 待决事项及用户教程
+
+1. 确认全体代码/图标权属并选择项目许可证（暂缓/MIT/Apache2等）；GPL source材料另行审批。
+2. 提供已获授权的签名发布者、GitHub Secrets名称和证书方案；不要发送证书密码/私钥到聊天或仓库。
+3. 确认公众快速永久清理的默认策略和强确认方案，以及旧workflow自动删除兼容策略。
+4. 安排一次真实干净Windows11/noNode及上一正式签名版升级验收，审查历史个人资料公开范围。
+
+普通用户完整步骤见 [Windows安装教程](windows-installation.md)：下载/哈希/签名核验、独立测试包安装、导入目录、SQLite备份、升级隔离限制、卸载数据保留及故障处理。正式安装包当前不存在批准的公众下载入口。

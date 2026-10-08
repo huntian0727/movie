@@ -52,6 +52,6 @@ status: desktop-delivered
 ## Desktop delivery
 
 - Code Commit `86f665d`：2026-10-02 03:26:36 +08:00；`app.asar`：03:26:42；NSIS：03:27:07。最后文档提交不改变运行代码。
-- 新安装包：`C:/Users/test/Documents/视频管理/movie/release/拉面影视-0.1.15-x64-Setup.exe`。
-- 安装烟测后恢复并核对 `C:/Users/test/Desktop/拉面影视.lnk`，真实目标 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。
+- 新安装包：`%USERPROFILE%/Documents/视频管理/movie/release/拉面影视-0.1.15-x64-Setup.exe`。
+- 安装烟测后恢复并核对 `%USERPROFILE%/Desktop/拉面影视.lnk`，真实目标 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。
 - 使用 computer-use 从 Explorer 打开此实际桌面快捷方式，启动最新包；资产中心正常。在云盘目录仅筛选一个已知缺图视频，切换列表模式，确认新的帧进度与关键帧说明存在，实际补齐截图。

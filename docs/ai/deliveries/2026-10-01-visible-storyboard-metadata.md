@@ -30,7 +30,7 @@ status: desktop-delivered
 - `npm run prepare:electron`、`npm run test:electron-smoke`：PASS，Electron 33.4.11 / ABI 130。
 - `npm run verify:artifact`、`npm run test:packaged-smoke`、`npm run test:installer-smoke`：PASS。安装包以隔离目录测试，随后恢复并核对同名桌面快捷方式。
 - Windows 包与 NSIS 安装器成功生成：功能 Commit `80672a7` 时间 2026-10-01 23:46:36，`release/win-unpacked/resources/app.asar` 时间 23:47:31，`release/拉面影视-0.1.15-x64-Setup.exe` 时间 23:47:53。
-- 从 `C:/Users/test/Desktop/拉面影视.lnk` 实际启动，新快捷方式目标为 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。
+- 从 `%USERPROFILE%/Desktop/拉面影视.lnk` 实际启动，新快捷方式目标为 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。
 - 真实 CloudDrive 目录验证：用户截图首条问题视频自动从 pending/null 变为 ready、时长 12840ms，6 张均匀截图全部实际加载；原来另外四条未进入视口的视频仍保持 pending/null，未全库读取。目录里其他可见 pending 视频同样补出时长并生成截图。使用真实挂载盘读取，无整库扫描或文件删除。
 - 备份 Verify：PASS，schema 13、SQLite quick_check ok、345479 条记录。
 - 失败重试、文件版本变化隔离、多人请求取消与活动任务收尾通过自动化验证；未人为中断真实 CloudDrive 服务进行故障注入。

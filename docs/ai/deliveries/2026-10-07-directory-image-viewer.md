@@ -28,7 +28,7 @@ status: completed
 - 全局 Node 24/npm 11 标准检查首次被环境门禁拒绝；改用已有隔离 Node 22.23.1/npm 10.9.8，重建 Node ABI 127 后执行正式检查。
 - 完整 test:release-gate：PASS（Node 22.23.1/npm 10.9.8，117 文件 / 1012 项）；包括 lint/typecheck、build、Windows 文件、数据库迁移、性能检查。日志 `.tmp/image-release-gate.log`。无单独 E2E 脚本。
 - `package:dir`：PASS，重新生成 `release/win-unpacked`，Electron 33.4.11/SQLite ABI 130；`test:electron-smoke` 与 `verify:artifact` 均 PASS。
-- 从用户实际桌面快捷方式 `C:\Users\test\Desktop\拉面影视.lnk` 启动，目标 `C:\Users\test\Documents\视频管理\movie\release\win-unpacked\拉面影视.exe`：PASS。使用 computer-use 实际进入四姑娘山，观察 107 张图片、正确缩略图/原图、左右键切换、Esc 关闭及焦点恢复、滚动新增可见缩略图。
+- 从用户实际桌面快捷方式 `%USERPROFILE%\Desktop\拉面影视.lnk` 启动，目标 `%USERPROFILE%\Documents\视频管理\movie\release\win-unpacked\拉面影视.exe`：PASS。使用 computer-use 实际进入四姑娘山，观察 107 张图片、正确缩略图/原图、左右键切换、Esc 关闭及焦点恢复、滚动新增可见缩略图。
 - 桌面首屏共生成 18 个图片缓存，460360 字节；进入/切换原图期间仍为 18 个，没有后台生成剩余图片。图片目录仍为 0 条视频索引，未将 JPG 当作视频入库。
 - 测试目录读取：107 张 JPG，浅层列名 14.4ms；请求首两张和末张缩略图，生成各约 26–35KB、385–451ms，原图各约 10MB。缓存由 0 变 3，未请求的 104 张没有生成缓存。原图流实测返回 10384977 字节，与源文件大小一致。记录 `.tmp/image-real-check.json`（不提交用户文件名/图片）。
 

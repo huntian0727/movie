@@ -14,6 +14,7 @@
     "npm": "10.9.8"
   },
   "scripts": {
+    "install:locked": "node scripts/install-locked-dependencies.mjs",
     "preinstall": "node scripts/verify-environment.mjs",
     "verify:environment": "node scripts/verify-environment.mjs",
     "clean": "node -e \"require('fs').rmSync('dist-main',{recursive:true,force:true})\"",
@@ -42,10 +43,11 @@
     "test:packaged-smoke": "npm run verify:environment && node scripts/run-packaged-smoke.mjs",
     "test:installer-smoke": "npm run verify:environment && node scripts/run-installer-smoke.mjs",
     "release:metadata": "node scripts/write-release-metadata.mjs",
-    "backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/project-backup.ps1"
+    "backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/project-backup.ps1",
+    "test:renderer-security-smoke": "node scripts/run-renderer-security-smoke.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "^11.8.1",
+    "better-sqlite3": "13.0.3",
     "electron-store": "^10.0.0",
     "execa": "^9.5.2",
     "ffmpeg-static": "^5.3.0",
@@ -57,20 +59,23 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@electron/asar": "3.4.1",
-    "@electron/rebuild": "3.6.1",
+    "@electron/asar": "4.3.1",
+    "@electron/rebuild": "4.2.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
-    "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3",
     "jsdom": "^25.0.1",
     "typescript": "^5.7.2",
-    "vite": "^6.0.3",
-    "vitest": "^2.1.8"
+    "vite": "8.3.3",
+    "vitest": "5.0.3"
+  },
+  "overrides": {
+    "@electron/get": "5.1.0"
   }
 }

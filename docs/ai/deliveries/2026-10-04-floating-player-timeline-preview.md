@@ -33,4 +33,4 @@
 
 浮动窗口需要 Windows compositor 支持，本机普通/全屏均已实测；其他 GPU、混合 DPI/多屏拖动尚未真实验证（负坐标和边界有单元测试）。每个播放器只复用一个小窗口，未建立第二套图片生成器；未缓存截图仍可能需要原有队列生成等待，不能承诺即时生成。长时间播放及真实 CloudDrive 网络媒体不在本次专项验证范围。无独立 E2E npm 脚本，采用现有 packaged smoke、新增 Electron smoke 和真实桌面检查。
 
-快捷方式目标：`C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。回滚通过 checkpoint/数据快照与本次 main 更新前的 backup-main 标签，以新提交恢复，不强制回退 main。
+快捷方式目标：`%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。回滚通过 checkpoint/数据快照与本次 main 更新前的 backup-main 标签，以新提交恢复，不强制回退 main。

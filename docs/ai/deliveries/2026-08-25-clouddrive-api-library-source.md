@@ -27,7 +27,7 @@ status: completed
 - `npm run typecheck`：PASS。
 - `npm run verify:artifact`：PASS；3958 个 asar 条目，无禁止的开发文件。
 - `npm run test:packaged-smoke`：PASS；打包启动、数据库、协议、Renderer、Preload、CSP 和 FFmpeg/FFprobe 验证通过。
-- Windows 目录包：PASS；从 `C:\Users\test\Desktop\Video Manager (Dev).lnk` 启动后，主界面显示“通过 API 添加网盘目录”，真实 CloudDrive2 配置成功列出 `/115` 的 64 个子目录和当前层 3 个视频文件。为避免修改用户资料库，验收在“添加并扫描此目录”前取消。
+- Windows 目录包：PASS；从 `%USERPROFILE%\Desktop\Video Manager (Dev).lnk` 启动后，主界面显示“通过 API 添加网盘目录”，真实 CloudDrive2 配置成功列出 `/115` 的 64 个子目录和当前层 3 个视频文件。为避免修改用户资料库，验收在“添加并扫描此目录”前取消。
 
 ## Risks and follow-up
 

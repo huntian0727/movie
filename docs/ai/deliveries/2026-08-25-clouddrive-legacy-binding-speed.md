@@ -27,7 +27,7 @@ status: completed
 - `npm run package:dir`：PASS；Electron 33.4.11 / ABI 130 native smoke PASS。
 - `npm run verify:artifact`：PASS，asar 3,958 个条目，无禁止开发产物。
 - `npm run test:packaged-smoke`：PASS，打包应用数据库、协议、Renderer、Preload、CSP、FFmpeg/FFprobe 检查通过。
-- 桌面快捷方式 `C:\Users\test\Desktop\Video Manager (Dev).lnk` 已确认指向本轮 `release\win-unpacked\Local Video Manager.exe`，并从该快捷方式实际启动。
+- 桌面快捷方式 `%USERPROFILE%\Desktop\Video Manager (Dev).lnk` 已确认指向本轮 `release\win-unpacked\Local Video Manager.exe`，并从该快捷方式实际启动。
 - 真实 CloudDrive2 + 115：PASS。旧实现日志中 3,208 个目录耗时 1,074,178ms（约 3.0 目录/秒）；本轮对剩余 309 个目录实测耗时 32,224ms（约 9.6 目录/秒），界面实时显示 11–16 目录/秒、并发和 ETA，成功保存 134 个绑定结果。剩余目录多为上一轮已失败目录，因此不将成功率与旧任务直接比较。
 
 ## Risks and follow-up

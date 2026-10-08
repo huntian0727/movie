@@ -4,7 +4,7 @@
 
 ## 开发前恢复点
 
-- 完整快照：`2026-10-04_19-32-27-426_performance-remaining-v2`，位于 `C:\Users\test\Documents\映匣备份`。
+- 完整快照：`2026-10-04_19-32-27-426_performance-remaining-v2`，位于 `%USERPROFILE%\Documents\映匣备份`。
 - Git checkpoint：`checkpoint-20261005-033223-e32cc52-performance-remaining-v2`，已推送。
 - 快照包含一致性 SQLite、设置、源码 bundle 和 manifest；约 0.87GB 数据库、345,479 条视频记录，quick_check 通过。应用在快照前正常关闭。
 

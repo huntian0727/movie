@@ -43,5 +43,5 @@ status: completed
 - embedded-first 不再仅因播放填充编码缓存；播放诊断显示未知时仍需显式媒体分析。auto/native-first/mpv-first 的原有选择契约不变。
 - host-ready / decode-ready / window-opened 日志不含路径、文件名和 Token；decode-ready 不等于任何媒体都已经输出可见画面。
 - 真实用户网盘启动带宽竞争、长期播放：NOT RUN。中性资料库 QA 不替代这些场景。
-- 桌面快捷方式目标 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。本次交付 win-unpacked，不生成 NSIS 安装包，不改变用户原有设置/资料库。
+- 桌面快捷方式目标 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。本次交付 win-unpacked，不生成 NSIS 安装包，不改变用户原有设置/资料库。
 - 回滚使用 checkpoint / backup-main 标签构造新的正常修复提交；数据恢复使用开发前一致性快照，不强制倒退 main。

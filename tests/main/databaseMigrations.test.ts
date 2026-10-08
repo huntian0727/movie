@@ -10,6 +10,7 @@ import {
 } from "../../src/main/db/database.js";
 import { LATEST_SCHEMA_VERSION, migrations } from "../../src/main/db/migrations/index.js";
 import { legacyScanErrorsMigration } from "../../src/main/db/migrations/006-legacy-scan-errors.js";
+import { cloudDriveCleanupBindingMigration } from "../../src/main/db/migrations/015-clouddrive-cleanup-binding.js";
 import { VideoRepository } from "../../src/main/db/videoRepository.js";
 import { retryScanFailures } from "../../src/main/media/libraryScanner.js";
 
@@ -94,6 +95,7 @@ describe("versioned database migrations", () => {
         "directory_snapshots", "scan_failures", "scan_tasks"
       ]));
       expect(db.pragma("foreign_key_check")).toEqual([]);
+      expect(listColumns(db, "duplicate_cleanup_jobs")).toContain("cloud_connection_binding");
       expect(db.pragma("quick_check", { simple: true })).toBe("ok");
       const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>;
       expect(indexes.map((row) => row.name)).toEqual(expect.arrayContaining([
@@ -142,7 +144,7 @@ describe("versioned database migrations", () => {
     }
   });
 
-  for (const version of [1, 2, 3, 4, 5, 6, 7, 8]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]) {
     it(`upgrades schema version ${version} to the latest version`, () => {
       const dbPath = createTempDatabasePath();
       createVersionFixture(dbPath, version).close();
@@ -156,7 +158,7 @@ describe("versioned database migrations", () => {
     });
   }
 
-  for (const failedVersion of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+  for (const failedVersion of [1, 2, 3, 4, 5, 6, 7, 8, 9, 15]) {
     it(`rolls back completely when migration ${failedVersion} fails`, () => {
       const dbPath = createTempDatabasePath();
       const startingVersion = failedVersion - 1;
@@ -193,12 +195,38 @@ describe("versioned database migrations", () => {
           expect(listColumns(db, "videos")).not.toContain("video_codec");
         } else if (failedVersion === 9) {
           expect(listColumns(db, "videos")).not.toContain("codec_probe_status");
+        } else if (failedVersion === 15) {
+          expect(listColumns(db, "duplicate_cleanup_jobs")).not.toContain("cloud_connection_binding");
         }
       } finally {
         db.close();
       }
     });
   }
+
+  it("rolls back a partially applied connection-binding migration and preserves its schema14 backup", () => {
+    const dbPath = createTempDatabasePath();
+    const original = createVersionFixture(dbPath, 14);
+    insertVersionOneData(original);
+    original.close();
+    expect(() => createDatabase(dbPath, { migrationHooks: { beforeMigration(version, db) {
+      if (version === 15) { cloudDriveCleanupBindingMigration.up(db); throw new Error("injected post-DDL failure"); }
+    } } })).toThrow(DatabaseMigrationError);
+    const preserved = new Database(dbPath);
+    try {
+      expect(preserved.pragma("user_version", { simple: true })).toBe(14);
+      expect(listColumns(preserved, "duplicate_cleanup_jobs")).not.toContain("cloud_connection_binding");
+      expect(preserved.prepare("SELECT filename FROM videos").pluck().get()).toBe("sample.mp4");
+    } finally { preserved.close(); }
+    const backups = readdirSync(`${dbPath}.backups`);
+    expect(backups).toHaveLength(1);
+    const restored = new Database(path.join(`${dbPath}.backups`, backups[0]), { readonly: true });
+    try {
+      expect(restored.pragma("user_version", { simple: true })).toBe(14);
+      expect(restored.prepare("SELECT filename FROM videos").pluck().get()).toBe("sample.mp4");
+      expect(restored.pragma("quick_check", { simple: true })).toBe("ok");
+    } finally { restored.close(); }
+  });
 
   it("refuses an unknown unversioned schema without modifying it", () => {
     const dbPath = createTempDatabasePath();

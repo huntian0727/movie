@@ -40,7 +40,7 @@ status: completed
 - 双击为了让单击无延迟，会先短暂执行第一下点击，再恢复先前播放意图进入全屏；最终播放状态保持不变，不承诺完全没有瞬时播放/暂停。
 - 网络读取、缓存不足、GPU 解码仍可能影响“恢复画面”的耗时，不能把 pause 属性即时确认等同于任何媒体都立即出帧；真实用户云盘素材及长期播放 NOT RUN。
 - main 与 NativeHost 的 pause 协议必须同包更新，不能混用旧 helper。旧直接验证脚本未携带 controlId 时原生兼容返回 0；生产服务总是提供关联 ID。
-- 桌面快捷方式目标 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。本轮正常退出旧软件后，用独立中性资料库复测，不操作用户真实视频。
+- 桌面快捷方式目标 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。本轮正常退出旧软件后，用独立中性资料库复测，不操作用户真实视频。
 - 回滚从本次 backup-main/checkpoint 标签创建修复提交；数据必要时用一致性快照恢复，不强制回退 main。
 
 ## 继续修复：全屏后画面单击遗漏

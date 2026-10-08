@@ -1,0 +1,73 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "state": "QA_COMPLETE",
+  "verdict": "PASS_WITH_KNOWN_RISKS",
+  "dateAsiaShanghai": "2026-10-08",
+  "branch": "ai/public-release-audit",
+  "baseline": "807c495",
+  "scope": "Final read-only cross-QA of the frozen parent-authored release gates/CI/bootstrap/resource changes and qa_boundaries-authored deterministic NativeHost toolchain, plus integration with previously independently accepted release/NSIS guards. This is source acceptance for the work branch, not formal public-release or future committed-source package acceptance.",
+  "independence": "This reviewer did not implement the new compiler/toolchain or parent final release changes. Earlier distribution/NSIS code authored by this reviewer is accepted only through the separate independent qa_deletion distribution-cross-qa and nsis-enumeration-rework-cross-qa records and root actual runtime evidence; it is not self-approved here.",
+  "developerHandoff": ".agent/handoffs/PUBLIC-RELEASE-AUDIT-nativehost-toolchain-dev.json",
+  "priorIndependentQa": [
+    ".agent/handoffs/PUBLIC-RELEASE-AUDIT-distribution-cross-qa.json",
+    ".agent/handoffs/PUBLIC-RELEASE-AUDIT-nsis-enumeration-rework-cross-qa.json"
+  ],
+  "reviewedFiles": [
+    "scripts/build-native-player.mjs", "scripts/native-player-toolchain.mjs", "scripts/native-player-toolchain.lock.json",
+    "scripts/test-native-player-reproducibility.mjs", "tests/scripts/nativePlayerToolchain.test.mjs", "docs/legal/nativehost-toolchain.json",
+    "scripts/release-engineering.mjs", "scripts/run-electron-builder.mjs", "scripts/release-after-pack.cjs",
+    "scripts/verify-packaged-artifact.mjs", "scripts/write-release-metadata.mjs", "scripts/run-installer-smoke.mjs",
+    "scripts/run-packaged-smoke.mjs", "scripts/clean-windows11-acceptance.ps1", "scripts/install-locked-dependencies.mjs",
+    "scripts/rebuild-electron.mjs", "package.json", "electron-builder.yml", "build/installer.nsh", "build/release-approval.json",
+    ".github/workflows/windows-ci.yml", ".github/workflows/windows-release.yml", ".github/workflows/security-audit.yml",
+    "docs/public-release-audit.md", "docs/release-engineering.md", "docs/native-abi-workflow.md", "docs/windows-installation.md", "LICENSE"
+  ],
+  "confirmedControls": [
+    "Official NuGet compiler4.14.0 and net48 references1.0.3 have fixed URLs, sizes, SHA512/SHA256. Independent official Catalog HTTPS reads matched both package sizes and SHA512 values; independently streamed actual cached archives matched size and both locked hashes. Extracted csc and all six reference hashes matched the lock.",
+    "No runtime enrollment of expected hashes, redirects, global NuGet cache or Framework/VS compiler discovery. ZIP names/local-central records, duplicates, symlink metadata, expansion/entry limits and selected-file CRC/decompressed lengths are checked before writes; destinations are repository-owned regular paths. Every selected cached file must match authenticated archive bytes; unexpected adjacent code/config directories are rejected.",
+    "C#5/x64/deterministic/noconfig/nostdlib/explicit six references/stable pathmap/UTF8 are explicit. Compiler invocation is shell:false, bounded60s, with machine LIB/LIBPATH/CSC/PLATFORM removed. Output is checked unsigned x64 managed PE before replacing only the generated NativeHost artifact. Runtime helper/libmpv is never executed by the reproducibility script.",
+    "Both package:dir and dist:win regenerate the same deterministic unsigned NativeHost input before the existing owner approval hash gate. That gate was not weakened to accept fluctuating or merely present native binaries. NuGet licensing/provenance/vulnerability coverage limitations are documented separately from npm audit.",
+    "Unsigned appId/GUID/package/executable/output/profile/cache identity remains separate; original product/appId stable. signExecutable:false preserves actual application version/product resources while skipping signing; product four-part and semantic file versions are checked by artifact and metadata gates. Third-party PE bytes remain compared to source; formal NativeHost requires actual signature after signing changes its envelope.",
+    "Formal license is still UNLICENSED/not selected and LICENSE explicitly grants nothing; approval manifest defaults false/null. Formal build checks owner rights/license grant and license/lock/binary/source-evidence/manual-QA hashes, matching version tag, publisher, GitHub signing context and actual installer/application/NativeHost Authenticode status/timestamp. No unsigned fallback is labeled formal.",
+    "Signing certificate/password only exist in the two build-step secret environments, not npm ci/postinstall or unsigned PR jobs. Protected public-release environment guard verifies reviewers, self-review/admin bypass and exact tag-only policy, with actions:read and fail-closed API errors. Current remote configuration is an external blocker, not assumed configured.",
+    "Pinned Actions with persist-credentials:false; PR isolated-package job depends on Node/Electron/dependency gates, has no signing/release permission or certificate environment, and uploads verification metadata only while binary redistribution remains unapproved. Security workflow audits all dependency classes plus full reachable history with redaction and fetch-depth0.",
+    "Install target/old registration/owned-file protections remain independently accepted. Test runner requires current isolated flavor/hash/actual unsigned status, refuses existing test registration, uses fresh disposable targets and real synthetic SQLite/video sentinels, and compares production registration/shortcut digests. Raw path/registry guard reworks preserve final-target and silent hook order and nonrecursive removal.",
+    "Locked-install workaround validates the complete lockfile-extracted dependency tree, selects exact authored install/gyp directories, honors upstream gypfile:false without patching dependencies, replays root lifecycle and still runs actual Node and Electron native gates. Current N-API prebuild is checked by real runtime gates and package/source hash verification.",
+    "Clean-Windows11 harness requires disposable acknowledgment/Windows11 x64/no development commands and fixed test identity/hash/signature, quotes FFmpeg output with spaces, uses temporary profile/synthetic media/SQLite and records manual UI/historical signed upgrade NOT_RUN. No clean-machine execution is inferred from script availability or Insider/WindowsServer CI."
+  ],
+  "independentLightVerification": {
+    "frozenCompilerSource": "All five code/test hashes matched developer freeze handoff. NativeHost toolchain legal JSON was reviewed after explicit freeze.",
+    "frozenIntegration": "20 reviewed engineering/config files matched the root395-file frozen functional snapshot .tmp/public-release-frozen-functional-source.json after the final integrated gate; no reviewed functional source mutation observed.",
+    "nativeReproducibility": "Read actual default output plus both retained isolated outputs: full byte equality,43,520bytes, SHA256215a49e9b9dee51ce758b7a9e1408db2e3a0704670ca349c0e314416554171d7. Source hash matched saved reproducibility JSON. Independently read the additional D checkout output and log and confirmed the same hash, giving four retained outputs on this machine.",
+    "nativeEvidence": ".tmp/native-player-repro-lxF3d3/reproducibility.json; D-worktree .tmp/public-release-nativehost-cross-worktree.log",
+    "officialCatalog": [
+      "https://api.nuget.org/v3/catalog0/data/2025.05.15.20.16.33/microsoft.net.compilers.toolset.4.14.0.json",
+      "https://api.nuget.org/v3/catalog0/data/2022.08.19.22.04.09/microsoft.netframework.referenceassemblies.net48.1.0.3.json"
+    ],
+    "syntax": "node --check passed for compiler builder, toolchain helper and reproducibility script; no compiler or helper execution by this reviewer.",
+    "diffWhitespace": "git diff --check passed for tracked reviewed release/native/CI files; new files additionally inspected in full.",
+    "rootGateEvidenceRead": ".tmp/public-release-frozen-all-gate.log confirms131 test files/1175 tests passed,323.61s,no skipped summary. Root reports complete lint/build/windows37/migrations40/performance31/Node127 chain plus frozen real Electron and renderer security smokes passed; those processes were not rerun by this reviewer.",
+    "priorActualInstaller": "Read D-worktree .tmp/public-release-final-registration-installer.log final PASS: actual isolated install/repair/flag rejection/uninstall with SQLite/video preservation and production registry/shortcuts unchanged. This is the pre-new-compiler candidate evidence, not the future committed-source installer."
+  },
+  "actionableSourceP0P1": [],
+  "resolvedEngineeringFinding": {
+    "priority": "P1",
+    "summary": "Ambient nondeterministic Framework csc previously made strict NativeHost binary approvals fail across package/dist recompilation. Fixed official compiler/reference pins, deterministic/path mapping and actual equal outputs resolve that source/build deficiency without relaxing approval hashes.",
+    "remainingBoundary": "Windows2025/cross-machine compilation and complete rebuilt committed-source installer behavior remain NOT_VERIFIED here."
+  },
+  "knownExternalReleaseBlockers": [
+    "Owner rights/application license decision and GPL wrapper/exact FFmpeg6.1.1/FFprobe4.0.2 corresponding source/build closure are pending; unsigned test binaries are not thereby approved for public redistribution.",
+    "Signing certificate/expected publisher and configured protected GitHub public-release environment are unavailable/unverified; existing remote query404 is explicitly documented and formal guard rejects it.",
+    "Actual stable clean Windows11 without Node/development tools and previous formal signed-version migration acceptance remain NOT_RUN.",
+    "Public default metadata-fast permanent CloudDrive deletion and legacy automatic-delete policy require owner decision; history privacy/authorship review remains pending.",
+    "Same-user final-syscall path races, nontransactional installer interruption/recovery and default icon are retained P2 limitations."
+  ],
+  "notPerformedOrNotClaimed": [
+    "No production code edits, dependency mutation, NativeHost rebuild, heavy regression or actual installer/uninstaller by this reviewer in this final QA task.",
+    "No real user media/database/profile operations, certificate use, GitHub workflow dispatch, Tag or Release creation.",
+    "Future C1 committed-source package/metadata/installer/UI/screenshot evidence is NOT_VERIFIED here and belongs to root's downstream runtime acceptance; no new final installer checksum is asserted.",
+    "No clean Windows11 or cross-machine NativeHost PASS claim; same-machine cross-worktree equality is the exact proven scope."
+  ],
+  "publicReleaseVerdict": "FAIL remains correct while external release blockers are unresolved",
+  "nextActor": "Root may commit/push the authorized work branch for review, then rebuild and verify the exact committed-source unsigned package, installer and UI and record separate downstream runtime/doc evidence. No formal tag/public release authorized."
+}

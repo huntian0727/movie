@@ -3,10 +3,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { readJson, releaseOutputDirectory } from "./release-engineering.mjs";
 
 const timeoutMs = 60_000;
 
-export async function runPackagedSmoke(executablePath = defaultExecutablePath()) {
+export async function runPackagedSmoke(executablePath) {
+  executablePath ??= await defaultExecutablePath();
   const smokeRoot = await mkdtemp(path.join(os.tmpdir(), "video-manager-packaged-smoke-"));
   let succeeded = false;
   try {
@@ -67,8 +69,10 @@ function spawnAndWait(command, args, environment, timeout) {
   });
 }
 
-function defaultExecutablePath() {
-  return path.join(process.cwd(), "release", "win-unpacked", "拉面影视.exe");
+async function defaultExecutablePath() {
+  const directory = path.join(process.cwd(), releaseOutputDirectory());
+  const flavor = await readJson(path.join(directory, "build-flavor.json"));
+  return path.join(directory, "win-unpacked", `${flavor.executableName}.exe`);
 }
 
 function parseExecutableArgument() {

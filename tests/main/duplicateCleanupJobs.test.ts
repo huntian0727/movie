@@ -1,9 +1,10 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import type { DatabaseConnection } from "../../src/main/db/database";
 import { createDatabase } from "../../src/main/db/database";
 import { DuplicateCleanupRepository } from "../../src/main/db/duplicateCleanupRepository";
@@ -86,10 +87,64 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     const completed = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
 
     expect(completed).toMatchObject({ workflowVersion: 3, status: "completed", successItems: 1 });
-    expect(deleteCloudFiles).toHaveBeenCalledWith(["/115/delete.mp4"], true);
+    expect(deleteCloudFiles).toHaveBeenCalledWith(["/115/delete.mp4"], true, expect.any(Function));
     expect(hashFile).not.toHaveBeenCalled();
     expect(() => repo.getVideo(deleteVideo.id)).toThrow();
     service.stop();
+  });
+
+  it("persists cancellation across restart and never auto-resumes API deletion", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    bindCloudFixture(repo, keepVideo, deleteVideo);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const accepted = jobs.submitFast({ requestId: "cancel-restart-api", plan });
+    jobs.bindCloudDriveConnection(accepted.jobId, "a".repeat(64));
+    jobs.start(accepted.jobId);
+    const item = jobs.listFastDeletionWorkItems(accepted.jobId)[0];
+    jobs.claimFastDeletionItems(accepted.jobId, [item.id]);
+    jobs.requestCancel(accepted.jobId);
+    expect(jobs.recoverFastJobs()).toEqual([]);
+    expect(jobs.getJob(accepted.jobId)).toMatchObject({ status: "cancelled", phase: "finished" });
+    expect(jobs.listItems(accepted.jobId, 1, 20).items[0].status).toBe("cancelled");
+  });
+
+  it("requires matching connection binding for manual resume and retry, including old unbound jobs", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    bindCloudFixture(repo, keepVideo, deleteVideo);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const accepted = jobs.submitFast({ requestId: "account-change-api", plan });
+    const deleteCloudFiles = vi.fn().mockResolvedValue({ success: true, errorMessage: "", resultFilePaths: [] });
+    let binding = "b".repeat(64);
+    const service = createService(jobs, repo, { deleteCloudFiles, getCloudConnectionBinding: () => binding });
+    expect(jobs.getJob(accepted.jobId).status).toBe("interrupted");
+    expect(() => service.resume(accepted.jobId)).toThrow(/连接或账号/);
+    jobs.bindCloudDriveConnection(accepted.jobId, "a".repeat(64));
+    expect(() => service.resume(accepted.jobId)).toThrow(/连接或账号/);
+    jobs.requestCancel(accepted.jobId); jobs.finishCancelled(accepted.jobId);
+    expect(() => service.retry(accepted.jobId)).toThrow(/连接或账号/);
+    expect(deleteCloudFiles).not.toHaveBeenCalled();
+    binding = "a".repeat(64);
+    service.retry(accepted.jobId);
+    await waitFor(jobs, accepted.jobId, job => job.phase === "finished");
+    expect(deleteCloudFiles).toHaveBeenCalledOnce();
+    service.stop();
+  });
+
+  it("locks connection changes until retryable or cancelled remote task records are cleared", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    bindCloudFixture(repo, keepVideo, deleteVideo);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const accepted = jobs.submitFast({ requestId: "settings-lock-api", plan });
+    jobs.bindCloudDriveConnection(accepted.jobId, crypto.createHash("sha256").update("fixture-connection").digest("hex"));
+    expect(() => jobs.assertCloudDriveConnectionChangeAllowed()).toThrow(/清除/);
+    jobs.requestCancel(accepted.jobId); jobs.finishCancelled(accepted.jobId);
+    expect(() => jobs.assertCloudDriveConnectionChangeAllowed()).toThrow(/清除/);
+    expect(JSON.stringify(jobs.getJob(accepted.jobId))).not.toContain("cloud_connection_binding");
+    jobs.clear(accepted.jobId);
+    expect(() => jobs.assertCloudDriveConnectionChangeAllowed()).not.toThrow();
   });
 
   it("commits a successful CloudDrive batch with one removal event", async () => {
@@ -263,9 +318,11 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
 
     expect(finished).toMatchObject({ successItems: 0, skippedItems: 1, status: "completed_with_errors" });
-    expect(renameFile).toHaveBeenCalledTimes(2);
+    // Only isolation may rename; rollback uses an atomic no-overwrite hard link.
+    expect(renameFile).toHaveBeenCalledTimes(1);
     expect(deleteFile).not.toHaveBeenCalled();
     expect((await stat(deleteVideo.path)).isFile()).toBe(true);
+    expect(await readFile(deleteVideo.path)).toEqual(Buffer.alloc(64, 8));
     expect(jobs.listItems(accepted.jobId, 1, 20).items[0].stagedDeletePath).toBeNull();
     service.stop();
   });
@@ -637,6 +694,7 @@ async function createVideo(repo: VideoRepository, sourceFolderId: string, filePa
 }
 
 function createService(jobs: DuplicateCleanupRepository, repo: VideoRepository, options: {
+  getCloudConnectionBinding?: () => string | null;
   deleteFile?: (filePath: string) => Promise<void>;
   hashFile?: (filePath: string, signal?: AbortSignal) => Promise<string>;
   renameFile?: (source: string, destination: string) => Promise<void>;
@@ -646,6 +704,14 @@ function createService(jobs: DuplicateCleanupRepository, repo: VideoRepository, 
   const { domainEvents, ...serviceOptions } = options;
   return new DuplicateCleanupService(jobs, repo, { enqueue: vi.fn(() => true) } as never,
     { scheduleMaintenance: vi.fn() } as never, (domainEvents ?? { publish: vi.fn() }) as never, serviceOptions);
+}
+
+function bindCloudFixture(repo: VideoRepository, keepVideo: VideoRecord, deleteVideo: VideoRecord) {
+  repo.setSourceFolderProvider(keepVideo.sourceFolderId, { type: "clouddrive", rootPath: "/qa-fixtures", name: "QA" });
+  for (const video of [keepVideo, deleteVideo]) {
+    expect(repo.updateVideoProviderIdentityIfVersion(video.id, video.path, video.sizeBytes, video.modifiedAt,
+      { fileId: `fixture-${video.id}`, path: `/qa-fixtures/${video.filename}` })).toBe(true);
+  }
 }
 
 async function waitFor(jobs: DuplicateCleanupRepository, jobId: string, predicate: (job: ReturnType<DuplicateCleanupRepository["getJob"]>) => boolean) {

@@ -2,7 +2,6 @@ import { BrowserWindow, app, net, protocol } from "electron";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { execa } from "execa";
 import type { AssetCenterReadService } from "./assetCenter/assetCenterQueryService.js";
 import type { DatabaseConnection } from "./db/database.js";
@@ -15,6 +14,7 @@ import type { PlaybackDiagnosticReadService } from "./playbackDiagnostic/playbac
 import type { VideoDataService } from "./videoData/videoDataService.js";
 import { videoDataQuerySchema } from "../shared/videoDataTable.js";
 import { configureWindowSecurity } from "./security.js";
+import { RENDERER_ENTRY_URL } from "./rendererProtocol.js";
 
 interface PackagedSmokeContext {
   phase: "create" | "verify";
@@ -148,8 +148,7 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
 }
 
 async function verifyPackagedPreview(currentDir: string, videoId: string): Promise<Record<string, boolean>> {
-  const entryPath = path.join(currentDir, "../../dist-renderer/index.html");
-  const entryUrl = pathToFileURL(entryPath).href;
+  const entryUrl = RENDERER_ENTRY_URL;
   const window = new BrowserWindow({ show: true, webPreferences: {
     contextIsolation: true, nodeIntegration: false, sandbox: true,
     preload: path.join(currentDir, "preload.cjs"),
@@ -160,7 +159,7 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
     if (message.startsWith("[packaged-smoke]")) console.log(message);
   });
   try {
-    await window.loadFile(entryPath);
+    await window.loadURL(entryUrl);
     window.show();
     window.focus();
     return await window.webContents.executeJavaScript(`(async () => {
@@ -241,8 +240,7 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
 }
 
 async function verifyPackagedRendererSecurity(currentDir: string): Promise<Record<string, boolean>> {
-  const entryPath = path.join(currentDir, "../../dist-renderer/index.html");
-  const entryUrl = pathToFileURL(entryPath).href;
+  const entryUrl = RENDERER_ENTRY_URL;
   const window = new BrowserWindow({
     show: false,
     webPreferences: {
@@ -258,7 +256,7 @@ async function verifyPackagedRendererSecurity(currentDir: string): Promise<Recor
   });
   configureWindowSecurity(window, { role: "smoke", entryUrl });
   try {
-    await window.loadFile(entryPath);
+    await window.loadURL(entryUrl);
     const checks = await window.webContents.executeJavaScript(`
       (async () => {
         const rendererMounted = await new Promise((resolve) => {

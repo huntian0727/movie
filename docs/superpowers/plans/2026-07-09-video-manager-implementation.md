@@ -2037,7 +2037,7 @@ import { SettingsPage } from "../../src/renderer/components/SettingsPage";
 
 describe("SettingsPage", () => {
   it("shows required first-version settings", () => {
-    render(<SettingsPage cacheLocation="C:\\Users\\test\\AppData\\Cache" missingCount={2} />);
+    render(<SettingsPage cacheLocation="%USERPROFILE%\\AppData\\Cache" missingCount={2} />);
 
     expect(screen.getByText("默认递归扫描")).toBeInTheDocument();
     expect(screen.getByText("启动时自动同步")).toBeInTheDocument();

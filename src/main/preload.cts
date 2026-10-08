@@ -259,7 +259,8 @@ function publicSettings(settings: AppSettings): AppSettings {
       endpoint: settings.cloudDrive.endpoint,
       timeoutMs: settings.cloudDrive.timeoutMs,
       mountMapJson: settings.cloudDrive.mountMapJson,
-      configured: settings.cloudDrive.configured
+      configured: settings.cloudDrive.configured,
+      ...(settings.cloudDrive.credentialError ? { credentialError: "CloudDrive 安全凭据暂不可用，连接已停用；请重新输入 Token 并保存以恢复。原凭据已保留。" } : {})
     }
   };
 }
@@ -342,7 +343,9 @@ function isTrustedRendererLocation(candidateUrl: string, entryUrl: string): bool
       entry.hash = "";
       return candidate.href === entry.href;
     }
-    return candidate.origin === entry.origin && candidate.pathname === entry.pathname;
+    return !candidate.username && !candidate.password && !entry.username && !entry.password
+      && candidate.hostname === entry.hostname && candidate.port === entry.port
+      && candidate.pathname === entry.pathname;
   } catch {
     return false;
   }

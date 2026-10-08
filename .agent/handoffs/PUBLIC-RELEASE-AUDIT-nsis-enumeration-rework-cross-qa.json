@@ -1,0 +1,71 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "stage": "independent-nsis-enumeration-and-final-release-delta-source-qa",
+  "state": "QA_COMPLETE",
+  "verdict": "PASS_WITH_KNOWN_RISKS",
+  "previousInterimVerdict": "FAIL pending NSIS-ORPHAN-LEGACY-UNINSTALL-REGISTRATION; resolved by independently reviewed registration rework below",
+  "date": "2026-10-08 Asia/Shanghai",
+  "branch": "ai/public-release-audit",
+  "baseline": "807c495",
+  "developerHandoff": ".agent/handoffs/PUBLIC-RELEASE-AUDIT-nsis-enumeration-rework-dev.json",
+  "registrationReworkHandoff": ".agent/handoffs/PUBLIC-RELEASE-AUDIT-nsis-registration-rework-dev.json",
+  "scope": "Read-only NSIS native enumeration/raw path/BUILD_UNINSTALLER review and final registry snapshot/unsigned PE resource/artifact gates; not actual installation or formal release acceptance",
+  "independence": "Reviewer did not implement these production changes and did not launch installer/uninstaller, diagnostic executable, heavy build/native/Node gate or user-data operations.",
+  "safeToProceedWithGuardedIsolatedSmoke": true,
+  "isolatedSmokePrerequisites": "Root rebuilds exact unsigned candidate and passes current artifact/metadata gates; existing runner requires isolated flavor/hash/actual unsigned signature and refuses any prior test registration. All /D targets must remain its fresh absolute mkdtemp children.",
+  "confirmedRework": [
+    {
+      "control": "Native directory enumeration captures errors immediately with System ?e and Pop; no delayed GetLastError after NSIS FindNext",
+      "evidence": "build/installer.nsh:190-253: 592-byte WIN32_FIND_DATAW, cFileName offset44, ignore only dot entries, require marker for any real entry; allocation/first-call/next-call/normal-close error branches release allocated buffer and valid search handle. Only normal not-found/end-of-enumeration errors are allowed."
+    },
+    {
+      "control": "Fully-qualified path grammar and raw /D are checked before trusting sanitized INSTDIR",
+      "evidence": "build/installer.nsh:26-178,328-338: drive-letter colon backslash child or UNC server/share/child; no empty/dot/dotdot/trailing-dot/space/slash/ADS/device/control components; dedicated ordinary raw-input variable is not overwritten by scratch R registers. Ancestor reparse checks and PathIsRoot remain."
+    },
+    {
+      "control": "BUILD_UNINSTALLER does not declare unused installer-only raw variable; warnings-as-errors policy remains",
+      "evidence": "build/installer.nsh:28-36; actual installed installer.nsi expands customInit only in installer branch. Final installer-only registry/raw variables are all used. Developer has recorded both UTF8 /WX compile branches exit0 without warnings after registration rework, not inferred runtime acceptance."
+    },
+    {
+      "control": "Original hook order, populated marker, dangerous flag refusal and whitelist/nonrecursive removal preserved",
+      "evidence": "build/installer.nsh:310-407; installed installer.nsi customHeader before built-in install Section, customInit after initMultiUser; hidden safety Section precedes stock uninstall/extraction; customUnInit precedes stock --delete-app-data handling."
+    },
+    {
+      "control": "Production/test registry snapshots cover HKCU and HKLM in both Registry64 and Registry32 views; value names sorted, types retained, JSON ordered and deeply serialized before hash",
+      "evidence": "scripts/run-installer-smoke.mjs:125-145; both installation and uninstall registration keys checked for test identity before launch; no raw registry values are returned to logs."
+    },
+    {
+      "control": "Unsigned executable remains explicitly unsigned while keeping edited Windows resources; actual PE version/product is verified in artifact and metadata gates",
+      "evidence": "scripts/run-electron-builder.mjs uses productName and signExecutable:false, plus explicit buildVersion=flavor.version/buildNumber=0 to reject ambient counters; installed winPackager.js edits resources and skips signing. scripts/release-engineering.mjs:151-169 now matches semantic FileVersion, numeric four-part ProductVersion and product name with UTF8 output; verify-packaged-artifact.mjs:44 and write-release-metadata.mjs:20 require it. Initial strict three-part ProductVersion defect was reported and root corrected it. Root also reports actual PE and metadata/artifact gate PASS (FileVersion0.1.15/ProductVersion0.1.15.0/isolated product name), not independently rerun here."
+    },
+    {
+      "control": "Other-platform native assets excluded and gate rejects any remaining non-Windows-x64 prebuilds",
+      "evidence": "electron-builder.yml:25-30 and verify-packaged-artifact.mjs:11-14; required x64 SQLite/FFmpeg/FFprobe/NativeHost/app binaries and exact source hashes are still required."
+    }
+  ],
+  "existingRuntimeEvidenceReviewed": {
+    "path": ".tmp/nsis-guard-readonly-gFhoKs/matrix-results.json",
+    "result": "17/17 pass records verified from saved JSON; diagnostic generator reviewed as guard-only with no payload/registry/removal operations. This reviewer did not rerun it.",
+    "coverage": "Empty/marked/missing pass; nonempty/junction/drive-relative/root-relative/drive-root/UNC-root/device/traversal/mixed-slash/repeated-separator/trailing-dot/trailing-separator/ADS/reserved-superscript device refuse.",
+    "notImplied": "Actual complete installer/repair/uninstall PASS or historical signed upgrade PASS."
+  },
+  "unresolvedP0P1": [],
+  "resolvedFindings": [
+    {
+      "priority": "P1",
+      "id": "NSIS-ORPHAN-LEGACY-UNINSTALL-REGISTRATION",
+      "status": "RESOLVED",
+      "initialSummary": "Nonempty legacy UninstallString with missing installation-key InstallLocation bypassed the previous marker gate; stock NSIS falls back to the uninstaller parent and executes it (installed include/installUtil.nsh:155-175,224-230).",
+      "finalEvidence": "build/installer.nsh:255-308 now inspects same-view HKCU/HKLM install location and primary/compatibility uninstall commands in both32/64 views before stock execution. Any HKLM location/command is refused. HKCU orphan commands are refused; nonempty roots require strict path/ancestor/reparse/appId/safe marker checks. Each primary/compat command must exactly match the quoted fixed uninstaller in that root plus/currentuser and be an existing nonreparse non-directory file. Independent ordinary variables preserve inputs; registry view restored immediately after collection; INSTDIR is never modified by stored-root validation.",
+      "runtimeEvidenceReviewed": ".tmp/nsis-registration-readonly-JwdmVv/registry-results.json contains18/18 expected exits across32/64 views: none/orphan-primary/orphan-compat/safe-primary/safe-compat/unmarked/external-command/unsafe-args/safe-primary-plus-unsafe-compat. Reviewer read actual saved JSON and pre/post/post-child metadata. Private UUID root was absent in both hives/views beforehand; afterward only new empty HKCU diagnostic keys remain, all child value names empty, HKLM remains absent. No real production/test GUID mutation or old uninstaller execution was performed. Reviewer did not rerun the diagnostic.",
+      "compileEvidence": "Registration Developer handoff reports final ordinary and BUILD_UNINSTALLER hook stubs and guard diagnostic all UTF8/WX exit0 with zero warnings. No complete installer runtime PASS is inferred."
+    }
+  ],
+  "remainingP2": [
+    "Actual rebuilt installer still requires root-owned complete isolated smoke after two prior actual failures; unit/source/guard-stub evidence does not replace this.",
+    "Upgrade/removal remains nontransactional; interruption between old marker removal and new marker creation can require reviewed manual recovery.",
+    "Portable path/marker checks do not prove immunity to same-user malicious post-check filesystem mutations.",
+    "Registration negative runtime matrix uses private HKCU keys; HKLM rejection is source/compile reviewed and private HKLM absence verified, without writing machine keys. Actual complete candidate registration/repair/uninstall must still be retested by root."
+  ],
+  "nextActor": "Root copies the frozen final registration guard into the candidate build checkout, rebuilds exact unsigned installer and reruns complete artifact/metadata/isolated installer QA. This bounded source PASS_WITH_KNOWN_RISKS does not establish complete installer or formal release acceptance."
+}

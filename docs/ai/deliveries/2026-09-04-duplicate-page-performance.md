@@ -35,7 +35,7 @@ status: completed
 - `npm run verify:artifact`：PASS，asar 3,960 项且无禁止的开发产物。
 - `npm run test:packaged-smoke`：PASS，覆盖数据库、协议、Renderer/Preload 安全、FFmpeg/FFprobe、预览生成、缓存、重生成和轮询稳定性。
 - 修正安装器选择后，`npm run test:installer-smoke` 明确验证 `Local-Video-Manager-0.1.12-x64-Setup.exe`：PASS；其中未授权 IPC 拒绝日志是安全负向检查的预期结果。
-- 0.1.12 已静默覆盖安装到 `C:\Users\test\AppData\Local\Programs\Local Video Manager`；桌面快捷方式目标为该目录的正式可执行文件，并已成功启动。
+- 0.1.12 已静默覆盖安装到 `%USERPROFILE%\AppData\Local\Programs\Local Video Manager`；桌面快捷方式目标为该目录的正式可执行文件，并已成功启动。
 - release 与正式安装的 `resources/app.asar` SHA-256 均为 `d54d60507519e96e11c3b1b2bb15b7b85f91bf142acf30f9ce73fd2d19f5442c`；安装包内版本读取为 0.1.12。
 
 ## Risks and follow-up

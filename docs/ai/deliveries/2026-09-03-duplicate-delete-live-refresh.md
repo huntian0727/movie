@@ -29,7 +29,7 @@ CloudDrive API 后台删除已在每个文件成功后发布 `video:removed`，�
 - `npm run test:electron-smoke` / `npm run verify:artifact`：PASS，asar 3960 项且无禁止的开发产物。
 - `npm run test:packaged-smoke`：PASS，包含数据库、媒体协议、renderer 安全、FFmpeg/FFprobe、预览生成与页面轮询稳定性。
 - `npm run test:installer-smoke`：PASS。
-- 0.1.11 NSIS 已静默覆盖安装到 `C:\Users\test\AppData\Local\Programs\Local Video Manager`；桌面快捷方式目标为该目录下的 `Local Video Manager.exe`，并已从快捷方式启动正式安装版本。
+- 0.1.11 NSIS 已静默覆盖安装到 `%USERPROFILE%\AppData\Local\Programs\Local Video Manager`；桌面快捷方式目标为该目录下的 `Local Video Manager.exe`，并已从快捷方式启动正式安装版本。
 - release 与正式安装目录的 `resources/app.asar` SHA-256 均为 `ea758a66d738f5a825e9f2ccc7e854449ce81ac1f87a7314cf9fbf040d3ebf3d`。
 - 当前 Computer Use 未提供原生应用窗口枚举，因此未进行真实用户资料库的截图式删除操作；候选即时消失和任务提示清理分别由 renderer 回归测试验证。
 

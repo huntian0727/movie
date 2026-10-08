@@ -10,6 +10,7 @@ import { ImageRequestCancelledError, type ImageRequestOptions } from "./imageGen
 import { getTimelinePreviewFromUrl, getVideoIdFromCoverUrl, getVideoIdFromMediaUrl, MEDIA_SCHEME } from "./mediaUrl.js";
 import { getStoryboardTimes } from "../../shared/storyboard.js";
 import type { DirectoryImageService } from "./directoryImageService.js";
+import { RENDERER_ORIGIN } from "../rendererProtocol.js";
 
 export { MEDIA_SCHEME } from "./mediaUrl.js";
 
@@ -47,9 +48,10 @@ export function registerMediaProtocol(
   repo: VideoRepository,
   cacheManager: MediaCacheManager,
   getCoverFrameTimeSeconds: () => number = () => 5,
-  directoryImages?: DirectoryImageService
+  directoryImages?: DirectoryImageService,
+  rendererOrigin = RENDERER_ORIGIN
 ): void {
-  protocol.handle(MEDIA_SCHEME, async (request) => {
+  const respond = async (request: Request): Promise<Response> => {
     try {
       const parsed = new URL(request.url);
 
@@ -58,7 +60,7 @@ export function registerMediaProtocol(
       if (parsed.hostname === "media") {
         const videoId = getVideoIdFromMediaUrl(request.url);
         const video = repo.getVideo(videoId);
-        return createVideoResponse(video.path, getRequestHeader(request, "range"));
+        return await createVideoResponse(video.path, getRequestHeader(request, "range"));
       }
 
       if (parsed.hostname === "preview" || parsed.hostname === "cover") {
@@ -70,10 +72,19 @@ export function registerMediaProtocol(
       }
 
       throw new Error("Invalid media URL");
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
-      return new Response(message, { status: 404 });
+    } catch {
+      return new Response("Media resource unavailable", { status: 404 });
     }
+  };
+  protocol.handle(MEDIA_SCHEME, async (request) => {
+    const origin = request.headers.get("Origin");
+    if (origin && origin !== rendererOrigin) return new Response("Media origin unavailable", { status: 403 });
+    const response = await respond(request);
+    // Fetching images from app-ui is cross-origin. Grant only the application entry origin,
+    // never arbitrary websites, while keeping ID/session/path authorization in Main.
+    response.headers.set("Access-Control-Allow-Origin", rendererOrigin);
+    response.headers.set("Vary", "Origin");
+    return response;
   });
 }
 

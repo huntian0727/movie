@@ -78,7 +78,7 @@ status: completed
 ### 桌面交付路径
 
 - 目录包：`release/win-unpacked/拉面影视.exe`。
-- 已核对 `C:/Users/test/Desktop/拉面影视.lnk` 真实目标为当前仓库的上述可执行文件，无附加参数。
+- 已核对 `%USERPROFILE%/Desktop/拉面影视.lnk` 真实目标为当前仓库的上述可执行文件，无附加参数。
 - 提交后必须再次重新打包，检查 app.asar / 原生宿主时间晚于 Commit，并从同一实际快捷方式复查全屏；完成之前不宣称桌面交付。具体 Commit、推送旧 main 备份标签及最终包时间由自动交付输出和最终回复记录。
 
 ## Risks and follow-up

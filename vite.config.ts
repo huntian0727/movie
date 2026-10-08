@@ -4,8 +4,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   root: ".",
-  // Packaged Electron pages are loaded with file://, so renderer assets must
-  // resolve relative to dist-renderer/index.html instead of the drive root.
+  // Packaged pages use app-ui://bundle/index.html; keep assets relative to that build entry.
   base: "./",
   build: {
     outDir: "dist-renderer",

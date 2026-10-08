@@ -29,7 +29,7 @@ status: completed
 - `npm run verify:artifact`：PASS；ASAR 共校验 3957 个条目。
 - `npm run test:packaged-smoke`：PASS；创建、验证和安全负向检查全部通过，负向检查中的 `ERR_UNTRUSTED_IPC_SENDER` 为预期结果。
 - 真实 CloudDrive2 账号端到端删除：NOT RUN；自动测试使用本地 HTTP/2 gRPC 仿真服务，桌面人工验证不执行真实删除。
-- 桌面快捷方式人工验证：PASS；`C:\Users\test\Desktop\Video Manager (Dev).lnk` 已指向本次 `release/win-unpacked` 构建。实机启动后重复项页显示 13790 组，并确认“添加优先保留目录”“优先保留此目录”“批量删除全部筛选结果（13790 组）”和“后台任务”入口均存在，同时页面明确提示不计算 SHA-256。现有候选来自旧挂载资料库、缺少 CloudDrive 远端身份，因此批量 API 删除按钮按设计禁用；人工验证未执行任何真实文件删除。
+- 桌面快捷方式人工验证：PASS；`%USERPROFILE%\Desktop\Video Manager (Dev).lnk` 已指向本次 `release/win-unpacked` 构建。实机启动后重复项页显示 13790 组，并确认“添加优先保留目录”“优先保留此目录”“批量删除全部筛选结果（13790 组）”和“后台任务”入口均存在，同时页面明确提示不计算 SHA-256。现有候选来自旧挂载资料库、缺少 CloudDrive 远端身份，因此批量 API 删除按钮按设计禁用；人工验证未执行任何真实文件删除。
 
 ## Risks and follow-up
 

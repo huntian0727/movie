@@ -58,7 +58,8 @@ describe("project scaffold", () => {
     expect(ci).toContain("Electron native and main-process smoke");
     expect(ci).not.toContain("continue-on-error");
     expect(release).toContain("npm run test:release-gate");
-    expect(release).toContain("npm audit --omit=dev");
+    expect(release).toMatch(/run: npm audit\s*\n/);
+    expect(release).not.toContain("npm audit --omit=dev");
     expect(release).toContain("npm run test:packaged-smoke");
     expect(release).toContain("npm run test:installer-smoke");
     expect(release).toContain("WINDOWS_CSC_LINK");

@@ -1,0 +1,34 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "state": "DEV_COMPLETE",
+  "scope": "P1 orphaned legacy uninstall registration guard found by independent QA",
+  "productionFiles": ["build/installer.nsh"],
+  "sourceEvidence": [
+    "Stock app-builder-lib NSIS include/installUtil.nsh reads primary UNINSTALL_REGISTRY_KEY UninstallString, falls back to UNINSTALL_REGISTRY_KEY_2, then derives the directory from the command when INSTALL_REGISTRY_KEY InstallLocation is missing, before copying/ExecWait of that legacy executable.",
+    "The previous application guard verified only nonempty InstallLocation, so isolated uninstall commands could bypass safe-marker verification. The stock executable was never launched for this finding or this actor's verification."
+  ],
+  "implementation": [
+    "Read HKCU/HKLM install location plus primary and compatibility uninstall commands in each of registry32 and registry64, using six dedicated installer-only variables. Restore SetRegView lastused immediately after each collection and before any guard can Abort; caller's original view is preserved.",
+    "Any per-machine install location or uninstall command is rejected pending separate migration. HKCU orphaned primary or compatibility uninstall commands are rejected when the same-view install location is absent; never infer a directory from an executable command.",
+    "A nonempty HKCU install location must pass the shared strict path syntax, entire ancestor reparse guard and exact application-ID/safe-uninstaller marker. A command must exactly match quoted registered root plus fixed UNINSTALL_FILENAME and /currentuser, with no extra flags. Its executable must exist as a regular nonreparse file in that root.",
+    "Extracted movieCheckDirectoryPath TARGET to inspect stored ordinary-variable roots without changing or sanitizing the actual INSTDIR. Existing final-root checks reuse that macro. Primary and compatibility commands are independently checked even when both exist.",
+    "Retained all original init/directory/final-silent-preflight/uninstall timing, dangerous-flag rejection, populated-target markers, all known-file preflight and nonrecursive removal protections. warningsAsErrors remains enabled."
+  ],
+  "verification": {
+    "registrationRuntime": "PASS18/18: per-view cases none, orphan-primary, orphan-compat, safe-primary, safe-compat, missing-marker-primary, external-command, unsafe-extra-args and safe-primary-plus-unsafe-compat have expected exit codes.",
+    "registryFixtureIsolation": "A freshly generated private Software/MovieGuardAudit-UUID root was confirmed absent before mutation in HKCU/HKLM registry32/64. Only those newly owned HKCU test subkeys were created/changed; no original values existed to overwrite. Fixture Reset clears only its known InstallLocation/UninstallString values; empty private test keys remain for diagnosis. HKLM stayed absent. No production or actual unsigned-build GUID/key was read for fixture mutation, written or removed.",
+    "runtimeExecutableShape": "Read-only copied actual guard macros in .onInit; fixed private-test-key reads, autonomous diagnostic log and Quit. No app payload, WriteUninstaller, WriteReg, Exec/ExecWait, install/remove sections or actual old executable call. The supposed uninstaller file is synthetic plain text and only inspected.",
+    "sentinels": "PASS: synthetic file contents in safe marked and unsafe unmarked directories unchanged. Existing17-case path/empty/marked/junction/missing read-only runtime evidence remains preserved.",
+    "compileQuality": "PASS zero warnings under UTF8 makensis3.0.4.1 /WX for final ordinary installer hook stub (1.01s), BUILD_UNINSTALLER hook stub (0.50s) and independent registration-reader diagnostic stub (0.61s). Installer/uninstaller compile stubs were never executed.",
+    "intermediateDiagnosticFailure": "Initial registry-only diagnostic /WX compile caught an unused raw-target variable in that fixture, fixed by explicitly referencing it. Its subsequent harness could not find the absent diagnostic executable, and only fresh private UUID empty HKCU subkeys had been created; no executable ran. Added a guard-executable existence preflight before any future fixture registry writes, generated a fresh UUID and reran all18 cases successfully. Failed diagnostic metadata/empty private keys were retained, not hidden.",
+    "fixture": ".tmp/nsis-registration-readonly-JwdmVv",
+    "results": ".tmp/nsis-registration-readonly-JwdmVv/registry-results.json",
+    "preMetadata": ".tmp/nsis-registration-readonly-JwdmVv/registry-pre.json",
+    "postMetadata": ".tmp/nsis-registration-readonly-JwdmVv/registry-post.json",
+    "diagnostics": ".tmp/nsis-registration-readonly-JwdmVv/registry-diagnostics.txt",
+    "actualInstallerOrOldUninstaller": "NOT RUN by this actor",
+    "DWorktreeChangesOrHeavyTests": "NONE",
+    "HKLMNegativeRuntimeFixture": "NOT RUN: HKLM writes were unnecessary; independent source/compile review checks its unconditional rejection branch. Runtime read confirmed this private root stays absent in both machine views."
+  },
+  "nextActor": "Independent qa_deletion resolves the P1 source finding with current code/evidence; parent rebuilds and reruns the real disposable installation smoke. Actual installer PASS and overall formal release readiness are not inferred from these diagnostic fixtures."
+}

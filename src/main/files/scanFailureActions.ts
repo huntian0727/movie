@@ -5,7 +5,7 @@ import { classifyScanFailureForCleanup } from "../../shared/scanFailureCleanup.j
 import type { VideoRepository } from "../db/videoRepository.js";
 import type { CloudDriveMissingConfirmation } from "../clouddrive/mountedScanner.js";
 import { isManagedPathWithin } from "./pathNormalization.js";
-import { permanentlyDeleteFile } from "./fileOperations.js";
+import { permanentlyDeleteManagedFile } from "./safePermanentDelete.js";
 
 export interface DeleteScanFailureFileDependencies {
   statImpl?: (targetPath: string) => Promise<Stats>;
@@ -55,7 +55,13 @@ export async function deleteScanFailureFile(
     throw new Error("Permanent deletion requires the trusted duplicate-candidate full SHA-256 verification guard.");
   }
   dependencies.assertPermanentDeleteAllowed([video.id]);
-  await (dependencies.deleteImpl ?? permanentlyDeleteFile)(failure.objectPath);
+  if (dependencies.deleteImpl) await dependencies.deleteImpl(failure.objectPath);
+  else {
+    if (!sourceFolder.enabled) throw new Error("Permanent deletion requires an enabled managed source folder.");
+    await permanentlyDeleteManagedFile(failure.objectPath, {
+      sourceRoot: sourceFolder.path, sizeBytes: video.sizeBytes, modifiedAt: video.modifiedAt
+    });
+  }
   repo.resolveScanFailuresForObject(failure.sourceFolderId, failure.objectPath);
   repo.removeVideo(video.id);
   return { deleted: true, videoId: video.id };

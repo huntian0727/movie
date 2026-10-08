@@ -1,0 +1,56 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "stage": "final-independent-distribution-source-cross-qa",
+  "verdict": "PASS_WITH_KNOWN_RISKS",
+  "date": "2026-10-08 Asia/Shanghai",
+  "branch": "ai/public-release-audit",
+  "baseline": "807c495",
+  "developerHandoff": ".agent/handoffs/PUBLIC-RELEASE-AUDIT-distribution-dev.json",
+  "evidence": ".tmp/release-audit-distribution-crossqa.md",
+  "scope": "Final distribution source controls and safety to proceed with isolated unsigned installer smoke, not public-release acceptance",
+  "independence": "Reviewer did not implement distribution production code and performed only lightweight source reads during this final review.",
+  "safeToProceedWithIsolatedInstallerSmoke": true,
+  "executionPrerequisites": [
+    "Current isolated unsigned NSIS candidate compiles successfully.",
+    "Current verify:artifact and release:metadata gates pass.",
+    "Use the guarded run-installer-smoke.mjs unchanged; it refuses any existing test registration and verifies candidate identity/hash/actual unsigned signature before launch."
+  ],
+  "resolvedFinding": {
+    "id": "P1-DIST-SECRETS",
+    "summary": "Job-wide signing credentials removed; certificate values only on two signing build steps",
+    "evidence": ".github/workflows/windows-release.yml:64-98; scripts/write-release-metadata.mjs:11-21"
+  },
+  "confirmedControls": [
+    "Isolated appId/GUID/executable/default root/output/updater cache/userData; test shortcuts and associations disabled.",
+    "Init, VerifyInstDir and final hidden NSIS Section guard final target before prior uninstall and extraction.",
+    "Unrelated nonempty first-install negative fixture; unsafe legacy marker and per-machine upgrade rejection.",
+    "Root/ancestor/whitelist reparse checks, exact owned-file removal, nonrecursive empty-directory removal, explicit --delete-app-data rejection.",
+    "Private keys absent from npm ci, smoke, signature/hash metadata and upload environments.",
+    "Formal owner/license/source/manual-QA evidence hashes and actual installer/application/NativeHost signature/publisher/timestamp required."
+  ],
+  "remainingRisks": [
+    {
+      "priority": "P2",
+      "summary": "Interrupted replacement after safe uninstall and before marker recreation can leave a partial nonempty target requiring reviewed manual recovery; upgrade is not transactional.",
+      "evidence": "build/installer.nsh:94-97,136-143; installed electron-builder installSection.nsh:52-81"
+    },
+    {
+      "priority": "P2",
+      "summary": "Preflight and path ownership are not proof against same-user malicious post-check mutations or users replacing nominal application-owned files."
+    }
+  ],
+  "notExecutedByReviewer": [
+    "Installer or uninstaller",
+    "npm/native rebuild",
+    "Real user profile/media/database operations",
+    "GitHub workflow dispatch, Tag or Release creation"
+  ],
+  "stillRequiredForReleaseAcceptance": [
+    "Actual isolated NSIS install/repair/uninstall and negative-case evidence from parent QA",
+    "Clean Windows11 without developer Node environment",
+    "Actual previous signed-version upgrade evidence",
+    "Real signature/certificate and protected GitHub environment verification",
+    "Owner license, rights and exact FFmpeg/FFprobe corresponding-source compliance decisions"
+  ],
+  "nextActor": "Root QA compiles/verifies candidate and executes the isolated installer smoke, then combines actual evidence with the complete release risk report."
+}

@@ -29,7 +29,7 @@ status: completed
 - `scripts/start-desktop.mjs` 实际启动：PASS；主窗口加载真实资料库和 preload API，未进入 unsupported-runtime。
 - unpacked 打包与 artifact 检查：PASS，3951 个 asar 条目，无开发产物。
 - packaged smoke：PASS；SQLite quick check、fixture 扫描、协议、Renderer mount、preload、安全边界与 FFmpeg/FFprobe 均通过。
-- 桌面快捷方式：PASS；`C:\Users\test\Desktop\Video Manager (Dev).lnk` 指向本轮 `release\win-unpacked\Local Video Manager.exe`，并已从快捷方式启动确认真实资料库。
+- 桌面快捷方式：PASS；`%USERPROFILE%\Desktop\Video Manager (Dev).lnk` 指向本轮 `release\win-unpacked\Local Video Manager.exe`，并已从快捷方式启动确认真实资料库。
 
 ## Risks and follow-up
 

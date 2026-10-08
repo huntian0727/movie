@@ -5,6 +5,9 @@ app.on("window-all-closed", () => {});
 app.whenReady().then(async () => {
   const { runNativeSmoke } = await import("./native-smoke.mjs");
   await runNativeSmoke("electron");
+  const smokeRoot = process.argv.find(argument => argument.startsWith("--smoke-root="))?.slice("--smoke-root=".length);
+  if (!smokeRoot) throw new Error("Native smoke requires an isolated completion directory");
+  require("node:fs").writeFileSync(require("node:path").join(smokeRoot, "native-completed"), "SQLite read/write assertions passed");
   if (!process.argv.includes("--native-only")) {
     const { readFileSync, writeFileSync } = require("node:fs");
     const path = require("node:path");

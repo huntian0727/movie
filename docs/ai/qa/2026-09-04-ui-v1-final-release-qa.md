@@ -34,7 +34,7 @@
 - `release/Local-Video-Manager-0.1.15-x64-Setup.exe`：生成成功。
 - Packaged smoke：通过，资产中心 worker 与播放诊断 worker 均从 ASAR 成功启动和查询。
 - Installer smoke：通过，覆盖安装、卸载和用户数据保留检查均成功。
-- 桌面快捷方式 `C:\Users\test\Desktop\Video Manager (Dev).lnk` 已确认指向本次 `release/win-unpacked`。
+- 桌面快捷方式 `%USERPROFILE%\Desktop\Video Manager (Dev).lnk` 已确认指向本次 `release/win-unpacked`。
 - 从最新可执行文件启动成功，窗口标题为“本地视频管理”，窗口为最大化状态。
 
 ## 未验证事项

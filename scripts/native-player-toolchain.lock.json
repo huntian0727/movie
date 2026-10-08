@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "compiler": {
+    "id": "microsoft.net.compilers.toolset", "version": "4.14.0", "size": 21771766,
+    "url": "https://api.nuget.org/v3-flatcontainer/microsoft.net.compilers.toolset/4.14.0/microsoft.net.compilers.toolset.4.14.0.nupkg",
+    "catalog": "https://api.nuget.org/v3/catalog0/data/2025.05.15.20.16.33/microsoft.net.compilers.toolset.4.14.0.json",
+    "sha512": "h5GExC3fx0fm0qHw8rQ6y5c0uk6cCiAsorLl9Hq/9VlotEvsv/oW60RNo8HOYApv66kNqJq4Bg/TkSAsgQAwbQ==",
+    "sha256": "941a9cf3ea618d88d01a3dd6b1a45a06bcf07716a9f81ce4031caa3edd24a845",
+    "executable": "tasks/net472/csc.exe",
+    "executableSha256": "2dc1461b1a6e95be9c1beceb4b263141b7bb90e704029344a0c2d1a5693d9007"
+  },
+  "references": {
+    "id": "microsoft.netframework.referenceassemblies.net48", "version": "1.0.3", "size": 20997929,
+    "url": "https://api.nuget.org/v3-flatcontainer/microsoft.netframework.referenceassemblies.net48/1.0.3/microsoft.netframework.referenceassemblies.net48.1.0.3.nupkg",
+    "catalog": "https://api.nuget.org/v3/catalog0/data/2022.08.19.22.04.09/microsoft.netframework.referenceassemblies.net48.1.0.3.json",
+    "sha512": "XWKgyeNadNcTQaIVvQB8BrdCNrEar6fo/de1OdQRZ9HFy0jcBSaM8IV5q64ZampsSnC8AlTsACaGZUuoFw41RA==",
+    "sha256": "8a7e348538e7eb91351696911689f49e3d4f63f8bab517432bbe159b8b1104a2",
+    "assemblies": [
+      { "path": "build/.NETFramework/v4.8/mscorlib.dll", "sha256": "6b35530467b914b0b195146ca1d1485ddd219afaad6461103f16f54e952f75a9" },
+      { "path": "build/.NETFramework/v4.8/System.dll", "sha256": "2fe343569f794f2ca92ee14a41875571a9f21bf92637b8f8ee86306534209cca" },
+      { "path": "build/.NETFramework/v4.8/System.Core.dll", "sha256": "94a1fc97eb0d36f13acd209bb7207da504c8be10caf7e5096b2c46e671dc6fe2" },
+      { "path": "build/.NETFramework/v4.8/System.Windows.Forms.dll", "sha256": "0b0bc1f2ebfefe0cf827b2e2a0caa3fb8c772d84df26ab8e40abe98e0f2eb300" },
+      { "path": "build/.NETFramework/v4.8/System.Drawing.dll", "sha256": "65a42d3e5bd4508e3c75133cd1967301a84b5dae6698f300cd831ff79c54b611" },
+      { "path": "build/.NETFramework/v4.8/System.Web.Extensions.dll", "sha256": "7512218c4a6a83de0cdbb8a25240b8b5ee542f93ff9b31acfbf9f7399394450e" }
+    ]
+  }
+}

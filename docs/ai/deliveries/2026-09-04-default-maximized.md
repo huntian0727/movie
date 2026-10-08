@@ -26,7 +26,7 @@ status: completed
 - `npm run dist:win`：PASS，生成 0.1.13 `win-unpacked` 与 NSIS 安装包；Electron 33.4.11 / ABI 130 native 与主进程 smoke 通过。
 - `npm run verify:artifact`：PASS，asar 3,961 项且无禁止的开发产物。
 - `npm run test:packaged-smoke` 与严格当前版本 `npm run test:installer-smoke`：PASS；安装器明确为 `Local-Video-Manager-0.1.13-x64-Setup.exe`。未授权 IPC 拒绝日志是安全负向检查的预期结果。
-- 0.1.13 已静默覆盖安装到 `C:\Users\test\AppData\Local\Programs\Local Video Manager`，桌面快捷方式指向正式安装路径并已启动。
+- 0.1.13 已静默覆盖安装到 `%USERPROFILE%\AppData\Local\Programs\Local Video Manager`，桌面快捷方式指向正式安装路径并已启动。
 - 使用 Windows `IsZoomed` 对真实安装窗口检查：`True`；确认启动后的主窗口处于最大化状态。
 - release 与正式安装的 `resources/app.asar` SHA-256 均为 `c56bf29283be764a532f920fb332c53c80e5704ddb2ade02d95001ebee7dfac0`；安装包内版本为 0.1.13。
 

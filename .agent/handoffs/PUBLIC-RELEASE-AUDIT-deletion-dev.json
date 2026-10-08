@@ -1,0 +1,53 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "scope": "D1-D5 deletion safety and remote-plan binding",
+  "state": "DEV_COMPLETE",
+  "branch": "ai/public-release-audit",
+  "baseline": "807c495",
+  "date": "2026-10-08 Asia/Shanghai",
+  "files": [
+    "src/main/files/safePermanentDelete.ts",
+    "src/main/files/scanFailureActions.ts",
+    "src/main/ipc.ts",
+    "src/main/media/duplicateCleanupService.ts",
+    "src/main/db/duplicateCleanupRepository.ts",
+    "src/main/db/migrations/015-clouddrive-cleanup-binding.ts",
+    "src/main/db/migrations/index.ts",
+    "src/renderer/components/DuplicateGroupsPage.tsx",
+    "src/renderer/components/DuplicateCleanupTasksPanel.tsx",
+    "tests/main/publicReleaseDeletionAdversarial.test.ts",
+    "tests/main/cloudDriveSecurity.test.ts",
+    "tests/main/duplicateCleanupJobs.test.ts",
+    "tests/main/databaseMigrations.test.ts",
+    "tests/renderer/DuplicateCleanupTasksPanel.test.tsx"
+  ],
+  "changes": [
+    "Ordinary single/batch/data-table/confirmed-corrupt permanent deletion validates enabled-source membership, ancestor junction/symlink rejection, resolved root containment, ordinary-file cached size/mtime, then isolates and validates stable object identity before removal. Failed deletion restores via no-overwrite hard link or retains recoverable media.",
+    "Workflow2 final/hash file inspection also rejects unmanaged/reparse traversal.",
+    "CloudDrive stop propagates cancellation predicate and no recursive retries start after stop.",
+    "Restart finishes cancelling workflow3 tasks, leaves other incomplete workflow3 tasks interrupted without automatic network calls.",
+    "Schema15 stores only main-only SHA256 endpoint+credential connection binding; new admitted fast jobs bind before enqueue, each network retry and manual resume/retry reject missing/mismatched binding. Pre-migration unbound plans require clear/recreate.",
+    "settings:set prevents endpoint/nonblank Token change while workflow3 has any undeleted item, including cancelled/retryable records; ordinary settings and blank-token preservation remain allowed.",
+    "UI describes actual cached-identity fast API risks and manual restart review. Approved no-hash fast mode, ordinary data-table deletion and legacy local verified auto-confirm policy are retained."
+  ],
+  "verification": {
+    "initialAdversarialBaseline": "3 FAIL: replacement deleted; outside junction file deleted; 3 RPCs after stop instead of1",
+    "targetedInitialAfterPatch": "204 PASS/1 FAIL (old workflow2 UI assertion incorrectly expected API-resume text); source now distinguishes v2 re-verification from v3 manual account review, assertion corrected",
+    "targetedCommand": "rtk proxy node .tmp/run-node22.cjs exec -- vitest run tests/main/publicReleaseDeletionAdversarial.test.ts tests/main/duplicateCleanupJobs.test.ts tests/main/duplicateResolveSafety.test.ts tests/main/scanFailureReview.test.ts tests/main/scanFailureBatchService.test.ts tests/main/databaseMigrations.test.ts tests/main/fileOperations.test.ts tests/main/cloudDriveSecurity.test.ts tests/renderer/DuplicateGroupsPage.test.tsx tests/renderer/DuplicateCleanupTasksPanel.test.tsx --maxWorkers=2",
+    "targetedResult": "10 files / 209 tests PASS, 11.48s",
+    "subsequentAdversarialResult": "7 tests PASS after adding real scan-failure same-metadata junction proof; previous targeted group had6 adversarial tests",
+    "typecheck": "PASS (Node22 wrapper, Vitest5/better-sqlite3 13 current dependencies)",
+    "scopedDiffCheck": "PASS",
+    "realMediaOrRemoteCloudDrive": "NOT RUN, no real user files/DB/profile/remote touched",
+    "dependencyOrNativeChangesByThisActor": "NONE"
+  },
+  "migrationEvidence": "Tests cover upgrades schema1-14 to15, failure15 rollback, partially-applied binding DDL rollback and preserved schema14 backup original row/quick_check.",
+  "remainingRisks": [
+    "Metadata-only fast candidates may differ in content and remote path operations cannot condition on provider file-ID/version. This approved product risk remains and requires owner public-release decision.",
+    "Legacy hidden local autoDeleteAfterVerification still synthesizes confirmation after verified equality per approved compatibility tests; policy decision pending.",
+    "Interrupted network requests can have uncertain server-side outcome; no automatic retry and retained task binding reduce wrong-backend risks but do not prove remote state.",
+    "Portable Node path-based filesystem calls do not provide an absolute guarantee against same-privilege malicious concurrent filesystem mutation after the last check. Reparse, stale-version and isolated-object checks materially close the reproduced paths.",
+    "A crash during ordinary-delete isolation can leave a retained movie-delete media filename. Its video extension is preserved for discovery; no original/replacement file is overwritten during failed restoration."
+  ],
+  "nextActor": "Local PM routes independent cross-QA of this final diff and full integration regression; this Developer does not self-accept QA."
+}

@@ -3,9 +3,9 @@
 ## 1. 修改前工作区状态
 
 - 当前分支：`main`。
-- 实际项目根目录：`C:\Users\test\Documents\视频管理\.worktrees\codex-video-manager-implementation`。
+- 实际项目根目录：`%USERPROFILE%\Documents\视频管理\.worktrees\codex-video-manager-implementation`。
 - 原有已修改文件：无；执行包解压前 worktree clean。
-- 原有未跟踪文件：无；本轮按要求新增 `movie-scan-optimization-execution-pack/`。外层 `C:\Users\test\Documents\视频管理` 的其他未跟踪审查文件不属于本 worktree，本轮未修改。
+- 原有未跟踪文件：无；本轮按要求新增 `movie-scan-optimization-execution-pack/`。外层 `%USERPROFILE%\Documents\视频管理` 的其他未跟踪审查文件不属于本 worktree，本轮未修改。
 - 未执行 `git reset`、`git clean`、checkout 覆盖、清库或远程仓库操作。
 
 ## 2. 修改前真实调用关系

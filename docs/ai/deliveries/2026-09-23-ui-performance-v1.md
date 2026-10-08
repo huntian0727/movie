@@ -40,7 +40,7 @@ pagination on Electron's main process. The pre-change backup is
   smoke: PASS. The installed app was opened from its registered desktop app
   entry and its video browsing and duplicate pages were inspected.
 - Installed shortcut target:
-  `C:\Users\test\AppData\Local\Programs\Local Video Manager\Local Video Manager.exe`.
+  `%USERPROFILE%\AppData\Local\Programs\Local Video Manager\Local Video Manager.exe`.
   Installed and packaged `app.asar` SHA-256 values match.
 
 ## Risks and follow-up

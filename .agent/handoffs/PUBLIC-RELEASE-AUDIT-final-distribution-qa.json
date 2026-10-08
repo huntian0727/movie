@@ -1,0 +1,83 @@
+{
+  "task_id": "PUBLIC-RELEASE-AUDIT",
+  "role": "Independent QA of final parent-authored distribution delta",
+  "status": "PASS_WITH_KNOWN_RISKS",
+  "commit": "807c49585d18c901b199fe0d3d8b0dbf31eb4114",
+  "reviewed_state": "Uncommitted ai/public-release-audit final N-API/bootstrap/CI/clean-VM/documentation delta; not a public-release approval and not self-acceptance of this actor's earlier NSIS implementation",
+  "scope": [
+    "scripts/rebuild-electron.mjs",
+    "scripts/verify-packaged-artifact.mjs",
+    "scripts/install-locked-dependencies.mjs",
+    "scripts/run-electron-smoke.mjs",
+    "scripts/electron-smoke-main.cjs",
+    "scripts/clean-windows11-acceptance.ps1",
+    ".github/workflows/windows-ci.yml",
+    ".github/workflows/windows-release.yml",
+    ".github/workflows/security-audit.yml",
+    "README.md",
+    "docs/native-abi-workflow.md",
+    "docs/release-workflow.md",
+    "docs/public-release-audit.md",
+    "docs/clean-windows11-acceptance.md",
+    "docs/windows-installation.md",
+    "docs/legal/RELEASE-COMPLIANCE.md"
+  ],
+  "review_results": [
+    "Actual installed better-sqlite3 13.0.3 package exports lib/binding.js which selects prebuilds/win32-x64.node before legacy node-gyp locations. Rebuild script honors the current upstream gypfile:false with actual Electron read/write gate. Packaged validator uses exact prebuild path, x64 PE and source/copy SHA256 equality.",
+    "Electron native-only runner now requires native-completed written after successful SQLite read/write; a premature zero exit cannot count as native compatibility evidence.",
+    "Locked install extracts the full lock with --ignore-scripts --include=dev, selects exact installed package directories and versions, honors current N-API no-script gyp opt-out, and replays actual dependency installation scripts in one npm rebuild batch with --ignore-scripts=false. Root lifecycle events suppress incidental hook duplication. No third-party source patch or dependency test removal was found.",
+    "PR unsigned-installation-qa depends on successful node-tests/electron-smoke/dependency-review, uses disposable fixed test identity, no Secrets and contents:read; no Release creation. Parent's existing installer smoke retains all synthetic inside/outside SQLite/video sentinels and refuses production identity.",
+    "Unsigned PR and release QA now upload only metadata/flavor/checksums, avoiding public redistribution of unresolved GPL executable candidates. Full build and installer checks remain enabled. Formal job remains tag-only and requires actual license/binary/manual evidence plus real signatures; certificate Secrets are limited to signing steps.",
+    "Release unsigned gate now audits all dependencies. Full-history security workflow is fetch-depth0 with pinned Gitleaks/hash and redacted output. Actions remain full-SHA pinned and checkout persist-credentials:false.",
+    "Clean Windows11 script's FFmpeg output path is quoted for spaces; NSIS /D and _? final-path syntax is preserved. It verifies isolated identity, SHA and NotSigned, uses synthetic temporary userData/video/SQLite, and explicitly emits manualUi/historicalSignedUpgrade NOT_RUN.",
+    "Clean-VM documentation correctly identifies current Insider/developer machine as inadequate, and does not claim an unexecuted script is actual clean-system acceptance. Public report explicitly concludes formal release FAIL and retains missing license/source/signature/manual-machine approvals. N-API workflow and release-workflow were updated to current implementation."
+  ],
+  "resolved_during_review": [
+    "Unquoted FFmpeg output in clean acceptance path containing spaces",
+    "Release gate auditing only production dependencies",
+    "Public unsigned artifact upload of unresolved GPL binaries",
+    "Name-only lifecycle selection could rebuild another same-name version that opted out",
+    "Inherited ignore-scripts could silently suppress lifecycle replay",
+    "Sequential alphabetical rebuild could violate dependency lifecycle ordering",
+    "Native-only zero-exit success without actual SQLite completion evidence",
+    "Old release-workflow/native-ABI documentation describing previous identities and rebuild behavior"
+  ],
+  "tests": {
+    "status": "PASS",
+    "summary": "Read-only syntax verification only in this final review; no heavy tests or installer execution",
+    "commands": [
+      "rtk proxy .tmp/runtime/node-v22.23.1-win-x64/node.exe --check scripts/install-locked-dependencies.mjs",
+      "rtk proxy .tmp/runtime/node-v22.23.1-win-x64/node.exe --check scripts/rebuild-electron.mjs",
+      "PowerShell Language.Parser ParseFile scripts/clean-windows11-acceptance.ps1"
+    ],
+    "results": "All syntax checks exit0; PowerShell parser reports no errors",
+    "actual_electron_sqlite": "Parent-reported Electron44.7.0 ABI149 SQLite smoke exit0; this QA actor inspected invocation/completion guards but did not rerun it",
+    "packaged_installer_full_gate_remote_ci": "Parent-owned final execution pending or separately reported; not relabeled as this actor's independent runtime evidence",
+    "real_user_data_changes": "NONE",
+    "production_code_changes_by_this_actor_in_final_review": "NONE"
+  },
+  "risks": [
+    {
+      "priority": "P1",
+      "risk": "Formal NativeHost approval is bound to an exact unsigned EXE hash, but package:dir and dist:win each recompile using non-deterministic Framework csc. A later CI rebuild can invalidate the reviewed hash. Deterministic compiler/source/toolchain or approved exact-candidate input reuse is still needed; do not weaken hash approval to make a formal build pass."
+    },
+    {
+      "priority": "P1",
+      "risk": "Project rights/license, full GPL corresponding-source closure, signing certificate/publisher, actual clean no-Node Windows11 and historical signed upgrade remain unapproved or NOT_RUN. The public-release FAIL verdict is appropriate."
+    },
+    {
+      "priority": "P2",
+      "risk": "At review time audit draft still named nonexistent duplicateFastDelete.ts and executeDeletion, and could imply both discovered P1s had pre-fix runtime proofs. Root was notified: legacy duplicateFastDelete is disabled in ipc.ts:633; current fast policy enters submit/submitFiltered; actual method is processAuthorizedDelete. Only live/startup restoration had independent pre-fix 2FAIL; finalKeep substitution was first tested after rework. Verify these prose corrections before final delivery."
+    },
+    {
+      "priority": "P2",
+      "risk": "GitHub public-release required reviewers/environment protections are configuration requirements, not proven by a workflow environment declaration alone. No remote deployment/branch-protection state was verified by this actor."
+    },
+    {
+      "priority": "P2",
+      "risk": "Local build commit field can still be baseline807 while source is uncommitted. Disclose candidate source state or produce final-commit-aligned artifact/CI evidence before claiming reproducibility. Current install helper is scoped to this locked registry dependency tree; future link/git/workspace lifecycle changes require regression review."
+    }
+  ],
+  "primary_reference": "https://docs.npmjs.com/cli/v10/commands/npm-rebuild/; installed npm10.9.8 rebuild/arborist source also inspected for exact-directory selection and lifecycle queue semantics",
+  "next": "Local Project Manager completes final execution evidence and report prose corrections, maintains formal distribution block, commits reviewed branch and offers PR. No release/tag/dispatch is authorized by this QA result."
+}

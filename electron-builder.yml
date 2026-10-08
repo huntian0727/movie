@@ -22,6 +22,12 @@ files:
   - '!**/*.sqlite*'
   - '!tests/**'
   - '!.dbg/**'
+  - '!node_modules/ffprobe-static/bin/darwin/**'
+  - '!node_modules/ffprobe-static/bin/linux/**'
+  - '!node_modules/ffprobe-static/bin/win32/ia32/**'
+  - '!node_modules/better-sqlite3/prebuilds/darwin-*.node'
+  - '!node_modules/better-sqlite3/prebuilds/linux*.node'
+  - '!node_modules/better-sqlite3/prebuilds/win32-arm64.node'
 win:
   artifactName: 拉面影视-${version}-${arch}-Setup.${ext}
   target:
@@ -29,5 +35,8 @@ win:
 nsis:
   oneClick: false
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  allowToChangeInstallationDirectory: false
   deleteAppDataOnUninstall: false
+  include: build/installer.nsh
+  runAfterFinish: false
+  allowElevation: false

@@ -34,7 +34,7 @@ status: completed
 - 安装 `release/Local-Video-Manager-0.1.8-x64-Setup.exe /S`: PASS，退出码 0。
 - 从真实桌面 `Local Video Manager.lnk` 启动安装目录的 0.1.8：PASS；通过 computer-use 检查所有视频页排队状态、重生成入口及切换测试目录后实际封面显示。真实资料库只读复核：8 条 metadata=pending 记录已经 thumbnail=ready。
 - 安装目录和 release/win-unpacked 的 app.asar SHA-256 一致：`0db0791a35d7c43cb73fb60d4d1a57d041bba9205aa68488b46bdbce7acc64a6`。本轮生成时间本地 2026-09-01 01:33，安装时间 01:33；源代码提交仅补交记录，不混用旧包。
-- 正式快捷方式目标 `C:\Users\test\AppData\Local\Programs\Local Video Manager\Local Video Manager.exe`；Dev 快捷方式仍指向本轮重建的 `release/win-unpacked/Local Video Manager.exe`，两者均 0.1.8。
+- 正式快捷方式目标 `%USERPROFILE%\AppData\Local\Programs\Local Video Manager\Local Video Manager.exe`；Dev 快捷方式仍指向本轮重建的 `release/win-unpacked/Local Video Manager.exe`，两者均 0.1.8。
 - 自动交付允许使用 `-SkipChecks`：本轮在同一工作区实际执行并记录了 lint/typecheck、完整 npm test、build、Electron smoke、packaged smoke；不再次切换 SQLite ABI 来重复相同门禁。没有独立 E2E 脚本。
 - 无独立 `test:e2e` 脚本；本轮以 packaged smoke 承担真实打包运行验证。
 - 真实 CloudDrive2 扫描/删除 E2E: NOT RUN。本轮不触发真实批量删除。

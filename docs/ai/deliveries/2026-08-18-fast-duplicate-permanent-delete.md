@@ -31,8 +31,8 @@ The user explicitly replaced the previous mandatory SHA-256/two-confirmation con
 
 ## Desktop package
 
-- Active executable: `C:\Users\test\Documents\视频管理\movie\release\win-unpacked\Local Video Manager.exe`
-- Previous package backup: `C:\Users\test\Documents\视频管理\movie\release\win-unpacked.pre-fast-delete-4e7540d`
+- Active executable: `%USERPROFILE%\Documents\视频管理\movie\release\win-unpacked\Local Video Manager.exe`
+- Previous package backup: `%USERPROFILE%\Documents\视频管理\movie\release\win-unpacked.pre-fast-delete-4e7540d`
 - Desktop `.lnk` and PowerShell launcher target the active executable.
 - Artifact is an unsigned local test package, not a signed Windows installer.
 

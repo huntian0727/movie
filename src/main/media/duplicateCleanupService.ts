@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import os from "node:os";
 import { Worker } from "node:worker_threads";
-import { mkdtemp, readdir, rename, rm, stat } from "node:fs/promises";
+import { link, lstat, mkdtemp, readdir, rename, rm, stat, unlink } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import type {
   DuplicateCleanupAccepted, DuplicateCleanupConfirmRequest, DuplicateCleanupJob,
@@ -12,11 +12,12 @@ import type { DuplicateCleanupRepository, DuplicateCleanupWorkItem } from "../db
 import type { VideoRepository } from "../db/videoRepository.js";
 import { isManagedPathWithin } from "../files/pathNormalization.js";
 import { permanentlyDeleteFile } from "../files/fileOperations.js";
+import { assertManagedOrdinaryFile } from "../files/safePermanentDelete.js";
 import { buildFullContentHash } from "./contentFingerprint.js";
 import type { MediaCacheManager } from "./cacheManager.js";
 import type { MetadataQueue } from "./metadataQueue.js";
 import type { DomainEventBus } from "../playerWindow.js";
-import { deleteCloudDriveFiles } from "../clouddrive/mountedScanner.js";
+import { deleteCloudDriveFiles, getCloudDriveConnectionBinding } from "../clouddrive/mountedScanner.js";
 import type { CloudDriveFileOperationResult } from "../clouddrive/grpcClient.js";
 
 type Inspection =
@@ -26,6 +27,7 @@ type Inspection =
   | { status: "unreadable"; message: string };
 
 interface DuplicateCleanupServiceOptions {
+  getCloudConnectionBinding?: () => string | null;
   databasePath?: string;
   deleteFile?: (filePath: string) => Promise<void>;
   hashFile?: (filePath: string, signal?: AbortSignal) => Promise<string>;
@@ -52,6 +54,7 @@ export class DuplicateCleanupService {
   private readonly hashFile: (filePath: string, signal?: AbortSignal) => Promise<string>;
   private readonly renameFile: (source: string, destination: string) => Promise<void>;
   private readonly deleteCloudFiles: NonNullable<DuplicateCleanupServiceOptions["deleteCloudFiles"]>;
+  private readonly getCloudConnectionBinding: () => string | null;
   private readonly recoveryPromise: Promise<void>;
   private preparationTail: Promise<unknown> = Promise.resolve();
   private readonly preparationWorkers = new Set<Worker>();
@@ -71,6 +74,9 @@ export class DuplicateCleanupService {
     this.renameFile = options.renameFile ?? rename;
     this.deleteCloudFiles = options.deleteCloudFiles ?? ((remotePaths, permanently, isCancelled) =>
       deleteCloudDriveFiles(remotePaths, permanently, process.env, isCancelled));
+    this.getCloudConnectionBinding = options.getCloudConnectionBinding ?? (options.deleteCloudFiles
+      ? () => crypto.createHash("sha256").update("injected-cloud-provider").digest("hex")
+      : getCloudDriveConnectionBinding);
     this.jobs.interruptActiveJobs();
     this.recoveryPromise = this.recoverStagedFiles();
     for (const jobId of this.jobs.recoverFastJobs()) this.enqueue(jobId);
@@ -79,6 +85,8 @@ export class DuplicateCleanupService {
   preview(request: DuplicateCleanupSubmitRequest) { return this.jobs.preview(request); }
 
   submit(request: DuplicateCleanupSubmitRequest): DuplicateCleanupAccepted {
+    const existing = this.jobs.findAcceptedRequest(request.requestId);
+    if (existing) return existing;
     let accepted: DuplicateCleanupAccepted;
     if (request.autoDeleteAfterVerification) {
       try {
@@ -93,6 +101,7 @@ export class DuplicateCleanupService {
     } else {
       accepted = this.jobs.submit(request);
     }
+    this.bindNewFastJob(accepted);
     if (accepted.status === "queued") this.enqueue(accepted.jobId);
     return accepted;
   }
@@ -114,6 +123,7 @@ export class DuplicateCleanupService {
             requestId: snapshot.requestId,
             sourceView: snapshot.sourceView ?? "duplicates-filtered"
           }, stagePath);
+          this.bindNewFastJob(accepted);
           if (accepted.status === "queued") this.enqueue(accepted.jobId);
           return accepted;
         } finally { await rm(temporary, { recursive: true, force: true }); }
@@ -132,6 +142,7 @@ export class DuplicateCleanupService {
       requestId: request.requestId,
       sourceView: request.sourceView ?? "duplicates-filtered"
     }, entries);
+    this.bindNewFastJob(accepted);
     if (accepted.status === "queued") this.enqueue(accepted.jobId);
     return accepted;
   }
@@ -158,6 +169,7 @@ export class DuplicateCleanupService {
   }
 
   resume(jobId: string): DuplicateCleanupJob {
+    this.assertFastConnection(jobId);
     const job = this.jobs.resume(jobId);
     this.enqueue(jobId);
     this.publish(jobId);
@@ -165,6 +177,7 @@ export class DuplicateCleanupService {
   }
 
   retry(jobId: string): DuplicateCleanupJob {
+    this.assertFastConnection(jobId);
     const job = this.jobs.retry(jobId);
     this.enqueue(jobId);
     this.publish(jobId);
@@ -172,6 +185,25 @@ export class DuplicateCleanupService {
   }
 
   assertVideosAvailable(videoIds: string[]): void { this.jobs.assertVideosAvailable(videoIds); }
+
+  private bindNewFastJob(accepted: DuplicateCleanupAccepted): void {
+    if (this.jobs.getJob(accepted.jobId).workflowVersion !== 3 || this.jobs.getCloudDriveConnectionBinding(accepted.jobId)) return;
+    const binding = this.getCloudConnectionBinding();
+    if (!binding) {
+      this.jobs.requestCancel(accepted.jobId);
+      this.jobs.finishCancelled(accepted.jobId);
+      throw new Error("CloudDrive 连接不可用，未执行删除；请清除任务并重新创建。");
+    }
+    this.jobs.bindCloudDriveConnection(accepted.jobId, binding);
+  }
+
+  private assertFastConnection(jobId: string): void {
+    if (this.jobs.getJob(jobId).workflowVersion !== 3) return;
+    const current = this.getCloudConnectionBinding();
+    if (!current || current !== this.jobs.getCloudDriveConnectionBinding(jobId)) {
+      throw new Error("CloudDrive 连接或账号与删除计划不一致；请清除旧任务并重新审核候选。未执行删除。");
+    }
+  }
 
   assertSourceFolderVideosAvailable(sourceFolderId: string): void {
     this.jobs.assertSourceFolderVideosAvailable(sourceFolderId);
@@ -399,9 +431,19 @@ export class DuplicateCleanupService {
 
   private async deleteFastBatch(jobId: string, items: DuplicateCleanupWorkItem[]): Promise<void> {
     if (items.length === 0) return;
+    const isCancelled = () => this.stopped || this.jobs.isCancelling(jobId);
+    if (isCancelled()) {
+      this.jobs.updateItems(items.map(item => item.id), "cancelled", "delete-stop-requested", "Remaining API deletions were stopped.");
+      return;
+    }
+    const binding = this.getCloudConnectionBinding();
+    if (!binding || binding !== this.jobs.getCloudDriveConnectionBinding(jobId)) {
+      this.jobs.updateItems(items.map(item => item.id), "skipped", "cloud-connection-changed", "CloudDrive connection changed; recreate the deletion plan.");
+      return;
+    }
     let result: CloudDriveFileOperationResult;
     try {
-      result = await this.deleteCloudFiles(items.map((item) => item.delete_provider_path!), true);
+      result = await this.deleteCloudFiles(items.map((item) => item.delete_provider_path!), true, isCancelled);
     } catch (error: unknown) {
       result = { success: false, errorMessage: toMessage(error), resultFilePaths: [] };
     }
@@ -467,13 +509,13 @@ export class DuplicateCleanupService {
     if (!isolatedCheck.ok) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, restored ? "skipped" : "failed", "isolated-target-mismatch",
-        `${isolatedCheck.message}${restored ? "" : ` Isolated file retained at ${stagedPath}.`}`);
+        `${isolatedCheck.message}${restored ? "" : ` Isolated file retained at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
       return;
     }
     if (this.stopped || this.jobs.isCancelling(jobId)) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, restored ? "cancelled" : "failed", "delete-stop-requested",
-        `Remaining deletion was stopped.${restored ? "" : ` Isolated file retained at ${stagedPath}.`}`);
+        `Remaining deletion was stopped.${restored ? "" : ` Isolated file retained at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
       return;
     }
 
@@ -484,16 +526,24 @@ export class DuplicateCleanupService {
     if (!finalKeep.ok) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, restored ? "skipped" : "failed", "final-keep-integrity-changed",
-        `${finalKeep.message}${restored ? "" : ` Isolated file retained at ${stagedPath}.`}`);
+        `${finalKeep.message}${restored ? "" : ` Isolated file retained at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
       return;
     }
     if (!this.jobs.claimDeletionItem(jobId, item.id)) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, "failed", "authorization-rejected",
-        `Fresh full SHA-256 authorization is missing or stale.${restored ? "" : ` Isolated file retained at ${stagedPath}.`}`);
+        `Fresh full SHA-256 authorization is missing or stale.${restored ? "" : ` Isolated file retained at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
       return;
     }
     try {
+      // The retained-file SHA can take minutes. Revalidate the isolated object
+      // after that await, immediately before the irreversible call, against the
+      // identity/version captured by its own successful full hash.
+      const finalIsolatedIdentity = await this.readFileIdentity(stagedPath);
+      if (!isolatedCheck.identity || finalIsolatedIdentity.version !== isolatedCheck.identity.version) {
+        throw Object.assign(new Error("The isolated target changed before final deletion; media was retained for recovery."),
+          { code: "final-isolated-target-changed" });
+      }
       await this.deleteFile(stagedPath);
       this.jobs.clearIsolation(item.id);
       this.videos.removeVideo(item.delete_video_id);
@@ -502,7 +552,7 @@ export class DuplicateCleanupService {
     } catch (error: unknown) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, "failed", getErrorCode(error),
-        `${toMessage(error)}${restored ? "" : ` Isolated file may remain at ${stagedPath}.`}`);
+        `${toMessage(error)}${restored ? "" : ` Isolated file may remain at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
     }
   }
 
@@ -535,29 +585,36 @@ export class DuplicateCleanupService {
 
   private async rehashIsolatedFile(
     filePath: string, expectedSize: number, expectedHash: string | null, expectedStableIdentity: string | null
-  ): Promise<{ ok: boolean; message: string }> {
-    if (!expectedHash || !expectedStableIdentity) return { ok: false, message: "Isolated target authorization is incomplete." };
+  ): Promise<{ ok: boolean; message: string; identity: FileIdentityEvidence | null }> {
+    if (!expectedHash || !expectedStableIdentity) return { ok: false, message: "Isolated target authorization is incomplete.", identity: null };
     try {
       const before = await this.readFileIdentity(filePath);
       const actualHash = await this.hashFile(filePath);
       const after = await this.readFileIdentity(filePath);
       if (Number((await stat(filePath)).size) !== expectedSize || before.stable !== expectedStableIdentity ||
           after.stable !== expectedStableIdentity || before.version !== after.version || actualHash !== expectedHash) {
-        return { ok: false, message: "The isolated target does not match the persistently authorized full SHA-256 and file identity." };
+        return { ok: false, message: "The isolated target does not match the persistently authorized full SHA-256 and file identity.", identity: null };
       }
-      return { ok: true, message: "" };
+      return { ok: true, message: "", identity: after };
     } catch (error: unknown) {
-      return { ok: false, message: `Could not verify the isolated target: ${toMessage(error)}` };
+      return { ok: false, message: `Could not verify the isolated target: ${toMessage(error)}`, identity: null };
     }
   }
 
   private async restoreStagedFile(itemId: string, stagedPath: string, originalPath: string): Promise<boolean> {
+    // Recovery is not deletion authorization. Require the recorded object and keep
+    // every unexpected object intact; an atomic hard link can never replace a file
+    // created at the original name while recovery is in progress.
+    const item = this.jobs.listStagedItems().find(candidate => candidate.id === itemId);
+    if (!item || item.staged_delete_path !== stagedPath || item.delete_path !== originalPath
+        || path.resolve(stagedPath) === path.resolve(originalPath)
+        || path.resolve(path.dirname(stagedPath)) !== path.resolve(path.dirname(originalPath))) return false;
     try {
-      await stat(stagedPath);
+      await this.assertRecoveryObject(stagedPath, item);
     } catch (error: unknown) {
       if (getErrorCode(error) !== "ENOENT") return false;
       try {
-        await stat(originalPath);
+        await this.assertRecoveryObject(originalPath, item);
         this.jobs.clearIsolation(itemId);
         return true;
       } catch {
@@ -565,13 +622,12 @@ export class DuplicateCleanupService {
       }
     }
     try {
-      await stat(originalPath);
-      return false;
-    } catch (error: unknown) {
-      if (getErrorCode(error) !== "ENOENT") return false;
-    }
-    try {
-      await this.renameFile(stagedPath, originalPath);
+      await link(stagedPath, originalPath);
+      // Link success does not authorize removing a swapped isolated path. Recheck
+      // both names against persisted evidence before removing the staging name.
+      await this.assertRecoveryObject(stagedPath, item);
+      await this.assertRecoveryObject(originalPath, item);
+      await unlink(stagedPath);
       this.jobs.clearIsolation(itemId);
       return true;
     } catch {
@@ -579,37 +635,32 @@ export class DuplicateCleanupService {
     }
   }
 
+  private async assertRecoveryObject(filePath: string, item: DuplicateCleanupWorkItem): Promise<void> {
+    const expected = item.delete_file_identity ? parseIdentity(item.delete_file_identity) : null;
+    if (!expected) throw new Error("Persisted isolated-file identity is missing or invalid.");
+    const actual = await this.readFileIdentity(filePath);
+    const info = await stat(filePath);
+    if (actual.stable !== expected.stable || info.size !== item.expected_delete_size_bytes
+        || info.mtime.toISOString() !== item.expected_delete_modified_at) {
+      throw new Error("Recorded isolated-file identity or version changed; manual recovery is required.");
+    }
+  }
+
   private async recoverStagedFiles(): Promise<void> {
     for (const item of this.jobs.listStagedItems()) {
       const stagedPath = item.staged_delete_path!;
-      const [stagedExists, originalExists] = await Promise.all([
-        this.pathExists(stagedPath), this.pathExists(item.delete_path)
-      ]);
-      if (!stagedExists && originalExists) {
-        this.jobs.clearIsolation(item.id);
-        continue;
-      }
-      if (stagedExists && !originalExists) {
-        try {
-          await this.renameFile(stagedPath, item.delete_path);
-          this.jobs.clearIsolation(item.id);
-          continue;
-        } catch (error: unknown) {
-          this.jobs.recordIsolationRecoveryFailure(item.id,
-            `Automatic isolation recovery failed; the media remains at ${stagedPath}. ${toMessage(error)}`);
-          continue;
-        }
-      }
-      const reason = stagedExists
-        ? `Original path is occupied; no file was overwritten. Recoverable media remains at ${stagedPath}.`
-        : `Neither original nor recorded isolated path exists. Manual recovery is required: ${stagedPath}.`;
+      if (await this.restoreStagedFile(item.id, stagedPath, item.delete_path)) continue;
+      const originalExists = await this.pathExists(item.delete_path);
+      const reason = originalExists
+        ? `Original path is occupied; no file was overwritten. Isolated media or its identity requires manual recovery: ${stagedPath}.`
+        : `Automatic no-overwrite recovery could not safely restore the recorded object (including unsupported hard links). Isolated media is retained for manual recovery: ${stagedPath}.`;
       this.jobs.recordIsolationRecoveryFailure(item.id, reason);
     }
   }
 
   private async pathExists(filePath: string): Promise<boolean> {
     try {
-      await stat(filePath);
+      await lstat(filePath);
       return true;
     } catch (error: unknown) {
       if (getErrorCode(error) === "ENOENT") return false;
@@ -618,6 +669,9 @@ export class DuplicateCleanupService {
   }
 
   private async readFileIdentity(filePath: string): Promise<FileIdentityEvidence> {
+    const source = this.videos.listSourceFolders().find(folder => folder.enabled && isManagedPathWithin(filePath, folder.path));
+    if (!source) throw new Error("File is outside enabled managed folders.");
+    await assertManagedOrdinaryFile(filePath, source.path);
     const stats = await stat(filePath, { bigint: true });
     if (!stats.isFile()) throw new Error("Path is not a regular file.");
     const stable = [stats.dev, stats.ino, stats.birthtimeNs].map(String).join(":");
@@ -627,7 +681,9 @@ export class DuplicateCleanupService {
   private async inspect(filePath: string, expectedSize: number, expectedModifiedAt: string): Promise<Inspection> {
     if (!this.isManaged(filePath)) return { status: "unreadable", message: "File is outside enabled managed folders." };
     try {
-      const stats = await stat(filePath);
+      const source = this.videos.listSourceFolders().find(folder => folder.enabled && isManagedPathWithin(filePath, folder.path));
+      if (!source) return { status: "unreadable", message: "File is outside enabled managed folders." };
+      const stats = await assertManagedOrdinaryFile(filePath, source.path);
       if (!stats.isFile()) return { status: "unreadable", message: "Path is not a regular file." };
       if (stats.size !== expectedSize || stats.mtime.toISOString() !== expectedModifiedAt) {
         return { status: "stale", stats, message: "File size or modification time changed." };

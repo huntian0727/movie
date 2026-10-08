@@ -35,7 +35,7 @@ status: verified
 - 首次短时矩阵出现没有阶段信息的 test-timeout；补充分阶段诊断并把测试的静音指令放到 EOF 前，复测五种格式全部通过。首次超时没有完整定位证据，不认定其为已确认的生产逻辑根因。
 - 独立生产验证 9 个场景 PASS：5 格式技术解码、缺失文件恢复、无效文件恢复、播放进程退出恢复、8 次快速替换/过期 stop 忽略；进程均释放。短样本 AV 同步最大约 42ms，非长播结论。结果在临时隔离验证目录，不提交用户数据或原始媒体日志。
 - `package:dir`、`verify:artifact`、`test:packaged-smoke`、`test:electron-smoke` PASS；asar 4002 项，无禁止开发产物。实际桌面快捷方式启动隔离五视频库，HEVC/DTS 内嵌播放、侧栏列表、拖动后画面/显示时间一致及浮窗不挤压已复查。最终补修后再次操作：双音轨视频暂停在 5 秒→静音→上一部→返回，画面与滑块均恢复 5 秒且音量仍为 0；最后一部 EOF 不循环，关闭自动播放仍可主动重播。未操作用户真实资料库。
-- 实际桌面快捷方式 `C:/Users/test/Desktop/拉面影视.lnk` 的目标是 `release/win-unpacked/拉面影视.exe`。Commit 后仍须再生成包、比对时间和实际启动；最终提交/包时间结果在最终交付回复确认，不以源代码测试代替。
+- 实际桌面快捷方式 `%USERPROFILE%/Desktop/拉面影视.lnk` 的目标是 `release/win-unpacked/拉面影视.exe`。Commit 后仍须再生成包、比对时间和实际启动；最终提交/包时间结果在最终交付回复确认，不以源代码测试代替。
 - 自动交付允许 `-SkipChecks`，仅因为上面同一工作区已完整执行等价 Node 门禁、Electron 与打包验证；避免混用 Node/Electron 的原生 ABI，不绕过失败测试。
 - 独立 `test:e2e` npm 脚本不适用，以生产解码器、Electron/packaged smoke、实际快捷方式操作补充。
 
@@ -46,5 +46,5 @@ status: verified
 - 缓存预览缺失时播放中优先保障解码，暂停后才补生成；其他页面原有后台截图/分析任务并非全程停机。不能宣称播放期间全部网络带宽都停止。
 - 音量保持仅指本次服务存活期间的内嵌 MPV 视频切换，不承诺重启软件或手动外部播放器同步音量。
 - 内嵌进程复用、事件订阅替代全部轮询、全屏遮挡/自动隐藏重新设计尚未实施；避免一次扩大生命周期修改。
-- 桌面包路径/快捷方式目标：`C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。交付 win-unpacked，不生成 NSIS 安装包，不改用户原有资料库/设置。
+- 桌面包路径/快捷方式目标：`%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。交付 win-unpacked，不生成 NSIS 安装包，不改用户原有资料库/设置。
 - 回滚：用 checkpoint/backup-main 标签建立正常修复提交；数据回滚使用上述一致性快照，不强推倒退 main。

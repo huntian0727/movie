@@ -1,0 +1,64 @@
+{
+  "task_id": "PUBLIC-RELEASE-AUDIT-performance-fixture-cross-qa",
+  "role": "QA",
+  "status": "PASS",
+  "scope": "Independent static cross-review of bulk fixture equivalence; not runtime performance acceptance or final release acceptance.",
+  "commit": "807c49585d18c901b199fe0d3d8b0dbf31eb4114",
+  "reviewed_working_file": "tests/gates/assetCenterPerformance.test.ts",
+  "reviewed_file_sha256": "7c195ad0467d2d6caf68b671538151954db71b26ddfa5b14700c2aec90a19110",
+  "tests": {
+    "status": "NOT_RUN",
+    "summary": "Read-only final source/diff review; no heavy execution. Parent owns final single-deadline release-gate execution. Earlier reported 18.59s scoped PASS used the now-reverted split fixture phases and is not claimed as final-source runtime acceptance."
+  },
+  "checks": {
+    "status": "PASS",
+    "counts": "VIDEO_COUNT remains 320000; SOURCE_COUNT remains 100; 32 batches each generate exactly 10000 rows in the same single transaction.",
+    "integer_binding": "Recursive seed CAST(@start AS INTEGER) fixes JS number bound as REAL producing IDs with .0. i + 1 remains INTEGER; exact integer-valued @end comparison gives original half-open [start,end) range.",
+    "source_mapping": "sources are still produced by original repo.addSourceFolder calls in array ordinal order. TEMP mapping uses that ordinal and i % 100, matching sources[index % SOURCE_COUNT]. No UUID sorting or source-grouped insertion.",
+    "insertion_order": "ORDER BY i ASC is on the final INSERT SELECT, not merely the number CTE. Batches run start=0,10000,...,310000. Fresh production videos table is empty, so rowid=i+1 as in the original loop.",
+    "metadata_failure_distribution": "Unchanged UPDATE marks rowid divisible by 4 as failed: i % 4 = 3 gives 80000 failed and 240000 pending. Existing failureIndex*64+3 always has rowid divisible by 4; 5000 failure records retain exact original IDs, source IDs, paths and lowercased normalized paths.",
+    "schema_and_pragmas": "Original createDatabase, full current migrations, WAL and foreign_keys remain. No production table/index/trigger changes, no trigger mask suppression, no ANALYZE/cache/synchronous override, no INSERT OR IGNORE/REPLACE. Only owned TEMP map is created/dropped.",
+    "budget_current_fixture": "Final source has no beforeAll hook or separate setup deadline. Production database creation, all 320000 fixture rows, strengthened invariant assertions, all page/directory/metadata queries, metadata UPDATE and 5000 failure inserts are inside the original single it with 60000ms overall deadline. Source query <2000ms; directory query <3000ms; metadata query <3000ms. Existing statement-count assertions and measured query bodies remain unchanged.",
+    "strengthened_invariants": "Each INSERT changes=10000; total COUNT=320000; ID equals asset-video-(rowid-1); 100 source groups each count=3200; all/library/images revisions increment exactly 320000 and batch_mask unchanged. Initial REAL seed mismatch was caught, not waived.",
+    "all_inserted_fields": [
+      { "field": "id", "equivalence": "asset-video- concatenated INTEGER i equals original JS index string." },
+      { "field": "source_folder_id", "equivalence": "TEMP mapping id for ordinal i%100 equals sources[index%100].id." },
+      { "field": "path", "equivalence": "directory || char(92) || filename equals original Windows separator path." },
+      { "field": "directory", "equivalence": "Original source.path plus backslash bucket- plus CAST(i/10000 AS INTEGER) equals Math.floor(index/10000), since all indices are nonnegative integers." },
+      { "field": "filename", "equivalence": "printf video-%06d.mp4 equals String(index).padStart(6,0) for the fixed range 0..319999." },
+      { "field": "basename", "equivalence": "ASCII substr(filename,1,length-4) equals original filename.slice(0,-4)." },
+      { "field": "extension", "equivalence": "Original literal .mp4." },
+      { "field": "size_bytes", "equivalence": "10000+i equals original 10000+index; stored integer values identical." },
+      { "field": "duration_ms", "equivalence": "1000+i*1000 equals original 1000+index*1000; exact within JS safe integer range." },
+      { "field": "width", "equivalence": "Original literal 1920." },
+      { "field": "height", "equivalence": "Original literal 1080." },
+      { "field": "format", "equivalence": "Original literal mp4." },
+      { "field": "modified_at", "equivalence": "Same bound timestamp 2026-09-04T00:00:00.000Z." },
+      { "field": "imported_at", "equivalence": "Same bound timestamp." },
+      { "field": "updated_at", "equivalence": "Same bound timestamp." },
+      { "field": "is_favorite", "equivalence": "Original literal 0." },
+      { "field": "is_pending_delete", "equivalence": "Original literal 0." },
+      { "field": "is_missing", "equivalence": "Original literal 0." },
+      { "field": "metadata_status", "equivalence": "Original ready before unchanged later rowid-based UPDATE." },
+      { "field": "thumbnail_status", "equivalence": "Original pending." },
+      { "field": "timeline_preview_status", "equivalence": "Original pending." },
+      { "field": "cover_cache_path", "equivalence": "Original NULL." },
+      { "field": "content_fingerprint", "equivalence": "Original NULL." },
+      { "field": "fingerprint_status", "equivalence": "Original pending." },
+      { "field": "fingerprint_updated_at", "equivalence": "Original NULL." },
+      { "field": "fingerprint_error", "equivalence": "Original NULL." }
+    ],
+    "omitted_columns": "INSERT column list remains identical, so all omitted codec/provider/duration-source columns use the same current production defaults."
+  },
+  "risks": [
+    "Static equivalence does not prove setup completes in 60s or final integrated release gates pass; parent must record actual scoped/full results.",
+    "New invariant scans can affect SQLite page-cache state, but the measured page/directory/metadata queries are not called for warm-up and budgets remain unchanged. This gate is not explicitly a cold-cache benchmark.",
+    "Numbers and expressions are reviewed for fixed 320000/100 constants. Changing data scale or source count requires updating modulo/batch generation and equivalence checks together."
+  ],
+  "process_history": [
+    "An interim beforeAll=60000 plus it=60000 shape was reviewed at earlier SHA256 d33c8897ec6fb1c1285f10ba95c3091c4d11facf561dada3cfe7a075d888e79e; it is no longer the final implementation.",
+    "Parent restored main's single 60000ms overall it deadline. Final reviewed hash 7c195ad0467d2d6caf68b671538151954db71b26ddfa5b14700c2aec90a19110 includes that restoration; all 26-field SQL expressions, insertion order and added invariants are retained.",
+    "Initial REAL-bound recursive seed created .0 IDs and failed the new strict rowid/ID assertion. INTEGER seed correction retained the assertion; no failed result was waived."
+  ],
+  "next": "Local Project Manager"
+}

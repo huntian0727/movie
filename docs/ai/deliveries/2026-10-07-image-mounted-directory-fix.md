@@ -27,7 +27,7 @@ status: completed
 - 实际 F:\sha1 验证 PASS：原生 realpath 仍可复现 UNKNOWN，新服务成功读父目录的 JIETU/P 子目录；父目录自身无图片，P 有 1022 张。原图流 136235 字节与原文件一致，抽测缩略图 22354 字节，仅按需生成 1 个缓存，重复读取复用缓存。Node 22 再测父/子列名约 597ms，根目录列名约 41ms；根目录实际子目录超过 200 个，有明确截断标记。证据 `.tmp/image-mounted-real-check.json`，不提交用户媒体。
 - 本地 D:\四姑娘山 回归 PASS：107 张 JPG、列名约 14.4ms，3 个缩略图复用缓存，原图 10384977 字节与文件一致。
 - `package:dir`、`test:electron-smoke`、`verify:artifact` PASS；Electron 33.4.11 / SQLite ABI 130；asar 4109 条，无开发产物。
-- 从实际桌面快捷方式 `C:\Users\test\Desktop\拉面影视.lnk` 启动目标 `C:\Users\test\Documents\视频管理\movie\release\win-unpacked\拉面影视.exe`，使用 computer-use 验证：父目录显示 2 张卡片、139 条视频保持；进入 P 显示 1022 张/9 页、首屏缩略图、大图/下一张/Esc/焦点恢复正常；面包屑返回父目录再进入 JIETU 显示 10 张（6 JPG + 4 GIF），缩略图全部正常。没有 UNKNOWN 报错。
+- 从实际桌面快捷方式 `%USERPROFILE%\Desktop\拉面影视.lnk` 启动目标 `%USERPROFILE%\Documents\视频管理\movie\release\win-unpacked\拉面影视.exe`，使用 computer-use 验证：父目录显示 2 张卡片、139 条视频保持；进入 P 显示 1022 张/9 页、首屏缩略图、大图/下一张/Esc/焦点恢复正常；面包屑返回父目录再进入 JIETU 显示 10 张（6 JPG + 4 GIF），缩略图全部正常。没有 UNKNOWN 报错。
 - 交付脚本提交后再次生成桌面包，并核对提交/asar 时间和实际快捷方式目标。
 
 ## Risks and follow-up

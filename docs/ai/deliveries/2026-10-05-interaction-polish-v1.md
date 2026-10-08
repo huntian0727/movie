@@ -36,7 +36,7 @@ status: completed
 - `npm run test:electron-smoke`：PASS。
 - `npm run package:dir`、`npm run verify:artifact`、`npm run test:packaged-smoke`：PASS。独立模拟资料库验证扫描、数据库退出重开、预览生成、重生成、轮询稳定和各只读 Worker 查询。
 - `git diff --check`：PASS。运行时存在原有 PNG ICC 警告与部分组件测试 act 警告，不是测试失败。
-- 实际桌面验收：通过原 `C:/Users/test/Desktop/拉面影视.lnk` 启动 `release/win-unpacked/拉面影视.exe`；资产中心启动正常；异常中心正常读入，刷新与复查说明可见且只读刷新可用；元数据明细正常；重复页候选和默认折叠排行正常；后台任务面板正常展示历史已完成任务；播放诊断选择本地 `111.mp4`，新“重新读取记录”按钮与说明可见，重读后文件信息正常。
+- 实际桌面验收：通过原 `%USERPROFILE%/Desktop/拉面影视.lnk` 启动 `release/win-unpacked/拉面影视.exe`；资产中心启动正常；异常中心正常读入，刷新与复查说明可见且只读刷新可用；元数据明细正常；重复页候选和默认折叠排行正常；后台任务面板正常展示历史已完成任务；播放诊断选择本地 `111.mp4`，新“重新读取记录”按钮与说明可见，重读后文件信息正常。
 - 桌面验收未对真实视频删除、重新扫描、补充元数据或执行云盘复查；失败/取消/重复提交等边界使用隔离组件和模拟资料库验证。
 - 最终提交使用项目 `finish-and-push.ps1` 正常推送任务分支与 main，不 force；已完成完整等价门禁后使用 `-SkipChecks` 避免重复耗时。最终 commit 和旧 main 备份标签以 Git 及脚本 RESULT 为准。
 - 桌面交付目标为原快捷方式指向的 unpacked 程序，提交后再构建、校验并通过原快捷方式启动核对；本次不生成或声称更新 NSIS 安装包。

@@ -23,7 +23,7 @@
 
 ## 打包版界面观察
 
-实际快捷方式 `C:/Users/test/Desktop/拉面影视.lnk` 指向工作区 `release/win-unpacked/拉面影视.exe`。
+实际快捷方式 `%USERPROFILE%/Desktop/拉面影视.lnk` 指向工作区 `release/win-unpacked/拉面影视.exe`。
 
 | 操作 | 结果与边界 |
 |---|---|

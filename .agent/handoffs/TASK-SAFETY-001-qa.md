@@ -93,7 +93,7 @@ Runtime:
 Command:
 
 ```powershell
-& 'C:\Users\test\AppData\Local\npm-cache\_npx\ed214ae0ceb6e0e4\node_modules\node\bin\node.exe' 'node_modules\vitest\vitest.mjs' run tests/main/duplicateCleanupJobs.test.ts tests/main/scanFailureReview.test.ts
+& '%USERPROFILE%\AppData\Local\npm-cache\_npx\ed214ae0ceb6e0e4\node_modules\node\bin\node.exe' 'node_modules\vitest\vitest.mjs' run tests/main/duplicateCleanupJobs.test.ts tests/main/scanFailureReview.test.ts
 ```
 
 Result:

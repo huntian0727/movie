@@ -38,7 +38,7 @@ renderer 不可提交播放路径、任意 MPV 命令或 shell 命令；路径�
 - libmpv：`mpv v0.41.0-1092-g3186d369f`。运行时来自 [shinchiro Windows build 20261002](https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261002)，这是 [MPV 安装页](https://mpv.io/installation/)列出的第三方 Windows 构建，不是 MPV 官方签名安装包。
 - 归档：`mpv-dev-x86_64-20261002-git-3186d369f9.7z`，31,499,009 字节；SHA-256：`d873450cc1a7f881a8a10c33936d9555ad18a3809d827b9dbea55ba55caebcf9`。
 - DLL：`libmpv-2.dll`，120,781,312 字节；SHA-256：`8ca42a74311b813abc21f4264e7ed5f12a16419596bcbda96e49f10f8187befe`。
-- 实验输出目录：`C:/Users/test/AppData/Local/Temp/lamian-embedded-mpv-spike-20261003`。
+- 实验输出目录：`%USERPROFILE%/AppData/Local/Temp/lamian-embedded-mpv-spike-20261003`。
 
 上述文件哈希是本次下载实测，用于重复实验识别，不表示已完成供应链或许可证审计。DLL 未进入 release、系统目录或仓库。正式打包前必须审查该构建的 libmpv/FFmpeg 等许可证、再分发义务和构建配置。
 

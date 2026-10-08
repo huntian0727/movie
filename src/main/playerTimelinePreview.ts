@@ -1,9 +1,9 @@
 import { BrowserWindow, screen, type Rectangle } from "electron";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { IPC_CHANNELS, type VideoRecord } from "../shared/videoTypes.js";
 import type { PlayerTimelinePreviewContent, PlayerTimelinePreviewRequest } from "../shared/playerTimelinePreview.js";
 import { configureWindowSecurity } from "./security.js";
+import { RENDERER_ENTRY_URL } from "./rendererProtocol.js";
 
 export function timelinePreviewBounds(content: Rectangle, workArea: Rectangle, x: number, y: number, width: number, height: number): Rectangle {
   const left = Math.max(content.x, workArea.x), top = Math.max(content.y, workArea.y);
@@ -35,8 +35,7 @@ export class PlayerTimelinePreview {
     if (this.disposed || this.parent.isDestroyed() || !this.parent.isVisible() || !this.parent.isFocused()) return;
     const revision = ++this.revision;
     if (!this.window || this.window.isDestroyed()) {
-      const entryPath = path.join(this.options.currentDir, "../../dist-renderer/index.html");
-      const entryUrl = this.options.isPackaged ? pathToFileURL(entryPath).href : this.options.devServerUrl;
+      const entryUrl = this.options.isPackaged ? RENDERER_ENTRY_URL : this.options.devServerUrl;
       this.window = new BrowserWindow({
         // Layered composition is required with the app's software-rendered Chromium:
         // an ordinary click-through HWND can show only its border above native MPV.
@@ -52,7 +51,7 @@ export class PlayerTimelinePreview {
       this.window.setMenu(null);
       this.window.setIgnoreMouseEvents(true, { forward: true });
       configureWindowSecurity(this.window, { role: "timeline-preview", entryUrl });
-      this.loading = this.options.isPackaged ? this.window.loadFile(entryPath) : this.window.loadURL(entryUrl);
+      this.loading = this.window.loadURL(entryUrl);
     }
     try { await this.loading; } catch { this.close(); return; }
     if (revision !== this.revision || this.disposed || !this.window || this.window.isDestroyed() || this.parent.isDestroyed()) return;

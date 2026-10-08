@@ -35,6 +35,6 @@
 
 ## Risks and follow-up
 
-最终 Commit 后重新生成 `release/win-unpacked`，检查实际桌面 `拉面影视.lnk` 目标为 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`，核对 Commit / app.asar 时间，从该快捷方式启动合成资料库，验证旋转和恢复。
+最终 Commit 后重新生成 `release/win-unpacked`，检查实际桌面 `拉面影视.lnk` 目标为 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`，核对 Commit / app.asar 时间，从该快捷方式启动合成资料库，验证旋转和恢复。
 
 用户提到的「学院第一个视频」未实际播放复测，真实 CloudDrive 网络、所有 GPU/解码组合和长时间播放未穷举。修复不改变视频自身旋转元数据或写入源视频。回滚采用 checkpoint / 本次 main 备份标签创建修复分支并正常提交；数据仅在需要时用一致性快照恢复，不强制回退 main。

@@ -188,6 +188,7 @@ export function SettingsPage({
             <label>
               <span>API Token</span>
               <input aria-label="CloudDrive API Token" type="password" autoComplete="off" value={tokenReplacement} placeholder={settings.cloudDrive.configured ? "已配置；留空保留，输入新 Token 替换" : "填写 CloudDrive API Token"} onChange={(event) => setTokenReplacement(event.target.value)} />
+              {settings.cloudDrive.credentialError && <p role="alert">{settings.cloudDrive.credentialError}</p>}
             </label>
             <label>
               <span>请求超时（毫秒）</span>

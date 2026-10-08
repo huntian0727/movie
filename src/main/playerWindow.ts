@@ -1,10 +1,10 @@
 import { BrowserWindow } from "electron";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import type { VideoRepository } from "./db/videoRepository.js";
 import type { StructuredLogger } from "./logging/logger.js";
 import { configureWindowSecurity } from "./security.js";
+import { RENDERER_ENTRY_URL } from "./rendererProtocol.js";
 import { PlayerTimelinePreview } from "./playerTimelinePreview.js";
 import { playerTimelinePreviewSchema } from "../shared/playerTimelinePreview.js";
 import {
@@ -244,8 +244,7 @@ export function normalizePlayerSession(repo: VideoRepository, input: OpenPlayerW
 }
 
 function createPlayerWindow(options: PlayerWindowOptions): BrowserWindow {
-  const packagedEntryPath = path.join(options.currentDir, "../../dist-renderer/index.html");
-  const entryUrl = options.isPackaged ? pathToFileURL(packagedEntryPath).href : options.devServerUrl;
+  const entryUrl = options.isPackaged ? RENDERER_ENTRY_URL : options.devServerUrl;
   const window = new BrowserWindow({
     width: 1120,
     height: 720,
@@ -274,7 +273,7 @@ function createPlayerWindow(options: PlayerWindowOptions): BrowserWindow {
 
 async function loadPlayerEntry(window: BrowserWindow, options: PlayerWindowOptions): Promise<void> {
   if (options.isPackaged) {
-    await window.loadFile(path.join(options.currentDir, "../../dist-renderer/index.html"));
+    await window.loadURL(`${RENDERER_ENTRY_URL}?player=1`);
     return;
   }
   const url = new URL(options.devServerUrl);

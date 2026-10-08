@@ -4,7 +4,7 @@
 
 ## 先确认你正在正确的位置
 
-- Git 仓库根目录：`C:\Users\test\Documents\视频管理\movie`
+- Git 仓库根目录：`%USERPROFILE%\Documents\视频管理\movie`
 - 本地工作区是开发基准；不要重新 clone，也不要覆盖或丢弃未提交修改。
 - 开始任务先运行 `git branch --show-current`、`git status --short`、`git remote -v`。
 - 工作区干净后、创建功能分支和修改文件前，运行 `scripts/project-backup.ps1 -Action Create -Label "<task-name>"`；快照失败时停止开发。

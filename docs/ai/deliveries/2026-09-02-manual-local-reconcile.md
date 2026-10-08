@@ -34,7 +34,7 @@ status: completed
 - `npm run test:electron-smoke` / `npm run verify:artifact`：PASS，asar 3960 项且无禁止的开发产物。
 - `npm run test:packaged-smoke`：PASS，创建/重开数据库、媒体协议、renderer 安全、FFmpeg/FFprobe 及预览稳定性均通过。初始运行暴露 detached `Image.decode()` 和未聚焦测试窗口的时序不稳定；门禁改为验证真实可见卡片并点击真实重生成控件后通过，未发现扫描代码错误。
 - 0.1.10 NSIS 静默安装：PASS，安装包内 `package.json` 版本为 0.1.10。
-- 桌面快捷方式：`C:\Users\test\Desktop\Local Video Manager.lnk`，目标为正式安装目录 `C:\Users\test\AppData\Local\Programs\Local Video Manager\Local Video Manager.exe`；从快捷方式启动后确认正式进程存在。
+- 桌面快捷方式：`%USERPROFILE%\Desktop\Local Video Manager.lnk`，目标为正式安装目录 `%USERPROFILE%\AppData\Local\Programs\Local Video Manager\Local Video Manager.exe`；从快捷方式启动后确认正式进程存在。
 - release 与正式安装目录的 `resources/app.asar` SHA-256 均为 `90ea5efcaa4da79b2e78dda0792d86f15c4370e5bf7a2291b8db9ba0296e1efb`。
 - Windows Computer Use 当前未枚举到原生应用窗口，因此未进行额外截图式人工验收；真实打包页面入口、可见封面、重生成和 5 秒轮询稳定性由 packaged smoke 验证。
 

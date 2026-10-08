@@ -27,7 +27,7 @@ status: completed
 - 最终 `test:release-gate` PASS：115 文件 / 1000 项，包含 lint/typecheck、build、Windows 文件、迁移和性能门禁；全量用时 205.03s。日志 `.tmp/directory-release-gate.log`，1–2 workers。
 - 第一轮打包过早与 Node 测试重叠，native rebuild 因 EPERM 文件占用失败；等测试进程退出后重建成功，未删除用户数据库或媒体。
 - `package:dir`、Electron native/main-process smoke PASS。真实鼠标试验发现浏览器原生拖拽未完成排序，改为指针捕获处理后重新打包并通过鼠标验证。预验收 app.asar SHA-256 `336EBDE79BE229772FC014BADEFED9E374A8AD30C91572BDF691C940D77B8116`。
-- 桌面快捷方式已实际启动，指向 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。真实 UI：根来源拖动换位、子目录拖动换位成功，资产中心保持不变；根来源/子目录顺序均经关闭应用并重启验证；恢复默认排序成功，已清除验收产生的调整。
+- 桌面快捷方式已实际启动，指向 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。真实 UI：根来源拖动换位、子目录拖动换位成功，资产中心保持不变；根来源/子目录顺序均经关闭应用并重启验证；恢复默认排序成功，已清除验收产生的调整。
 - 提交后将重新生成 NSIS/unpacked，验证制品/packaged smoke、Commit/asar 时间及最终快捷方式实启，结果保存在 `.tmp/directory-drag-desktop-proof.json`；失败必须在最终报告说明，不能把此预期当成成功。
 - 独立 E2E 脚本：不适用（package.json 未声明）；已执行真实桌面鼠标、键盘及重启交互验证。安装/卸载 smoke 未运行（本轮未改变安装器）。
 

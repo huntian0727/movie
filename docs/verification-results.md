@@ -27,7 +27,7 @@
 - Electron 33.4.11 ABI 130 native/main-process smoke：通过。
 - 实际 `scripts/start-desktop.mjs`：通过；主窗口获得 preload API、加载用户真实资料库，没有显示 unsupported-runtime。
 - unpacked artifact：3951 个 asar 条目检查通过；packaged smoke 的 SQLite、协议、Renderer、preload、安全边界和媒体工具检查通过。
-- 桌面快捷方式 `C:\Users\test\Desktop\Video Manager (Dev).lnk` 已确认指向本轮 unpacked exe，并从该快捷方式实际启动通过。
+- 桌面快捷方式 `%USERPROFILE%\Desktop\Video Manager (Dev).lnk` 已确认指向本轮 unpacked exe，并从该快捷方式实际启动通过。
 - NSIS 安装/升级、签名与干净 Windows VM：NOT RUN，继续按发布验收单执行。
 
 ## 2026-08-16 多 AI 项目记忆与交付门禁

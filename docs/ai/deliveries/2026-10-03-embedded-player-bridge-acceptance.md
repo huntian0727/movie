@@ -24,7 +24,7 @@
 
 功能修正 commit `e1f7c2a` 后执行 `package:dir`、`verify:artifact`、`test:packaged-smoke`，均通过；实际打包 preload 的 `playerBridgeHasEmbeddedPlayback=true`、`playerBridgeMinimized=true`。产物包含 NativeHost.exe，不包含 libmpv DLL。功能 commit 时间 13:07:03，app.asar 时间 13:07:41，二者属于本轮。
 
-从真实桌面快捷方式 `C:/Users/test/Desktop/拉面影视.lnk` 启动新包，目标为 `C:/Users/test/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。使用本地测试视频验证：
+从真实桌面快捷方式 `%USERPROFILE%/Desktop/拉面影视.lnk` 启动新包，目标为 `%USERPROFILE%/Documents/视频管理/movie/release/win-unpacked/拉面影视.exe`。使用本地测试视频验证：
 
 - 内嵌窗口显示连续视频画面，不再空白；音轨列表识别到 pcm_alaw。
 - 暂停、前进 10 秒（16.3 秒到 26.3 秒）、90° 旋转均实际生效。

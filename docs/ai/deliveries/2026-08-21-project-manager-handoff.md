@@ -29,7 +29,7 @@ npm --version
 
 | 项目 | 当前事实 |
 | --- | --- |
-| 仓库根目录 | `C:\Users\test\Documents\视频管理\movie`（转交后路径可变化，以 `git rev-parse --show-toplevel` 为准） |
+| 仓库根目录 | `%USERPROFILE%\Documents\视频管理\movie`（转交后路径可变化，以 `git rev-parse --show-toplevel` 为准） |
 | 当前分支 | `ai/agent-workflow-optimization` |
 | 最后一个实现基线 | `895a0d893e07d051fe0d1151c336ef2ca6570323`；之后仅增加本交接文档/入口，当前 HEAD 必须实时查询 |
 | 交接文档首次提交 | `cec8af784e53b3c7c96ebce97f03fe5e96a83a6a`；文档后续修订仍以 Git 为准 |

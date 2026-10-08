@@ -1,0 +1,32 @@
+{
+  "task_id": "PUBLIC-RELEASE-AUDIT-nativehost-toolchain",
+  "role": "Developer",
+  "status": "DEV_COMPLETE",
+  "commit": "807c49585d18c901b199fe0d3d8b0dbf31eb4114",
+  "commit_note": "Scoped frozen working-tree implementation; parent owns integrated commit/PR.",
+  "changed_files": ["scripts/build-native-player.mjs", "scripts/native-player-toolchain.mjs", "scripts/native-player-toolchain.lock.json", "scripts/test-native-player-reproducibility.mjs", "tests/scripts/nativePlayerToolchain.test.mjs", "docs/legal/nativehost-toolchain.json"],
+  "tests": {
+    "status": "PASS",
+    "summary": "TEST=PASS SUITES=1 TESTS=15 FAILED=0",
+    "default_compile": "PASS: native-bin/NativeHost.exe, unsigned x64 managed PE, 43520 bytes.",
+    "reproducibility": "PASS: full byte/hash equality across two different absolute source, output and compiler working directories; helper/libmpv never executed.",
+    "sha256": "215a49e9b9dee51ce758b7a9e1408db2e3a0704670ca349c0e314416554171d7",
+    "sourceSha256": "db5e94ee76f1b5fa3015e4f935d9fcad0c981eb8b9fb429322cdcf55696b5376",
+    "evidence": ".tmp/native-player-repro-lxF3d3/reproducibility.json",
+    "commands": ["rtk proxy node scripts/build-native-player.mjs", "rtk proxy node scripts/test-native-player-reproducibility.mjs", "rtk proxy node .tmp/run-node22.cjs exec -- vitest run tests/scripts/nativePlayerToolchain.test.mjs --maxWorkers=2", "rtk git diff --check -- scripts/build-native-player.mjs scripts/native-player-toolchain.mjs scripts/native-player-toolchain.lock.json scripts/test-native-player-reproducibility.mjs tests/scripts/nativePlayerToolchain.test.mjs"]
+  },
+  "freezeHashes": {
+    "scripts/build-native-player.mjs": "0ecf25f02be8f93810ab2e4ef34edc4a4406a1ed93cf4e2e6bbe50b6462f27f8",
+    "scripts/native-player-toolchain.mjs": "fd71a9a4fb90fa06ec62ff1e8aba276e25929db9326da6735c2406da59cf1f09",
+    "scripts/native-player-toolchain.lock.json": "dbc59c9a468f0671b6f422a02da1d1fa46acd17acfd6123f309c926f8a8b73b8",
+    "scripts/test-native-player-reproducibility.mjs": "a216f823f78ba76bc9f1c0757c4e6dc8fca80e20eccff5346cb280671d771bc1",
+    "tests/scripts/nativePlayerToolchain.test.mjs": "10713f99332aa8b85724406ba5d5796e633e4629c7060041d269a8485abfafaf"
+  },
+  "risks": [
+    "No final independent QA acceptance or Windows2025 CI/cross-machine equality claimed. Parent is running integrated gates and will repackage after this freeze.",
+    "NuGet tools are outside npm audit coverage; official registration/catalog/feed had no matching entries on review date, which is not a comprehensive safety guarantee.",
+    "Compiler toolset standalone lifecycle caveat is documented; fixed pins require review on future upgrades.",
+    "NativeHost source rights, other distributed binary licenses, certificate and clean Windows acceptance decisions remain pending and are not changed by this build fix."
+  ],
+  "next": "Local Project Manager"
+}

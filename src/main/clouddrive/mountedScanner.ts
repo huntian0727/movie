@@ -1,4 +1,5 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
 import type {
   CloudDriveBrowseDirectory,
   CloudDriveBrowseRoot,
@@ -99,6 +100,11 @@ export function configureCloudDriveRuntime(
   savedToken: string,
   fallbackEnvironment: NodeJS.ProcessEnv = process.env
 ): void {
+  if (settings.credentialError) {
+    runtimeEnvironment = {};
+    resetCloudDriveCaches();
+    return;
+  }
   runtimeEnvironment = { ...fallbackEnvironment };
   if (savedToken.trim()) {
     runtimeEnvironment.LOCAL_VIDEO_MANAGER_CLOUDDRIVE_TOKEN = savedToken.trim();
@@ -111,6 +117,15 @@ export function configureCloudDriveRuntime(
     }
   }
   resetCloudDriveCaches();
+}
+
+/** Main-only account binding for persisted jobs. Never expose through shared IPC/preload. */
+export function getCloudDriveConnectionBinding(): string | null {
+  try {
+    const config = readEnvironmentConfig(process.env);
+    if (!config) return null;
+    return createHash("sha256").update(JSON.stringify([parseCloudDriveEndpoint(config.endpoint).origin, config.apiToken])).digest("hex");
+  } catch { return null; }
 }
 
 export async function testConfiguredCloudDriveConnection(): Promise<CloudDriveConnectionTestResult> {

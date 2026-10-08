@@ -6,66 +6,131 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: windows-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  package-and-smoke:
-    name: Package, install, and smoke
-    runs-on: windows-latest
+  unsigned-package-and-smoke:
+    name: Unsigned isolated installation QA
+    runs-on: windows-2025
     env:
-      CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+      # A tag job first tests a disposable identity, without access to signing keys.
+      MOVIE_RELEASE_CLASS: unsigned-test-build
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22.23.1
-      - id: npm-cache
-        shell: pwsh
-        run: '"path=$(npm config get cache)" >> $env:GITHUB_OUTPUT'
-      - uses: actions/cache@v4
-        with:
-          path: ${{ steps.npm-cache.outputs.path }}
-          key: windows-node-22.23.1-npm-10.9.8-electron-33.4.11-${{ hashFiles('package-lock.json') }}-abi-packaged
+          cache: npm
       - run: npm install --global npm@10.9.8
       - run: npm ci
-      - name: Windows data-safety and release regression gate
-        run: npm run test:release-gate
-      - name: Production dependency audit
-        run: npm audit --omit=dev
-      - name: Require signing secrets for tag releases
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        run: |
-          if (-not $env:CSC_LINK -or -not $env:CSC_KEY_PASSWORD) {
-            throw 'Tag releases require WINDOWS_CSC_LINK and WINDOWS_CSC_KEY_PASSWORD secrets.'
-          }
+      - run: npm run test:release-gate
+      - run: npm audit
       - run: npm run package:dir
+      - run: npm run test:electron-smoke
+      - run: npm run test:renderer-security-smoke
       - run: npm run verify:artifact
-      - run: npm run test:packaged-smoke
+      - name: Smoke explicitly isolated test executable
+        run: npm run test:packaged-smoke
       - run: npm run dist:win
+      - run: npm run verify:artifact
       - run: npm run release:metadata
       - run: npm run test:installer-smoke
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: windows-${{ startsWith(github.ref, 'refs/tags/') && 'signed-release' || 'unsigned-test-build' }}
+          name: windows-x64-unsigned-test-build
           if-no-files-found: error
           retention-days: 14
           path: |
-            release/*Setup.exe
-            release/SHA256SUMS.txt
-            release/build-metadata.json
-      - name: Publish signed GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
+            release/unsigned-test-build/SHA256SUMS.txt
+            release/unsigned-test-build/build-metadata.json
+            release/unsigned-test-build/build-flavor.json
+
+  signed-release:
+    name: Approved signed public release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: unsigned-package-and-smoke
+    runs-on: windows-2025
+    # Configure required reviewers and protect tag deployment in this environment.
+    environment: public-release
+    permissions:
+      contents: write
+      actions: read
+    env:
+      WINDOWS_EXPECTED_PUBLISHER: ${{ vars.WINDOWS_EXPECTED_PUBLISHER }}
+      RELEASE_LICENSE_APPROVED: ${{ vars.RELEASE_LICENSE_APPROVED }}
+      RELEASE_BINARY_COMPLIANCE_APPROVED: ${{ vars.RELEASE_BINARY_COMPLIANCE_APPROVED }}
+      RELEASE_MANUAL_QA_APPROVED: ${{ vars.RELEASE_MANUAL_QA_APPROVED }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.1
+          cache: npm
+      - run: npm install --global npm@10.9.8
+      - run: npm ci
+      - name: Require an actually protected public release environment
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $assets = Get-ChildItem release -File | Where-Object {
-            $_.Name -match 'Setup\.exe$' -or $_.Name -in @('SHA256SUMS.txt', 'build-metadata.json')
-          } | ForEach-Object { $_.FullName }
-          gh release create $env:GITHUB_REF_NAME $assets --verify-tag --generate-notes --title "Local Video Manager $env:GITHUB_REF_NAME"
+          $ErrorActionPreference = 'Stop'
+          $policy = gh api "repos/$env:GITHUB_REPOSITORY/environments/public-release" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Release environment protection could not be verified.' }
+          $review = @($policy.protection_rules | Where-Object type -eq 'required_reviewers')
+          if ($review.Count -ne 1 -or @($review[0].reviewers).Count -lt 1 -or -not $review[0].prevent_self_review) { throw 'Independent required reviewers with self-review disabled are required.' }
+          if ($policy.can_admins_bypass -ne $false -or -not $policy.deployment_branch_policy.custom_branch_policies) { throw 'Environment bypass must be disabled and deployment tags explicitly restricted.' }
+          $tags = gh api "repos/$env:GITHUB_REPOSITORY/environments/public-release/deployment-branch-policies" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or @($tags.branch_policies).Count -ne 1 -or $tags.branch_policies[0].type -ne 'tag' -or $tags.branch_policies[0].name -ne 'v*') { throw 'Only explicitly approved version tags may deploy the release environment.' }
+      - name: Require owner approvals and signing secrets without printing them
+        shell: pwsh
+        env:
+          SIGNING_SECRETS_PRESENT: ${{ secrets.WINDOWS_CSC_LINK != '' && secrets.WINDOWS_CSC_KEY_PASSWORD != '' }}
+        run: |
+          if ($env:SIGNING_SECRETS_PRESENT -ne 'true' -or -not $env:WINDOWS_EXPECTED_PUBLISHER) { throw 'Signing secrets and expected publisher are required.' }
+          if ($env:RELEASE_LICENSE_APPROVED -ne 'true' -or $env:RELEASE_BINARY_COMPLIANCE_APPROVED -ne 'true' -or $env:RELEASE_MANUAL_QA_APPROVED -ne 'true') { throw 'Owner license, binary compliance and manual release QA approvals are required.' }
+      - run: npm run package:dir
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+      - run: npm run verify:artifact
+      - run: npm run test:packaged-smoke
+      - run: npm run dist:win
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+      - run: npm run verify:artifact
+      - name: Verify actual Authenticode publisher/timestamp and write SHA-256
+        run: npm run release:metadata
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: windows-x64-verified-signed-release
+          if-no-files-found: error
+          path: |
+            release/signed-release/*Setup.exe
+            release/signed-release/SHA256SUMS.txt
+            release/signed-release/build-metadata.json
+            release/signed-release/build-flavor.json
+      - name: Publish the verified candidate only after protected approval
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $metadata = Get-Content release/signed-release/build-metadata.json -Raw | ConvertFrom-Json
+          if (-not $metadata.signed -or $metadata.releaseClass -ne 'signed-release') { throw 'Verified signed release metadata is required.' }
+          $assets = @()
+          foreach ($installer in $metadata.installers) {
+            $target = Join-Path release/signed-release $installer.name
+            if ((Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash.ToLowerInvariant() -ne $installer.sha256) { throw 'Installer hash changed after signature verification.' }
+            $assets += $target
+          }
+          $assets += @('release/signed-release/SHA256SUMS.txt', 'release/signed-release/build-metadata.json', 'release/signed-release/build-flavor.json')
+          gh release create $env:GITHUB_REF_NAME $assets --verify-tag --generate-notes --title "拉面影视 $env:GITHUB_REF_NAME"

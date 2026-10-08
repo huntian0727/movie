@@ -27,7 +27,8 @@ import {
   resolveConfiguredCloudDriveFolder,
   testConfiguredCloudDriveConnection
 } from "./clouddrive/mountedScanner.js";
-import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, permanentlyDeleteFile, renamePreservingExtension } from "./files/fileOperations.js";
+import { commitMoveWithRollback, commitRenameWithRollback, inspectMoveTarget, moveFileWithConflictResolution, renamePreservingExtension } from "./files/fileOperations.js";
+import { permanentlyDeleteManagedFile } from "./files/safePermanentDelete.js";
 import { cleanupScanFailures, deleteScanFailureFile } from "./files/scanFailureActions.js";
 import { ScanFailureBatchService } from "./files/scanFailureBatchService.js";
 import { MissingVideoService } from "./files/missingVideoService.js";
@@ -138,7 +139,9 @@ const ipcMain = {
         if (channel === IPC_CHANNELS.settingsSet) {
           // Zod/filesystem errors may embed a write-only credential or invalid URL input.
           // Report a fixed message; neither raw error nor arguments enter Electron/logs.
-          const message = error instanceof z.ZodError
+          const message = error instanceof Error && "code" in error && error.code === "CLOUDDRIVE_CLEANUP_CONNECTION_LOCKED"
+            ? "请先停止并清除包含未完成项的 CloudDrive 删除任务，再修改连接或 Token。"
+            : error instanceof z.ZodError
             ? "设置参数无效：CloudDrive 非本机地址必须使用 HTTPS，请检查地址、Token 和超时配置"
             : "设置保存失败，请检查系统安全存储和数据目录权限";
           ipcLogger?.warn({ module: "ipc", event: "settings_save_failed", context: { channel } });
@@ -418,6 +421,13 @@ function toErrorCode(cause: unknown): string {
   return typeof cause === "object" && cause !== null && "code" in cause && typeof cause.code === "string" ? cause.code : "MOVE_FAILED";
 }
 
+async function deleteIndexedFile(repo: VideoRepository, videoId: string): Promise<void> {
+  const video = repo.getVideo(videoId);
+  const source = repo.listSourceFolders().find(folder => folder.id === video.sourceFolderId && folder.enabled);
+  if (!source) throw new Error("Permanent deletion requires an enabled managed source folder.");
+  await permanentlyDeleteManagedFile(video.path, { sourceRoot: source.path, sizeBytes: video.sizeBytes, modifiedAt: video.modifiedAt });
+}
+
 async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]) {
   const failures: Array<{ videoId: string; path: string; message: string }> = [];
   let successCount = 0;
@@ -425,7 +435,7 @@ async function permanentlyDeleteVideos(repo: VideoRepository, videoIds: string[]
   for (const videoId of [...new Set(videoIds)]) {
     try {
       const video = repo.getVideo(videoId);
-      await permanentlyDeleteFile(video.path);
+      await deleteIndexedFile(repo, videoId);
       repo.removeVideo(videoId);
       successCount += 1;
       reclaimedBytes += video.sizeBytes;
@@ -951,7 +961,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     const parsed = videoIdSchema.parse(payload);
     dependencies.duplicateCleanupJobs.assertGenericPermanentDeleteAllowed([parsed.videoId]);
     const video = repo.getVideo(parsed.videoId);
-    await permanentlyDeleteFile(video.path);
+    await deleteIndexedFile(repo, parsed.videoId);
     repo.removeVideo(parsed.videoId);
     dependencies.cacheManager.scheduleMaintenance(true);
     dependencies.domainEvents.publish({ type: "video:removed", videoIds: [parsed.videoId] });
@@ -1142,7 +1152,13 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   }));
 
   ipcMain.handle(IPC_CHANNELS.settingsSet, (_event, payload) => {
-    const settings = dependencies.settings.set(settingsSchema.parse(payload));
+    const input = settingsSchema.parse(payload);
+    const current = dependencies.settings.get().cloudDrive;
+    const token = input.cloudDrive.apiToken?.trim();
+    if (input.cloudDrive.endpoint.trim() !== current.endpoint.trim() || (token && token !== dependencies.settings.getCloudDriveToken())) {
+      dependencies.duplicateCleanupJobs.assertCloudDriveConnectionChangeAllowed();
+    }
+    const settings = dependencies.settings.set(input);
     configureCloudDriveRuntime(settings.cloudDrive, dependencies.settings.getCloudDriveToken(), process.env);
     dependencies.domainEvents.publish({ type: "settings:changed", videoIds: [] });
     return toPublicSettings(settings);

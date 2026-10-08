@@ -131,7 +131,7 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     renderPanel({ loadJobs: vi.fn().mockResolvedValue(jobPage([job({ phase: "deletion", status: "interrupted" })])) });
     await selectTask(/正在永久删除已授权项/);
     expect(screen.getByRole("button", { name: "重新完整验证" })).toBeInTheDocument();
-    expect(screen.getByText(/任务已中断/)).toHaveTextContent(/API删除项继续/);
+    expect(screen.getByText(/任务已中断/)).toHaveTextContent(/原删除授权已失效.*重新完整验证.*单独确认/);
   });
 
   it("renders per-item tri-state evidence", async () => {

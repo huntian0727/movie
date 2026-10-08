@@ -27,7 +27,7 @@ status: completed
 - 系统默认 Node 24/npm 11 的 native 检查 FAIL（版本不符合项目要求）；切换 `.tmp/run-node22.cjs` 隔离的 Node 22.23.1/npm 10.9.8 后 `verify:native:node` PASS，ABI 127。
 - `prepare:electron` 与 `test:electron-smoke`：PASS，Electron 33.4.11 / SQLite ABI 130。
 - `package:dir`：PASS，重新生成 `release/win-unpacked`。首包 app.asar SHA-256 `B9CF87FD42ED47AB0D89514D37A9106E79E822B00FA2BCEB70BA345BC29DE0F0`。
-- 桌面快捷方式 `C:/Users/test/Desktop/拉面影视.lnk` 已核对并实际启动，目标为当前仓库 `release/win-unpacked/拉面影视.exe`。
+- 桌面快捷方式 `%USERPROFILE%/Desktop/拉面影视.lnk` 已核对并实际启动，目标为当前仓库 `release/win-unpacked/拉面影视.exe`。
 - 使用 computer-use 在真实约 34.5 万视频资料库验收：展开来源保持资产中心；进入来源显示 13 个直属文件夹卡片和 189 个直属视频；切换 recursive 后视频数为 945，扫描按钮同步改为递归文案；切换列表出现视频表格和文件夹入口；点击文件夹进入 19 视频的 exact 范围，面包屑可返回，恢复网格卡片布局。未点击扫描或文件操作。
 - 独立 E2E 脚本：不适用（package.json 未声明）；已执行上述真实桌面交互验证。
 - 源码最终提交后将从同一分支重建 NSIS/unpacked，执行制品/packaged smoke 并复核最终快捷方式启动。结果留存在 `.tmp/directory-desktop-proof.json`；若失败必须在最终报告标明，不能以本条预期代替成功。

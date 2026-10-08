@@ -533,6 +533,8 @@ export interface CloudDriveLegacyBindingProgress {
 export interface CloudDrivePublicSettings {
   endpoint: string;
   configured: boolean;
+  /** Fixed public recovery status only; never a native error or credential value. */
+  credentialError?: string;
   timeoutMs: number;
   mountMapJson: string;
 }

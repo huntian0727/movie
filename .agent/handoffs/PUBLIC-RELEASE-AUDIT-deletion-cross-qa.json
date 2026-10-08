@@ -1,0 +1,74 @@
+{
+  "task_id": "PUBLIC-RELEASE-AUDIT",
+  "role": "Independent QA",
+  "status": "PASS_WITH_KNOWN_RISKS",
+  "commit": "807c49585d18c901b199fe0d3d8b0dbf31eb4114",
+  "reviewed_state": "Uncommitted ai/public-release-audit deletion diff after deletion-rework-dev handoff; this is scoped deletion QA, not formal release acceptance",
+  "developer_handoffs": [
+    ".agent/handoffs/PUBLIC-RELEASE-AUDIT-deletion-dev.json",
+    ".agent/handoffs/PUBLIC-RELEASE-AUDIT-deletion-rework-dev.json"
+  ],
+  "source_review": [
+    "Ordinary permanent deletion requires an enabled source, resolved containment, all ancestor junction/symlink rejection, ordinary file and cached size/mtime; isolation rechecks stable object identity and failed restore uses no-overwrite hardlink.",
+    "Workflow2 full hash checks managed paths and nanosecond file version; final kept-file hashing is followed by a fresh staged-file managed identity/version check before unlink.",
+    "Live/startup workflow2 recovery uses persisted recorded paths and object identity, same-directory validation and atomic link+unlink; collision and unsupported hardlink retain media/records instead of rename fallback.",
+    "Every CloudDrive recursive batch/single retry rechecks cancellation and current endpoint/credential binding; stop propagates through gRPC including permanent-delete fallback. Restart finalizes cancelling jobs and leaves others interrupted without automatic network work.",
+    "Schema15 binding is nullable for old plans, uses canonical endpoint plus credential SHA256 in main only, and is checked before manual resume/retry as well as RPC dispatch. Public job mapping omits the binding. settings:set blocks connection/token changes while any v3 undeleted item remains, including cancelled plans.",
+    "Existing metadata-only CloudDrive fast mode, ordinary data-table deletion, and local legacy autoDeleteAfterVerification after full hash are preserved; these are explicitly recognized policies rather than claimed full-hash guarantees for every delete."
+  ],
+  "resolved_findings": [
+    {
+      "priority": "P1",
+      "finding": "Workflow2 live/startup restore used stat-then-rename and overwrote concurrent newcomer media",
+      "initial_evidence": "Two independently authored real Windows temporary-file tests FAIL: live restored=true and restart newcomer bytes became original isolated bytes",
+      "final_location": "src/main/media/duplicateCleanupService.ts:604",
+      "resolution": "Persisted managed object checks plus atomic link+unlink; both independent collision cases PASS"
+    },
+    {
+      "priority": "P1",
+      "finding": "Staged object could be replaced during the final kept-file full hash before blind unlink",
+      "initial_evidence": "Source review identified long awaited hash after isolated check; no pre-fix fixture run claimed",
+      "final_location": "src/main/media/duplicateCleanupService.ts:542",
+      "resolution": "Final isolated managed version is compared to the successful isolated hash identity; independent real staged replacement test PASS and asserts no delete/removeVideo plus failed item"
+    }
+  ],
+  "tests": {
+    "status": "PASS",
+    "summary": "Independent TEST=PASS SUITES=1 TESTS=7 FAILED=0; typecheck PASS",
+    "command": "rtk proxy node .tmp/run-node22.cjs exec -- vitest run tests/main/stagedRestoreCollision.test.ts --maxWorkers=1",
+    "result": "7 PASS, 902ms total; Vitest5.0.3 on Node22.23.1; temporary Windows files only, no SQLite fixture",
+    "cases": [
+      "live rollback original-name newcomer collision preserves both byte sequences and isolation record",
+      "startup recovery original-name newcomer collision preserves both byte sequences and isolation record",
+      "substituted staged identity preserves new stage and displaced original",
+      "ancestor Windows junction refuses recovery and retains media",
+      "missing persisted object identity refuses recovery and retains media",
+      "hardlink ENOTSUP retains media, no overwrite-capable rename fallback",
+      "staged replacement during final kept-file hash does not unlink newcomer or remove indexed video; task fails and recovery evidence remains"
+    ],
+    "typecheck_command": "rtk proxy node .tmp/run-node22.cjs run typecheck",
+    "typecheck_result": "PASS",
+    "full_integration_regression": "Parent-owned final release gate pending; Developer 44-test result is acknowledged separately, not relabeled independent QA evidence",
+    "real_media_real_database_remote_clouddrive_installer_clean_windows11": "NOT RUN by this QA actor"
+  },
+  "changed_files_by_qa": ["tests/main/stagedRestoreCollision.test.ts", ".agent/handoffs/PUBLIC-RELEASE-AUDIT-deletion-cross-qa.json"],
+  "risks": [
+    {
+      "priority": "P1",
+      "risk": "CloudDrive fast candidates may have different content. RPC targets a remote path, not conditional provider ID/version; cached identity checks cannot protect an unobserved remote replacement. Owner public-release policy decision and disposable real-backend acceptance remain required."
+    },
+    {
+      "priority": "P1",
+      "risk": "Hidden legacy local autoDeleteAfterVerification synthesizes DELETE after successful SHA verification. Preserved compatibility behavior needs explicit public-release policy decision."
+    },
+    {
+      "priority": "P2",
+      "risk": "Cancelled network calls may have uncertain server-side results; no automatic restart/retry avoids new unintended calls but does not prove remote state."
+    },
+    {
+      "priority": "P2",
+      "risk": "Node path APIs retain a final check-to-syscall race against same-privilege concurrent malicious filesystem mutation. Hardlink-unsupported shares and interruption after link before unlink can require manual recovery with preserved media. Mapped-drive/SMB real-target validation is NOT RUN."
+    }
+  ],
+  "next": "Local Project Manager reruns final complete integration/release gate and independent packaging/installer QA; public-release verdict remains separate and fail-closed for license/signature/binary approvals."
+}

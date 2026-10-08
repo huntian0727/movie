@@ -1,0 +1,45 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "scope": "NSIS first-install empty-directory detection repair after actual parent-owned smoke failure",
+  "state": "DEV_COMPLETE",
+  "branch": "ai/public-release-audit",
+  "baseline": "807c495",
+  "files": ["build/installer.nsh"],
+  "observedEvidence": [
+    "Parent actual unsigned installer smoke failed; reviewed disposable installed-app directory exists and contains no entries. This Developer did not execute installer/uninstaller or modify that fixture.",
+    "Stock installer.nsi .onInit calls SetOutPath $INSTDIR before initMultiUser and customInit. initMultiUser then resolves current-user registration and /D via setInstallModePerUser/GetDParameter before invoking customInit.",
+    "Existing FileExists directory wildcard tests whether a directory exists and can match dot entries in an empty directory; requiring a safety marker solely on that condition rejects legitimate first installation after stock SetOutPath creates the directory."
+  ],
+  "changes": [
+    "Replaced directory-existence wildcard check with movieRequireMarkerIfPopulated: GetFileAttributes verifies an existing ordinary directory; FindFirst/FindNext skip . and ..; any actual entry still requires the original application-ID/safe-uninstaller marker.",
+    "Missing targets are allowed only for normal file/path-not-found status; attribute/enum access failures, non-directory targets and unexpected enumeration errors fail closed. Enumeration handles close before marker validation and handled end-of-list clears the NSIS error flag.",
+    "Root validation now accepts only ASCII drive-letter:/backslash/ordinary child components or UNC server/share/child components. Rejects drive-relative/root-relative input, root-only targets, empty/repeated/trailing separators, slash mixing, traversal components, trailing dots/spaces, Win32 device names (including superscript COM/LPT names), control characters, ADS/wildcard/quote characters and unsupported >=260-character paths. Original PathIsRelative/PathIsRoot and ancestor reparse checks remain after this lexical guard.",
+    "Preserved all existing registered legacy-uninstaller, per-machine, --delete-app-data, root/ancestor/link, owned-file preflight and nonrecursive cleanup protections. No whitelist/removal policy was widened."
+  ],
+  "hookTiming": {
+    "customInit": "Unmoved: after stock initMultiUser has parsed /D and current-user identity; now accepts truly empty precreated directories and still rejects unrelated nonempty directories",
+    "onVerifyInstDir": "Unmoved: repeats complete target validation for interactive final directory changes",
+    "hiddenSafetySection": "Unmoved: customHeader declares -MovieSafetyPreflight before built-in install Section; runs for silent installs too, before old uninstaller execution and extraction",
+    "customUnInit": "Unmoved: retains all safety-marker/current-user/flag/reparse checks, with stronger explicit absolute non-root validation"
+  },
+  "verification": {
+    "compileOnly": "PASS: cached NSIS3.0.4.1 makensis /INPUTCHARSET UTF8 /V2 /NOCD compiled a tiny fixture using actual root installer.nsh, installer customInit/onVerify/final safety Section plus un.onInit/remove macros. No application payload or uninstaller was emitted; harmless warning6020 because fixture never calls WriteUninstaller.",
+    "initialCompileAttempt": "FAILED to resolve Unicode source paths without /INPUTCHARSET UTF8; repeated with UTF8 input and compiled successfully. No runtime or installation test was attempted.",
+    "pathGuardRecompile": "PASS after independent QA's fully-qualified-path finding: UTF8 makensis exit0 in 0.72 seconds; only fixture's harmless6020 warning. A prior intermediate compile emitted6000 for literal dollar in CONIN$/CONOUT$; changed to NSIS literal-dollar escaping and final compile contains no6000 warnings. No compiled fixture was executed.",
+    "diffCheck": "git diff --check exit0; source is still untracked, so additionally checked the entire NSIS file for trailing whitespace: PASS",
+    "installerExecution": "NOT RUN by this Developer; parent owns all disposable actual install/uninstall regression",
+    "heavyNodeTestsDbNativeRebuild": "NOT RUN",
+    "fixtureMutation": "NONE; only read directory entries under parent-designated disposable root",
+    "temporaryCompileArtifact": ".tmp/nsis-directory-compile-qa/compile-only-never-execute.exe; not executed and not for distribution"
+  },
+  "requiredParentRetest": [
+    "Rebuild exact unsigned installer from root NSIS after copying the reviewed change into the dedicated D worktree",
+    "Initial nonempty synthetic video/SQLite target must fail with all hashes unchanged and no registration",
+    "Fresh empty target must install successfully, with exact isolated flavor and safety marker",
+    "Existing safe marked test installation must repair while preserving unknown inside/outside/nested files",
+    "Explicit --delete-app-data must fail before removal; ordinary uninstall preserves sentinels and production registration/shortcuts",
+    "Drive-relative, root-relative, device-prefixed, UNC share-root, traversal, alternate-stream, mixed-slash and empty-component targets must fail before old-uninstaller execution/extraction. Normal fully-qualified empty drive directory must succeed; ordinary UNC child syntax remains eligible subject to marker/access/ancestor checks",
+    "Independent QA rechecks preserved hook order and nonrecursive file whitelist; real runtime PASS is not inferred from compile success"
+  ],
+  "nextActor": "Parent routes independent source review and performs actual isolated installer smoke; no formal distribution acceptance claimed"
+}

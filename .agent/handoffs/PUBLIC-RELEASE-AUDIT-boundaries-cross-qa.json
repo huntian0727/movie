@@ -1,0 +1,46 @@
+{
+  "taskId": "PUBLIC-RELEASE-AUDIT",
+  "stage": "final-independent-electron-boundaries-qa",
+  "verdict": "PASS_WITH_KNOWN_RISKS",
+  "date": "2026-10-08 Asia/Shanghai",
+  "baseline": "807c495",
+  "branch": "ai/public-release-audit",
+  "developerHandoff": ".agent/handoffs/PUBLIC-RELEASE-AUDIT-boundaries-dev.json",
+  "evidence": ".tmp/release-audit-boundaries-crossqa.md",
+  "scope": "Renderer protocol, trusted frame/role IPC and preload, exact media origin plus real frame policy, permissions and credential-recovery runtime boundary; not formal release acceptance",
+  "independence": "Reviewer did not author boundary production implementation; read actual source and negative test design and independently executed real Electron probe.",
+  "unresolvedP0P1": [],
+  "independentExecution": {
+    "command": "rtk proxy node .tmp/run-node22.cjs run test:renderer-security-smoke",
+    "result": "PASS, exit0, Electron44.7.0, 3.57s command wall time",
+    "confirmed": [
+      "Main/player/timeline exact custom bundle assets and typed preload bridge load; no arbitrary invoke and no Node in renderer",
+      "External file/script/network requests blocked, blocked synthetic HTTP requests never reach server",
+      "Trusted role media and true Main media work; opaque-origin media denied before image/disk service",
+      "Real temporary DPAPI corruption remains intact on blank save and recovers using verified nonblank replacement without public/plaintext token exposure"
+    ],
+    "data": "Only runner-created temporary profile, synthetic credentials/assets/media and local fixture server; no real account RPC, SQLite/native rebuild or installer.",
+    "warnings": "Non-fatal libpng color-profile warnings only"
+  },
+  "sourceReviewed": [
+    "Custom protocol fixed resource allowlist, pre-normalization validation, traversal/ADS/authority/link containment guards",
+    "Main and preload individual authority fields avoid null-origin equivalence; live main-frame and role authorization",
+    "Sandbox/contextIsolation/no Node and production custom loadURL in main/player/timeline",
+    "Exact media ACAO with registered real frame request authorization and restricted timeline resource types",
+    "Explicit permission denial",
+    "Durable verified credential writes, preserved corrupt ciphertext/failed legacy migration and blank-save semantics",
+    "Credential error disables environment fallback/caches and nonblank replacement restores configured runtime account",
+    "Main-only endpoint/token task-binding digest is not a preload/public field"
+  ],
+  "knownRisks": [
+    "P2: Failed historical plaintext migration retains the original settings field for recoverability until owner performs successful secure replacement; historical backups may still contain plaintext.",
+    "P2: Portable asset filesystem checks cannot prove immunity to malicious same-privilege mutation between check and file read."
+  ],
+  "notClaimed": [
+    "Independent rerun of Developer's 96 unit tests; root final full gate is pending",
+    "Actual packaged production UI/native playback or real CloudDrive accounts",
+    "Clean Windows11/no-Node or installation/upgrade",
+    "Formal signed open-source public release PASS"
+  ],
+  "nextActor": "Root combines this bounded QA with final complete integration gates, actual packaged/installer evidence and owner release decisions."
+}
