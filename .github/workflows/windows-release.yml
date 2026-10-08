@@ -6,7 +6,7 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: windows-release-${{ github.ref }}
@@ -16,9 +16,8 @@ jobs:
   package-and-smoke:
     name: Package, install, and smoke
     runs-on: windows-latest
-    env:
-      CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,6 +39,9 @@ jobs:
       - name: Require signing secrets for tag releases
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
         run: |
           if (-not $env:CSC_LINK -or -not $env:CSC_KEY_PASSWORD) {
             throw 'Tag releases require WINDOWS_CSC_LINK and WINDOWS_CSC_KEY_PASSWORD secrets.'
@@ -47,7 +49,11 @@ jobs:
       - run: npm run package:dir
       - run: npm run verify:artifact
       - run: npm run test:packaged-smoke
-      - run: npm run dist:win
+      - name: Build Windows installer
+        run: npm run dist:win
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
       - run: npm run release:metadata
       - run: npm run test:installer-smoke
       - uses: actions/upload-artifact@v4
@@ -59,8 +65,20 @@ jobs:
             release/*Setup.exe
             release/SHA256SUMS.txt
             release/build-metadata.json
+
+  publish:
+    name: Publish signed GitHub release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: package-and-smoke
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-signed-release
+          path: release
       - name: Publish signed GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -68,4 +86,7 @@ jobs:
           $assets = Get-ChildItem release -File | Where-Object {
             $_.Name -match 'Setup\.exe$' -or $_.Name -in @('SHA256SUMS.txt', 'build-metadata.json')
           } | ForEach-Object { $_.FullName }
+          if (-not $assets) {
+            throw 'No release assets were downloaded from the signed build job.'
+          }
           gh release create $env:GITHUB_REF_NAME $assets --verify-tag --generate-notes --title "Local Video Manager $env:GITHUB_REF_NAME"
