@@ -20,7 +20,7 @@
 
 ## Verification
 
-最终安装、桌面截图和产物身份将在实际执行完成后记录于本节，未执行项目不能计为通过。
+最终安装、桌面截图和产物身份将在实际执行完成后记录于本节，未执行项目不能计为通过。最终独立源码QA记录 PUBLIC-RELEASE-AUDIT-final-source-cross-qa.json 为 QA_COMPLETE / PASS_WITH_KNOWN_RISKS，本范围无新增可行动P0/P1；正式发布外部阻断项保持。代码提交c747ccf已推送工作分支，main未更新。
 
 - 2026-10-08 北京时间最终 `npm run test:release-gate` **PASS**：lint（两个 TypeScript 项目）、完整 build、Windows 文件专项37项、迁移40项、性能专项31项、Node原生ABI127、完整131文件/1175测试，无跳过；全量测试323.61秒。性能fixture与查询恢复main原始单个60秒总截止，数据与全部查询断言保留。记录：本地忽略文件 `.tmp/public-release-frozen-all-gate.log`。
 - 最终 `npm run test:electron-smoke` **PASS**：Electron44.7.0/ABI149、实际N-API SQLite完成标志、完整main-process smoke。记录 `.tmp/public-release-frozen-electron-smoke.log`。最终冻结源码的同一工作区实际lint/typecheck/test/build/Electron检查覆盖自动交付脚本全部实际存在的质量脚本；因此后续finish-and-push的SkipChecks仅复用已通过的等价检查（AGENTS允许），不删除、跳过或豁免测试。不适用的E2E脚本不存在，未声称执行。
