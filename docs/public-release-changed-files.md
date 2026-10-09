@@ -229,3 +229,12 @@
 - `package.json`：把新合同测试追加到已有 `test:media-candidate-contract`，因此完整 release gate 也会检查。
 - `docs/legal/native-media-recipe-evidence.json` 和 `docs/legal/FFMPEG-RECIPE-SOURCE-AUDIT.md`：43 个库的机器可读初审证据及局限性；未归档全部源码/授权，不构成正式分发许可。
 - `docs/legal/FFMPEG-SOURCE-CANDIDATE.md`、`docs/public-release-audit.md`、`docs/ai/deliveries/2026-10-09-native-media-source-trace.md`：同步安全/发布阻塞及实际测试。
+
+## 2026-10-09 FFmpeg 源码授权根文件批量取证
+
+- `scripts/audit-native-media-licenses.mjs`：对仅限 GitHub 的固定 40 字符 Git SHA 仓库读取根 Git tree，下载候选 NOTICE/COPYING/LICENSE 等 Git blobs，验证标准 Git 对象 SHA1 和源文件 SHA256；仅 B5 本地 D 盘保留原始文本；异常失败关闭并按未验证记录，未经授权不允许改变发行许可。
+- `tests/scripts/nativeMediaLicenseAudit.node-test.mjs`：6 个 Node 合同测试（非法来源、浮动修订、恶意路径、损坏 blob、审批标记与无许可证情形）。
+- `package.json`：`test:media-candidate-contract` 加入新 Node 测试，原 12 项继续保留，合计 18 项。
+- `docs/legal/native-media-license-availability.json`：29/29 个精确 Github 来源仓库、49 份原始许可证候选文件的来源哈希数据，0 项发行授权批准。
+- `docs/legal/NATIVE-MEDIA-LICENSE-EVIDENCE.md`：根目录文本证据的界限、13 个未调查非 GitHub 仓库与残余许可证义务。
+- `docs/ai/deliveries/2026-10-09-native-license-github-evidence.md`：本轮实际测试、来源存档、风险和剩余工作。

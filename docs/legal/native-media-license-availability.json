@@ -1,0 +1,693 @@
+{
+  "schemaVersion": 1,
+  "verdict": "PARTIAL_LICENSE_SOURCES_ONLY_NO_BINARY_DISTRIBUTION_APPROVAL",
+  "approvedForDistribution": false,
+  "sourceComplianceApproved": false,
+  "statistics": {
+    "referencedSourceLibraries": 43,
+    "eligibleGithubRepos": 29,
+    "rootLicenseTextsArchivedRepos": 29,
+    "noRootLicenseRepos": 0,
+    "notVerifiedRepos": 0,
+    "completeThirdPartyLicenseReviews": 0
+  },
+  "limitations": [
+    "This checks only root license-file names, not dual licenses, dependencies, submodule and vendored notices",
+    "A verified license blob at a pinned Git commit is not proof that the tested native EXE used that exact revision",
+    "No static relinking materials, complete corresponding sources or final binary rights were approved",
+    "License interpretation and source/binary correspondence must be independently reviewed before public distribution"
+  ],
+  "repositories": [
+    {
+      "repository": "nkoriyama/aribb24",
+      "commit": "5e9be272f96e00f15a2f3c5f8ba7e124862aec38",
+      "linkedFlags": [
+        "libaribb24"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "COPYING",
+          "gitBlobSha": "65c5ca88a67c30becee01c5a8816d964b03862f9",
+          "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
+          "bytes": 7651
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "xqq/libaribcaption",
+      "commit": "c64c23b8905ba514b87c9789269e9f66f949ffe0",
+      "linkedFlags": [
+        "libaribcaption"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "2b7474a54cf77cd09338a68e7a96e3e862db76f7",
+          "sha256": "5149f1ce4fe89190d86bfb440456701a3a7406fc2b19ef0d8b57661f62b32c04",
+          "bytes": 1065
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "libass/libass",
+      "commit": "f61db567e6593df3470e91594bcd4ad2d0473aff",
+      "linkedFlags": [
+        "libass"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "COPYING",
+          "gitBlobSha": "3ff0e11457a6edccfab065cae0f905a6e1ed80ee",
+          "sha256": "f7e30699d02798351e7f839e3d3bfeb29ce65e44efa7735c225464c4fd7dfe9c",
+          "bytes": 755
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "fribidi/fribidi",
+      "commit": "4c914a92e94a9fe4f30ae83a1130099841566448",
+      "linkedFlags": [
+        "libfribidi"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "a47e0dc93650dfa93410a389b6eff84787e6d7cb",
+          "sha256": "cb173f55c9514c8f38f4647ac3fedd5f8611358d331e65ab955da931e826861c",
+          "bytes": 1640
+        },
+        {
+          "path": "COPYING",
+          "gitBlobSha": "f6683e74e0f0130f246dbf7054f4cacc88ca84b0",
+          "sha256": "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95",
+          "bytes": 26419
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "libgme/game-music-emu",
+      "commit": "f68963b1de0633149b05732113d3c3113c6f63a1",
+      "linkedFlags": [
+        "libgme"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "license.gpl2.txt",
+          "gitBlobSha": "d159169d1050894d3ea3b98e1c965c4058208fe1",
+          "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+          "bytes": 18092
+        },
+        {
+          "path": "license.txt",
+          "gitBlobSha": "53afb04e5a0c9776c1640c9bd9ac10bea1bad987",
+          "sha256": "d2efc89fbb7533572a472d34e07964951810a3a4f8d3159ecc2dcaa1452c5c26",
+          "bytes": 26938
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "harfbuzz/harfbuzz",
+      "commit": "b3bab62307017934dd7f532c52a696fefb12b3ad",
+      "linkedFlags": [
+        "libharfbuzz"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "83c0c66f99e967fa669854f1837f656a705e6ba0",
+          "sha256": "19bfe8f5ed100636cd24ab0c90a3f71c21d8b02d9ba00719447a0faab364d49f",
+          "bytes": 201
+        },
+        {
+          "path": "COPYING",
+          "gitBlobSha": "1dd917e9f2e72167de69e3b5dadbc4e7db417da1",
+          "sha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
+          "bytes": 1971
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "libjxl/libjxl",
+      "commit": "b87738951c1254cd8cccaa6d47712ba735da56d8",
+      "linkedFlags": [
+        "libjxl"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "0dff25990b23fe887a4f517f277994d4bfb73126",
+          "sha256": "b43f47a2d8f0176883547cc2454e86357e2b01c5357a05012bcbc0506b95181a",
+          "bytes": 4046
+        },
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "c66034b105f23d108a51b45c846d5b5c194cc229",
+          "sha256": "8405932022a556380c2d8c272eff154a923feb197233f348ce5f7334fb0a5ede",
+          "bytes": 1508
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "ultravideo/kvazaar",
+      "commit": "2b06691bb5844404c0e703f12a5d7b0fee914ec7",
+      "linkedFlags": [
+        "libkvazaar"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "c65d95b18aea64419736dc11dcbd1a9ac3aa7eeb",
+          "sha256": "3c1dc3d7f8a3d08c14f4fbe9942f45764d8a21a3296e8d83446f33fd65f21c38",
+          "bytes": 1549
+        },
+        {
+          "path": "LICENSE.EXT.greatest",
+          "gitBlobSha": "b6a0d97b4e3823572e05377743e3f7060bfd77d8",
+          "sha256": "16f569c87d5ec20b7474b55ee0a8877b8f8b4dc13f9567ebe0b8fe8afdeb34d2",
+          "bytes": 218
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "v-novaltd/LCEVCdec",
+      "commit": "17804ac54db8fbb42717f3275b1e73f3c0b067d3",
+      "linkedFlags": [
+        "liblcevc-dec"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "COPYING",
+          "gitBlobSha": "f60677de190902bb7e9c1ae9de4f359f80008681",
+          "sha256": "3afa5369b4fb44e18280b6e0e275971f78bc6eaf5f53553f41f2483fd8b1267e",
+          "bytes": 817
+        },
+        {
+          "path": "LICENSE.md",
+          "gitBlobSha": "53e6d80610dd23c6f21c81378692c45a2e3edbf9",
+          "sha256": "14358b0ecf6e7036c211c10f0f25563c94483dee7b8c7c954e09e10f3771d0af",
+          "bytes": 1659
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "AcademySoftwareFoundation/openapv",
+      "commit": "a58ce739be0dfb083643d929aee8f0e0ba9bdf63",
+      "linkedFlags": [
+        "liboapv"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "759b18bfbd34550e6eb2c9b22cd8561fa8fc63ce",
+          "sha256": "7ad8e53c0c3e24e7ba64dbcad5e7706108f3dc67cf6515ef761adac0a39dab25",
+          "bytes": 1503
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "cisco/openh264",
+      "commit": "8b2d28faade10d74d99ac80e199aef664c9c5a3b",
+      "linkedFlags": [
+        "libopenh264"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "8e730c4e2c646c2057326c54c932bdbddf11deea",
+          "sha256": "dd5c1c9668512530fa5a96e4c29ac4033d70a7eeb0eed7a42fddb6dd794ebdbb",
+          "bytes": 1295
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "uclouvain/openjpeg",
+      "commit": "8314119b067c0fc77834731168daaebd379fdb12",
+      "linkedFlags": [
+        "libopenjpeg"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS.md",
+          "gitBlobSha": "35aa84b55e12eb8e2608c07eb1e16896d966835e",
+          "sha256": "cf22e984f9fbb9be7550e9a94120595ba8c4a7de0d63f47d3725f4b2e28a4387",
+          "bytes": 712
+        },
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "e8fa41040dfbe8be524cac5b1bb19d60c6eb0320",
+          "sha256": "a6af136f3e15038a666b61f376612a07d9a4e48cb7c01adbf3e33b3f14ab49b6",
+          "bytes": 2112
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "OpenMPT/openmpt",
+      "commit": "f83cedb0cd5446e4dfaa83ac97e3087107e26767",
+      "linkedFlags": [
+        "libopenmpt"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "6f8a33dcfac56b6f303659bd346d9e19d039c6ad",
+          "sha256": "2c999e99533c10a347916a72e075bacf10fcedeff793bd90d41d812b46161da2",
+          "bytes": 1621
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "xiph/opus",
+      "commit": "503d81b138d76621aae4b12786e90de48aa8db3a",
+      "linkedFlags": [
+        "libopus"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "b3d22a20c908ed21d42ceac81ec2255b0d7f55dc",
+          "sha256": "f9fd849e652219ce98e008303370b352d37663d0ffb27b8dc514ad93c9c7438b",
+          "bytes": 239
+        },
+        {
+          "path": "COPYING",
+          "gitBlobSha": "75711467a3eb220f35f72afdb55a4734ee5cdb47",
+          "sha256": "01e1167d54a096d123cf6dfbbeb19587278845c6481d2d66d545669846079551",
+          "bytes": 1945
+        },
+        {
+          "path": "LICENSE_PLEASE_READ.txt",
+          "gitBlobSha": "bc88efa6cb05789a6a6e697577ae6d8e5532e5df",
+          "sha256": "7efb4989e0cd1b256229bdf2f09300c5d14e35db0e7476bfb87fac243498273d",
+          "bytes": 703
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "xiph/rav1e",
+      "commit": "31435de9d76fddd38f6dcc31d4014574cebb2092",
+      "linkedFlags": [
+        "librav1e"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "3d6c825c4eb6e83c61093293237e6dcebd8795be",
+          "sha256": "2dd0a109751e939dec3f80ddcfbc1ba91553f18c574399e85c159632182a2c0a",
+          "bytes": 1332
+        },
+        {
+          "path": "license_template.txt",
+          "gitBlobSha": "123b7c9866d1d6072a2a4b67e38168efc0d4bd00",
+          "sha256": "5097df781d1759aabea7eeaa308a591e9b6e0e4389eff515fdab458c4b4389ac",
+          "bytes": 526
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "GNOME/librsvg",
+      "commit": "7612431eb02dc009319094f8513d63c1faaecfb4",
+      "linkedFlags": [
+        "librsvg"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "9971ce58e21ab14803701f07f9ef82a0500bf4c5",
+          "sha256": "14e765b9c1097d93f4b842a6ad23172b530cc00dfe7a5aae1b9afefdca54531b",
+          "bytes": 1798
+        },
+        {
+          "path": "COPYING.LIB",
+          "gitBlobSha": "4362b49151d7b34ef83b3067a8f9c9f877d72a0e",
+          "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+          "bytes": 26530
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "google/snappy",
+      "commit": "9c28114a38866f6deeaa826db918293bc28ae410",
+      "linkedFlags": [
+        "libsnappy"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "4858b377c74b1de6389be2f57e768310a162f5bb",
+          "sha256": "710c0a3a4681c8c40f5a59eb794f61093fa142935c647c92f46ea595f0591833",
+          "bytes": 22
+        },
+        {
+          "path": "COPYING",
+          "gitBlobSha": "bd0e5971dbf09bd6b3213ea7248383d10f26dea2",
+          "sha256": "55172044f7e241207117448a4d9d6ba1d0925c8ad66b5d4c08c70adfa9cc3de6",
+          "bytes": 2645
+        },
+        {
+          "path": "COPYING.notestdata",
+          "gitBlobSha": "8d6bd9fed4e437af46e342ff161cb2bc11fa0c61",
+          "sha256": "5221a36a801b981fbdfda7b87db64cff231a3b88223a066c325411b539df796f",
+          "bytes": 1475
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "Haivision/srt",
+      "commit": "ff8ab25c57aece5b7351defe36dacc94fc28527f",
+      "linkedFlags": [
+        "libsrt"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "14e2f777f6c395e7e04ab4aa306bbcc4b0c1120e",
+          "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
+          "bytes": 16726
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "xiph/theora",
+      "commit": "28fd5ec77f0ad0e07a371cef1047828116f6bd8a",
+      "linkedFlags": [
+        "libtheora"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "7384070f91aa41491e4cbbfdeb5bb54a5bb0a9a6",
+          "sha256": "ef0ba8da05924cf4e2f9acf782076892ed477c01a6d4cc9f5d107652cf84da8c",
+          "bytes": 828
+        },
+        {
+          "path": "COPYING",
+          "gitBlobSha": "c8ccce4ffb5d7a7574bac87429ec1d2a7b90686d",
+          "sha256": "8417fad7da775735564e209484a2e011e0fa201e94f01fdbee6e4977e478e6fc",
+          "bytes": 1470
+        },
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "97e84317906b8342c1b14bd85058d720495346db",
+          "sha256": "2c902950c73a63cd285dc0c36573de9c5fefe66d49312949c51d941f33e92932",
+          "bytes": 960
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "njh/twolame",
+      "commit": "6fced852d4d5cfad58cf9dbe3ea619b08e87d398",
+      "linkedFlags": [
+        "libtwolame"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "28f9bd0a98483255347b0554a576d3af90eb9d32",
+          "sha256": "89acea387ca97766b248e553ea68400898669b1637cfa31e4ceefff9efa3744d",
+          "bytes": 1856
+        },
+        {
+          "path": "COPYING",
+          "gitBlobSha": "15a6fe931545626007126576a610a75a192f33c0",
+          "sha256": "257a842724705950b07da76ce0e22ffa80ec77b3e9dfc6702522ac342409da0f",
+          "bytes": 26428
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "uavs3/uavs3d",
+      "commit": "0e20d2c291853f196c68922a264bcd8471d75b68",
+      "linkedFlags": [
+        "libuavs3d"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "COPYING",
+          "gitBlobSha": "ce30f0fa3022f854345fb04021b1c1fc9882db9c",
+          "sha256": "5a8dcb7da222df8a81b6e334000f859248196335e2d28e1db9f3c552827d7cdf",
+          "bytes": 1690
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "Netflix/vmaf",
+      "commit": "86da14d0306a138fd3f01319860b905169746516",
+      "linkedFlags": [
+        "libvmaf"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "5e77c4386ea7186882f3c01772af288c3643069c",
+          "sha256": "a6fdb51d02b9dfe198e55534bb8047fe6d756eda117f4ff83de98f92c1952710",
+          "bytes": 2833
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "xiph/vorbis",
+      "commit": "1b75110b5a2754ba1931d82dd83cb822b266a21d",
+      "linkedFlags": [
+        "libvorbis"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "0da10363c0cbaa09350bda3f3a6a6bf762cf536e",
+          "sha256": "f5cab9f16035f770f50299f85cf2938c06dc3a9a30425961067788102ec896d3",
+          "bytes": 65
+        },
+        {
+          "path": "COPYING",
+          "gitBlobSha": "fb456a87bdfafe2cab7de982e8ce11204933ec5c",
+          "sha256": "ec1815db59fcd302846df949d7424876cb2e2dc5ed1606c5fb0b36787b1cf43a",
+          "bytes": 1470
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "intel/libvpl",
+      "commit": "674d015bcb294bc39fa276e99a652ea045423e82",
+      "linkedFlags": [
+        "libvpl"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "4e66ab4cc8efac2c57f22e1c6fb78ee91321a9e7",
+          "sha256": "bf1cfac2e2792b6e1e995ce103d70796aecaf2ec7e4c5fe5474f7acec7b4a677",
+          "bytes": 1074
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "fraunhoferhhi/vvenc",
+      "commit": "b1cfb2ad495af6ae4cc214b7a060e8b4166c4629",
+      "linkedFlags": [
+        "libvvenc"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS.md",
+          "gitBlobSha": "fba0b29b107dbcbd5b2ae1ce805695fb483d42c6",
+          "sha256": "528ce2138058d7ef942cede1e6604e83614552bb460868bdb14ee033a1ffc8ba",
+          "bytes": 886
+        },
+        {
+          "path": "LICENSE.txt",
+          "gitBlobSha": "f873df47e03916603d7ef9ba5cb058e8669d8e22",
+          "sha256": "88330a2cc59b9dd90674f8759900bc9c06e9efc8799dadda067609addefb49d1",
+          "bytes": 1768
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "GNOME/libxml2",
+      "commit": "91586dc6742ab335682235120363f6e126eea5e2",
+      "linkedFlags": [
+        "libxml2"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "Copyright",
+          "gitBlobSha": "8c0b7c15dd9b66501511f5971ec9cae971997a0d",
+          "sha256": "5d4873884a890122a4b9b20ad56ac6f7da1d796a5bfcf04a427970ac96217626",
+          "bytes": 1314
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "sekrit-twc/zimg",
+      "commit": "67e0603271c080e22c8429856dd4a8a56587e61e",
+      "linkedFlags": [
+        "libzimg"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "COPYING",
+          "gitBlobSha": "5a8e332545f667aab9bf3a17f11dba27c70b656a",
+          "sha256": "7637386b5f81e8a719ca336233149005e5fa28b5e6054ea7b67de49355b0ad40",
+          "bytes": 484
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "zeromq/libzmq",
+      "commit": "46493370217ac135246617fa2f6ac819d8b61bfc",
+      "linkedFlags": [
+        "libzmq"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "239a340112c08d2794748ee959e049b086ea62af",
+          "sha256": "fabd33db90ebe0df44b2894add49393e1185b2ec8752440071df4e1edbb612e8",
+          "bytes": 2377
+        },
+        {
+          "path": "LICENSE",
+          "gitBlobSha": "a612ad9813b006ce81d1ee438dd784da99a54007",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+          "bytes": 16725
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    },
+    {
+      "repository": "zapping-vbi/zvbi",
+      "commit": "d3a5ee9f2b047bf16cd1ee5ccf6ec05ee75409d0",
+      "linkedFlags": [
+        "libzvbi"
+      ],
+      "status": "ROOT_LICENSE_TEXT_ARCHIVED",
+      "licenseFiles": [
+        {
+          "path": "AUTHORS",
+          "gitBlobSha": "1d7f2ab73bea83c402ab0b27d357b3b70e4fcbd2",
+          "sha256": "349107750f8e6a3555e9ad47f625806e70ce6dd108926eb158528b27c2c03586",
+          "bytes": 7027
+        },
+        {
+          "path": "COPYING.md",
+          "gitBlobSha": "c847bae28ac5e448c268ad80173dac69e3069994",
+          "sha256": "6d679539253897582d38fcd1eabfa670c01c0ece73d8cd3dc97869fcf723f106",
+          "bytes": 78695
+        }
+      ],
+      "sourceArchiveRetrieved": false,
+      "binarySourceCorrespondenceProven": false,
+      "sourceLicenseReviewed": false
+    }
+  ]
+}

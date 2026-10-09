@@ -47,3 +47,7 @@ BtbN 构建仓库 README 明确说明仅保留最近 **14** 份每日构建，�
 ### 2026-10-09 两份完整上游源码已存档（独立补充）
 
 B5 家用机在网络重试成功后取得精确 Git SHA 的 **Opus 和 libass 完整 GitHub 源码 TAR**，完整列出 TAR 条目且退出码为 0（Opus 840 条目，SHA-256 `e34101b726c033be40e3f5a2695d086362d59069554ffd46800c38a13eade1f7`；libass 155 条目，SHA-256 `edb3e866ca9394152484bc9a83b68a395f5c9052ae0dc502e4100035c250330b`）。原始 COPYING 同样逐字节获取和哈希，详见 [来源初审](FFMPEG-RECIPE-SOURCE-AUDIT.md)。**只完成 43 个外部库中的 2 个完整源码归档**，尚未证明二进制对应关系、静态许可证完整合规或所有传递源码，不改变正式发行 FAIL。
+
+## 2026-10-09 固定 GitHub 源码原始许可证根文件核验
+
+已基于 43 启用库对应的 42 不同上游源码位置，对全部 **29 个 GitHub 托管、精确提交的源码仓库**逐个校验了根目录文件，在 B5 的隔离审计文件夹保存了 **49 份**候选许可证、版权或作者文件及其 Git blob 和 SHA-256。**13 个非 GitHub 仓库尚未核验**；未执行完整源码与实际二进制对应审查。真实文本细节、人工风险和局限见 `NATIVE-MEDIA-LICENSE-EVIDENCE.md`，结构化记录见 `native-media-license-availability.json`。不能据此改变当前正式发行 FAIL。

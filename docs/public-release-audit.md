@@ -142,3 +142,7 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 本轮新建 fail-closed 的上游源码 recipe 审计程序，已核实 43 项启用外部库/44 份候选 recipe 引用及固定修订、初步直接依赖和 4 份补丁哈希；精确版本 opus/libass 两份 COPYING 原文也已归档在 B5 隔离审计目录。证据见 `docs/legal/native-media-recipe-evidence.json`。**正式公众发布仍 FAIL**：这不是二进制/完整源码、许可证/静态链接义务、干净 Windows、签名审批通过的证明。新增代码没有修改 Electron 的功能与安装器，原已验收包的 SHA 和部署状态仍保持历史记录，不宣称新包交付。
 
 上述 FFmpeg 取证本轮后续核验补充：先前 Opus TAR 下载首轮网络超时，但 CURL 自动重试最终完整成功；libass TAR 也成功，在 B5 经完整 TAR 列表退出码 0 和 SHA-256 验证。故目前外部库已独立存档 **2/43 份完整源码归档**，其余 41 项及传递依赖、全部许可证/补丁适用性和二进制对应仍未验收。这不代表可以公开分发。
+
+## 2026-10-09 上游源码根目录许可证证据批量核查
+
+本轮只在家用 B5 工作树增加一项针对 GitHub **精确 Commit** 的许可证原文归档工具，结合上轮已确认的 43 个启用库、42 个不同来源仓库：GitHub 29 个仓库的根 LICENSE/COPYING/COPYRIGHT/NOTICE/AUTHORS 候选均已通过实际 API 与 Git blob SHA-1 核验，取得 49 份根文件和对应 SHA-256；无失败。29 个仓库的根文件可审查，不等于 29 个库的许可证/源码法律闭环，也不等于全部 42 个仓库。余下 13 个非 GitHub 仓库、源码 TAR（目前独立验证 2 份）、传递依赖、实际二进制构建关联、静态 LGPL3 对应源码/重新链接义务仍是正式发行 P1 阻塞。见 `docs/legal/NATIVE-MEDIA-LICENSE-EVIDENCE.md` 与 `native-media-license-availability.json`。正式发布 FAIL，`build/release-approval.json` 不变。
