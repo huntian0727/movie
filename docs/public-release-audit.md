@@ -122,3 +122,9 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 本轮首次本地 release gate **FAIL**：Vitest 意外纳入 `node:test` 新文件，原有 1175 项单测通过但多一个无法由 Vitest 加载的 suite（131/132 files）。原样保留 `.tmp/handoff-20261008-release-gate.log`。将新增测试更名为 `.node-test.mjs` 并保留为 `node --test` 明确执行后，完整 `test:release-gate` **PASS（退出码0，131 文件/1175 旧测试加5项新测试，无跳过，Vitest 阶段320.88秒）**；Electron 主进程 smoke **PASS**、renderer-security smoke **PASS**。全部实测日志本地忽略目录，首轮失败没有从记录中删除。
 
 需要维护者集中确认的权属/许可证、签名/独立审核、永久删除默认与旧参数、隐私公开范围和旧正式升级样本，单独记录于 [公众发布决策清单](public-release-owner-decisions.md)。**工程验收 PASS_WITH_RISKS，正式公众发布 FAIL；所有审批字段保持失败关闭。**
+
+## 2026-10-09 默认安全策略落地（当前 PR 继续评审）
+
+维护者已批准“默认安全、技术由工程处理”的保守方案，**没有授权许可证、正式发行和真实资料删除测试**。现行应用 UI 已改接 `onSubmitCleanup` 完整 SHA-256 校验，快速单项/当前页/筛选全集元数据删除入口不再对正常用户提供；完整校验成功后，用户仍须在后台任务二次输入 `DELETE` 才允许永久删除。旧 `autoDeleteAfterVerification=true` 直接拒绝；`submitFiltered` 及已有 workflowVersion=3 的 resume/retry/replay 在服务层拒绝，pump 再拒绝启动版本3任务，防止重启旧未完成快速任务意外执行。**快速元数据删除整个模式暂不可用**，未来 opt-in 需要独立设计和授权，绝非默认开启。未修改允许更改主数据、视频或批准发行的代码。
+
+安全测试/本轮最新实际结果见 `docs/ai/deliveries/2026-10-09-public-release-safe-delete-default.md`。虽然此项产品默认策略无需再等维护者逐项选择，其他发布阻塞——代码/图标权属、MIT/Apache 最终授权、完整 FFmpeg/FFprobe 对应源码与 wrapper 许可、签名及独立 reviewer、干净稳定 Win11 与历史签名版升级、历史个人信息公开范围——保持。**正式公众发布仍 FAIL。**

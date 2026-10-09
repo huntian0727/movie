@@ -1075,19 +1075,7 @@ export function LibraryShell({
             onBindLegacyCloudDrive={duplicateCleanupApi?.bindLegacyCloudDriveDuplicates}
             onGetLegacyCloudDriveBindingStatus={duplicateCleanupApi?.getLegacyCloudDriveBindingStatus}
             onCancelLegacyCloudDriveBinding={duplicateCleanupApi?.cancelLegacyCloudDriveBinding}
-            onAutoDelete={duplicateCleanupApi ? (plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId: crypto.randomUUID(), plan, sourceView: "duplicates-one-click", autoDeleteAfterVerification: true }) : undefined}
-            onAutoDeleteFiltered={duplicateCleanupApi?.submitFilteredDuplicateCleanup ? () => duplicateCleanupApi.submitFilteredDuplicateCleanup!({
-              requestId: crypto.randomUUID(),
-              query: {
-                page: 1,
-                pageSize: duplicatePageSize,
-                sortField: duplicateSortField,
-                sortDirection: duplicateSortDirection,
-                ...(duplicatePreferredDirectories.length > 0 ? { preferredDirectoryPaths: duplicatePreferredDirectories.map((directory) => directory.path) } : {}),
-                ...(duplicateFilterDirectoryPath ? { filterDirectoryPath: duplicateFilterDirectoryPath } : {})
-              },
-              sourceView: "duplicates-all-filtered"
-            }) : undefined}
+            onSubmitCleanup={duplicateCleanupApi ? (requestId, plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId, plan, sourceView: "duplicates-verified" }) : undefined}
             onFilteredCleanupAccepted={() => {
               setDuplicateFilterDirectoryPath("");
               setDuplicatePageNumber(1);

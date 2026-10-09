@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 自有代码与素材的权利 | 确认本人对历史提交、图标、截图、引用代码、NativeHost C# 及 AI 生成部分拥有公开授权所需权利；列出非本人授权的部分 | Git 历史有 Codex、dependabot、仓库所有者三类作者身份；提交人名称不足以证明第三方代码权属。当前不授予任何项目许可 |
 | 应用许可证 | 选择 MIT、Apache-2.0，或暂缓；确定署名与版权主体 | MIT 较简短、宽松；Apache-2.0 含明确专利授权。项目许可**不替代** FFmpeg 和 JavaScript 包装层许可审查 |
-| 高风险永久删除 | 公众版是否采用 A：默认不开启“名称+大小”快速永久删；逐任务主动启用＋强确认；或 B：现有默认＋加强说明；旧 `autoDeleteAfterVerification` 为 true 时拒绝/人工确认/兼容继续？ | 建议 A：默认走内容校验流程；快速删除须逐次展示保留目标、待删数量、来源和“非整文件 SHA 证明”，输入指定确认词。两条现行入口 `duplicateCleanupSubmit` 与 `duplicateCleanupSubmitFiltered` 都须受保护，后者无条件提交 workflow3 快速作业；`autoDeleteAfterVerification` 为 true 在 `submit()` 优先走 `submitFast`，旧兼容回退到 legacy submit。旧 true 请求禁止静默执行，需明确迁移策略。未经决定不改现行行为 |
+| 高风险永久删除 | **已按用户默认授权选择保守策略**，当前不再等待额外决策 | 2026-10-09 实施：元数据快速永久删除整个模式暂时关闭，不提供 opt-in 开关；只有完整 SHA-256 验证并二次输入 `DELETE` 后才可执行真正永久清理。旧 `autoDeleteAfterVerification=true`、筛选全集 API 快速删除及历史 workflow3 的续跑/重试均失败关闭。若将来想重新开放“快速删除” opt-in，必须另行评审显式逐任务确认及安全协议，不能自动恢复旧默认 |
 | 正式签名 | 决定个人或组织证书主体、供应商/云签名服务与证书托管方式，以及预期发布者完整 CN | 当前 GitHub Actions 采用 PFX/electron-builder，需在 GitHub Environment Secrets 设置 `WINDOWS_CSC_LINK`、`WINDOWS_CSC_KEY_PASSWORD`，Variables 设置 `WINDOWS_EXPECTED_PUBLISHER`。**不在聊天中发送密钥/密码** |
 | 独立审核人 | 提供可信任的第二个 GitHub 账户，并授权其审核正式发行 | 当前仓库可查询到的 collaborator 仅维护者本人；`public-release` 环境接口为 404。门禁要求 required reviewer、prevent self-review、禁止管理员绕过、仅 `v*` 标签部署；没有独立人选不得放宽 |
 | 发布审批变量 | 为完成审查后赋值，不是为了绕过阻塞 | `RELEASE_LICENSE_APPROVED`、`RELEASE_BINARY_COMPLIANCE_APPROVED`、`RELEASE_MANUAL_QA_APPROVED` 均须有实际通过材料后才设为 true |

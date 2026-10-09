@@ -527,7 +527,7 @@ export function DuplicateGroupsPage({
       <div className="duplicate-summary">
         <details className="duplicate-rule-note">
           <summary>候选判定规则</summary>
-          <p>候选发现只使用精确文件大小和整秒时长，不读取视频内容、不计算 SHA-256。批量删除只处理具有 CloudDrive 远端身份的候选项，并通过 API 执行。</p>
+          <p>候选发现只使用精确文件大小和整秒时长，不能证明内容相同。快速永久删除默认关闭；请通过“验证当前页”计算完整 SHA-256，验证相同后再在后台任务中二次确认永久删除。</p>
         </details>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
@@ -578,7 +578,7 @@ export function DuplicateGroupsPage({
             </select>
           </label>
           <p className="duplicate-directory-ranking-note">
-            显示 {rankedDirectoryOptions.length.toLocaleString()} / {directoryOptions.length.toLocaleString()} 个目录；数值是候选估算。API 快速删除只核对缓存身份，不完整读取视频或比较 SHA-256，候选内容可能不同。
+            显示 {rankedDirectoryOptions.length.toLocaleString()} / {directoryOptions.length.toLocaleString()} 个目录；数值是候选估算，不代表文件内容相同。元数据快速永久删除已关闭，清理需完整 SHA-256 验证和二次确认。
           </p>
           {currentPreferredDirectory && <div className="duplicate-directory-scope" aria-label="当前优先保留目录">
             <p>当前优先保留：<code title={currentPreferredDirectory.path}>{currentPreferredDirectory.path}</code>（含子目录）
@@ -697,13 +697,13 @@ export function DuplicateGroupsPage({
             page={page}
             pageSize={pageSize}
             keepVideoId={manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId}
-            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending}
+            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending || !onAutoDelete}
             onSetKeep={handleSetKeep}
             onPreferDirectory={changePreferredDirectory}
             onOpen={onOpen}
             onViewDetails={onViewDetails}
             onRevealInFolder={revealVideo}
-            onDeleteCandidate={handleDeleteCandidate}
+            onDeleteCandidate={onAutoDelete ? handleDeleteCandidate : undefined}
           />
         )} />}
 
@@ -806,7 +806,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   onOpen(video: VideoRecord, groupVideos: VideoRecord[]): void;
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
-  onDeleteCandidate(group: DuplicateGroup, selectedKeep: string, videoId: string): void;
+  onDeleteCandidate?(group: DuplicateGroup, selectedKeep: string, videoId: string): void;
 }) {
   const sortedItems = useMemo(
     () => [...group.items].sort((left, right) => left.video.filename.localeCompare(right.video.filename, "zh-CN")),
@@ -864,7 +864,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
                 <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
                 <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
                 <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
-                <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} disabled={cleanupDisabled || item.canAutoDelete === false} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>
+                {onDeleteCandidate && <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} disabled={cleanupDisabled || item.canAutoDelete === false} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>}
               </div>
             </article>
           );

@@ -49,7 +49,6 @@ export class DuplicateCleanupService {
   private currentJobId: string | null = null;
   private currentVerificationAbort: AbortController | null = null;
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly legacyAutoDeleteJobIds = new Set<string>();
   private readonly deleteFile: (filePath: string) => Promise<void>;
   private readonly hashFile: (filePath: string, signal?: AbortSignal) => Promise<string>;
   private readonly renameFile: (source: string, destination: string) => Promise<void>;
@@ -85,28 +84,31 @@ export class DuplicateCleanupService {
   preview(request: DuplicateCleanupSubmitRequest) { return this.jobs.preview(request); }
 
   submit(request: DuplicateCleanupSubmitRequest): DuplicateCleanupAccepted {
-    const existing = this.jobs.findAcceptedRequest(request.requestId);
-    if (existing) return existing;
-    let accepted: DuplicateCleanupAccepted;
-    if (request.autoDeleteAfterVerification) {
-      try {
-        accepted = this.jobs.submitFast(request);
-      } catch (error) {
-        if (!(error instanceof Error) || !error.message.includes("not managed by CloudDrive API")) throw error;
-        // Preserve the retired local-filesystem workflow for old persisted callers.
-        // The renderer no longer exposes it; current CloudDrive plans always use the API path above.
-        accepted = this.jobs.submit(request);
-        this.legacyAutoDeleteJobIds.add(accepted.jobId);
-      }
-    } else {
-      accepted = this.jobs.submit(request);
+    // Public-release default: old autoDeleteAfterVerification=true was overloaded
+    // to mean unverified CloudDrive API deletion. Reject even on replay/idempotency.
+    if (request.autoDeleteAfterVerification === true) {
+      throw new Error("旧自动清理参数已禁用。请重新创建完整 SHA-256 验证任务，验证完成后人工确认。");
     }
-    this.bindNewFastJob(accepted);
+    const existing = this.jobs.findAcceptedRequest(request.requestId);
+    if (existing) {
+      if (this.jobs.getJob(existing.jobId).workflowVersion === 3) {
+        throw new Error("未验证的旧快速永久删除任务已暂停，请取消并清除后重新完整验证。");
+      }
+      return existing;
+    }
+    const accepted = this.jobs.submit(request);
     if (accepted.status === "queued") this.enqueue(accepted.jobId);
     return accepted;
   }
 
-  async submitFiltered(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted> {
+  async submitFiltered(_request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted> {
+    // A metadata-only filtered plan cannot prove that any two files have equal content.
+    // Explicit opt-in is intentionally unavailable until a separately reviewed protocol
+    // has a strong per-task confirmation and audited deletion authorization.
+    throw new Error("全部筛选结果的快速永久删除已默认关闭；请在当前页使用完整 SHA-256 验证和二次确认。");
+  }
+
+  private async disabledLegacyFilteredPreparation(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted> {
     if (this.stopped) throw new Error("Duplicate cleanup service has stopped");
     if (this.preparationDatabasePath) {
       const snapshot = structuredClone(request);
@@ -169,6 +171,9 @@ export class DuplicateCleanupService {
   }
 
   resume(jobId: string): DuplicateCleanupJob {
+    if (this.jobs.getJob(jobId).workflowVersion === 3) {
+      throw new Error("旧快速清理任务不能继续；请取消并清除后使用完整 SHA-256 验证。");
+    }
     this.assertFastConnection(jobId);
     const job = this.jobs.resume(jobId);
     this.enqueue(jobId);
@@ -177,6 +182,9 @@ export class DuplicateCleanupService {
   }
 
   retry(jobId: string): DuplicateCleanupJob {
+    if (this.jobs.getJob(jobId).workflowVersion === 3) {
+      throw new Error("旧快速清理任务不能重试；请清除后使用完整 SHA-256 验证。");
+    }
     this.assertFastConnection(jobId);
     const job = this.jobs.retry(jobId);
     this.enqueue(jobId);
@@ -256,6 +264,9 @@ export class DuplicateCleanupService {
       while (!this.stopped) {
         const jobId = this.pendingJobs.shift();
         if (!jobId) break;
+        // Belt-and-suspenders: even a stale queued task must never start the
+        // metadata-only deletion worker after the public-safe default is enabled.
+        if (this.jobs.getJob(jobId).workflowVersion === 3) continue;
         if (!this.jobs.start(jobId)) continue;
         this.currentJobId = jobId;
         this.publish(jobId);
@@ -288,12 +299,8 @@ export class DuplicateCleanupService {
         this.publish(jobId);
       }
       if (!this.stopped) {
-        const verifiedJob = this.jobs.completeVerification(jobId);
+        this.jobs.completeVerification(jobId);
         this.publish(jobId, true);
-        if (this.legacyAutoDeleteJobIds.delete(jobId) && verifiedJob.verificationRevision && verifiedJob.identicalItems > 0) {
-          this.jobs.authorizeDeletion({ jobId, verificationRevision: verifiedJob.verificationRevision, confirmation: "DELETE" });
-          if (this.jobs.start(jobId)) await this.runDeletion(jobId);
-        }
       }
     } catch (error: unknown) {
       if (controller.signal.aborted || this.stopped || this.jobs.isCancelling(jobId) || isAbortError(error)) {

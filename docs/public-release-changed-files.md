@@ -200,3 +200,14 @@
 - `docs/ai/deliveries/2026-10-08-release-handoff-media-candidate.md`：本轮真实交付记录。
 
 若与 PR 当前文件清单产生差异，以实际 `git diff` 及 PR 文件列表为准。未分发候选压缩包/EXE、临时合成媒体、证据 JSON 和测试日志。
+
+## 2026-10-09 后续默认安全修改
+
+- `src/main/media/duplicateCleanupService.ts`：服务端 fail-closed 禁止遗留自动/无哈希删除、筛选全集提交、旧 fast 作业恢复重试以及 worker 启动，移除隐式自动确认。
+- `src/renderer/components/LibraryShell.tsx`：面向公众仅连接“完整 SHA-256 验证”两阶段提交，不暴露快速永久删除回调。
+- `src/renderer/components/DuplicateGroupsPage.tsx`：无快速删除回调时不提供单项快速按钮，候选数据不是内容相同证明的提示更明确。
+- `src/renderer/components/DuplicateCleanupTasksPanel.tsx`：旧 fast 任务显示为停用，不提供继续/重试按钮；保留取消和终止清理记录能力。
+- `tests/main/duplicateCleanupJobs.test.ts`：旧行为用同等验证范围的失败关闭测试取代，新增旧请求重放、筛选提交拒绝测试；不删除测试。
+- `tests/renderer/DuplicateGroupsPage.test.tsx`：与新安全提示一致的断言。
+- `docs/ai/deliveries/2026-10-09-public-release-safe-delete-default.md`：独立交付及测试证据。
+- `docs/windows-installation.md`、`docs/public-release-audit.md`、`docs/public-release-owner-decisions.md`：更新当前默认行为与剩余阻塞。

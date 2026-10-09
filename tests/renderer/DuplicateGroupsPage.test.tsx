@@ -167,7 +167,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
     expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument();
-    expect(screen.getByText(/候选发现只使用精确文件大小/)).toHaveTextContent(/不计算 SHA-256/);
+    expect(screen.getByText(/候选发现只使用精确文件大小/)).toHaveTextContent(/快速永久删除默认关闭/);
     expect(container).toHaveTextContent(/计划保留/);
     expect(container).toHaveTextContent(/共 2 份 · 计划保留 1 份 · 可删除 1 份/);
     expect(container).toHaveTextContent(/可释放/);

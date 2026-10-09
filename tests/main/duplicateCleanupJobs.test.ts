@@ -54,23 +54,24 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     service.stop();
   });
 
-  it("auto-deletes only after full SHA-256 verification when explicitly requested", async () => {
+  it("rejects legacy autoDeleteAfterVerification=true before creating any task or deleting files", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
     const deleteFile = vi.fn(async (filePath: string) => rm(filePath, { force: true }));
-    const service = createService(jobs, repo, { deleteFile, hashFile: async () => "a".repeat(64) });
+    const hashFile = vi.fn(async () => "a".repeat(64));
+    const service = createService(jobs, repo, { deleteFile, hashFile });
 
-    const accepted = service.submit({ requestId: "verified-auto-delete", plan, autoDeleteAfterVerification: true });
-    const completed = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
-
-    expect(completed).toMatchObject({ status: "completed", identicalItems: 1, successItems: 1 });
-    expect(deleteFile).toHaveBeenCalledOnce();
-    await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(() => service.submit({ requestId: "verified-auto-delete", plan, autoDeleteAfterVerification: true })).toThrow(/旧自动清理参数已禁用/);
+    expect(() => service.submit({ requestId: "verified-auto-delete", plan, autoDeleteAfterVerification: true })).toThrow();
+    expect(jobs.listJobs(1, 20).totalItems).toBe(0);
+    expect(hashFile).not.toHaveBeenCalled();
+    expect(deleteFile).not.toHaveBeenCalled();
+    expect((await stat(deleteVideo.path)).isFile()).toBe(true);
     service.stop();
   });
 
-  it("deletes CloudDrive candidates through the API without hashing file content", async () => {
+  it("rejects CloudDrive API fast deletion without hashing or removing any candidate", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
     repo.setSourceFolderProvider(keepVideo.sourceFolderId, { type: "clouddrive", rootPath: "/115", name: "115" });
@@ -83,13 +84,40 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     const deleteCloudFiles = vi.fn().mockResolvedValue({ success: true, errorMessage: "", resultFilePaths: ["/115/delete.mp4"] });
     const service = createService(jobs, repo, { hashFile, deleteCloudFiles });
 
-    const accepted = service.submit({ requestId: "cloud-fast-delete", plan, autoDeleteAfterVerification: true });
-    const completed = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
-
-    expect(completed).toMatchObject({ workflowVersion: 3, status: "completed", successItems: 1 });
-    expect(deleteCloudFiles).toHaveBeenCalledWith(["/115/delete.mp4"], true, expect.any(Function));
+    expect(() => service.submit({ requestId: "cloud-fast-delete", plan, autoDeleteAfterVerification: true })).toThrow(/已禁用/);
+    expect(jobs.listJobs(1, 20).totalItems).toBe(0);
+    expect(deleteCloudFiles).not.toHaveBeenCalled();
     expect(hashFile).not.toHaveBeenCalled();
-    expect(() => repo.getVideo(deleteVideo.id)).toThrow();
+    expect(repo.getVideo(deleteVideo.id)).toBeTruthy();
+    service.stop();
+  });
+
+  it("fails closed for filtered rapid deletion even with a valid query", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const deleteCloudFiles = vi.fn();
+    const service = createService(jobs, repo, { deleteCloudFiles });
+    await expect(service.submitFiltered({
+      requestId: "filtered-fast-disabled",
+      query: { page: 1, pageSize: 20, sortField: "sizeBytes", sortDirection: "desc" }
+    })).rejects.toThrow(/默认关闭/);
+    expect(jobs.listJobs(1, 20).totalItems).toBe(0);
+    expect(deleteCloudFiles).not.toHaveBeenCalled();
+    expect((await stat(deleteVideo.path)).isFile()).toBe(true);
+    service.stop();
+  });
+
+  it("refuses replay of an existing unverified fast request as a verified request", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    bindCloudFixture(repo, keepVideo, deleteVideo);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const existing = jobs.submitFast({ requestId: "old-fast-id", plan });
+    const service = createService(jobs, repo);
+    expect(() => service.submit({ requestId: "old-fast-id", plan })).toThrow(/旧快速永久删除任务已暂停/);
+    expect(jobs.getJob(existing.jobId).workflowVersion).toBe(3);
+    expect((await stat(deleteVideo.path)).isFile()).toBe(true);
     service.stop();
   });
 
@@ -109,7 +137,7 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     expect(jobs.listItems(accepted.jobId, 1, 20).items[0].status).toBe("cancelled");
   });
 
-  it("requires matching connection binding for manual resume and retry, including old unbound jobs", async () => {
+  it("blocks manual resume and retry of existing unverified CloudDrive jobs even with matching bindings", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
     bindCloudFixture(repo, keepVideo, deleteVideo);
@@ -119,16 +147,15 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     let binding = "b".repeat(64);
     const service = createService(jobs, repo, { deleteCloudFiles, getCloudConnectionBinding: () => binding });
     expect(jobs.getJob(accepted.jobId).status).toBe("interrupted");
-    expect(() => service.resume(accepted.jobId)).toThrow(/连接或账号/);
+    expect(() => service.resume(accepted.jobId)).toThrow(/旧快速清理任务不能继续/);
     jobs.bindCloudDriveConnection(accepted.jobId, "a".repeat(64));
-    expect(() => service.resume(accepted.jobId)).toThrow(/连接或账号/);
+    expect(() => service.resume(accepted.jobId)).toThrow(/旧快速清理任务不能继续/);
     jobs.requestCancel(accepted.jobId); jobs.finishCancelled(accepted.jobId);
-    expect(() => service.retry(accepted.jobId)).toThrow(/连接或账号/);
+    expect(() => service.retry(accepted.jobId)).toThrow(/旧快速清理任务不能重试/);
     expect(deleteCloudFiles).not.toHaveBeenCalled();
     binding = "a".repeat(64);
-    service.retry(accepted.jobId);
-    await waitFor(jobs, accepted.jobId, job => job.phase === "finished");
-    expect(deleteCloudFiles).toHaveBeenCalledOnce();
+    expect(() => service.retry(accepted.jobId)).toThrow(/旧快速清理任务不能重试/);
+    expect(deleteCloudFiles).not.toHaveBeenCalled();
     service.stop();
   });
 
@@ -147,7 +174,7 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     expect(() => jobs.assertCloudDriveConnectionChangeAllowed()).not.toThrow();
   });
 
-  it("commits a successful CloudDrive batch with one removal event", async () => {
+  it("rejects unverified CloudDrive batches without emitting any removal events", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const secondDelete = await createVideo(repo, keepVideo.sourceFolderId, path.join(path.dirname(deleteVideo.path), "delete-2.mp4"), 1);
@@ -168,11 +195,12 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
       domainEvents: { publish }
     });
 
-    const accepted = service.submit({ requestId: "cloud-batch-delete", plan, autoDeleteAfterVerification: true });
-    await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
-
+    expect(() => service.submit({ requestId: "cloud-batch-delete", plan, autoDeleteAfterVerification: true })).toThrow(/已禁用/);
     const removalEvents = publish.mock.calls.map(([event]) => event).filter((event) => event.type === "video:removed");
-    expect(removalEvents).toEqual([{ type: "video:removed", videoIds: [deleteVideo.id, secondDelete.id] }]);
+    expect(removalEvents).toEqual([]);
+    expect(repo.getVideo(deleteVideo.id)).toBeTruthy();
+    expect(repo.getVideo(secondDelete.id)).toBeTruthy();
+    expect(jobs.listJobs(1, 20).totalItems).toBe(0);
     service.stop();
   });
 
