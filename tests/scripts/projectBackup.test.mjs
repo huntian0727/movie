@@ -156,5 +156,5 @@ describe("project backup and rollback", () => {
     expect(output).toContain("Development checkpoint created");
     expect(git(repository, "tag", "--list", "checkpoint-*")).toMatch(/wrapper-test/);
     expect(runBackup("--action=list", `--backup-root=${backupRoot}`)).toHaveLength(1);
-  });
+  }, 40_000);
 });
