@@ -170,3 +170,7 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 追加 [FFmpeg Lite SPDX 2.3 清单](legal/FFMPEG-LITE-SBOM.spdx.json)：读取家用 B5 的精确 13 个固定归档条目和两个本地衍生证据文件，逐个核对真实字节 SHA 后生成**7 件原生二进制**对应包和文件哈希（FFmpeg、FFprobe、五个 DLL）。新增可复现脚本 `npm run release:sbom-lite`，在 Lite 安装器的 `release:metadata` 流程自动附带同源 SBOM 及 `SHA256SUMS.txt`。本轮未重新创建/批准正式安装包；这只是发布元数据能力。详见 [二进制—源码映射](legal/BINARY-SOURCE-MAP.md)、[第三方声明索引](legal/THIRD_PARTY_NOTICES.md)。
 
 所有未知 MSYS2 包精确版本、源码构建关联及许可证结论仍明确记为 `NOASSERTION` / `EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED`。**不因为有 SBOM 就修改 `build/release-approval.json.approved=false`**，不公开上传尚未满足对应源码/许可和独立干净 Windows 11 QA 的安装包。
+
+## 2026-10-09 FFmpeg Lite 四份依赖对应源码取得（新增最终证据）
+
+在家用 B5 上从 MSYS2 可信同步镜像完整下载四份精确版本源码压缩包并校验，来源对应已锁定四份二进制包和五个 DLL；对应 PKGBUILD **4/4 字节哈希等于二进制包 BUILDINFO 配方**。建立 `scripts/audit-native-msys2-sources.mjs`、`docs/legal/MSYS2-EXACT-SOURCE-EVIDENCE.json` 和源码合同测试。原来的“MSYS2 源码包仍未下载”阻塞项现已关闭；最终 LGPL 适用性、源码随 Release 提供、干净稳定 Win11 QA 和 owner 批准仍未关闭。用于最终审核的完整源码材料 ZIP 暂存家用 B5 D 盘，不可当正式发行许可证。

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "releaseAllowed": false,
+  "status": "FOUR_MSYS2_SOURCE_ARCHIVES_VERIFIED_WITH_EXACT_BUILD_RECIPES; FFMPEG_LGPL_RELINK_REVIEW_OPEN",
+  "description": "These original MSYS2 source packages are archived and hash-verified, with their PKGBUILD byte-identical to BUILDINFO of 5/5 selected DLLs. Not proof of all corresponding-source and LGPL license duties, not a public-release authorization.",
+  "originalWindowsBuild": {
+    "repository": "serversideup/ffmpeg-lgpl-builds",
+    "runId": 29303740323,
+    "jobId": 86992785957,
+    "headSha": "8bd22e8859595e7b9f5d58cbf7af59c04fbe2fac",
+    "builtAt": "2026-07-14",
+    "logsUrl": "https://github.com/serversideup/ffmpeg-lgpl-builds/actions/runs/29303740323/job/86992785957"
+  },
+  "packages": [
+    {
+      "sourcePackage": "mingw-w64-libvpl-2.17.0-1.src.tar.zst",
+      "sha256": "4bd392447f4a5f986462cfc412ab7ace3dfaa980e53b41f35d08c44b8b31cc9d",
+      "bytes": 12923471,
+      "url": "https://repo.msys2.org/mingw/sources/mingw-w64-libvpl-2.17.0-1.src.tar.zst",
+      "memberCount": 7,
+      "sourcePayloadPresent": true,
+      "pkbuildSha256": "25e2112ac24d70e385bdf6b2152d3c362f0b590dcd1eff6c07bed79c5bf5be65",
+      "matchesOriginalBinaryBuildInfo": true,
+      "historicalGitCommit": "6b0a4b9cab8a1dd3c2d8cb9ba9e7b119c272b6b5",
+      "associatedBinaryPackage": "mingw-w64-x86_64-libvpl-2.17.0-1",
+      "sourceDistributionCompleteForPackage": "ARCHIVE_AND_BUILD_RECIPE_OBTAINED; EXTERNAL_LICENSE_AND_RELINKING_REVIEW_OPEN"
+    },
+    {
+      "sourcePackage": "mingw-w64-openh264-2.6.0-1.src.tar.zst",
+      "sha256": "034c3e843d8bd584ffd95d89c8cdecfb71a0191afaacc2ccb6b12ca3119541ac",
+      "bytes": 60290594,
+      "url": "https://repo.msys2.org/mingw/sources/mingw-w64-openh264-2.6.0-1.src.tar.zst",
+      "memberCount": 5,
+      "sourcePayloadPresent": true,
+      "pkbuildSha256": "f6e6c2b17f8724b2e471cd3252115ef9a4d9f569287521a5e688224261318393",
+      "matchesOriginalBinaryBuildInfo": true,
+      "historicalGitCommit": "3aeb27c5a29430a0851fd7b1d5f22c5f84e396bf",
+      "associatedBinaryPackage": "mingw-w64-x86_64-openh264-2.6.0-1",
+      "sourceDistributionCompleteForPackage": "ARCHIVE_AND_BUILD_RECIPE_OBTAINED; EXTERNAL_LICENSE_AND_RELINKING_REVIEW_OPEN"
+    },
+    {
+      "sourcePackage": "mingw-w64-winpthreads-14.0.0.r179.g24aaa6147-1.src.tar.zst",
+      "sha256": "5b1659ca665551b57c3c4b0075ef323839457eeb62c3cc3855df9149f84978d6",
+      "bytes": 51994397,
+      "url": "https://repo.msys2.org/mingw/sources/mingw-w64-winpthreads-14.0.0.r179.g24aaa6147-1.src.tar.zst",
+      "memberCount": 35,
+      "sourcePayloadPresent": true,
+      "pkbuildSha256": "55d530e1f88cf65e90ed44b5dca0a7bea41cfa530a87df742e9874a543e8b074",
+      "matchesOriginalBinaryBuildInfo": true,
+      "historicalGitCommit": "b67b45ace97d4bc6dabdd56177ff3952d049a145",
+      "associatedBinaryPackage": "mingw-w64-x86_64-libwinpthread-14.0.0.r179.g24aaa6147-1",
+      "sourceDistributionCompleteForPackage": "ARCHIVE_AND_BUILD_RECIPE_OBTAINED; EXTERNAL_LICENSE_AND_RELINKING_REVIEW_OPEN"
+    },
+    {
+      "sourcePackage": "mingw-w64-gcc-16.1.0-5.src.tar.zst",
+      "sha256": "947166ed372d28ab8ffa25a66bc5e37a60a42e96a686424ce58cad304fcaea15",
+      "bytes": 102479270,
+      "url": "https://repo.msys2.org/mingw/sources/mingw-w64-gcc-16.1.0-5.src.tar.zst",
+      "memberCount": 19,
+      "sourcePayloadPresent": true,
+      "pkbuildSha256": "40f248fa589babd9315cc589a76a0c00939355bd68c92287a2dcb7d1acb58f96",
+      "matchesOriginalBinaryBuildInfo": true,
+      "historicalGitCommit": "18aeb95f69dd6bd3c9172a938c9fd35491536410",
+      "associatedBinaryPackage": "mingw-w64-x86_64-gcc-libs-16.1.0-5",
+      "sourceDistributionCompleteForPackage": "ARCHIVE_AND_BUILD_RECIPE_OBTAINED; EXTERNAL_LICENSE_AND_RELINKING_REVIEW_OPEN"
+    }
+  ]
+}

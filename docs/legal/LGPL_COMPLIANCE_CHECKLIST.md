@@ -11,7 +11,7 @@
 | Windows 构建脚本及精确来源 | `v8.1.2-27` Git Commit 与 Windows job 对应 | **通过** |
 | 五个 DLL 实际原始包来源 | 4 MSYS2 包 SHA，5 DLL SHA、PKGINFO/BUILDINFO、4 PKGBUILD SHA | **通过** |
 | 附带 LGPL 及第三方原始许可证文本 | 候选带 LGPL、oneVPL、OpenH264、winpthreads、GCC，GCC exception 原文另已归档 | **已有原文，完整适用性仍需最后核实** |
-| 额外依赖的准确对应源码 | MSYS2 历史源码包链接已定位，完整归档/核验未做完 | **待完成** |
+| 额外依赖的准确对应源码 | 四份精确版本的 MSYS2 原始源码包已归档，4/4 归档哈希、4/4 包内 PKGBUILD 与实际 BUILDINFO 对应；[机器证据](MSYS2-EXACT-SOURCE-EVIDENCE.json) | **源码包取得与校验通过；相关许可证最终适用性仍待核** |
 | LGPL 静态链接与修改后重链接材料 | 已保存构建脚本，但尚未复建或核实对象/重链接适用义务 | **待完成** |
 | 对应源码随正式 Release 同等提供 | 目前没有正式安装包或 Release 源码附件 | **待完成** |
 | 应用下载页显著呈现 LGPL 与源码链接 | [SOURCE_OFFER.md](SOURCE_OFFER.md) 仍为候选索引，待真实 Release URL | **待正式上传时填写** |

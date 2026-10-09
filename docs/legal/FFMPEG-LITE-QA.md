@@ -75,3 +75,9 @@ npm run test:installer-smoke
 四个原始软件包的 `.BUILDINFO` 各自存有 `pkgbuild_sha256sum`，本轮针对相应构建日期在 `msys2/MINGW-packages` 找回并固定 Git 历史提交。分别提取 **libvpl、OpenH264、winpthreads、GCC** 彼时 PKGBUILD 原文，四份 SHA-256 与 `.BUILDINFO` **完全一致**。对应原文及四份未解压的 MSYS2 二进制包归档在 B5 `D:/CodexReleaseAudit/ffmpeg-lite-20261009/msys2-*` 目录；仓库只保存可公开的哈希、Commit 与 URLs，而不提交 DLL 或临时数据。
 
 复核命令：设置 `MOVIE_MSYS2_AUDIT_DIR` 为四份原始 `.pkg.tar.zst` 所在目录，设置 `MOVIE_MSYS2_PKGBUILD_DIR` 为四份 Git 历史 `PKGBUILD` 的目录，然后运行 `npm run audit:msys2-provenance`。任一软件包 SHA、包内 DLL、PKGINFO/BUILDINFO、构建脚本 SHA 或 Git 锁不符即失败。源代码本体和独立稳定 Win11 验收依然未批准；软件发行继续禁止。
+
+## 2026-10-09 对应源码全量归档及新的验证（覆盖前面的历史未完成状态）
+
+上方“仅下载部分源码”属于此前一次尝试的历史记录，**现已完成这部分工作**。本次经 USTC MSYS2 官方同步镜像，取得对应 `libvpl 2.17.0-1`、`openh264 2.6.0-1`、`winpthreads 14.0.0.r179.g24aaa6147-1`、`gcc 16.1.0-5` 的四份精确源代码压缩包，逐个验其 SHA、完整 TAR 内容和包内 `PKGBUILD` 的真实字节。全部四份包内构建脚本 SHA 均与原来实际二进制包 `.BUILDINFO` 匹配，**4/4 通过**。复现命令：配置 `MOVIE_MSYS2_SOURCE_DIR` 为家用 B5 的 `D:\CodexReleaseAudit\ffmpeg-lite-20261009\msys2-exact-source-packages`，运行 `npm run audit:msys2-sources`。项目内新增 [固定归档证据](MSYS2-EXACT-SOURCE-EVIDENCE.json)，并包含对格式和证据的 Node 合同测试。
+
+完整审核源码包已组合成 B5 上仅内部留存的 `FFmpeg-Lite-8.1.2-corresponding-sources-REVIEW-v2.zip`，附逐文件 `SHA256SUMS.txt` 和 README。此进展只关闭**源码下载/归档**问题，不替代 LGPL 静态重链接材料核实、真实稳定干净 Win11 安装/播放验收和最终授权。

@@ -23,12 +23,16 @@
 
 ## 关于分发
 
-`scripts/generate-native-lite-sbom.mjs` 必须读取本地**真实候选文件**并核验原始锁定哈希才产生 [SPDX 2.3](FFMPEG-LITE-SBOM.spdx.json)。未知许可证、未知二进制与源码关联，一律标记为 `NOASSERTION` / **EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED**，不虚构 SPDX 完成证明。
+`scripts/generate-native-lite-sbom.mjs` 必须读取本地**真实候选文件**并核验原始锁定哈希才产生 [SPDX 2.3](FFMPEG-LITE-SBOM.spdx.json)。尚未独立做出结论的许可仍标记 `NOASSERTION`；五份 DLL 已经完成 MSYS2 原包字节校验和四份完整源码包/构建配方核验，不再使用旧的来源未知状态，不虚构 SPDX 完成证明。
 
-当前 `build/release-approval.json` 的 `approved=false`，**没有任何人可以仅凭此 SBOM 解锁公众安装包**。四个原始 MSYS2 二进制包、`.PKGINFO/.BUILDINFO`、确切版本以及五个 DLL 的字节匹配已完成。下一步只需完成源代码包/附带条款归档核对、FFmpeg 对应源码提供及独立干净 Windows 11 安装验收，之后再决定允许社区版正式发布。
+当前 `build/release-approval.json` 的 `approved=false`，**没有任何人可以仅凭此 SBOM 解锁公众安装包**。四个原始 MSYS2 二进制包、`.PKGINFO/.BUILDINFO`、确切版本以及五个 DLL 的字节匹配已完成。四份源码包现已下载并校验完成（详见 [对应源码机器证据](MSYS2-EXACT-SOURCE-EVIDENCE.json)）。剩余实际阻塞是 LGPL 静态重链接/第三方许可核实、将源码材料与最终安装包在正式 Release 同步提供，以及独立干净 Windows 11 验收。
 
 ## 2026-10-09 构建脚本原始字节补证
 
 在已经完成四个 MSYS2 二进制包/五个 DLL 的逐字节 SHA 一致性后，再按每个包的 `.BUILDINFO.pkgbuild_sha256sum` 找回 **MSYS2/MINGW-packages 官方 Git 仓库内构建时间之前的历史 PKGBUILD**；实际下载四份 PKGBUILD、计算 SHA-256，并与每个包的 `.BUILDINFO` 精确比较：**4/4 PASS**。所有 Git commit、每个原始 PKGBUILD 的 SHA 和精确 URL 都固定在 [原包证据 JSON](MSYS2-EXACT-PACKAGE-EVIDENCE.json)，并由 `audit:msys2-provenance` 复查。
 
 这已确认从构建工作流到 DLL 字节、软件包元数据及**确切打包构建脚本**的一致证据；但 PKGBUILD 只是源码获取、补丁与构建步骤的配方，不能替代其中引用的全部原始源码包，更不单独证明 LGPL 的完整再分发义务得到履行。
+
+## 2026-10-09 精确完整源码包归档补充
+
+继原始 Windows 构建日志、4 份 MSYS2 二进制包、5 份 DLL 字节和 4 份历史 PKGBUILD 互证之后，已从 MSYS2 镜像保存四份官方精确**源码包**（内含对应源码、补丁与 PKGBUILD）。4/4 源码压缩包 SHA 和 4/4 包内 PKGBUILD 与实际二进制 BUILDINFO 的哈希均已核对成功。完整机器记录：[MSYS2-EXACT-SOURCE-EVIDENCE.json](MSYS2-EXACT-SOURCE-EVIDENCE.json)。对公共下载者的源码获取安排及尚未满足的授权要求见 [SOURCE_OFFER.md](SOURCE_OFFER.md)。旧表中“源码待下载”等字样属于之前的调查状态，以这一节和新证据为准。
