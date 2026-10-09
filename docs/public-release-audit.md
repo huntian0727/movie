@@ -162,3 +162,11 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 ## 2026-10-09 未签名社区安装身份和固定源码取得
 
 在家用 B5 上已预备独立的 `unsigned-public-release` 构建档案（独立 appId、NSIS GUID、userData，**不更新旧版**）。无签名证书，必须以明确的 GitHub 版本 Tag、发布条件、源文件和所有 8 件原生二进制及干净 Win11 证据 SHA 共同授权；实际模拟 `RELEASE_LICENSE_APPROVED=true` 等发布环境变量但仓库 `build/release-approval.json.approved=false`，**构建退出非零、正确停止在 owner 审核**。独立社区版尚未生成，也未上架。FFmpeg 8.1.2 完整主源码 11,710,924 字节及固定 tag 构建脚本 32,279 字节，均已私有归档且 SHA 和 TAR 完整性验收通过。详见 `docs/legal/FFMPEG-LITE-QA.md`、`docs/release-workflow.md`。
+
+## 2026-10-09 FFmpeg Lite SBOM 与 Windows CI 证据闭环补充
+
+本轮针对 GitHub [Windows CI 37913880108](https://github.com/huntian0727/movie/actions/runs/37913880108) 的**实际失败**进行了有范围的修复。上次 CI 1186/1188 通过，两个失败为（1）耗时多次外部 Git/PowerShell 的 Web Advisor 测试在默认 5 秒后超时；（2）GCC Runtime Library Exception 原始文本经 Git CRLF/LF 转换，CI 中 SHA-256 与家用电脑取得的证据哈希不一致。通过仅把该外部进程测试预算设为 40s，以及将 `docs/legal/GCC-RUNTIME-LIBRARY-EXCEPTION.txt` 设置为 `-text` 禁止换行规范化，实测 Git **暂存对象 SHA 与原始 Windows 文件 SHA 完全一致**，都是 `9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74`。没有跳过断言或修改全局超时设置。
+
+追加 [FFmpeg Lite SPDX 2.3 清单](legal/FFMPEG-LITE-SBOM.spdx.json)：读取家用 B5 的精确 13 个固定归档条目和两个本地衍生证据文件，逐个核对真实字节 SHA 后生成**7 件原生二进制**对应包和文件哈希（FFmpeg、FFprobe、五个 DLL）。新增可复现脚本 `npm run release:sbom-lite`，在 Lite 安装器的 `release:metadata` 流程自动附带同源 SBOM 及 `SHA256SUMS.txt`。本轮未重新创建/批准正式安装包；这只是发布元数据能力。详见 [二进制—源码映射](legal/BINARY-SOURCE-MAP.md)、[第三方声明索引](legal/THIRD_PARTY_NOTICES.md)。
+
+所有未知 MSYS2 包精确版本、源码构建关联及许可证结论仍明确记为 `NOASSERTION` / `EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED`。**不因为有 SBOM 就修改 `build/release-approval.json.approved=false`**，不公开上传尚未满足对应源码/许可和独立干净 Windows 11 QA 的安装包。

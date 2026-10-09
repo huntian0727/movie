@@ -2,3 +2,5 @@
 LICENSE text eol=lf
 package-lock.json text eol=lf
 build/release-approval.json text eol=lf
+# Preserve the upstream GCC license source byte-for-byte (CRLF in original).
+docs/legal/GCC-RUNTIME-LIBRARY-EXCEPTION.txt -text

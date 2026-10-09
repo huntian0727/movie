@@ -192,7 +192,7 @@ describeWindows("agent management PowerShell safety", () => {
       /must be a \.md file/
     );
     expect(existsSync(wrongExtension)).toBe(false);
-  });
+  }, 40_000);
 });
 
 describe("movie skill activation prompts", () => {

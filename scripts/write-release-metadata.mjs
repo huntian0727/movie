@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { access, writeFile } from "node:fs/promises";
+import { buildPinnedSbom } from "./generate-native-lite-sbom.mjs";
 import path from "node:path";
 import electronPackage from "electron/package.json" with { type: "json" };
 import { authenticode, createBuildFlavor, hashFile, readJson, releaseOutputDirectory, verifyApplicationVersion, verifyFormalApproval } from "./release-engineering.mjs";
@@ -21,9 +22,18 @@ const applicationVersion = await verifyApplicationVersion(appPath, flavor);
 await Promise.all([access(installerPath), access(appPath)]);
 const [installerSignature, appSignature, nativeHostSignature] = await Promise.all([authenticode(installerPath, flavor), authenticode(appPath, flavor), authenticode(nativeHostPath, flavor)]);
 const checksums = [{ name: flavor.artifactName, sha256: await hashFile(installerPath) }];
+const materials = [];
+if (flavor.mediaVariant === "lite-candidate") {
+  const nativeLock = await readJson(path.join(process.cwd(), "scripts", "native-media-lite.lock.json"));
+  const nativeSbom = await buildPinnedSbom(path.join(process.cwd(), ".tmp", "native-media-lite-tools"), nativeLock);
+  const name = "FFMPEG-LITE-SBOM.spdx.json";
+  const output = path.join(releaseDirectory, name);
+  await writeFile(output, JSON.stringify(nativeSbom, null, 2) + "\n", "utf8");
+  materials.push({ name, sha256: await hashFile(output), status: "UNAPPROVED_NATIVE_MEDIA_CANDIDATE" });
+}
 await writeFile(
   path.join(releaseDirectory, "SHA256SUMS.txt"),
-  checksums.map((entry) => `${entry.sha256}  ${entry.name}`).join("\n") + "\n",
+  [...checksums, ...materials].map((entry) => `${entry.sha256}  ${entry.name}`).join("\n") + "\n",
   "utf8"
 );
 
@@ -41,7 +51,8 @@ const metadata = {
   signatures: { installer: installerSignature, application: appSignature, nativeHost: nativeHostSignature },
   application: { name: `${flavor.executableName}.exe`, sha256: await hashFile(appPath), version: applicationVersion },
   nativeHost: { name: "NativeHost.exe", sha256: await hashFile(nativeHostPath) },
-  installers: checksums
+  installers: checksums,
+  materials
 };
 await writeFile(path.join(releaseDirectory, "build-metadata.json"), JSON.stringify(metadata, null, 2), "utf8");
 console.log(`Release metadata written (${metadata.releaseClass}).`);

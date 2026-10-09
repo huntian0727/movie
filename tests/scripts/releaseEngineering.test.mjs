@@ -167,6 +167,7 @@ describe("release engineering trust boundaries", () => {
   it("tracks the authentic GCC runtime exception text without prematurely approving distribution", async () => {
     const notice = path.resolve("docs/legal/GCC-RUNTIME-LIBRARY-EXCEPTION.txt");
     expect(await hashFile(notice)).toBe("9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74");
+    expect(await readFile(path.resolve(".gitattributes"),"utf8")).toContain("docs/legal/GCC-RUNTIME-LIBRARY-EXCEPTION.txt -text");
     expect(await readFile(notice, "utf8")).toContain("GCC RUNTIME LIBRARY EXCEPTION");
     const approval = JSON.parse(await readFile(path.resolve("build/release-approval.json"), "utf8"));
     expect(approval.approved).toBe(false);

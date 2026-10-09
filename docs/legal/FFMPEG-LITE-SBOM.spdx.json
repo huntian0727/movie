@@ -1,0 +1,296 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "movie-ffmpeg-lite-v8.1.2-27-UNAPPROVED-CANDIDATE",
+  "documentNamespace": "https://github.com/huntian0727/movie/spdx/ffmpeg-lite-v8.1.2-27-unapproved",
+  "creationInfo": {
+    "created": "2026-10-09T00:00:00Z",
+    "creators": [
+      "Tool: movie-native-lite-sbom-generator"
+    ]
+  },
+  "documentComment": "Hashes verified on home B5. This describes an isolated QA candidate, NOT a public installer, NOT permission to redistribute and NOT complete corresponding source compliance. Runtime DLL exact MSYS2 package versions and relicensing evidence remain unverified.",
+  "packages": [
+    {
+      "name": "FFmpeg Lite executable",
+      "SPDXID": "SPDXRef-Lite-Package-1",
+      "versionInfo": "8.1.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "Candidate source project: https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz; UPSTREAM_SOURCE_ARCHIVED_BUILD_CORRESPONDENCE_NOT_REPRODUCED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+    },
+    {
+      "name": "FFprobe Lite executable",
+      "SPDXID": "SPDXRef-Lite-Package-2",
+      "versionInfo": "8.1.2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "Candidate source project: https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz; UPSTREAM_SOURCE_ARCHIVED_BUILD_CORRESPONDENCE_NOT_REPRODUCED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+    },
+    {
+      "name": "Intel oneVPL dispatcher runtime",
+      "SPDXID": "SPDXRef-Lite-Package-3",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "Candidate source project: https://github.com/intel/libvpl; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+    },
+    {
+      "name": "Cisco OpenH264 runtime",
+      "SPDXID": "SPDXRef-Lite-Package-4",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "Candidate source project: https://github.com/cisco/openh264; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+    },
+    {
+      "name": "mingw-w64 winpthreads runtime",
+      "SPDXID": "SPDXRef-Lite-Package-5",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "Candidate source project: https://www.mingw-w64.org/; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+    },
+    {
+      "name": "GCC libgcc exception runtime",
+      "SPDXID": "SPDXRef-Lite-Package-6",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "Candidate source project: https://gcc.gnu.org/; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+    },
+    {
+      "name": "GCC libstdc++ runtime",
+      "SPDXID": "SPDXRef-Lite-Package-7",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "sourceInfo": "Candidate source project: https://gcc.gnu.org/; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+    }
+  ],
+  "files": [
+    {
+      "fileName": "./media-tools/ffmpeg.exe",
+      "SPDXID": "SPDXRef-Lite-File-1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "dd2ae91c672ecc7d9233a7ed075dc9437aa817cfb68dce66b172bd61e25cbbe4"
+        }
+      ],
+      "fileTypes": [
+        "BINARY"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./media-tools/ffprobe.exe",
+      "SPDXID": "SPDXRef-Lite-File-2",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "57dec3db58729d5f00794bf65d76f15f9278c457989e4a649a02063abdd19bc8"
+        }
+      ],
+      "fileTypes": [
+        "BINARY"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./media-tools/libvpl-2.dll",
+      "SPDXID": "SPDXRef-Lite-File-3",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "670c4a28094b9f0d2aefe1e666c61e9e5eb7315f1ffd0bf12e4731727c6254e6"
+        }
+      ],
+      "fileTypes": [
+        "BINARY"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./media-tools/libopenh264-7.dll",
+      "SPDXID": "SPDXRef-Lite-File-4",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "4ac3e61bd10b696abf4b20391bf1cc682c393a0a27f0e96daf020dc1adf6e973"
+        }
+      ],
+      "fileTypes": [
+        "BINARY"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./media-tools/libwinpthread-1.dll",
+      "SPDXID": "SPDXRef-Lite-File-5",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "f6ad1378f098c1229be8e44bf22a9cc76c06a5d1630290d9be43f203430894cb"
+        }
+      ],
+      "fileTypes": [
+        "BINARY"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./media-tools/libgcc_s_seh-1.dll",
+      "SPDXID": "SPDXRef-Lite-File-6",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "278f1101f2371c58b6b412a3206718e22343940a5164aceb4fb75f2bf3b38ed4"
+        }
+      ],
+      "fileTypes": [
+        "BINARY"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./media-tools/libstdc++-6.dll",
+      "SPDXID": "SPDXRef-Lite-File-7",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "3529d11c422b2aaf0bbad7221bf62ba7b5a39f854e89a015bb58b6b55a677da1"
+        }
+      ],
+      "fileTypes": [
+        "BINARY"
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "licenseInfoInFiles": [
+        "NOASSERTION"
+      ],
+      "copyrightText": "NOASSERTION"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Lite-Package-1"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Lite-Package-2"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Lite-Package-3"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Lite-Package-4"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Lite-Package-5"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Lite-Package-6"
+    },
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Lite-Package-7"
+    },
+    {
+      "spdxElementId": "SPDXRef-Lite-Package-1",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-Lite-File-1"
+    },
+    {
+      "spdxElementId": "SPDXRef-Lite-Package-2",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-Lite-File-2"
+    },
+    {
+      "spdxElementId": "SPDXRef-Lite-Package-3",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-Lite-File-3"
+    },
+    {
+      "spdxElementId": "SPDXRef-Lite-Package-4",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-Lite-File-4"
+    },
+    {
+      "spdxElementId": "SPDXRef-Lite-Package-5",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-Lite-File-5"
+    },
+    {
+      "spdxElementId": "SPDXRef-Lite-Package-6",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-Lite-File-6"
+    },
+    {
+      "spdxElementId": "SPDXRef-Lite-Package-7",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-Lite-File-7"
+    }
+  ],
+  "annotations": [
+    {
+      "annotationDate": "2026-10-09T00:00:00Z",
+      "annotationType": "OTHER",
+      "annotator": "Tool: movie-native-lite-sbom-generator",
+      "comment": "NOT_APPROVED_FOR_DISTRIBUTION; review GCC exception, all transitive DLLs, matching source and clean Windows11 QA."
+    }
+  ]
+}
