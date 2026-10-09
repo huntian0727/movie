@@ -158,3 +158,7 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 **真实家用 B5 测试已通过**：源文件与 PE 完整性验证、合成 MP4/MKV ffprobe、缩略图/JPEG、Electron `package:dir`、`verify:artifact`、`test:packaged-smoke`、NSIS `dist:win`、`release:metadata` 和 `test:installer-smoke`；真实安装/修复/卸载/删除数据参数拒绝，合成视频和数据库哈希不变，正式应用登记与桌面快捷方式无变化。内部 QA 安装包 137,020,508 字节，首次产生时 SHA `0314a5f6bcbabe701ac62dad3852f424f7efa0f276de8f4b4c312426e72e175f`；后续若按提交版本重建则重新核对 SHA，旧 BtbN QA 包已备份于 B5 隔离 D 盘目录。详见 [FFmpeg Lite 验收](legal/FFMPEG-LITE-QA.md)。
 
 **公众分发仍未批准**：上游 `SOURCE.txt` 引用的 `GCC-RUNTIME-LIBRARY-EXCEPTION.txt` 在实际分发压缩包中缺失；对应源码/动态 DLL 许可与静态 LGPL 义务须处理；真正干净 Win11 和历史升级未完成，未签名公众正式发行身份尚未创建，内部 QA 包不得当公众安装包。
+
+## 2026-10-09 未签名社区安装身份和固定源码取得
+
+在家用 B5 上已预备独立的 `unsigned-public-release` 构建档案（独立 appId、NSIS GUID、userData，**不更新旧版**）。无签名证书，必须以明确的 GitHub 版本 Tag、发布条件、源文件和所有 8 件原生二进制及干净 Win11 证据 SHA 共同授权；实际模拟 `RELEASE_LICENSE_APPROVED=true` 等发布环境变量但仓库 `build/release-approval.json.approved=false`，**构建退出非零、正确停止在 owner 审核**。独立社区版尚未生成，也未上架。FFmpeg 8.1.2 完整主源码 11,710,924 字节及固定 tag 构建脚本 32,279 字节，均已私有归档且 SHA 和 TAR 完整性验收通过。详见 `docs/legal/FFMPEG-LITE-QA.md`、`docs/release-workflow.md`。

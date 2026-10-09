@@ -28,7 +28,8 @@ if (await hashFile(path.join(mediaSource, "LICENSE.txt")) !== expectedLicense) {
   throw new Error("Native media license evidence has changed.");
 }
 const flavor = createBuildFlavor(await readJson(path.join(root, "package.json")));
-if (lite && flavor.releaseClass !== "unsigned-test-build") throw new Error("Lite native input may only be built for isolated internal QA.");
+if (lite && !["unsigned-test-build", "unsigned-public-release"].includes(flavor.releaseClass)) throw new Error("Lite media requires isolated QA or explicitly approved unsigned community build.");
+if (flavor.releaseClass === "unsigned-public-release" && !lite) throw new Error("Unsigned public build requires the reviewed Lite media candidate.");
 flavor.commit = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8", windowsHide: true }).trim();
 flavor.complianceApprovalSha256 = await verifyFormalApproval(root, flavor);
 const buildDirectory = path.join(root, ".tmp", "release-engineering");
@@ -50,15 +51,15 @@ const configuration = {
   nsis: { include: path.join(root, "build", "installer.nsh"), allowToChangeInstallationDirectory: false },
   afterPack: path.join(root, "scripts", "release-after-pack.cjs")
 };
-if (flavor.releaseClass === "unsigned-test-build") {
+if (flavor.releaseClass === "unsigned-test-build" || flavor.releaseClass === "unsigned-public-release") {
   configuration.productName = flavor.executableName;
   configuration.extraMetadata = { name: flavor.packageName };
   // Keep Windows product/version resources accurate while explicitly skipping
   // signing. signAndEditExecutable:false would leave Electron's own metadata.
   configuration.win.signExecutable = false;
   configuration.nsis.guid = flavor.nsisGuid;
-  configuration.nsis.createDesktopShortcut = false;
-  configuration.nsis.createStartMenuShortcut = false;
+  configuration.nsis.createDesktopShortcut = flavor.releaseClass === "unsigned-public-release";
+  configuration.nsis.createStartMenuShortcut = flavor.releaseClass === "unsigned-public-release";
   configuration.nsis.shortcutName = flavor.executableName;
   configuration.fileAssociations = [];
 } else {

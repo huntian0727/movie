@@ -13,6 +13,11 @@ const signedEnvironment = {
   CSC_KEY_PASSWORD: "synthetic-password", WINDOWS_EXPECTED_PUBLISHER: "Synthetic Publisher",
   RELEASE_LICENSE_APPROVED: "true", RELEASE_BINARY_COMPLIANCE_APPROVED: "true", RELEASE_MANUAL_QA_APPROVED: "true"
 };
+const publicEnvironment = {
+  GITHUB_ACTIONS: "true", GITHUB_REF: "refs/tags/v1.2.3", MOVIE_RELEASE_CLASS: "unsigned-public-release",
+  MOVIE_MEDIA_VARIANT: "lite-candidate", RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED: "true",
+  RELEASE_LICENSE_APPROVED: "true", RELEASE_BINARY_COMPLIANCE_APPROVED: "true", RELEASE_MANUAL_QA_APPROVED: "true"
+};
 
 describe("release engineering trust boundaries", () => {
   it("declares MIT for project-owned source while keeping binary distribution unapproved", async () => {
@@ -56,6 +61,69 @@ describe("release engineering trust boundaries", () => {
     expect(() => createBuildFlavor(manifest, { WIN_CSC_LINK: "synthetic" })).toThrow();
     expect(createBuildFlavor(manifest, { GITHUB_REF: "refs/tags/v1.2.3", MOVIE_RELEASE_CLASS: "unsigned-test-build" }).releaseClass).toBe("unsigned-test-build");
   });
+  it("provides a separate unsigned community identity, never test or legacy production", () => {
+    const community = createBuildFlavor(manifest, publicEnvironment);
+    expect(community).toMatchObject({
+      releaseClass: "unsigned-public-release", appId: "com.local.video.manager.community",
+      packageName: "local-video-manager-community", userDataDirectoryName: "local-video-manager-community",
+      nsisGuid: "b73f7252-798d-48d9-b877-19fb6d355f83",
+      executableName: "拉面影视-免费分享版", expectedPublisher: null, mediaVariant: "lite-candidate"
+    });
+    expect(community.artifactName).toBe("拉面影视-1.2.3-x64-unsigned-public-Setup.exe");
+    expect(community.outputDirectory).toBe("release/unsigned-public-release");
+    expect(() => assertTestFlavor(community)).toThrow();
+    expect(() => assertSignature({ status: "NotSigned" }, community)).not.toThrow();
+    expect(() => assertSignature({ status: "Valid", publisher: "CN=Signed" }, community)).toThrow();
+  });
+  it("makes every unsigned public gate explicit and rejects accidental or leaked signing credentials", () => {
+    for (const field of ["GITHUB_ACTIONS", "GITHUB_REF", "MOVIE_MEDIA_VARIANT", "RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED",
+      "RELEASE_LICENSE_APPROVED", "RELEASE_BINARY_COMPLIANCE_APPROVED", "RELEASE_MANUAL_QA_APPROVED"]) {
+      expect(() => createBuildFlavor(manifest, { ...publicEnvironment, [field]: "" })).toThrow();
+    }
+    expect(() => createBuildFlavor(manifest, { ...publicEnvironment, MOVIE_MEDIA_VARIANT: "btbn-candidate" })).toThrow(/Lite/);
+    expect(() => createBuildFlavor(manifest, { ...publicEnvironment, GITHUB_REF: "refs/tags/v3.3.3" })).toThrow(/tag/);
+    expect(() => createBuildFlavor(manifest, { ...publicEnvironment, CSC_LINK: "unexpected-secret" })).toThrow(/signing credentials/);
+    expect(() => createBuildFlavor(manifest, { ...publicEnvironment, WIN_CSC_LINK: "unexpected-secret" })).toThrow(/signing credentials/);
+    expect(() => createBuildFlavor(manifest, { ...publicEnvironment, CSC_KEY_PASSWORD: "unexpected-secret" })).toThrow(/signing credentials/);
+    expect(() => createBuildFlavor(manifest, { MOVIE_RELEASE_CLASS: "misspelled-release" })).toThrow(/Unrecognized/);
+    // By default an ordinary tag still chooses the legacy signed release flow.
+    expect(createBuildFlavor(manifest, { ...signedEnvironment, MOVIE_MEDIA_VARIANT: "btbn-candidate" }).releaseClass).toBe("signed-release");
+  });
+  it("requires source and separate Windows evidence for public builds; waives unsafe legacy upgrade only for separate identity", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "movie-community-approval-")); roots.push(root);
+    for (const dir of ["build", "docs/legal", ".tmp/native-media-lite-tools", "native-bin"]) {
+      await mkdir(path.join(root, dir), {recursive:true});
+    }
+    await writeFile(path.join(root, "package.json"), JSON.stringify(manifest));
+    await writeFile(path.join(root, "package-lock.json"), "fixture-locked");
+    await writeFile(path.join(root, "LICENSE"), "MIT License\nCopyright (c) Synthetic\nPermission is hereby granted by the synthetic fixture.\n");
+    const evidence = "docs/legal/synthetic-audit.md";
+    await writeFile(path.join(root, evidence), "Synthetic approval evidence; not a real license review.");
+    const evidenceSha = await hashFile(path.join(root, evidence));
+    const names = ["ffmpeg.exe", "ffprobe.exe", "libvpl-2.dll", "libopenh264-7.dll", "libwinpthread-1.dll",
+      "libgcc_s_seh-1.dll", "libstdc++-6.dll", "NativeHost.exe"];
+    const binaries = [];
+    for (const name of names) {
+      const file = name === "NativeHost.exe" ? path.join(root,"native-bin",name) : path.join(root,".tmp","native-media-lite-tools",name);
+      await writeFile(file, "synthetic-" + name);
+      binaries.push({ name, sha256: await hashFile(file), sourceComplianceApproved: true,
+        sourceEvidence: evidence, sourceEvidenceSha256: evidenceSha });
+    }
+    const approval = { schemaVersion:1, approved:true, ownersConfirmed:true, applicationLicense:"MIT",
+      manualQaApproved:true, legacyUpgradeApproved:false,
+      licenseSha256: await hashFile(path.join(root,"LICENSE")), packageLockSha256: await hashFile(path.join(root,"package-lock.json")),
+      cleanWindows11Evidence:evidence, cleanWindows11EvidenceSha256:evidenceSha,
+      binaries };
+    await writeFile(path.join(root,"build","release-approval.json"), JSON.stringify(approval));
+    const flavor = createBuildFlavor(manifest, publicEnvironment);
+    expect(await verifyFormalApproval(root, flavor)).toBe(await hashFile(path.join(root,"build","release-approval.json")));
+    await writeFile(path.join(root,".tmp","native-media-lite-tools","libvpl-2.dll"), "tampered");
+    await expect(verifyFormalApproval(root, flavor)).rejects.toThrow(/binary/);
+    await writeFile(path.join(root,".tmp","native-media-lite-tools","libvpl-2.dll"), "synthetic-libvpl-2.dll");
+    approval.manualQaApproved = false;
+    await writeFile(path.join(root,"build","release-approval.json"), JSON.stringify(approval));
+    await expect(verifyFormalApproval(root, flavor)).rejects.toThrow(/Owner-approved/);
+  });
   it("checks actual signature status, publisher equality and timestamp", () => {
     const flavor = createBuildFlavor(manifest, signedEnvironment);
     const valid = { status: "Valid", publisher: "CN=Synthetic Publisher, O=Test", hasTimestamp: true };
@@ -86,6 +154,23 @@ describe("release engineering trust boundaries", () => {
     await mkdir(target); await mkdir(artifact); await writeFile(path.join(target, "user.mp4"), "synthetic");
     await symlink(target, path.join(artifact, "linked"), process.platform === "win32" ? "junction" : "dir");
     await expect(packagedFileManifest(artifact)).rejects.toThrow(/links/);
+  });
+  it("keeps the community NSIS installer/updater paths and file identity separate from legacy installs", async () => {
+    const script = await readFile(path.resolve("build/installer.nsh"), "utf8");
+    expect(script).toContain('"${APP_ID}" == "com.local.video.manager.community"');
+    expect(script).toContain('APP_FILENAME "拉面影视-免费分享版"');
+    expect(script).toContain('local-video-manager-community-updater');
+    expect(script).toContain('"${APP_ID}" == "com.local.video.manager.unsignedtest"');
+    expect(script).toContain("!insertmacro movieRequireMarkerIfPopulated");
+    expect(script).not.toMatch(/RMDir\s+\/r/i);
+  });
+  it("tracks the authentic GCC runtime exception text without prematurely approving distribution", async () => {
+    const notice = path.resolve("docs/legal/GCC-RUNTIME-LIBRARY-EXCEPTION.txt");
+    expect(await hashFile(notice)).toBe("9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74");
+    expect(await readFile(notice, "utf8")).toContain("GCC RUNTIME LIBRARY EXCEPTION");
+    const approval = JSON.parse(await readFile(path.resolve("build/release-approval.json"), "utf8"));
+    expect(approval.approved).toBe(false);
+    expect(approval.binaries.every((binary) => binary.sourceComplianceApproved === false)).toBe(true);
   });
   it("hooks explicitly block legacy removal/data deletion and preserve unknown files", async () => {
     const script = await readFile(path.resolve("build/installer.nsh"), "utf8");

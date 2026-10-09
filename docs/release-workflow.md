@@ -27,3 +27,11 @@ NSIS 使用已构建文件清单做精确删除、非递归空目录清理；拒
 项目自有代码已选定 MIT（见根目录 LICENSE）；维护者不计划商业化，也**不购买首个公众版本的 Windows 代码签名证书**。这意味着正式发行时，安装包可以在签名状态为 `NotSigned` 的情况下发布，但必须明确告知用户“未知发布者”和 SmartScreen 提示，公布 SHA-256，并继续保护下载渠道、保留安装/卸载的数据安全验收。
 
 **重要：目前该工作流的正式发布步骤仍要求签名证书与独立环境审批，尚未实现不签名公众发行通道；不能简单把 `unsigned-test-build`（独立身份/临时数据目录）重新命名成正式包。** 待 FFmpeg 候选许可与安装验证完成后，应独立新增有批准门禁、保留正式 appId/安装目录、跳过 Authenticode 的 `unsigned-public-release`，并使用原 NSIS 删除安全和 QA，最后再上架。任何二进制分发仍需履行第三方许可，免费分享不豁免。
+
+## 2026-10-09 未签名公众分享通道：代码已预置，严格关闭
+
+新增独立的 `unsigned-public-release` **构建身份**：应用 ID `com.local.video.manager.community`，NSIS GUID `b73f7252-798d-48d9-b877-19fb6d355f83`，程序名 `拉面影视-免费分享版`，数据目录 `local-video-manager-community`，目标目录 `release/unsigned-public-release`；与原 `signed-release` 和独立 `unsigned-test-build` 均不同。不是正式旧版升级通道，避免把历史旧版和维护者日常安装当成可直接覆盖的用户数据。NSIS 仍使用精确清单删除，拒绝未标记旧目录、重解析点与删除数据参数。
+
+默认 GitHub `v*` tag 仍走原签名正式流程，**不会因为打了 tag 就意外进入未签名公众发布**。只有显式提供 `MOVIE_RELEASE_CLASS=unsigned-public-release`、`MOVIE_MEDIA_VARIANT=lite-candidate`、真实匹配版本 `refs/tags/v<版本>`、GitHub Actions 环境、`RELEASE_LICENSE_APPROVED=true`、`RELEASE_BINARY_COMPLIANCE_APPROVED=true`、`RELEASE_MANUAL_QA_APPROVED=true`、`RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED=true` 且**不提供任何代码签名密钥**才会允许进入构建配置。随后 `verifyFormalApproval` 还必须逐字节验证 `build/release-approval.json` 的 owner、LICENSE、lockfile、FFmpeg/FFprobe、NativeHost、**5 个原生运行时 DLL**、各自来源证据哈希及真实干净 Windows 11 证据。因为完全独立的 `community` 安装身份不尝试覆盖已签名旧版，允许不提供历史原版直接升级测试，但依然强制干净 Windows QA。
+
+安装器本身预定为 **NotSigned** 并带单独 SHA-256，不购买证书；安装教程需明确 SmartScreen、未知发布者、官方 GitHub 地址。**本轮 `build/release-approval.json` 仍全部拒绝，尚无允许公众下载的二进制**。GitHub YAML 尚未增加自动公开上传 job；实际上传必须等手动 QA 和第三方分发资料齐全，并由维护者最终批准。

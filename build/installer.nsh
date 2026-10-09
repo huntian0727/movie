@@ -6,6 +6,11 @@
   !define /redef APP_FILENAME "拉面影视-unsigned-test-build"
   !define /redef APP_INSTALLER_STORE_FILE "local-video-manager-unsigned-test-updater\installer.exe"
 !endif
+!if "${APP_ID}" == "com.local.video.manager.community"
+  ; Public unsigned sharing is a NEW isolated identity, never a legacy production upgrade.
+  !define /redef APP_FILENAME "拉面影视-免费分享版"
+  !define /redef APP_INSTALLER_STORE_FILE "local-video-manager-community-updater\installer.exe"
+!endif
 
 !macro movieAbort MESSAGE
   DetailPrint "${MESSAGE}"

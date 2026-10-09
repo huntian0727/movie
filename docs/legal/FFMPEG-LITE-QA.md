@@ -46,3 +46,20 @@ npm run test:installer-smoke
 ```
 
 所有上面命令的 PASS 均是 **Windows 11 Insider 家用机实际执行**；真实普通用户干净 Win11 尚为 NOT_RUN。没有用代码签名证书、没有对外发行或覆盖正式安装。
+
+## 2026-10-09 第三方许可与正式发行进度
+
+已从 GCC 官方镜像仓库（`gcc-mirror/gcc`，`releases/gcc-16.1.0`，`COPYING.RUNTIME`）独立获取 GCC Runtime Library Exception **3.1** 原文，SHA-256 `9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74`，并将声明归档到 [GCC-RUNTIME-LIBRARY-EXCEPTION.txt](GCC-RUNTIME-LIBRARY-EXCEPTION.txt)。原上游打包 SOURCE.txt 提及此文件但实际 TAR 中缺失的问题，**文本查找/随 App 法律目录打包**已有来源证据。注意这不证明 DLL 的准确对应版本、源代码/补丁、FFmpeg 8.1.2 的全部源与 LGPL 义务已完成。发行批准继续为 false。
+
+现有代码已经预备正式未签名社区构建类型，采用独立 `community` app ID、GUID 和数据目录，仍会等待明确的第三方授权、干净 Win11 QA 和最后版本批准，见 [工作流](../release-workflow.md)。当前内部 QA 通过的 NSIS Setup **不可重命名为社区公开版**。
+
+## 完整源码与构建脚本固定归档（2026-10-09 补充实测）
+
+在**家用 B5** 的私人 `D:/CodexReleaseAudit/ffmpeg-lite-20261009/legal-source/` 下，已经实际保存并 SHA-256 验证以下两份源码归档，不再只是引用远程链接：
+
+| 归档 | 大小 | SHA-256 | 验证 |
+| --- | ---: | --- | --- |
+| `ffmpeg-8.1.2.tar.xz`（来自 `https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz`） | 11,710,924 字节 | `464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c` | 与发行包 `SOURCE.txt` / 上游固定源码哈希一致；完整 TAR 列出 10,230 项，退出码 0 |
+| `ffmpeg-lgpl-buildscripts-v8.1.2-27.tar.gz`（GitHub tagged commit `8bd22e8859595e7b9f5d58cbf7af59c04fbe2fac`） | 32,279 字节 | `8da5eba4cb5662b4744403bf2de8b70a5a274de200ce39ae69f2602e404f439e` | 完整 12 条目，含 `scripts/build-windows.sh`、固定 FFmpeg 源码哈希及 GitHub build workflow |
+
+`build-windows.sh` 确认明确的 GCC/MINGW64 工具链及源码 SHA；但 `libvpl`、`openh264` 和其他运行 DLL 是通过 MSYS2 包取得，脚本本身没有固定每份包的**实际打包版本、对应源码和静态重链接材料**。因此这一步闭合“FFmpeg 主源码、构建脚本原文未在家用机归档”的缺口，**不能等价声称二进制整体可复现或 LGPL 全部义务已满足**。仍保持公开发布审批拒绝。
