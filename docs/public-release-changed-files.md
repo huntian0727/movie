@@ -221,3 +221,11 @@
 - `tests/main/mediaBinaries.test.ts` 新增五项 locator 失败关闭测试；`tests/main/cacheService.test.ts`、`tests/fixtures/syntheticLibrary.ts`、`tests/scripts/releaseEngineering.test.mjs` 及脚本辅助路径相应更新，不删单测。
 - `scripts/audit-dependency-licenses.mjs`、`docs/legal/dependency-inventory.json`、`docs/legal/THIRD-PARTY-NOTICES.txt` 按精确新锁文件刷新，`docs/legal/FFMPEG-SOURCE-CANDIDATE.md` 和 `ffmpeg-source-candidate-inventory.json` 记录真实源码来源/残余许可阻塞。
 - `docs/legal/native-binary-security.md`、`docs/legal/RELEASE-COMPLIANCE.md`、`docs/public-release-audit.md`、`docs/ai/deliveries/2026-10-09-media-binary-wrapper-removal.md` 更新审计和交付证明。
+
+## 2026-10-09 B5 家用机源码闭包初审
+
+- `scripts/audit-native-media-recipes.mjs`：以已固定的构建工程 source tar SHA-256 验证为前置，解析候选 recipe 的确切 Git SHA / SVN 版本，导出文件哈希、直接依赖提示及补丁引用；不执行不可信上游 Bash，也不设置授权批准。
+- `tests/scripts/nativeMediaRecipeAudit.node-test.mjs`：新增可执行合同测试，包含错误修订拒绝、异常 URL、遍历路径、哈希不符及授权仍为 false。
+- `package.json`：把新合同测试追加到已有 `test:media-candidate-contract`，因此完整 release gate 也会检查。
+- `docs/legal/native-media-recipe-evidence.json` 和 `docs/legal/FFMPEG-RECIPE-SOURCE-AUDIT.md`：43 个库的机器可读初审证据及局限性；未归档全部源码/授权，不构成正式分发许可。
+- `docs/legal/FFMPEG-SOURCE-CANDIDATE.md`、`docs/public-release-audit.md`、`docs/ai/deliveries/2026-10-09-native-media-source-trace.md`：同步安全/发布阻塞及实际测试。

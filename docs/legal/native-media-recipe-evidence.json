@@ -1,0 +1,1032 @@
+{
+  "schemaVersion": 1,
+  "verdict": "PINNED_RECIPE_REFERENCES_ONLY_SOURCE_LICENSE_AND_BINARY_CORRESPONDENCE_OPEN",
+  "approvedForDistribution": false,
+  "sourceComplianceApproved": false,
+  "buildSource": {
+    "commit": "9acad4a9ef1583096af7836cc1e9c8cbcb4d3950",
+    "archiveSha256": "27dca8db7b2466b6f5145168721264de91dc9b56f50bebc441249f92e4acf548"
+  },
+  "statistics": {
+    "enabledExternalLibraries": 43,
+    "candidateRecipes": 44,
+    "gitCommitRecipes": 43,
+    "svnRevisionRecipes": 1,
+    "distinctSourceRepositories": 42,
+    "recipesWithDirectDependencyHints": 16,
+    "distinctDirectDependencyHints": 18,
+    "recipesWithPatchFiles": 2,
+    "identifiedPatchFiles": 4,
+    "fullyApprovedLibraries": 0
+  },
+  "limitations": [
+    "Parsing of echo dependency lines yields only hints; conditional and transitive dependencies require a full build graph audit",
+    "Pinned build recipes are not proof the actual Windows executable used the exact referenced source revision",
+    "Every corresponding source archive, license, patch application and LGPL static relinking obligation must be verified separately",
+    "No entitlement to distribute FFmpeg or the application is granted by this evidence"
+  ],
+  "libraries": [
+    {
+      "ffmpegEnableFlag": "libaom",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-aom.sh",
+          "recipeSha256": "3f72c32a7d72a7dd10c1cda6702ddad6e0008a886cdd44113cf96108d7b20368",
+          "repository": "https://aomedia.googlesource.com/aom",
+          "referenceType": "git",
+          "revision": "b4ce2cd097b00921b0327bfb5f07b5f8361ade99",
+          "dependencyHints": [
+            "base",
+            "vmaf"
+          ],
+          "patchDirectories": [
+            "patches/aom"
+          ],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [
+            {
+              "file": "patches/aom/0001-Fall-back-to-built-in-vmaf-model-on-load-failure.patch",
+              "sha256": "c3b757903be9b98b52b23ac40f7c49dd562cd999b5151890d19dfaf82f40ddb0"
+            }
+          ],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libaribb24",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libaribb24.sh",
+          "recipeSha256": "819af96814ebaf3612d3e50367e47d892848b22d0a71befe06b481902b9e957b",
+          "repository": "https://github.com/nkoriyama/aribb24.git",
+          "referenceType": "git",
+          "revision": "5e9be272f96e00f15a2f3c5f8ba7e124862aec38",
+          "dependencyHints": [
+            "base",
+            "libpng"
+          ],
+          "patchDirectories": [
+            "patches/aribb24"
+          ],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [
+            {
+              "file": "patches/aribb24/12.patch",
+              "sha256": "9059639e9577b123ac4ab3b53771e947b791c42d07b0444cf90e82f563d6d261"
+            },
+            {
+              "file": "patches/aribb24/13.patch",
+              "sha256": "4812661f1c77ec06a5a12548f166ac8646d4c7c1574848a005f0578f3d8cfc7c"
+            },
+            {
+              "file": "patches/aribb24/17.patch",
+              "sha256": "1a4fc77f677a6ff87d024e3a218186160b23620c84dbd791ec5c425de0a8e6c2"
+            }
+          ],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libaribcaption",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libaribcaption.sh",
+          "recipeSha256": "bdc45a086a105d789ef80da7c0eed9bc70e76c15bcb7fb5ef5376bfb18249f6c",
+          "repository": "https://github.com/xqq/libaribcaption.git",
+          "referenceType": "git",
+          "revision": "c64c23b8905ba514b87c9789269e9f66f949ffe0",
+          "dependencyHints": [
+            "base",
+            "fonts",
+            "openssl"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libass",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libass.sh",
+          "recipeSha256": "e6419cade66532faefe04c652526bafe945963e16552ad4d976dd33f9b13490d",
+          "repository": "https://github.com/libass/libass.git",
+          "referenceType": "git",
+          "revision": "f61db567e6593df3470e91594bcd4ad2d0473aff",
+          "dependencyHints": [
+            "base",
+            "fonts",
+            "fribidi",
+            "libiconv",
+            "libunibreak"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libbluray",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libbluray.sh",
+          "recipeSha256": "cf610f2531dc559f63857a9c4544658ad464321723236417ba550cf64a2debcf",
+          "repository": "https://code.videolan.org/videolan/libbluray.git",
+          "referenceType": "git",
+          "revision": "a24f4fad4d62893de647abc8671397747b2359dd",
+          "dependencyHints": [
+            "base",
+            "fonts",
+            "libudfread",
+            "libxml2"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libdav1d",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-dav1d.sh",
+          "recipeSha256": "ab393955968f5364e4e2e67adfb9aedae2f95120f2e199488bcbc147201e09e2",
+          "repository": "https://code.videolan.org/videolan/dav1d.git",
+          "referenceType": "git",
+          "revision": "9711965b60bb692ae24004659acf61f5c7d9ed61",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libfreetype",
+      "recipes": [
+        {
+          "recipe": "scripts.d/45-fonts/25-freetype.sh",
+          "recipeSha256": "b2e5f13d420e45deae0f5ecd5ddd168228512d178b76d9ba08b3990df5d92205",
+          "repository": "https://gitlab.freedesktop.org/freetype/freetype.git",
+          "referenceType": "git",
+          "revision": "d333439633039de426f943f28a2926c7f97b5ae5",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        },
+        {
+          "recipe": "scripts.d/45-fonts/50-freetype.sh",
+          "recipeSha256": "dec1e6a8d50ba00bdd61187055658e842b86e14fc3cb4d588fede8dc096b96ad",
+          "repository": "https://gitlab.freedesktop.org/freetype/freetype.git",
+          "referenceType": "git",
+          "revision": "d333439633039de426f943f28a2926c7f97b5ae5",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libfribidi",
+      "recipes": [
+        {
+          "recipe": "scripts.d/25-fribidi.sh",
+          "recipeSha256": "8c49596458e13a33ffd24dccf93fcb17304b8b0929e5a1457fab55ba9e26c1cd",
+          "repository": "https://github.com/fribidi/fribidi.git",
+          "referenceType": "git",
+          "revision": "4c914a92e94a9fe4f30ae83a1130099841566448",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libgme",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-gme.sh",
+          "recipeSha256": "a98435e63c57e920be8d90e1c07d215352f9a97639a44696cf8de7120a41b7db",
+          "repository": "https://github.com/libgme/game-music-emu.git",
+          "referenceType": "git",
+          "revision": "f68963b1de0633149b05732113d3c3113c6f63a1",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libharfbuzz",
+      "recipes": [
+        {
+          "recipe": "scripts.d/45-fonts/45-harfbuzz.sh",
+          "recipeSha256": "03b3650e78e01b6f090e1acc898a5faf8627d39ab6dddda9753adb165ef98101",
+          "repository": "https://github.com/harfbuzz/harfbuzz.git",
+          "referenceType": "git",
+          "revision": "b3bab62307017934dd7f532c52a696fefb12b3ad",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libjxl",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libjxl/50-libjxl.sh",
+          "recipeSha256": "2b7436518fdf2ede885f69b166c9604dc53779c674f46111a7deea23f3138461",
+          "repository": "https://github.com/libjxl/libjxl.git",
+          "referenceType": "git",
+          "revision": "b87738951c1254cd8cccaa6d47712ba735da56d8",
+          "dependencyHints": [
+            "base",
+            "brotli",
+            "lcms2"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libkvazaar",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-kvazaar.sh",
+          "recipeSha256": "e1eba6170c3fb3f6d676b6d306fb503064a7c71e1038f5f09811276a76e08f3e",
+          "repository": "https://github.com/ultravideo/kvazaar.git",
+          "referenceType": "git",
+          "revision": "2b06691bb5844404c0e703f12a5d7b0fee914ec7",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "liblcevc-dec",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-lcevcdec.sh",
+          "recipeSha256": "7990627bf8194f34c0e8a6aac0b00a919a7d8b7099ffa07b5304b13383d7c44d",
+          "repository": "https://github.com/v-novaltd/LCEVCdec.git",
+          "referenceType": "git",
+          "revision": "17804ac54db8fbb42717f3275b1e73f3c0b067d3",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libmp3lame",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libmp3lame.sh",
+          "recipeSha256": "a524cd3b9a40444fb554164f5a5dd466ca616ad2cf6756c28164787e012d982f",
+          "repository": "https://svn.code.sf.net/p/lame/svn/trunk/lame",
+          "referenceType": "svn",
+          "revision": "6835",
+          "dependencyHints": [
+            "base",
+            "libiconv"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "liboapv",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-openapv.sh",
+          "recipeSha256": "196330e1aea843cf2073bd49301da3dc1399895376f65b403bd05db0634654c9",
+          "repository": "https://github.com/AcademySoftwareFoundation/openapv.git",
+          "referenceType": "git",
+          "revision": "a58ce739be0dfb083643d929aee8f0e0ba9bdf63",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libopencore-amrnb",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-opencore-amr.sh",
+          "recipeSha256": "574666d18051057ca5bb5064e034332dfd0fc9d9575a41a17d7b079ff3154d00",
+          "repository": "https://git.code.sf.net/p/opencore-amr/code",
+          "referenceType": "git",
+          "revision": "7dba8c32238418ce0b316a852b2224df586ca896",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libopencore-amrwb",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-opencore-amr.sh",
+          "recipeSha256": "574666d18051057ca5bb5064e034332dfd0fc9d9575a41a17d7b079ff3154d00",
+          "repository": "https://git.code.sf.net/p/opencore-amr/code",
+          "referenceType": "git",
+          "revision": "7dba8c32238418ce0b316a852b2224df586ca896",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libopenh264",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-openh264.sh",
+          "recipeSha256": "db1ebae112ff1ab962af0228907592acc80b8dbcf3561051a37c1678f1bd04f4",
+          "repository": "https://github.com/cisco/openh264.git",
+          "referenceType": "git",
+          "revision": "8b2d28faade10d74d99ac80e199aef664c9c5a3b",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libopenjpeg",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-openjpeg.sh",
+          "recipeSha256": "d901cd8495f1a6d67a93c3aca6cba02373a0147cd65fd3a21a05ca2b368138b1",
+          "repository": "https://github.com/uclouvain/openjpeg.git",
+          "referenceType": "git",
+          "revision": "8314119b067c0fc77834731168daaebd379fdb12",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libopenmpt",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-openmpt.sh",
+          "recipeSha256": "cb313f9a4b9b6613ad30d82b5db00b5fe6fceae8c75578fbb334cf3898aae035",
+          "repository": "https://github.com/OpenMPT/openmpt.git",
+          "referenceType": "git",
+          "revision": "f83cedb0cd5446e4dfaa83ac97e3087107e26767",
+          "dependencyHints": [
+            "base",
+            "libogg",
+            "libvorbis",
+            "zlib"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libopus",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libopus.sh",
+          "recipeSha256": "098f4436197ad0502b13ffd211347b03ec575c1ab36a02cecff431d68cd6aeb4",
+          "repository": "https://github.com/xiph/opus.git",
+          "referenceType": "git",
+          "revision": "503d81b138d76621aae4b12786e90de48aa8db3a",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libplacebo",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libplacebo.sh",
+          "recipeSha256": "7f6f86a2818a1c0dec2248adc794198089bdee603c24b137eff4454c5aa82778",
+          "repository": "https://code.videolan.org/videolan/libplacebo.git",
+          "referenceType": "git",
+          "revision": "1937beef3a2f508266c68efea1491e3fc4600e04",
+          "dependencyHints": [
+            "base",
+            "lcms2",
+            "vulkan",
+            "xxhash"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "librav1e",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-rav1e.sh",
+          "recipeSha256": "a3a92819459530d94e97423b94560d2ea58fb06b1a944c8124f4f0c46eaaa421",
+          "repository": "https://github.com/xiph/rav1e.git",
+          "referenceType": "git",
+          "revision": "31435de9d76fddd38f6dcc31d4014574cebb2092",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "librist",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-librist/50-librist.sh",
+          "recipeSha256": "b7a8fe792abca18fff7ac48d1223767985a14f7b284839e536eb3d6662c63532",
+          "repository": "https://code.videolan.org/rist/librist.git",
+          "referenceType": "git",
+          "revision": "4f45ef8f78983892d52ccd52d9f675435b23738f",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "librsvg",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-librsvg/99-librsvg.sh",
+          "recipeSha256": "520281a8fd738006adcb16ff3e0487653ab9c78862ac51000fc61dfb15d31aa2",
+          "repository": "https://github.com/GNOME/librsvg.git",
+          "referenceType": "git",
+          "revision": "7612431eb02dc009319094f8513d63c1faaecfb4",
+          "dependencyHints": [
+            "base",
+            "dav1d",
+            "fonts",
+            "libxml2"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libsnappy",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-snappy.sh",
+          "recipeSha256": "86a6e62bec3f4f7b308b6807e4e7b6c626be12f15ffe96025b7d5f6fb4ee2059",
+          "repository": "https://github.com/google/snappy.git",
+          "referenceType": "git",
+          "revision": "9c28114a38866f6deeaa826db918293bc28ae410",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libsoxr",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-soxr.sh",
+          "recipeSha256": "333ca3a3331c67fc9468ca81affdbae90385b138a9e91f5b3ad2122f42a8f0f9",
+          "repository": "https://git.code.sf.net/p/soxr/code",
+          "referenceType": "git",
+          "revision": "945b592b70470e29f917f4de89b4281fbbd540c0",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libsrt",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-srt.sh",
+          "recipeSha256": "da7eaf285c7ee0521d9e39145dc29dff9c024c6842dcaab15d94ce01729a6bea",
+          "repository": "https://github.com/Haivision/srt.git",
+          "referenceType": "git",
+          "revision": "ff8ab25c57aece5b7351defe36dacc94fc28527f",
+          "dependencyHints": [
+            "base",
+            "openssl"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libssh",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libssh.sh",
+          "recipeSha256": "508dd2a6fbd0a18b201e9364ba6f82524b36ce06976c258c1476d9c7f4b7c973",
+          "repository": "https://gitlab.com/libssh/libssh-mirror.git",
+          "referenceType": "git",
+          "revision": "76e0a8639e61436c28d877586f65a7707edc6ee5",
+          "dependencyHints": [
+            "base",
+            "openssl",
+            "zlib"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libsvtav1",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-svtav1.sh",
+          "recipeSha256": "9b07a09cb92d8d0f5a99e9e6800203eaab212e55f283bc78fd3f0c76066d0fe9",
+          "repository": "https://gitlab.com/AOMediaCodec/SVT-AV1.git",
+          "referenceType": "git",
+          "revision": "5ed9ffbcb5086da23f30fe9bc5b00145358462da",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libtheora",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libtheora.sh",
+          "recipeSha256": "cd093a82eb271d465092c498567cdbef724dbf99165dda1fec0179ce5a60c089",
+          "repository": "https://github.com/xiph/theora.git",
+          "referenceType": "git",
+          "revision": "28fd5ec77f0ad0e07a371cef1047828116f6bd8a",
+          "dependencyHints": [
+            "base",
+            "libogg"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libtwolame",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-twolame.sh",
+          "recipeSha256": "ac47c5d2b47a0faf34bf2e032db75754c6d9ed6cce7c3f69f8ed64a7e95698d3",
+          "repository": "https://github.com/njh/twolame.git",
+          "referenceType": "git",
+          "revision": "6fced852d4d5cfad58cf9dbe3ea619b08e87d398",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libuavs3d",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-uavs3d.sh",
+          "recipeSha256": "3cde849cac8a4fe08df4951840bd40c27592c82e665065f1b7fd506bef71868e",
+          "repository": "https://github.com/uavs3/uavs3d.git",
+          "referenceType": "git",
+          "revision": "0e20d2c291853f196c68922a264bcd8471d75b68",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libvmaf",
+      "recipes": [
+        {
+          "recipe": "scripts.d/45-vmaf.sh",
+          "recipeSha256": "0bd50c0e08e35b9a8326904f51e8f44468abd78e5fc3da6ee4a3e91d788e5e4d",
+          "repository": "https://github.com/Netflix/vmaf.git",
+          "referenceType": "git",
+          "revision": "86da14d0306a138fd3f01319860b905169746516",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libvorbis",
+      "recipes": [
+        {
+          "recipe": "scripts.d/45-libvorbis.sh",
+          "recipeSha256": "96a4e7735c0d442d62a4859d8e46db735b57c09d5a4440361e35d064e1220a90",
+          "repository": "https://github.com/xiph/vorbis.git",
+          "referenceType": "git",
+          "revision": "1b75110b5a2754ba1931d82dd83cb822b266a21d",
+          "dependencyHints": [
+            "base",
+            "libogg"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libvpl",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-onevpl.sh",
+          "recipeSha256": "46cf258ffa89c85f146419874eb425504cce7b17fd1976dd6ac0115e6e31b12e",
+          "repository": "https://github.com/intel/libvpl.git",
+          "referenceType": "git",
+          "revision": "674d015bcb294bc39fa276e99a652ea045423e82",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libvpx",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libvpx.sh",
+          "recipeSha256": "ee1f76e2ab8c9b40076b554fd3e378a4e5136cf54da6af8642d5539f2d949760",
+          "repository": "https://chromium.googlesource.com/webm/libvpx",
+          "referenceType": "git",
+          "revision": "5e680f30801d03c21078f8c4b772464752516211",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libvvenc",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-vvenc.sh",
+          "recipeSha256": "d020ea668a258fc7e512093dfb71c36c7f69d77817e22181ec5c8be04bc00a00",
+          "repository": "https://github.com/fraunhoferhhi/vvenc.git",
+          "referenceType": "git",
+          "revision": "b1cfb2ad495af6ae4cc214b7a060e8b4166c4629",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libwebp",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libwebp.sh",
+          "recipeSha256": "98f5850fc66c7ea510991cd7b088a314163cf3faa58ab0880b5ed93a065865d3",
+          "repository": "https://chromium.googlesource.com/webm/libwebp",
+          "referenceType": "git",
+          "revision": "5c168cd23b1872969c38e34b01b04dcf29849288",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libxml2",
+      "recipes": [
+        {
+          "recipe": "scripts.d/25-libxml2.sh",
+          "recipeSha256": "ea2c9ccf748f3c3f7fd3e6391b58db5826918f48cb56511772f972eb2f5d3243",
+          "repository": "https://github.com/GNOME/libxml2.git",
+          "referenceType": "git",
+          "revision": "91586dc6742ab335682235120363f6e126eea5e2",
+          "dependencyHints": [
+            "base",
+            "libiconv"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libzimg",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-zimg.sh",
+          "recipeSha256": "fe5d823c95d90ca14a5e44fe7b83800661d9c44aea6ba87431c4f9238204f407",
+          "repository": "https://github.com/sekrit-twc/zimg.git",
+          "referenceType": "git",
+          "revision": "67e0603271c080e22c8429856dd4a8a56587e61e",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libzmq",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-libzmq.sh",
+          "recipeSha256": "6d664155f794f62f7069385f26bbf2bc725ba648e5c4becef5648b48c0203e8a",
+          "repository": "https://github.com/zeromq/libzmq.git",
+          "referenceType": "git",
+          "revision": "46493370217ac135246617fa2f6ac819d8b61bfc",
+          "dependencyHints": [],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    },
+    {
+      "ffmpegEnableFlag": "libzvbi",
+      "recipes": [
+        {
+          "recipe": "scripts.d/50-zvbi.sh",
+          "recipeSha256": "9485f71ed9884e3d0e5f6187195bc14910e6dddcf8b63a3914f1d6fb8b7a5558",
+          "repository": "https://github.com/zapping-vbi/zvbi",
+          "referenceType": "git",
+          "revision": "d3a5ee9f2b047bf16cd1ee5ccf6ec05ee75409d0",
+          "dependencyHints": [
+            "base",
+            "libiconv"
+          ],
+          "patchDirectories": [],
+          "hasTargetGuard": true,
+          "hasBuildRecipe": true,
+          "patchFiles": [],
+          "sourceArchiveRetrieved": false,
+          "sourceLicenseReviewed": false,
+          "binarySourceCorrespondenceProven": false
+        }
+      ],
+      "reviewStatus": "RECIPE_PIN_LOCATED_NOT_LICENSE_APPROVED"
+    }
+  ]
+}

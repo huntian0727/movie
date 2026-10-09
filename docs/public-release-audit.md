@@ -134,3 +134,9 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 本工作分支的应用及隔离 unsigned 安装器不再包含 GPL `ffmpeg-static` JS 包装层和旧 FFprobe 4.0.2；通过严格的 ZIP/EXE SHA 检验与原生 `media-tools` 路径引入同套 FFmpeg/FFprobe 9.0.2-22。针对性媒体与许可证测试通过，完整 `test:release-gate` 第一次 PASS，Electron main、renderer-security、`dist:win`、`verify:artifact`、`release:metadata`、`test:packaged-smoke` 和 `test:installer-smoke` 实际 PASS。第三方 build-recipe 与 FFmpeg 主源码快照实际下载、哈希，43 个启用外部库均已定位到至少一个候选 recipe（其中 4 个需映射别名，未审查完整源码/许可）。**P1 仍然阻断公众发行**：外部库完整对应源码、补丁与授权、静态链接条件及安全补丁适用性、产权声明、签名/独立审核、干净 Win11 历史升级未闭环。全局结论工程 PASS_WITH_RISKS / 公众发布 FAIL；未合并 main、未创建正式 Tag/Release。最新详见 `docs/legal/FFMPEG-SOURCE-CANDIDATE.md` 及 `docs/ai/deliveries/2026-10-09-media-binary-wrapper-removal.md`。
 
 最终复测（本轮迁移）：`test:release-gate` **PASS，132 files / 1182 tests，附加5项原生工具契约测试 PASS**；旧测试脚本断言的首次失败仍保留于交付文档。原生工具由精确 SHA 的隔离候选提供，旧 GPL JavaScript wrapper 和 FFprobe 4.0.2 不再编入新测试包。**所有外部库许可/源码和长期可复现来源未放行，公众发行 FAIL**。
+
+## 2026-10-09 家用机恢复连接后专项取证
+
+家用机 MP2T8QB5 已恢复连接，本轮**只使用 B5，不使用办公机 707**。接手工作区干净，基线 `db8d61908008a1e9d940ce9cef7039d06e346d6d`，PR #24 仍 Draft，main `807c49585d18c901b199fe0d3d8b0dbf31eb4114`。修改前创建完整 checkpoint + SQLite 快照并通过 quick_check，参见本轮交付记录。
+
+本轮新建 fail-closed 的上游源码 recipe 审计程序，已核实 43 项启用外部库/44 份候选 recipe 引用及固定修订、初步直接依赖和 4 份补丁哈希；精确版本 opus/libass 两份 COPYING 原文也已归档在 B5 隔离审计目录。证据见 `docs/legal/native-media-recipe-evidence.json`。**正式公众发布仍 FAIL**：这不是二进制/完整源码、许可证/静态链接义务、干净 Windows、签名审批通过的证明。新增代码没有修改 Electron 的功能与安装器，原已验收包的 SHA 和部署状态仍保持历史记录，不宣称新包交付。
