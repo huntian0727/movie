@@ -4,6 +4,7 @@ import { lstat, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { mediaVariant } from "./media-variant.mjs";
 
 const execute = promisify(execFile);
 export const PRODUCTION_APP_ID = "com.local.video.manager";
@@ -31,7 +32,7 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
   } else if (certificate) throw new Error("Signing credentials must not be supplied to unsigned test builds.");
   const releaseClass = formal ? "signed-release" : "unsigned-test-build";
   return {
-    schemaVersion: 1, releaseClass, version: manifest.version, arch: "x64", outputDirectory: releaseOutputDirectory(env), complianceApprovalSha256: null,
+    schemaVersion: 1, releaseClass, version: manifest.version, arch: "x64", mediaVariant: mediaVariant(env), outputDirectory: releaseOutputDirectory(env), complianceApprovalSha256: null,
     appId: formal ? PRODUCTION_APP_ID : TEST_APP_ID, nsisGuid: formal ? null : TEST_NSIS_GUID,
     packageName: formal ? "local-video-manager" : "local-video-manager-unsigned-test",
     executableName: formal ? PRODUCT_NAME : `${PRODUCT_NAME}-unsigned-test-build`,
@@ -44,7 +45,7 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
 export function assertTestFlavor(flavor) {
   if (flavor.schemaVersion !== 1 || flavor.releaseClass !== "unsigned-test-build" || flavor.appId !== TEST_APP_ID ||
       flavor.nsisGuid !== TEST_NSIS_GUID || flavor.arch !== "x64" || flavor.userDataDirectoryName !== "local-video-manager-unsigned-test" ||
-      flavor.outputDirectory !== "release/unsigned-test-build" || flavor.packageName !== "local-video-manager-unsigned-test" ||
+      flavor.outputDirectory !== "release/unsigned-test-build" || !["btbn-candidate","lite-candidate"].includes(flavor.mediaVariant) || flavor.packageName !== "local-video-manager-unsigned-test" ||
       flavor.executableName !== `${PRODUCT_NAME}-unsigned-test-build` || !flavor.artifactName?.endsWith("-unsigned-test-build-Setup.exe")) {
     throw new Error("Installer smoke only accepts the isolated unsigned test identity.");
   }

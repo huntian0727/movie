@@ -150,3 +150,11 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 ## 2026-10-09 免费分享决定及许可证落地
 
 维护者明确要求个人纯免费分享、无商业化计划、最简化发布。已替换根目录 `LICENSE` 为 MIT 正式文本（版权 `huntian0727`），并更新 `package.json.license` 与 `package-lock.json` 项目授权字段、README。现有 `build/release-approval.json` 的 `applicationLicense` 与 `licenseSha256` 同步，但**保持 `approved:false`、`ownersConfirmed:false`、第三方二进制授权 false、手动验收 false**。MIT 仅覆盖拥有权利的项目自有代码，不改变 FFmpeg/ffprobe/外部库许可。用户已批准**首发不购买证书**，正式公众未签名包通道尚未实现。已有 unsigned-test-build 仍为内部 QA 身份，不能作为正式公众安装器上架。本次未修改用户应用、视频、SQLite 或现有快捷方式。
+
+## 2026-10-09 FFmpeg Lite 真正打包、安装 QA 进展
+
+以固定 FFmpeg/FFprobe 8.1.2 LGPL2.1 构建替代源作为**显式隔离 QA 变体**，相较原 43 个可选库的 BtbN 候选，这个 Lite 构建启用两项明确外部 FFmpeg 库 `libvpl`、`libopenh264`，并含五份动态运行 DLL。精确 27,486,819 字节的源发行归档 SHA-256 和 13 个输入文件的独立 SHA 全部核对一致。选择 `MOVIE_MEDIA_VARIANT=lite-candidate` 才切换 QA，未选择仍走原受测路径；正式 signed release 拒绝 Lite。
+
+**真实家用 B5 测试已通过**：源文件与 PE 完整性验证、合成 MP4/MKV ffprobe、缩略图/JPEG、Electron `package:dir`、`verify:artifact`、`test:packaged-smoke`、NSIS `dist:win`、`release:metadata` 和 `test:installer-smoke`；真实安装/修复/卸载/删除数据参数拒绝，合成视频和数据库哈希不变，正式应用登记与桌面快捷方式无变化。内部 QA 安装包 137,020,508 字节，首次产生时 SHA `0314a5f6bcbabe701ac62dad3852f424f7efa0f276de8f4b4c312426e72e175f`；后续若按提交版本重建则重新核对 SHA，旧 BtbN QA 包已备份于 B5 隔离 D 盘目录。详见 [FFmpeg Lite 验收](legal/FFMPEG-LITE-QA.md)。
+
+**公众分发仍未批准**：上游 `SOURCE.txt` 引用的 `GCC-RUNTIME-LIBRARY-EXCEPTION.txt` 在实际分发压缩包中缺失；对应源码/动态 DLL 许可与静态 LGPL 义务须处理；真正干净 Win11 和历史升级未完成，未签名公众正式发行身份尚未创建，内部 QA 包不得当公众安装包。

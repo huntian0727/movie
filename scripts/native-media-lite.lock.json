@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "status": "CANDIDATE_NOT_APPROVED",
+  "distributable": false,
+  "variant": "lite-candidate",
+  "sourceProject": "serversideup/ffmpeg-lgpl-builds",
+  "releaseTag": "v8.1.2-27",
+  "sourceTagObject": "8bd22e8859595e7b9f5d58cbf7af59c04fbe2fac",
+  "archive": "ffmpeg-8.1.2-x86_64-pc-windows-msvc.tar.gz",
+  "archiveUrl": "https://github.com/serversideup/ffmpeg-lgpl-builds/releases/download/v8.1.2-27/ffmpeg-8.1.2-x86_64-pc-windows-msvc.tar.gz",
+  "archiveSha256": "fb2de01912edb449a5eba1cc487696c7f71ebb7b325e5c5c69434642ec2ba6b0",
+  "expectedVersion": "8.1.2",
+  "sourceTarSha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
+  "files": {
+    "ffmpeg.exe": "dd2ae91c672ecc7d9233a7ed075dc9437aa817cfb68dce66b172bd61e25cbbe4",
+    "ffprobe.exe": "57dec3db58729d5f00794bf65d76f15f9278c457989e4a649a02063abdd19bc8",
+    "libvpl-2.dll": "670c4a28094b9f0d2aefe1e666c61e9e5eb7315f1ffd0bf12e4731727c6254e6",
+    "libopenh264-7.dll": "4ac3e61bd10b696abf4b20391bf1cc682c393a0a27f0e96daf020dc1adf6e973",
+    "libwinpthread-1.dll": "f6ad1378f098c1229be8e44bf22a9cc76c06a5d1630290d9be43f203430894cb",
+    "libgcc_s_seh-1.dll": "278f1101f2371c58b6b412a3206718e22343940a5164aceb4fb75f2bf3b38ed4",
+    "libstdc++-6.dll": "3529d11c422b2aaf0bbad7221bf62ba7b5a39f854e89a015bb58b6b55a677da1",
+    "COPYING.LGPLv2.1": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30",
+    "SOURCE.txt": "ec4c41ab0d3cf02f3bb926fe13404d1cc7bcd03a333b1f664778fc77b9aeb022",
+    "LIBVPL-LICENSE.txt": "bf1cfac2e2792b6e1e995ce103d70796aecaf2ec7e4c5fe5474f7acec7b4a677",
+    "LIBOPENH264-LICENSE.txt": "dd5c1c9668512530fa5a96e4c29ac4033d70a7eeb0eed7a42fddb6dd794ebdbb",
+    "LIBWINPTHREAD-LICENSE.txt": "63263614cdd29f2f93cba85e992f041b31f9fc7b4033692f31269489a8a1b177",
+    "GCC-LICENSE.txt": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+  },
+  "notes": "Pinned isolated QA only: LGPL-2.1 FFmpeg and external runtime DLLs. GCC Runtime Library Exception notice referenced in SOURCE.txt absent from archive; complete corresponding sources, runtime notices and compliance not approved. NEVER publish this candidate binary."
+}

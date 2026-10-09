@@ -51,3 +51,7 @@ B5 家用机在网络重试成功后取得精确 Git SHA 的 **Opus 和 libass �
 ## 2026-10-09 固定 GitHub 源码原始许可证根文件核验
 
 已基于 43 启用库对应的 42 不同上游源码位置，对全部 **29 个 GitHub 托管、精确提交的源码仓库**逐个校验了根目录文件，在 B5 的隔离审计文件夹保存了 **49 份**候选许可证、版权或作者文件及其 Git blob 和 SHA-256。**13 个非 GitHub 仓库尚未核验**；未执行完整源码与实际二进制对应审查。真实文本细节、人工风险和局限见 `NATIVE-MEDIA-LICENSE-EVIDENCE.md`，结构化记录见 `native-media-license-availability.json`。不能据此改变当前正式发行 FAIL。
+
+## 2026-10-09 Lite 替代构建隔离 QA
+
+新 [FFmpeg Lite 8.1.2 测试记录](FFMPEG-LITE-QA.md) 已证明 MP4/MKV、缩略图、完整 Electron 打包与内部 NSIS 安装/修复/卸载可用；启用的外部构建库明显更少。此分支只是通过显式 `MOVIE_MEDIA_VARIANT=lite-candidate` 提供内部 QA 候选，当前默认为原 BtbN 工具，旧版已验收测试包备份保存。源码/附属 DLL 合规和 GCC Runtime Library Exception 通知未闭环，**不将此记录作为任何可公开分发的批准**。

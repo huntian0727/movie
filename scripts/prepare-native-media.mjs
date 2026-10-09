@@ -78,6 +78,10 @@ async function prepareArchive() {
     }
   }
 }
+if (process.env.MOVIE_MEDIA_VARIANT === "lite-candidate") {
+  await import("./prepare-lite-media.mjs");
+} else {
+if (process.env.MOVIE_MEDIA_VARIANT && process.env.MOVIE_MEDIA_VARIANT !== "btbn-candidate") throw new Error("Unknown media variant");
 if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Pinned media toolchain requires Windows x64");
 if (lock.status !== "CANDIDATE_NOT_APPROVED" || lock.distributable !== false) throw new Error("Unsigned media candidate must remain unapproved");
 await prepareArchive();
@@ -102,3 +106,5 @@ await writeFile(path.join(dest, "SOURCE-STATUS.txt"),
   "source-archive-sha256=" + lock.archiveSha256 + "\n" +
   "Do not publicly redistribute this test build until full corresponding-source review and owner approval.\n", "utf8");
 console.log("Pinned native media staged: " + evidence.pair.version + " (NOT APPROVED FOR PUBLIC DISTRIBUTION)");
+
+}

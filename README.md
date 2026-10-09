@@ -92,3 +92,7 @@ SQLite13 官方 N-API 文件已在 Node 与 Electron 中分别实测验证；旧
 贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md)；私人安全报告：[SECURITY.md](SECURITY.md)；
 授权材料：[第三方合规](docs/legal/RELEASE-COMPLIANCE.md)；历史文档：[公开卫生说明](docs/PUBLICATION-HYGIENE.md)。
 历史设计和 AI 交付是溯源资料，不能替代当前代码与本轮实测结果。
+
+## FFmpeg Lite 内部验收候选
+
+维护者正在将 43 个第三方库的 FFmpeg 构建收敛为体积更小的 [8.1.2 Lite 隔离候选](docs/legal/FFMPEG-LITE-QA.md)。在 Windows 11 Insider 家用机的合成 MP4/MKV、封面和时间轴，以及真实 NSIS 安装/修复/卸载测试中已通过；它只可用于隔离测试，不是普通用户升级包。默认工具不变，只有显式设置 `MOVIE_MEDIA_VARIANT=lite-candidate` 才进入 Lite QA 构建。完整第三方对应源码和运行库授权、干净正式 Win11 测试仍未完成；不会以“免费分享”为由省略适用的开源许可义务。
