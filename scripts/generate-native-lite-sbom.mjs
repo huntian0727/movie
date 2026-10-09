@@ -10,11 +10,11 @@ const notices = ["COPYING.LGPLv2.1","SOURCE.txt","LIBVPL-LICENSE.txt","LIBOPENH2
 const binarySources = {
   "ffmpeg.exe": { name: "FFmpeg Lite executable", source: "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz", knownVersion: "8.1.2", status: "UPSTREAM_SOURCE_ARCHIVED_BUILD_CORRESPONDENCE_NOT_REPRODUCED" },
   "ffprobe.exe": { name: "FFprobe Lite executable", source: "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz", knownVersion: "8.1.2", status: "UPSTREAM_SOURCE_ARCHIVED_BUILD_CORRESPONDENCE_NOT_REPRODUCED" },
-  "libvpl-2.dll": { name: "Intel oneVPL dispatcher runtime", source: "https://github.com/intel/libvpl", status: "EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED" },
-  "libopenh264-7.dll": { name: "Cisco OpenH264 runtime", source: "https://github.com/cisco/openh264", status: "EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED" },
-  "libwinpthread-1.dll": { name: "mingw-w64 winpthreads runtime", source: "https://www.mingw-w64.org/", status: "EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED" },
-  "libgcc_s_seh-1.dll": { name: "GCC libgcc exception runtime", source: "https://gcc.gnu.org/", status: "EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED" },
-  "libstdc++-6.dll": { name: "GCC libstdc++ runtime", source: "https://gcc.gnu.org/", status: "EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED" },
+  "libvpl-2.dll": { name: "Intel oneVPL dispatcher runtime", source: "https://github.com/intel/libvpl", status: "BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json" },
+  "libopenh264-7.dll": { name: "Cisco OpenH264 runtime", source: "https://github.com/cisco/openh264", status: "BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json" },
+  "libwinpthread-1.dll": { name: "mingw-w64 winpthreads runtime", source: "https://www.mingw-w64.org/", status: "BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json" },
+  "libgcc_s_seh-1.dll": { name: "GCC libgcc exception runtime", source: "https://gcc.gnu.org/", status: "BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json" },
+  "libstdc++-6.dll": { name: "GCC libstdc++ runtime", source: "https://gcc.gnu.org/", status: "BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json" },
 };
 function sha256(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
 async function sha256File(file) {
@@ -71,7 +71,7 @@ export function createSbom(lock, hashes) {
     name:"movie-ffmpeg-lite-v8.1.2-27-UNAPPROVED-CANDIDATE",
     documentNamespace:"https://github.com/huntian0727/movie/spdx/ffmpeg-lite-v8.1.2-27-unapproved",
     creationInfo:{created:"2026-10-09T00:00:00Z",creators:["Tool: movie-native-lite-sbom-generator"]},
-    documentComment:"Hashes verified on home B5. This describes an isolated QA candidate, NOT a public installer, NOT permission to redistribute and NOT complete corresponding source compliance. Runtime DLL exact MSYS2 package versions and relicensing evidence remain unverified.",
+    documentComment:"Hashes verified on home B5. This describes an isolated QA candidate, NOT a public installer, NOT permission to redistribute and NOT complete corresponding source compliance. All five runtime DLLs have exact byte-identical original MSYS2 package, PKGINFO/BUILDINFO and pinned Git PKGBUILD SHA evidence; see docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json. Corresponding source-only archives and legal redistribution/relinkability obligations are not fully validated.",
     packages,files,relationships,
     annotations:[{annotationDate:"2026-10-09T00:00:00Z",annotationType:"OTHER",annotator:"Tool: movie-native-lite-sbom-generator",comment:"NOT_APPROVED_FOR_DISTRIBUTION; review GCC exception, all transitive DLLs, matching source and clean Windows11 QA."}],
   };

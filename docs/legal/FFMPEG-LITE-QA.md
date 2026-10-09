@@ -63,3 +63,15 @@ npm run test:installer-smoke
 | `ffmpeg-lgpl-buildscripts-v8.1.2-27.tar.gz`（GitHub tagged commit `8bd22e8859595e7b9f5d58cbf7af59c04fbe2fac`） | 32,279 字节 | `8da5eba4cb5662b4744403bf2de8b70a5a274de200ce39ae69f2602e404f439e` | 完整 12 条目，含 `scripts/build-windows.sh`、固定 FFmpeg 源码哈希及 GitHub build workflow |
 
 `build-windows.sh` 确认明确的 GCC/MINGW64 工具链及源码 SHA；但 `libvpl`、`openh264` 和其他运行 DLL 是通过 MSYS2 包取得，脚本本身没有固定每份包的**实际打包版本、对应源码和静态重链接材料**。因此这一步闭合“FFmpeg 主源码、构建脚本原文未在家用机归档”的缺口，**不能等价声称二进制整体可复现或 LGPL 全部义务已满足**。仍保持公开发布审批拒绝。
+
+## 2026-10-09 重大进展：全部运行 DLL 精确匹配官方软件包
+
+本次**实际取得原 FFmpeg Lite 发行日（2026-07-14）的 Windows Actions 构建日志**，GitHub workflow run `29303740323`、Windows job `86992785957`，固定构建 Commit `8bd22e8859595e7b9f5d58cbf7af59c04fbe2fac`。将日志记录的 MSYS2 四份软件包版本全部从 `https://repo.msys2.org/mingw/mingw64/` 下载并 SHA-256 核验，分别读取 `.PKGINFO/.BUILDINFO`，对 DLL 原始字节重新计算 SHA。**4/4 原始软件包成功核对，5/5 动态 DLL 与 FFmpeg Lite 实际安装文件 SHA 完全相同**，GCC 的 `libgcc_s_seh-1.dll` 和 `libstdc++-6.dll` 均来自同一版本 `mingw-w64-x86_64-gcc-libs 16.1.0-5`。固定文件名/版本/包哈希已保存于 `scripts/native-msys2-package.lock.json`，可重复审计脚本 `scripts/audit-native-msys2-packages.mjs`，成果见 [原包精确字节证据](MSYS2-EXACT-PACKAGE-EVIDENCE.json)。
+
+这**关闭了“到底从哪个 DLL 二进制包取得”的原始疑点**。源代码部分：四份对应官方源码归档地址已核实返回 HTTP 200，数据量共约 228 MB；B5 网络下载第一个源归档在 110 秒时只完成约 3.5 MB，已经停止耗时的批量下载，因此尚未声称“源包本地完全归档”。此前的 FFmpeg 核心源码及发布方构建脚本，仍然已经完整保存在 HOME D 盘。第三方源代码、通知/重新链接材料及独立干净稳定 Windows 11 测试未全部完成，故此工作**仍不构成合法公开分发的批准**。
+
+## 2026-10-09 历史构建脚本 PKGBUILD 逐字节核验
+
+四个原始软件包的 `.BUILDINFO` 各自存有 `pkgbuild_sha256sum`，本轮针对相应构建日期在 `msys2/MINGW-packages` 找回并固定 Git 历史提交。分别提取 **libvpl、OpenH264、winpthreads、GCC** 彼时 PKGBUILD 原文，四份 SHA-256 与 `.BUILDINFO` **完全一致**。对应原文及四份未解压的 MSYS2 二进制包归档在 B5 `D:/CodexReleaseAudit/ffmpeg-lite-20261009/msys2-*` 目录；仓库只保存可公开的哈希、Commit 与 URLs，而不提交 DLL 或临时数据。
+
+复核命令：设置 `MOVIE_MSYS2_AUDIT_DIR` 为四份原始 `.pkg.tar.zst` 所在目录，设置 `MOVIE_MSYS2_PKGBUILD_DIR` 为四份 Git 历史 `PKGBUILD` 的目录，然后运行 `npm run audit:msys2-provenance`。任一软件包 SHA、包内 DLL、PKGINFO/BUILDINFO、构建脚本 SHA 或 Git 锁不符即失败。源代码本体和独立稳定 Win11 验收依然未批准；软件发行继续禁止。

@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "status": "SOURCE_BUILD_RELINK_OBLIGATIONS_OPEN",
+  "upstreamBuild": {
+    "repository": "serversideup/ffmpeg-lgpl-builds",
+    "runId": 29303740323,
+    "jobId": 86992785957,
+    "headSha": "8bd22e8859595e7b9f5d58cbf7af59c04fbe2fac",
+    "builtAt": "2026-07-14",
+    "logsUrl": "https://github.com/serversideup/ffmpeg-lgpl-builds/actions/runs/29303740323/job/86992785957"
+  },
+  "packageRepositoryBase": "https://repo.msys2.org/mingw/mingw64/",
+  "sourceRepositoryBase": "https://repo.msys2.org/mingw/sources/",
+  "packages": [
+    {
+      "name": "mingw-w64-x86_64-libvpl",
+      "version": "2.17.0-1",
+      "base": "mingw-w64-libvpl",
+      "recipeGitCommit": "6b0a4b9cab8a1dd3c2d8cb9ba9e7b119c272b6b5",
+      "recipeSha256": "25e2112ac24d70e385bdf6b2152d3c362f0b590dcd1eff6c07bed79c5bf5be65",
+      "sha256": "3899c8e75e9b62cfff8b0987d70da3e2c142a075b94af45d868c3453d86aaece",
+      "files": [
+        "libvpl-2.dll"
+      ]
+    },
+    {
+      "name": "mingw-w64-x86_64-openh264",
+      "version": "2.6.0-1",
+      "base": "mingw-w64-openh264",
+      "recipeGitCommit": "3aeb27c5a29430a0851fd7b1d5f22c5f84e396bf",
+      "recipeSha256": "f6e6c2b17f8724b2e471cd3252115ef9a4d9f569287521a5e688224261318393",
+      "sha256": "73988ace22048df42ae973873b770710bf019e0b070fc2b8084f1cf1993e14f0",
+      "files": [
+        "libopenh264-7.dll"
+      ]
+    },
+    {
+      "name": "mingw-w64-x86_64-libwinpthread",
+      "version": "14.0.0.r179.g24aaa6147-1",
+      "base": "mingw-w64-winpthreads",
+      "recipeGitCommit": "b67b45ace97d4bc6dabdd56177ff3952d049a145",
+      "recipeSha256": "55d530e1f88cf65e90ed44b5dca0a7bea41cfa530a87df742e9874a543e8b074",
+      "sha256": "8f12dc1be987165faab6363a159921553b4a2ac64e443cd0e7c501c343c2a92a",
+      "files": [
+        "libwinpthread-1.dll"
+      ]
+    },
+    {
+      "name": "mingw-w64-x86_64-gcc-libs",
+      "version": "16.1.0-5",
+      "base": "mingw-w64-gcc",
+      "recipeGitCommit": "18aeb95f69dd6bd3c9172a938c9fd35491536410",
+      "recipeSha256": "40f248fa589babd9315cc589a76a0c00939355bd68c92287a2dcb7d1acb58f96",
+      "sha256": "aa560f5438c35b71c3e7b24fd5becbca028f70c5b4d1f1697a86ff80fec947da",
+      "files": [
+        "libgcc_s_seh-1.dll",
+        "libstdc++-6.dll"
+      ]
+    }
+  ]
+}

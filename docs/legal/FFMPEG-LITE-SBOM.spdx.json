@@ -10,7 +10,7 @@
       "Tool: movie-native-lite-sbom-generator"
     ]
   },
-  "documentComment": "Hashes verified on home B5. This describes an isolated QA candidate, NOT a public installer, NOT permission to redistribute and NOT complete corresponding source compliance. Runtime DLL exact MSYS2 package versions and relicensing evidence remain unverified.",
+  "documentComment": "Hashes verified on home B5. This describes an isolated QA candidate, NOT a public installer, NOT permission to redistribute and NOT complete corresponding source compliance. All five runtime DLLs have exact byte-identical original MSYS2 package, PKGINFO/BUILDINFO and pinned Git PKGBUILD SHA evidence; see docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json. Corresponding source-only archives and legal redistribution/relinkability obligations are not fully validated.",
   "packages": [
     {
       "name": "FFmpeg Lite executable",
@@ -42,7 +42,7 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "NOASSERTION",
       "copyrightText": "NOASSERTION",
-      "sourceInfo": "Candidate source project: https://github.com/intel/libvpl; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+      "sourceInfo": "Candidate source project: https://github.com/intel/libvpl; BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
     },
     {
       "name": "Cisco OpenH264 runtime",
@@ -52,7 +52,7 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "NOASSERTION",
       "copyrightText": "NOASSERTION",
-      "sourceInfo": "Candidate source project: https://github.com/cisco/openh264; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+      "sourceInfo": "Candidate source project: https://github.com/cisco/openh264; BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
     },
     {
       "name": "mingw-w64 winpthreads runtime",
@@ -62,7 +62,7 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "NOASSERTION",
       "copyrightText": "NOASSERTION",
-      "sourceInfo": "Candidate source project: https://www.mingw-w64.org/; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+      "sourceInfo": "Candidate source project: https://www.mingw-w64.org/; BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
     },
     {
       "name": "GCC libgcc exception runtime",
@@ -72,7 +72,7 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "NOASSERTION",
       "copyrightText": "NOASSERTION",
-      "sourceInfo": "Candidate source project: https://gcc.gnu.org/; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+      "sourceInfo": "Candidate source project: https://gcc.gnu.org/; BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
     },
     {
       "name": "GCC libstdc++ runtime",
@@ -82,7 +82,7 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "NOASSERTION",
       "copyrightText": "NOASSERTION",
-      "sourceInfo": "Candidate source project: https://gcc.gnu.org/; EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
+      "sourceInfo": "Candidate source project: https://gcc.gnu.org/; BYTE_IDENTICAL_TO_ORIGINAL_MSYS2_PACKAGE; PRECISE_MSYS2_VERSION_AND_PKGINFO_BUILDINFO_VERIFIED; CORRESPONDING_SOURCE_ARCHIVE_NOT_VALIDATED; SEE docs/legal/MSYS2-EXACT-PACKAGE-EVIDENCE.json. Archive release tag v8.1.2-27; actual binary SHA256 verified. This is NOT a legal approval."
     }
   ],
   "files": [

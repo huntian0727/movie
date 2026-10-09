@@ -1,18 +1,18 @@
 # FFmpeg Lite 二进制—源码核验表
 
-**日期：2026-10-09 · 状态：未批准公开分发**
+**日期：2026-10-09 · 状态：5/5 DLL 原始 MSYS2 二进制来源已确证；公开分发仍待最终源代码/许可证义务验收**
 
-本清单只记录 **B5 家用电脑上经过实际 SHA-256 验证的候选文件**。文件名、上游项目、版本号或许可证文本，都不等于“能够证明该 DLL 恰好由这个精确源码编译”。逐文件的 SHA-256 请以 [SPDX 清单](FFMPEG-LITE-SBOM.spdx.json) 和 [固定归档锁](../../scripts/native-media-lite.lock.json) 为准。
+本清单记录 **B5 家用电脑上经过实际 SHA-256 验证的文件**。2026-10-09 已恢复原发布当天的 Windows GitHub Actions 构建日志，取得四份 MSYS2 发行二进制包，逐个读取包内 `.PKGINFO`、`.BUILDINFO`，并将五个 DLL 的实际文件内容与 Lite 原构建**逐字节哈希匹配（5/5 PASS）**。这证明匹配精确发行包，而不表示源码包、LGPL 重新链接义务及公开分发授权也已获准。详见 [精确 MSYS2 软件包证据](MSYS2-EXACT-PACKAGE-EVIDENCE.json) 与 [SPDX 清单](FFMPEG-LITE-SBOM.spdx.json)。
 
 | 文件 | 来源线索 | 实际已核验 | 剩余问题 |
 | --- | --- | --- | --- |
 | `ffmpeg.exe` | FFmpeg 8.1.2，发行方 serversideup `v8.1.2-27` | 归档哈希、EXE 哈希、上游 FFmpeg 8.1.2 TAR 完整性、固定 tag 的 Windows 构建脚本 | 尚未从该源码复现 EXE，也未备齐 LGPL 静态链接重新链接材料 |
 | `ffprobe.exe` | 同一上游发行归档 | 归档、EXE、源码和构建脚本均已定位并校验 | 同上 |
-| `libvpl-2.dll` | Intel oneVPL / MSYS2 `mingw-w64-x86_64-libvpl`，源码参考 `https://github.com/intel/libvpl` | 精确 DLL SHA、Windows PE 文件资源报告版本 **2.17.0.0**、随包 MIT 文本 | **文件资源版本不等于 MSYS2 包的确切版本/构建哈希**；对应源码包与包签名未验证 |
-| `libopenh264-7.dll` | Cisco OpenH264 / MSYS2 `mingw-w64-x86_64-openh264`，源码参考 `https://github.com/cisco/openh264` | 精确 DLL SHA、随包 Cisco 版权及 BSD 风格声明 | ABI 后缀 `7` **不是**经验证的库版本；匹配源码、构建记录、通知仍待确认 |
-| `libwinpthread-1.dll` | mingw-w64 pthreads runtime，`https://www.mingw-w64.org/` | 精确 DLL SHA、随包宽松许可声明 | Windows 资源 `1.0.0.0` 不是所用 MSYS2 包版本；具体源码与构建来源待核 |
-| `libgcc_s_seh-1.dll` | GCC unwinder runtime，`https://gcc.gnu.org/` | 精确 DLL SHA；GPLv3 文本及 GCC Runtime Library Exception 3.1 官方原文已经分别归档 | **只取得例外许可文本，不等于证明此 DLL 的特定二进制属于例外覆盖范围**；精确 GCC/MSYS2 源码版本未核 |
-| `libstdc++-6.dll` | GCC C++ runtime，`https://gcc.gnu.org/` | 精确 DLL SHA；同上 | 精确 GCC/MSYS2 版本、完整源码/通知和例外适用范围待核 |
+| `libvpl-2.dll` | Intel oneVPL / MSYS2 `mingw-w64-x86_64-libvpl 2.17.0-1` | 原始二进制包 SHA `3899c8e75e9b62cfff8b0987d70da3e2c142a075b94af45d868c3453d86aaece`、`.BUILDINFO`、实际 DLL SHA **完全一致**；包声明 MIT | 源码发行包及适用发布义务仍需归档复核 |
+| `libopenh264-7.dll` | Cisco OpenH264 / MSYS2 `mingw-w64-x86_64-openh264 2.6.0-1` | 原始包 SHA `73988ace22048df42ae973873b770710bf019e0b070fc2b8084f1cf1993e14f0`、实际 DLL SHA **完全一致**；包声明 BSD-2-Clause | 对应源码及 OpenH264 分发条款仍需确认 |
+| `libwinpthread-1.dll` | MSYS2 `mingw-w64-x86_64-libwinpthread 14.0.0.r179.g24aaa6147-1` | 原始包 SHA `8f12dc1be987165faab6363a159921553b4a2ac64e443cd0e7c501c343c2a92a`，DLL **完全一致**；包声明 MIT AND BSD-3-Clause-Clear | 对应源码及声明覆盖范围待最终复核 |
+| `libgcc_s_seh-1.dll` | MSYS2 `mingw-w64-x86_64-gcc-libs 16.1.0-5` | 原始包 SHA `aa560f5438c35b71c3e7b24fd5becbca028f70c5b4d1f1697a86ff80fec947da`、DLL **完全一致**；包声明 GCC exception 3.1 等 | 相应源码、GNU 运行时例外适用范围和附属文本待最终复核 |
+| `libstdc++-6.dll` | 与前项相同的 MSYS2 GCC runtime `16.1.0-5` | 同一原始包中的 `libstdc++-6.dll` SHA **完全一致**；完整 GCC 原始包和 BUILINFO 已核 | 对应源码、全部版权声明及 LGPL/GCC 例外范围待最终复核 |
 
 ## 目前有真实证据的主源码
 
@@ -25,4 +25,10 @@
 
 `scripts/generate-native-lite-sbom.mjs` 必须读取本地**真实候选文件**并核验原始锁定哈希才产生 [SPDX 2.3](FFMPEG-LITE-SBOM.spdx.json)。未知许可证、未知二进制与源码关联，一律标记为 `NOASSERTION` / **EXACT_MSYS2_PACKAGE_AND_SOURCE_NOT_VERIFIED**，不虚构 SPDX 完成证明。
 
-当前 `build/release-approval.json` 的 `approved=false`，**没有任何人可以仅凭此 SBOM 解锁公众安装包**。下一步必须收集准确的 MSYS2 原始 PKGINFO / BUILDINFO / 版本和源包，确认 `libvpl` / `openh264` / GCC 运行时各自适用许可证与全部声明，并给最终发行提供干净 Windows 11 安装证据。
+当前 `build/release-approval.json` 的 `approved=false`，**没有任何人可以仅凭此 SBOM 解锁公众安装包**。四个原始 MSYS2 二进制包、`.PKGINFO/.BUILDINFO`、确切版本以及五个 DLL 的字节匹配已完成。下一步只需完成源代码包/附带条款归档核对、FFmpeg 对应源码提供及独立干净 Windows 11 安装验收，之后再决定允许社区版正式发布。
+
+## 2026-10-09 构建脚本原始字节补证
+
+在已经完成四个 MSYS2 二进制包/五个 DLL 的逐字节 SHA 一致性后，再按每个包的 `.BUILDINFO.pkgbuild_sha256sum` 找回 **MSYS2/MINGW-packages 官方 Git 仓库内构建时间之前的历史 PKGBUILD**；实际下载四份 PKGBUILD、计算 SHA-256，并与每个包的 `.BUILDINFO` 精确比较：**4/4 PASS**。所有 Git commit、每个原始 PKGBUILD 的 SHA 和精确 URL 都固定在 [原包证据 JSON](MSYS2-EXACT-PACKAGE-EVIDENCE.json)，并由 `audit:msys2-provenance` 复查。
+
+这已确认从构建工作流到 DLL 字节、软件包元数据及**确切打包构建脚本**的一致证据；但 PKGBUILD 只是源码获取、补丁与构建步骤的配方，不能替代其中引用的全部原始源码包，更不单独证明 LGPL 的完整再分发义务得到履行。

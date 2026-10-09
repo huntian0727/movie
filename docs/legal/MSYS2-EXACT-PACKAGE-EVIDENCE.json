@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "releaseAllowed": false,
+  "verification": "PER_BYTE_5_OF_5_DLL_MATCH_FROM_EXACT_MSYS2_BINARY_PACKAGE_AND_4_OF_4_PINNED_PKGBUILD",
+  "explanation": "Pinned package SHA256, PKGINFO and BUILDINFO, and 5 embedded DLLs byte-match. This does not by itself establish full corresponding source access, LGPL relinking materials, compliance or clean Windows 11 QA.",
+  "buildSource": {
+    "repository": "serversideup/ffmpeg-lgpl-builds",
+    "runId": 29303740323,
+    "jobId": 86992785957,
+    "headSha": "8bd22e8859595e7b9f5d58cbf7af59c04fbe2fac",
+    "builtAt": "2026-07-14",
+    "logsUrl": "https://github.com/serversideup/ffmpeg-lgpl-builds/actions/runs/29303740323/job/86992785957"
+  },
+  "packages": [
+    {
+      "packageName": "mingw-w64-x86_64-libvpl",
+      "version": "2.17.0-1",
+      "basePackage": "mingw-w64-libvpl",
+      "buildTimestampUnix": 1782641073,
+      "licenseAsDeclaredInPackage": [
+        "spdx:MIT"
+      ],
+      "packageBuilder": "CI (https://github.com/msys2/msys2-autobuild/actions/runs/28318692770/job/83896565509)",
+      "pkgbuildSha256": "25e2112ac24d70e385bdf6b2152d3c362f0b590dcd1eff6c07bed79c5bf5be65",
+      "files": {
+        "libvpl-2.dll": {
+          "sha256": "670c4a28094b9f0d2aefe1e666c61e9e5eb7315f1ffd0bf12e4731727c6254e6",
+          "byteIdenticalToLite": true
+        }
+      },
+      "status": "EXACT_BYTES_MATCH_MSYS2_PACKAGE; SOURCE_CODE_AND_PUBLIC_REDISTRIBUTION_REVIEW_OPEN",
+      "buildRecipe": {
+        "gitCommit": "6b0a4b9cab8a1dd3c2d8cb9ba9e7b119c272b6b5",
+        "sha256": "25e2112ac24d70e385bdf6b2152d3c362f0b590dcd1eff6c07bed79c5bf5be65",
+        "url": "https://github.com/msys2/MINGW-packages/blob/6b0a4b9cab8a1dd3c2d8cb9ba9e7b119c272b6b5/mingw-w64-libvpl/PKGBUILD",
+        "byteIdenticalToUpstreamBuildInfo": true
+      },
+      "archive": {
+        "filename": "mingw-w64-x86_64-libvpl-2.17.0-1-any.pkg.tar.zst",
+        "sha256": "3899c8e75e9b62cfff8b0987d70da3e2c142a075b94af45d868c3453d86aaece",
+        "url": "https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-libvpl-2.17.0-1-any.pkg.tar.zst"
+      },
+      "sourceOnlyArchiveUrl": "https://repo.msys2.org/mingw/sources/mingw-w64-libvpl-2.17.0-1.src.tar.zst"
+    },
+    {
+      "packageName": "mingw-w64-x86_64-openh264",
+      "version": "2.6.0-1",
+      "basePackage": "mingw-w64-openh264",
+      "buildTimestampUnix": 1739945677,
+      "licenseAsDeclaredInPackage": [
+        "spdx:BSD-2-Clause"
+      ],
+      "packageBuilder": "CI (msys2/msys2-autobuild/a187346d/13406466491)",
+      "pkgbuildSha256": "f6e6c2b17f8724b2e471cd3252115ef9a4d9f569287521a5e688224261318393",
+      "files": {
+        "libopenh264-7.dll": {
+          "sha256": "4ac3e61bd10b696abf4b20391bf1cc682c393a0a27f0e96daf020dc1adf6e973",
+          "byteIdenticalToLite": true
+        }
+      },
+      "status": "EXACT_BYTES_MATCH_MSYS2_PACKAGE; SOURCE_CODE_AND_PUBLIC_REDISTRIBUTION_REVIEW_OPEN",
+      "buildRecipe": {
+        "gitCommit": "3aeb27c5a29430a0851fd7b1d5f22c5f84e396bf",
+        "sha256": "f6e6c2b17f8724b2e471cd3252115ef9a4d9f569287521a5e688224261318393",
+        "url": "https://github.com/msys2/MINGW-packages/blob/3aeb27c5a29430a0851fd7b1d5f22c5f84e396bf/mingw-w64-openh264/PKGBUILD",
+        "byteIdenticalToUpstreamBuildInfo": true
+      },
+      "archive": {
+        "filename": "mingw-w64-x86_64-openh264-2.6.0-1-any.pkg.tar.zst",
+        "sha256": "73988ace22048df42ae973873b770710bf019e0b070fc2b8084f1cf1993e14f0",
+        "url": "https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-openh264-2.6.0-1-any.pkg.tar.zst"
+      },
+      "sourceOnlyArchiveUrl": "https://repo.msys2.org/mingw/sources/mingw-w64-openh264-2.6.0-1.src.tar.zst"
+    },
+    {
+      "packageName": "mingw-w64-x86_64-libwinpthread",
+      "version": "14.0.0.r179.g24aaa6147-1",
+      "basePackage": "mingw-w64-winpthreads",
+      "buildTimestampUnix": 1783438634,
+      "licenseAsDeclaredInPackage": [
+        "spdx:MIT AND BSD-3-Clause-Clear"
+      ],
+      "packageBuilder": "CI (https://github.com/msys2/msys2-autobuild/actions/runs/28877938857/job/85658029493)",
+      "pkgbuildSha256": "55d530e1f88cf65e90ed44b5dca0a7bea41cfa530a87df742e9874a543e8b074",
+      "files": {
+        "libwinpthread-1.dll": {
+          "sha256": "f6ad1378f098c1229be8e44bf22a9cc76c06a5d1630290d9be43f203430894cb",
+          "byteIdenticalToLite": true
+        }
+      },
+      "status": "EXACT_BYTES_MATCH_MSYS2_PACKAGE; SOURCE_CODE_AND_PUBLIC_REDISTRIBUTION_REVIEW_OPEN",
+      "buildRecipe": {
+        "gitCommit": "b67b45ace97d4bc6dabdd56177ff3952d049a145",
+        "sha256": "55d530e1f88cf65e90ed44b5dca0a7bea41cfa530a87df742e9874a543e8b074",
+        "url": "https://github.com/msys2/MINGW-packages/blob/b67b45ace97d4bc6dabdd56177ff3952d049a145/mingw-w64-winpthreads/PKGBUILD",
+        "byteIdenticalToUpstreamBuildInfo": true
+      },
+      "archive": {
+        "filename": "mingw-w64-x86_64-libwinpthread-14.0.0.r179.g24aaa6147-1-any.pkg.tar.zst",
+        "sha256": "8f12dc1be987165faab6363a159921553b4a2ac64e443cd0e7c501c343c2a92a",
+        "url": "https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-libwinpthread-14.0.0.r179.g24aaa6147-1-any.pkg.tar.zst"
+      },
+      "sourceOnlyArchiveUrl": "https://repo.msys2.org/mingw/sources/mingw-w64-winpthreads-14.0.0.r179.g24aaa6147-1.src.tar.zst"
+    },
+    {
+      "packageName": "mingw-w64-x86_64-gcc-libs",
+      "version": "16.1.0-5",
+      "basePackage": "mingw-w64-gcc",
+      "buildTimestampUnix": 1779041058,
+      "licenseAsDeclaredInPackage": [
+        "spdx:GPL-3.0-or-later WITH GCC-exception-3.1 AND LGPL-2.1-or-later"
+      ],
+      "packageBuilder": "CI (https://github.com/msys2/msys2-autobuild/actions/runs/25998262018/job/76416562054)",
+      "pkgbuildSha256": "40f248fa589babd9315cc589a76a0c00939355bd68c92287a2dcb7d1acb58f96",
+      "files": {
+        "libgcc_s_seh-1.dll": {
+          "sha256": "278f1101f2371c58b6b412a3206718e22343940a5164aceb4fb75f2bf3b38ed4",
+          "byteIdenticalToLite": true
+        },
+        "libstdc++-6.dll": {
+          "sha256": "3529d11c422b2aaf0bbad7221bf62ba7b5a39f854e89a015bb58b6b55a677da1",
+          "byteIdenticalToLite": true
+        }
+      },
+      "status": "EXACT_BYTES_MATCH_MSYS2_PACKAGE; SOURCE_CODE_AND_PUBLIC_REDISTRIBUTION_REVIEW_OPEN",
+      "buildRecipe": {
+        "gitCommit": "18aeb95f69dd6bd3c9172a938c9fd35491536410",
+        "sha256": "40f248fa589babd9315cc589a76a0c00939355bd68c92287a2dcb7d1acb58f96",
+        "url": "https://github.com/msys2/MINGW-packages/blob/18aeb95f69dd6bd3c9172a938c9fd35491536410/mingw-w64-gcc/PKGBUILD",
+        "byteIdenticalToUpstreamBuildInfo": true
+      },
+      "archive": {
+        "filename": "mingw-w64-x86_64-gcc-libs-16.1.0-5-any.pkg.tar.zst",
+        "sha256": "aa560f5438c35b71c3e7b24fd5becbca028f70c5b4d1f1697a86ff80fec947da",
+        "url": "https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-gcc-libs-16.1.0-5-any.pkg.tar.zst"
+      },
+      "sourceOnlyArchiveUrl": "https://repo.msys2.org/mingw/sources/mingw-w64-gcc-16.1.0-5.src.tar.zst"
+    }
+  ]
+}
