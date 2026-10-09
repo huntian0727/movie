@@ -140,3 +140,5 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 家用机 MP2T8QB5 已恢复连接，本轮**只使用 B5，不使用办公机 707**。接手工作区干净，基线 `db8d61908008a1e9d940ce9cef7039d06e346d6d`，PR #24 仍 Draft，main `807c49585d18c901b199fe0d3d8b0dbf31eb4114`。修改前创建完整 checkpoint + SQLite 快照并通过 quick_check，参见本轮交付记录。
 
 本轮新建 fail-closed 的上游源码 recipe 审计程序，已核实 43 项启用外部库/44 份候选 recipe 引用及固定修订、初步直接依赖和 4 份补丁哈希；精确版本 opus/libass 两份 COPYING 原文也已归档在 B5 隔离审计目录。证据见 `docs/legal/native-media-recipe-evidence.json`。**正式公众发布仍 FAIL**：这不是二进制/完整源码、许可证/静态链接义务、干净 Windows、签名审批通过的证明。新增代码没有修改 Electron 的功能与安装器，原已验收包的 SHA 和部署状态仍保持历史记录，不宣称新包交付。
+
+上述 FFmpeg 取证本轮后续核验补充：先前 Opus TAR 下载首轮网络超时，但 CURL 自动重试最终完整成功；libass TAR 也成功，在 B5 经完整 TAR 列表退出码 0 和 SHA-256 验证。故目前外部库已独立存档 **2/43 份完整源码归档**，其余 41 项及传递依赖、全部许可证/补丁适用性和二进制对应仍未验收。这不代表可以公开分发。

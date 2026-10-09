@@ -24,7 +24,9 @@
 | opus | `503d81b138d76621aae4b12786e90de48aa8db3a` | `01e1167d54a096d123cf6dfbbeb19587278845c6481d2d66d545669846079551` | BSD 风格声明/免责声明及二进制再分发条件 |
 | libass | `f61db567e6593df3470e91594bcd4ad2d0473aff` | `f7e30699d02798351e7f839e3d3bfeb29ce65e44efa7735c225464c4fd7dfe9c` | ISC License，需要保留版权和许可证声明 |
 
-原始文本只保存在 B5 家用机的 `D:/CodexReleaseAudit/media-candidate-20261008/source-evidence/exact-component-sources/` 中。以上两份是**文本级许可证证据**，不是完整第三方库源码归档。精确源码 TAR 下载未完成，不将空文件或下载失败标为 PASS。
+原始文本只保存在 B5 家用机的 `D:/CodexReleaseAudit/media-candidate-20261008/source-evidence/exact-component-sources/` 中。此外，B5 家用机的 TAR 下载在首次网络超时后自动重试成功，**实际归档了两份完整、精确提交版本的上游源码 TAR**，并通过完整 `tar -tzf` 校验：Opus（4,957,402 字节，SHA-256 `e34101b726c033be40e3f5a2695d086362d59069554ffd46800c38a13eade1f7`，840 个 TAR 条目），libass（352,592 字节，SHA-256 `edb3e866ca9394152484bc9a83b68a395f5c9052ae0dc502e4100035c250330b`，155 个条目）。两个 TAR 均包含 `COPYING`。它们保存在上述 B5 D 盘隔离目录，不进入 Git 或公众安装包。
+
+**注意：这仅表示已实际取得 43 个启用库中两项的完整源码归档，不代表两个库已经完成所有传递依赖、构建补丁适用性或与发布版 Windows 二进制的对应证明。** 自动生成的 recipe 表仍统一标记 `sourceArchiveRetrieved=false`，因为该表仅基于单一构建源码仓库，不将外部隔离材料自动当作合规批准；两份实际归档以此补充记录为准。
 
 ## 需要继续补足的证据
 

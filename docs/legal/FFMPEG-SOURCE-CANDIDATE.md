@@ -43,3 +43,7 @@ BtbN 构建仓库 README 明确说明仅保留最近 **14** 份每日构建，�
 在家用机 B5 实际核对 BtbN 源码压缩包 SHA，解析 **43 项启用外部库的 44 份候选构建脚本**：43 个固定完整 Git Commit、一个 `libmp3lame` 固定 SVN r6835，合计 42 个不同来源仓库；初步提取 16 份 recipe 内的简单直接依赖声明（18 种名字）及 4 份补丁的 SHA。另以 GitHub API 取得 **opus 与 libass 在精确源码 commit 下的 COPYING 原文并哈希**，未获得整套第三方完整源码。全部字段标记为未批准，对应证据见 [构建来源初审](FFMPEG-RECIPE-SOURCE-AUDIT.md) 和 [逐库机器核验 JSON](native-media-recipe-evidence.json)。
 
 这一步解决“哪些源码应被收集”的追踪问题，而**没有完成对应源码、补丁应用与许可证授权链**，不触发分发批准。当前唯一允许的仍是隔离未签名测试包。
+
+### 2026-10-09 两份完整上游源码已存档（独立补充）
+
+B5 家用机在网络重试成功后取得精确 Git SHA 的 **Opus 和 libass 完整 GitHub 源码 TAR**，完整列出 TAR 条目且退出码为 0（Opus 840 条目，SHA-256 `e34101b726c033be40e3f5a2695d086362d59069554ffd46800c38a13eade1f7`；libass 155 条目，SHA-256 `edb3e866ca9394152484bc9a83b68a395f5c9052ae0dc502e4100035c250330b`）。原始 COPYING 同样逐字节获取和哈希，详见 [来源初审](FFMPEG-RECIPE-SOURCE-AUDIT.md)。**只完成 43 个外部库中的 2 个完整源码归档**，尚未证明二进制对应关系、静态许可证完整合规或所有传递源码，不改变正式发行 FAIL。
