@@ -10,7 +10,7 @@ await regularFile(asarPath);
 const files = await listPackage(asarPath);
 const forbidden = files.filter((file) =>
   /(^|\/)(tests?|\.dbg)(\/|$)/i.test(file) || /(^|\/|\.)\.env/i.test(file) || /\.sqlite(?:-|$)/i.test(file) ||
-  /\/node_modules\/ffprobe-static\/bin\/(?:darwin|linux|win32\/ia32)(?:\/|$)/i.test(file) ||
+  /\/node_modules\/(?:ffmpeg-static|ffprobe-static)(?:\/|$)/i.test(file) ||
   /\/node_modules\/better-sqlite3\/prebuilds\/(?!win32-x64\.node$)[^/]+\.node$/i.test(file)
 );
 if (forbidden.length > 0) throw new Error(`Forbidden files found in app.asar: ${forbidden.join(", ")}`);
@@ -27,8 +27,8 @@ if (flavor.version !== manifest.version || flavor.arch !== "x64") throw new Erro
 const unpacked = path.join(resourcesDirectory, "app.asar.unpacked", "node_modules");
 const binaries = [
   path.join(unpacked, "better-sqlite3", "prebuilds", "win32-x64.node"),
-  path.join(unpacked, "ffmpeg-static", "ffmpeg.exe"),
-  path.join(unpacked, "ffprobe-static", "bin", "win32", "x64", "ffprobe.exe"),
+  path.join(resourcesDirectory, "media-tools", "ffmpeg.exe"),
+  path.join(resourcesDirectory, "media-tools", "ffprobe.exe"),
   path.join(resourcesDirectory, "native-player", "NativeHost.exe"),
   path.join(resourcesDirectory, "..", `${flavor.executableName}.exe`)
 ];
@@ -48,14 +48,14 @@ await Promise.all([
   regularFile(path.join(resourcesDirectory, "legal", "PROJECT-LICENSE.txt")),
   regularFile(path.join(resourcesDirectory, "legal", "THIRD-PARTY-NOTICES.txt")),
   regularFile(path.join(resourcesDirectory, "legal", "dependency-inventory.json")),
-  regularFile(path.join(unpacked, "ffmpeg-static", "ffmpeg.exe.LICENSE")),
-  regularFile(path.join(unpacked, "ffmpeg-static", "ffmpeg.exe.README"))
+  regularFile(path.join(resourcesDirectory, "media-tools", "LICENSE.txt")),
+  regularFile(path.join(resourcesDirectory, "media-tools", "SOURCE-STATUS.txt"))
 ]);
 // Check copied binaries against the candidate build inputs, not merely directory existence.
 for (const [packaged, source] of [
   [binaries[0], path.join(process.cwd(), "node_modules", "better-sqlite3", "prebuilds", "win32-x64.node")],
-  [binaries[1], path.join(process.cwd(), "node_modules", "ffmpeg-static", "ffmpeg.exe")],
-  [binaries[2], path.join(process.cwd(), "node_modules", "ffprobe-static", "bin", "win32", "x64", "ffprobe.exe")],
+  [binaries[1], path.join(process.cwd(), "native-bin", "media-tools", "ffmpeg.exe")],
+  [binaries[2], path.join(process.cwd(), "native-bin", "media-tools", "ffprobe.exe")],
   [binaries[3], path.join(process.cwd(), "native-bin", "NativeHost.exe")]
 ]) {
   if (packaged === binaries[3] && flavor.releaseClass === "signed-release") {

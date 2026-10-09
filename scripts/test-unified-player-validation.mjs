@@ -38,7 +38,7 @@ app.whenReady().then(async () => {
     mkdirSync(media, { recursive: true }); mkdirSync(path.join(userData, "native-player"), { recursive: true });
     linkSync(path.join(fixtureRoot, "libmpv-2.dll"), path.join(userData, "native-player", "libmpv-2.dll"));
     const db = createDatabase(path.join(userData, "library.sqlite")), repo = new VideoRepository(db);
-    const folder = repo.addSourceFolder(media, false), probe = require("ffprobe-static").path;
+    const folder = repo.addSourceFolder(media, false), probe = path.resolve("native-bin/media-tools/ffprobe.exe");
     for (const [index, s] of samples.entries()) {
       const filename = `${String(index + 1).padStart(2, "0")}-${s.name}${path.extname(s.path)}`, target = path.join(media, filename);
       await copyFile(s.path, target);

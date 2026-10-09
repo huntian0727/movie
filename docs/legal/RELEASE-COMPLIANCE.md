@@ -42,3 +42,9 @@ NativeHost.exe 来自仓库 C# 编译输出；内嵌播放仍需用户单独提�
 
 正式流程需检查批准记录与对应素材的哈希，不能仅有任意环境变量就当作法律批准。
 维护者尚未提交 LICENSE_APPROVAL / BINARY_COMPLIANCE_APPROVAL，因此 signed-release 门禁应保持关闭。
+
+## 2026-10-09 技术迁移之后的最新状态（覆盖上文旧包统计，不视为授权）
+
+新工作分支已移除 `ffmpeg-static` GPL-3.0-or-later JS 包装层和 `ffprobe-static` 包装层，重新生成锁文件后为 **414** 个包、其中 **54** 个生产包（此前 428 / 75 的历史库存不再代表当前状态），当前 `npm ls ffmpeg-static ffprobe-static` 返回空结果。原生工具改为固定来源 LGPL v3 二进制，并以 `resources/media-tools` 单独打包；详见 `docs/legal/FFMPEG-SOURCE-CANDIDATE.md` 与 `ffmpeg-source-candidate-inventory.json`。`THIRD-PARTY-NOTICES.txt` 和 `dependency-inventory.json` 按最新锁文件重新生成；原生工具 LGPL 文本随测试包单独附带。
+
+**仍禁止公开分发：** 43 个启用的第三方库需要逐一查清准确构建对应的完整源码/补丁/许可证/静态链接义务并形成审核记录，同时代码和素材版权授权、签名与独立审核、干净 Win11/noNode/历史升级、隐私范围仍阻塞。没有改动 `build/release-approval.json` 或给出源码许可授权。

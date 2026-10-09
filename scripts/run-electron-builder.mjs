@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { createBuildFlavor, readJson, verifyFormalApproval, writeJson } from "./release-engineering.mjs";
+import { createBuildFlavor, hashFile, readJson, verifyFormalApproval, writeJson } from "./release-engineering.mjs";
 
 const mode = process.argv[2];
 if (mode !== "--dir" && mode !== "--win-nsis") {
@@ -10,6 +10,17 @@ if (mode !== "--dir" && mode !== "--win-nsis") {
 
 if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Windows x64 build environment required.");
 const root = process.cwd();
+const nativeLock = await readJson(path.join(root, "scripts", "native-media-candidate.lock.json"));
+if (nativeLock.status !== "CANDIDATE_NOT_APPROVED" || nativeLock.distributable !== false) {
+  throw new Error("Native media licensing is not approved by source staging.");
+}
+for (const [name, expected] of Object.entries(nativeLock.expectedExecutables)) {
+  const actual = await hashFile(path.join(root, "native-bin", "media-tools", name));
+  if (actual !== expected) throw new Error("Pinned native media build input differs: " + name);
+}
+if (await hashFile(path.join(root, "native-bin", "media-tools", "LICENSE.txt")) !== nativeLock.expectedLicenseSha256) {
+  throw new Error("Native media license evidence has changed.");
+}
 const flavor = createBuildFlavor(await readJson(path.join(root, "package.json")));
 flavor.commit = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8", windowsHide: true }).trim();
 flavor.complianceApprovalSha256 = await verifyFormalApproval(root, flavor);
@@ -24,6 +35,7 @@ const configuration = {
   win: { executableName: flavor.executableName, artifactName: flavor.artifactName, target: [{ target: "nsis", arch: ["x64"] }] },
   extraResources: [
     { from: "native-bin", to: "native-player", filter: ["NativeHost.exe"] },
+    { from: "native-bin/media-tools", to: "media-tools", filter: ["ffmpeg.exe", "ffprobe.exe", "LICENSE.txt", "SOURCE-STATUS.txt"] },
     { from: "docs/legal", to: "legal" },
     { from: "LICENSE", to: "legal/PROJECT-LICENSE.txt" },
     { from: path.join(buildDirectory, "build-flavor.json"), to: "build-flavor.json" }

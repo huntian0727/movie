@@ -8,7 +8,7 @@ const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../../..")
 if(!process.argv[2]||root===path.parse(root).root||root===repo||root.startsWith(repo+path.sep))throw Error("isolated-output-required");
 await mkdir(root,{recursive:true});
 async function run(args){await new Promise((resolve,reject)=>{
-  const c=spawn(path.join(repo,"node_modules/ffmpeg-static/ffmpeg.exe"),["-hide_banner","-loglevel","error","-nostdin","-y",...args],{windowsHide:true,stdio:"inherit"});
+  const c=spawn(path.join(repo,"native-bin/media-tools/ffmpeg.exe"),["-hide_banner","-loglevel","error","-nostdin","-y",...args],{windowsHide:true,stdio:"inherit"});
   c.on("error",reject);c.on("exit",code=>code===0?resolve():reject(Error("fixture-generation-failed")));
 });}
 const inner=path.join(root,"embedded-fixture.srt"),external=path.join(root,"external-fixture.srt");

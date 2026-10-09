@@ -96,7 +96,7 @@ describe("release engineering trust boundaries", () => {
   });
   it("binds explicit approval to actual binary, dependency, license and evidence bytes", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "movie-release-binding-")); roots.push(root);
-    for (const directory of ["build", "docs/legal", "node_modules/ffmpeg-static", "node_modules/ffprobe-static/bin/win32/x64", "native-bin"]) await mkdir(path.join(root, directory), { recursive: true });
+    for (const directory of ["build", "docs/legal", "native-bin/media-tools", "native-bin"]) await mkdir(path.join(root, directory), { recursive: true });
     await writeFile(path.join(root, "package.json"), JSON.stringify(manifest));
     await writeFile(path.join(root, "package-lock.json"), "synthetic-lock");
     await writeFile(path.join(root, "LICENSE"), "MIT License\nCopyright (c) Synthetic Test Fixtures\nPermission is hereby granted to test fixtures only.\n");
@@ -104,7 +104,7 @@ describe("release engineering trust boundaries", () => {
     await writeFile(path.join(root, evidence), "Synthetic evidence for isolated unit fixtures only.");
     const evidenceHash = await hashFile(path.join(root, evidence));
     const binaries = [];
-    for (const [name, relative] of [["ffmpeg.exe", "node_modules/ffmpeg-static/ffmpeg.exe"], ["ffprobe.exe", "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe"], ["NativeHost.exe", "native-bin/NativeHost.exe"]]) {
+    for (const [name, relative] of [["ffmpeg.exe", "native-bin/media-tools/ffmpeg.exe"], ["ffprobe.exe", "native-bin/media-tools/ffprobe.exe"], ["NativeHost.exe", "native-bin/NativeHost.exe"]]) {
       await writeFile(path.join(root, relative), `synthetic-${name}`);
       binaries.push({ name, sha256: await hashFile(path.join(root, relative)), sourceComplianceApproved: true, sourceEvidence: evidence, sourceEvidenceSha256: evidenceHash });
     }
@@ -115,9 +115,9 @@ describe("release engineering trust boundaries", () => {
     await writeFile(approvalPath, JSON.stringify(approval));
     const flavor = createBuildFlavor(manifest, signedEnvironment);
     expect(await verifyFormalApproval(root, flavor)).toBe(await hashFile(approvalPath));
-    await writeFile(path.join(root, "node_modules/ffmpeg-static/ffmpeg.exe"), "different-binary");
+    await writeFile(path.join(root, "native-bin/media-tools/ffmpeg.exe"), "different-binary");
     await expect(verifyFormalApproval(root, flavor)).rejects.toThrow(/binary/);
-    await writeFile(path.join(root, "node_modules/ffmpeg-static/ffmpeg.exe"), "synthetic-ffmpeg.exe");
+    await writeFile(path.join(root, "native-bin/media-tools/ffmpeg.exe"), "synthetic-ffmpeg.exe");
     await writeFile(path.join(root, evidence), "Changed source/QA evidence.");
     await expect(verifyFormalApproval(root, flavor)).rejects.toThrow(/evidence/);
   });

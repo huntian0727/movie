@@ -54,7 +54,7 @@ try {
   Remove-Item Env:VIDEO_MANAGER_PACKAGED_SMOKE_RESULT -ErrorAction SilentlyContinue
 }
 $taskVideo=Join-Path $taskInstall 'synthetic-user-video.mp4'
-$taskProbe=Join-Path $taskInstall 'resources/app.asar.unpacked/node_modules/ffmpeg-static/ffmpeg.exe'
+$taskProbe=Join-Path $taskInstall 'resources/media-tools/ffmpeg.exe'
 Invoke-Candidate $taskProbe "-hide_banner -loglevel error -f lavfi -i color=c=blue:s=16x16:r=1 -t 1 -c:v mpeg4 `"$taskVideo`""
 $taskDatabase=Join-Path $taskUserData 'library.sqlite'
 $taskCopy=Join-Path $taskInstall 'synthetic-user-library.sqlite'

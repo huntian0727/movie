@@ -6,9 +6,15 @@ describe("project scaffold", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     expect(pkg.scripts.dev).toBeUndefined();
     expect(pkg.scripts["dev:renderer"]).toBe("vite --host 127.0.0.1");
-    expect(pkg.scripts["dev:electron"]).toBe("npm run verify:native:electron && node scripts/start-desktop.mjs");
+    expect(pkg.scripts["dev:electron"]).toBe("npm run prepare:media-tools && npm run verify:native:electron && node scripts/start-desktop.mjs");
     expect(pkg.scripts.test).toBe("npm run test:node");
     expect(pkg.scripts["test:node"]).toContain("verify:native:node");
+    expect(pkg.scripts["test:node"]).toContain("npm run prepare:media-tools");
+    expect(pkg.scripts["test:release-gate"]).toContain("npm run prepare:media-tools");
+    expect(pkg.scripts["package:dir"]).toContain("npm run prepare:media-tools");
+    expect(pkg.scripts["dist:win"]).toContain("npm run prepare:media-tools");
+    expect(pkg.dependencies["ffmpeg-static"]).toBeUndefined();
+    expect(pkg.dependencies["ffprobe-static"]).toBeUndefined();
     expect(pkg.scripts["test:electron-smoke"]).toContain("scripts/run-electron-smoke.mjs");
     expect(pkg.scripts["test:windows-files"]).toContain("tests/gates/syntheticLibrary.test.ts");
     expect(pkg.scripts["test:release-performance"]).toContain("tests/gates/performanceBaselines.test.ts");

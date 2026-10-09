@@ -7,7 +7,7 @@ import { readMetadata } from "../dist-main/main/media/metadataService.js";
 import { choosePlaybackRoute } from "../dist-main/shared/playbackRouting.js";
 
 const require = createRequire(import.meta.url);
-const ffmpegPath = require("ffmpeg-static");
+const ffmpegPath = path.resolve("native-bin/media-tools/ffmpeg.exe");
 const tempDirectory = mkdtempSync(path.join(os.tmpdir(), "video-manager-codec-validation-"));
 const samples = [
   {

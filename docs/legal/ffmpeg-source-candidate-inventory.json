@@ -1,0 +1,333 @@
+{
+  "schemaVersion": 1,
+  "approvedForDistribution": false,
+  "sourceComplianceApproved": false,
+  "build": {
+    "repo": "https://github.com/BtbN/FFmpeg-Builds",
+    "commit": "9acad4a9ef1583096af7836cc1e9c8cbcb4d3950",
+    "archiveSha256": "27dca8db7b2466b6f5145168721264de91dc9b56f50bebc441249f92e4acf548",
+    "recipeCount": 134,
+    "patchCount": 4,
+    "license": "MIT (repository build scripts only)"
+  },
+  "ffmpeg": {
+    "repo": "https://github.com/FFmpeg/FFmpeg",
+    "commit": "46d8f462eeb87ee1f704d8c44a0ee24fca471ad1",
+    "archiveSha256": "56999ad7cdcfbe520e989e38ac763341fab71b367ef8c20434117f8d1b7204a9",
+    "releaseBuild": "n9.0.2-22-g46d8f462ee-20261005",
+    "licenseReported": "LGPL-3.0",
+    "externalLibraryCount": 43
+  },
+  "externalLibraries": [
+    {
+      "ffmpegEnableFlag": "libaom",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-aom.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libaribb24",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libaribb24.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libaribcaption",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libaribcaption.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libass",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libass.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libbluray",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libbluray.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libdav1d",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-dav1d.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libfreetype",
+      "upstreamRecipeCandidates": [
+        "scripts.d/45-fonts/25-freetype.sh",
+        "scripts.d/45-fonts/50-freetype.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libfribidi",
+      "upstreamRecipeCandidates": [
+        "scripts.d/25-fribidi.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libgme",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-gme.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libharfbuzz",
+      "upstreamRecipeCandidates": [
+        "scripts.d/45-fonts/45-harfbuzz.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libjxl",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libjxl/50-libjxl.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libkvazaar",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-kvazaar.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "liblcevc-dec",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-lcevcdec.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libmp3lame",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libmp3lame.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "liboapv",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-openapv.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libopencore-amrnb",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-opencore-amr.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libopencore-amrwb",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-opencore-amr.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libopenh264",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-openh264.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libopenjpeg",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-openjpeg.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libopenmpt",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-openmpt.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libopus",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libopus.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libplacebo",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libplacebo.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "librav1e",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-rav1e.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "librist",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-librist/50-librist.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "librsvg",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-librsvg/99-librsvg.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libsnappy",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-snappy.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libsoxr",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-soxr.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libsrt",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-srt.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libssh",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libssh.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libsvtav1",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-svtav1.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libtheora",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libtheora.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libtwolame",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-twolame.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libuavs3d",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-uavs3d.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libvmaf",
+      "upstreamRecipeCandidates": [
+        "scripts.d/45-vmaf.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libvorbis",
+      "upstreamRecipeCandidates": [
+        "scripts.d/45-libvorbis.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libvpl",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-onevpl.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libvpx",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libvpx.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libvvenc",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-vvenc.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libwebp",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libwebp.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libxml2",
+      "upstreamRecipeCandidates": [
+        "scripts.d/25-libxml2.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libzimg",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-zimg.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libzmq",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-libzmq.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    },
+    {
+      "ffmpegEnableFlag": "libzvbi",
+      "upstreamRecipeCandidates": [
+        "scripts.d/50-zvbi.sh"
+      ],
+      "reviewStatus": "LICENSE_SOURCE_PATCH_BUILD_UNVERIFIED"
+    }
+  ],
+  "remaining": [
+    "Recipe file/name matching is indicative; verify exact source version, archive digest and the selected build variant for every external library",
+    "Collect each external library corresponding source, patches, generated configuration and license notices",
+    "Obtain GPL/LGPL required distribution obligations including (where necessary) relinking material for the static build",
+    "Rebuild from fully pinned inputs or record independently verifiable binary/source correspondence",
+    "Run media, installer and clean stable Windows 11 tests on source-approved binaries",
+    "Owner legal signoff and code signing remain mandatory for public release"
+  ]
+}

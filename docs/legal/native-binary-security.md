@@ -25,3 +25,9 @@
 两者报告的编译配置一致，未启用 `--enable-gpl` / `--enable-nonfree`；两份 EXE 经 PE x64 校验并归档 `-version` / `-buildconf` / `-L`。合成 MP4、probe JSON、封面 JPG、时间轴 JPG 实测 PASS；5 项候选校验单测通过。原生候选实物与证据仅在家用机隔离 `D:/CodexReleaseAudit/media-candidate-20261008`；没有覆盖 npm 二进制、现行安装器或用户资料。候选审计命令：`node scripts/verify-native-media-candidate.mjs --candidate-directory <隔离目录>`。
 
 **P1 仍未解除：** 这是来源锁定与媒体契约验证，绝非已取得所有外部启用库的完整对应源码、patch、build scripts、每项许可证/通知或可复现编译证明。既有 ffmpeg-static GPL JavaScript 包装层仍在运行包内。需要完成上述完整 GPL/LGPL 合规链、去除或处理 wrapper 授权、正式接入及打包/安装全回归后，再由权利人批准；当前 public release FAIL。
+
+## 2026-10-09 旧 npm 包装层移除和原生工具整合
+
+**当前工作分支的新代码**已经从 `package.json`、锁文件及打包结果中移除 `ffmpeg-static` / `ffprobe-static` 两个旧包，以 `native-bin/media-tools` 内的同套 BtbN Windows x64 LGPL v3 工具直接生成 `resources/media-tools`。主进程不再用 npm 包装层查找/执行 EXE，也不回退 PATH。已完成实际 Windows x64 打包/安装安全 smoke；单独 QA 包仍标记 unsigned-test-build。
+
+新测试版运行输入为 FFmpeg **9.0.2-22** 与 FFprobe **9.0.2-22**，哈希见 `scripts/native-media-candidate.lock.json`。已固定同一发布包、提取构建仓库源码与 FFmpeg 主源码精确 commit、归档输入 SHA，并在 `docs/legal/ffmpeg-source-candidate-inventory.json` 列出 43 个启用的额外库及全部 43 项候选 recipe 路径（具体源码和许可尚待核验）。仅完成主源码与 build-recipe 的归档，**尚未取得全部 43 个外部库的对应版本、源代码、补丁、完整许可证和可重建证明**。原 npm GPL JavaScript 包装层风险已消除，原生 LGPLv3 静态构建的完整许可证、适用的静态链接再链接义务与安全补丁适用性仍属 P1 发布阻断。详情见 [原生构建来源审计](FFMPEG-SOURCE-CANDIDATE.md)；不得把本段作为正式分发许可。

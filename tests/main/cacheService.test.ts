@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { execa } from "execa";
 import { getStoryboardTimes } from "../../src/shared/storyboard";
 import {
@@ -31,11 +30,11 @@ describe("cacheService", () => {
 
   it("actually produces all six keyframes including the last long-GOP segment", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "storyboard-keyframe-"));
-    const binary = createRequire(import.meta.url)("ffmpeg-static") as string;
+    const binary = path.resolve(process.cwd(), "native-bin", "media-tools", "ffmpeg.exe");
     const input = path.join(root, "long-gop.mp4");
     try {
       await execa(binary, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=96x64:rate=10", "-t", "8",
-        "-c:v", "libx264", "-g", "60", "-keyint_min", "60", "-sc_threshold", "0", input], { windowsHide: true, timeout: 10_000 });
+        "-c:v", "mpeg4", "-g", "60", "-sc_threshold", "0", input], { windowsHide: true, timeout: 10_000 });
       for (const timeMs of getStoryboardTimes(8000)) {
         const output = path.join(root, `${timeMs}.jpg`);
         await generateTimelineFrame(input, output, timeMs, { fastSeek: true, ffmpegPath: binary });
@@ -107,7 +106,7 @@ describe("cacheService", () => {
     }
   });
 
-  it("uses the default ffmpeg-static path when no ffmpeg path is injected", async () => {
+  it("uses the pinned native-media path when no ffmpeg path is injected", async () => {
     const ensureDir = vi.fn(async () => undefined);
     const runFfmpeg = vi.fn(async (_ffmpegPath: string, _args: string[]) => undefined);
 

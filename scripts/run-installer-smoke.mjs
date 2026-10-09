@@ -42,7 +42,7 @@ try {
   makeDatabase(outerDatabase);
   makeDatabase(userDatabase);
   // Encode a valid tiny synthetic video with the exact packaged FFmpeg.
-  await execute(path.join(releaseDirectory, "win-unpacked", "resources", "app.asar.unpacked", "node_modules", "ffmpeg-static", "ffmpeg.exe"),
+  await execute(path.join(releaseDirectory, "win-unpacked", "resources", "media-tools", "ffmpeg.exe"),
     ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=16x16:r=1", "-t", "1", "-c:v", "mpeg4", outerVideo],
     { windowsHide: true, timeout: 30_000 });
   // First install into a nonempty unrelated directory must fail without touching it.

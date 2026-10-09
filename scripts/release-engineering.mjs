@@ -111,8 +111,8 @@ export async function verifyFormalApproval(root, flavor) {
   if (await hashFile(path.join(root, "LICENSE")) !== approval.licenseSha256 ||
       await hashFile(path.join(root, "package-lock.json")) !== approval.packageLockSha256) throw new Error("Approved license/dependency hashes no longer match the candidate.");
   const required = {
-    "ffmpeg.exe": "node_modules/ffmpeg-static/ffmpeg.exe",
-    "ffprobe.exe": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
+    "ffmpeg.exe": "native-bin/media-tools/ffmpeg.exe",
+    "ffprobe.exe": "native-bin/media-tools/ffprobe.exe",
     "NativeHost.exe": "native-bin/NativeHost.exe"
   };
   for (const [name, relative] of Object.entries(required)) {

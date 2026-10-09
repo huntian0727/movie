@@ -1,10 +1,9 @@
 import crypto from "node:crypto";
-import { existsSync } from "node:fs";
 import { access, cp, mkdir, rename } from "node:fs/promises";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { execa } from "execa";
 import { resolvePackagedExecutablePath } from "./packagedExecutable.js";
+import { resolvePinnedMediaTool } from "./mediaBinaries.js";
 export { getCoverTimeSeconds } from "../../shared/previewIdentity.js";
 
 interface CacheGenerationDependencies {
@@ -15,8 +14,6 @@ interface CacheGenerationDependencies {
   runFfmpeg?: (ffmpegPath: string, args: string[]) => Promise<void>;
 }
 
-const require = createRequire(import.meta.url);
-const ffmpegStatic = require("ffmpeg-static") as string | null;
 const persistentCacheDirectoryName = "media-cache";
 const legacyMediaCacheDirectoryName = "cache";
 const mediaCacheSubdirectories = ["covers", "timeline"] as const;
@@ -148,13 +145,7 @@ function resolveFfmpegPath(ffmpegPathOverride?: string): string {
     return resolvePackagedExecutablePath(ffmpegPathOverride);
   }
 
-  if (typeof ffmpegStatic === "string" && ffmpegStatic.trim() !== "") {
-    const resolvedStaticPath = resolvePackagedExecutablePath(ffmpegStatic);
-    if (existsSync(resolvedStaticPath)) return resolvedStaticPath;
-  }
-
-  // Fall back to PATH when the static binary was not downloaded into node_modules.
-  return "ffmpeg";
+  return resolvePinnedMediaTool("ffmpeg.exe");
 }
 
 async function ensureDirectory(directoryPath: string): Promise<void> {

@@ -211,3 +211,13 @@
 - `tests/renderer/DuplicateGroupsPage.test.tsx`：与新安全提示一致的断言。
 - `docs/ai/deliveries/2026-10-09-public-release-safe-delete-default.md`：独立交付及测试证据。
 - `docs/windows-installation.md`、`docs/public-release-audit.md`、`docs/public-release-owner-decisions.md`：更新当前默认行为与剩余阻塞。
+
+## 2026-10-09 同套 FFmpeg/FFprobe 原生工具接入
+
+- `package.json` / `package-lock.json`：去掉两套旧 ffmpeg/ffprobe npm 包装层及间接依赖，加入安全来源准备阶段。
+- `scripts/prepare-native-media.mjs`：下载/验证固定哈希的 win64 LGPL 同源 ZIP，独立暂存。对源 ZIP、执行文件与 LGPL 文本失败关闭。
+- `src/main/media/mediaBinaries.ts`：新增统一运行工具定位，打包缺失拒绝退回 PATH。`src/main/media/cacheService.ts`、`metadataService.ts`、`src/main/packagedSmoke.ts` 改成独立原生路径。
+- `electron-builder.yml`、`scripts/run-electron-builder.mjs`、`scripts/release-engineering.mjs`、`scripts/verify-packaged-artifact.mjs`、`scripts/write-release-metadata.mjs`（原脚本复用）、`scripts/run-installer-smoke.mjs`、`scripts/clean-windows11-acceptance.ps1` 更新为打包独立 `resources/media-tools`、验证哈希、许可文本与安装保护。
+- `tests/main/mediaBinaries.test.ts` 新增五项 locator 失败关闭测试；`tests/main/cacheService.test.ts`、`tests/fixtures/syntheticLibrary.ts`、`tests/scripts/releaseEngineering.test.mjs` 及脚本辅助路径相应更新，不删单测。
+- `scripts/audit-dependency-licenses.mjs`、`docs/legal/dependency-inventory.json`、`docs/legal/THIRD-PARTY-NOTICES.txt` 按精确新锁文件刷新，`docs/legal/FFMPEG-SOURCE-CANDIDATE.md` 和 `ffmpeg-source-candidate-inventory.json` 记录真实源码来源/残余许可阻塞。
+- `docs/legal/native-binary-security.md`、`docs/legal/RELEASE-COMPLIANCE.md`、`docs/public-release-audit.md`、`docs/ai/deliveries/2026-10-09-media-binary-wrapper-removal.md` 更新审计和交付证明。

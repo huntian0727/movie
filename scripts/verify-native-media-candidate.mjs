@@ -121,7 +121,7 @@ export async function inspectCandidate(directory, outputFile = path.join(directo
       "Complete corresponding FFmpeg and all enabled third-party library sources and patches",
       "Reproducible build instructions and source/binary correspondence",
       "Full enabled-library license inventory and distribution notices",
-      "Remove or separately resolve GPL ffmpeg-static JavaScript wrapper in the application",
+      "Independently verify the packaged application excludes obsolete GPL ffmpeg-static JavaScript wrapper",
       "Regression and signed Windows installation QA; owner legal approval"
     ]
   };

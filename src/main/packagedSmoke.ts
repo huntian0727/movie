@@ -1,6 +1,5 @@
 import { BrowserWindow, app, net, protocol } from "electron";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { execa } from "execa";
 import type { AssetCenterReadService } from "./assetCenter/assetCenterQueryService.js";
@@ -9,7 +8,7 @@ import type { VideoRepository } from "./db/videoRepository.js";
 import type { ScanManager } from "./media/scanManager.js";
 import { MEDIA_SCHEME } from "./media/mediaProtocol.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
-import { resolvePackagedExecutablePath } from "./media/packagedExecutable.js";
+import { resolvePinnedMediaTool } from "./media/mediaBinaries.js";
 import type { PlaybackDiagnosticReadService } from "./playbackDiagnostic/playbackDiagnosticQueryService.js";
 import type { VideoDataService } from "./videoData/videoDataService.js";
 import { videoDataQuerySchema } from "../shared/videoDataTable.js";
@@ -30,12 +29,6 @@ interface PackagedSmokeContext {
   videoDataQueries: VideoDataService;
 }
 
-interface StaticBinaryModule {
-  path: string;
-}
-
-const require = createRequire(import.meta.url);
-
 export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<void> {
   const checks: Record<string, boolean | number | string> = {
     packaged: app.isPackaged,
@@ -53,9 +46,8 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
     const fixtureDirectory = path.join(context.userDataPath, "packaged-smoke-fixture");
     await mkdir(fixtureDirectory, { recursive: true });
     const fixturePath = path.join(fixtureDirectory, "sample.mp4");
-    const fixtureFfmpeg = require("ffmpeg-static") as string | null;
-    if (!fixtureFfmpeg) throw new Error("ffmpeg-static is unavailable");
-    await execa(resolvePackagedExecutablePath(fixtureFfmpeg), [
+    const fixtureFfmpeg = resolvePinnedMediaTool("ffmpeg.exe");
+    await execa(fixtureFfmpeg, [
       "-y", "-f", "lavfi", "-i", "color=c=blue:s=160x90:r=1", "-t", "6", "-c:v", "mpeg4", fixturePath
     ], { timeout: 10_000, windowsHide: true });
     const fixtureBytes = await readFile(fixturePath);
@@ -84,11 +76,8 @@ export async function runPackagedSmoke(context: PackagedSmokeContext): Promise<v
     Object.assign(checks, await verifyPackagedRendererSecurity(context.currentDir));
     Object.assign(checks, await verifyPackagedPreview(context.currentDir, videos[0].id));
 
-    const ffmpegPath = require("ffmpeg-static") as string | null;
-    const ffprobePath = (require("ffprobe-static") as StaticBinaryModule).path;
-    if (!ffmpegPath) throw new Error("ffmpeg-static did not return an executable path");
-    const executableFfmpegPath = resolvePackagedExecutablePath(ffmpegPath);
-    const executableFfprobePath = resolvePackagedExecutablePath(ffprobePath);
+    const executableFfmpegPath = resolvePinnedMediaTool("ffmpeg.exe");
+    const executableFfprobePath = resolvePinnedMediaTool("ffprobe.exe");
     await Promise.all([
       access(executableFfmpegPath),
       access(executableFfprobePath),

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T02:32:38.550Z",
+  "generatedAt": "2026-10-09T01:43:27.145Z",
   "lockVersion": 3,
   "note": "Declarations are an inventory, not an ownership/legal approval. Transitive and binary licensing requires source/notices review. No project license has been granted.",
   "packages": [
@@ -123,17 +123,6 @@
       "manuallyReviewedLicense": null,
       "licenseFile": "node_modules/@csstools/css-tokenizer/LICENSE.md",
       "licenseFileSha256": "d00d032f517721b45c56c70c46bf904ebb71ad313df4d4db7722266b38069665"
-    },
-    {
-      "location": "node_modules/@derhuerst/http-basic",
-      "version": "8.2.4",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/@derhuerst/http-basic/-/http-basic-8.2.4.tgz",
-      "integrity": "sha512-F9rL9k9Xjf5blCz8HsJRO4diy111cayL2vkY2XE4r4t3n0yPXVYy3KD3nJ1qbrSn9743UWSXH4IwuCa/HWlGFw==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/@derhuerst/http-basic/LICENSE",
-      "licenseFileSha256": "c78cbf5bc00228b1217a8e97b867c540bd178940c80b91467ed848868f750b92"
     },
     {
       "location": "node_modules/@electron-internal/extract-zip",
@@ -1348,7 +1337,7 @@
     {
       "location": "node_modules/buffer-from",
       "version": "1.1.2",
-      "developmentOnly": false,
+      "developmentOnly": true,
       "licenseDeclared": "MIT",
       "resolved": "https://registry.npmjs.org/buffer-from/-/buffer-from-1.1.2.tgz",
       "integrity": "sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==",
@@ -1399,17 +1388,6 @@
       "manuallyReviewedLicense": null,
       "licenseFile": "node_modules/call-bind-apply-helpers/LICENSE",
       "licenseFileSha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292"
-    },
-    {
-      "location": "node_modules/caseless",
-      "version": "0.12.0",
-      "developmentOnly": false,
-      "licenseDeclared": "Apache-2.0",
-      "resolved": "https://registry.npmjs.org/caseless/-/caseless-0.12.0.tgz",
-      "integrity": "sha512-4tYFyifaFfGacoiObjJegolkwSU4xQNGbVgUiNYVUxbQ2x2lUsFvY4hVgVzGiIe6WLOPqycWXA40l+PWsxthUw==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/caseless/LICENSE",
-      "licenseFileSha256": "0ccb0dc204a2d08f25ed7f984de0c73335eb2945b54bfcf57660034a27b5c0f5"
     },
     {
       "location": "node_modules/chai",
@@ -1544,17 +1522,6 @@
       "licenseFileSha256": "435a6722c786b0a56fbe7387028f1d9d3f3a2d0fb615bb8fee118727c3f59b7b"
     },
     {
-      "location": "node_modules/concat-stream",
-      "version": "2.0.0",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/concat-stream/-/concat-stream-2.0.0.tgz",
-      "integrity": "sha512-MWufYdFw53ccGjCA+Ol7XJYpAlW6/prSMzuPOTRnJGcGzuhLn4Scrz7qf6o8bROZ514ltazcIFJZevcfbo0x7A==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/concat-stream/LICENSE",
-      "licenseFileSha256": "96b29c9aaa611a05349b362d48c2ffce0966fe408401a2d1a157be312c035b5f"
-    },
-    {
       "location": "node_modules/conf",
       "version": "14.0.0",
       "developmentOnly": false,
@@ -1678,7 +1645,7 @@
     {
       "location": "node_modules/debug",
       "version": "4.4.3",
-      "developmentOnly": false,
+      "developmentOnly": true,
       "licenseDeclared": "MIT",
       "resolved": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
       "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
@@ -2107,7 +2074,7 @@
     {
       "location": "node_modules/env-paths",
       "version": "2.2.1",
-      "developmentOnly": false,
+      "developmentOnly": true,
       "licenseDeclared": "MIT",
       "resolved": "https://registry.npmjs.org/env-paths/-/env-paths-2.2.1.tgz",
       "integrity": "sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A==",
@@ -2268,50 +2235,6 @@
       "manuallyReviewedLicense": null,
       "licenseFile": "node_modules/fdir/LICENSE",
       "licenseFileSha256": "9a39f2aadab11a3697edd668ff2d8ad885b649737b7ab4d3bf12b34e5ada0c86"
-    },
-    {
-      "location": "node_modules/ffmpeg-static",
-      "version": "5.3.0",
-      "developmentOnly": false,
-      "licenseDeclared": "GPL-3.0-or-later",
-      "resolved": "https://registry.npmjs.org/ffmpeg-static/-/ffmpeg-static-5.3.0.tgz",
-      "integrity": "sha512-H+K6sW6TiIX6VGend0KQwthe+kaceeH/luE8dIZyOP35ik7ahYojDuqlTV1bOrtEwl01sy2HFNGQfi5IDJvotg==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/ffmpeg-static/LICENSE",
-      "licenseFileSha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
-    },
-    {
-      "location": "node_modules/ffmpeg-static/node_modules/agent-base",
-      "version": "6.0.2",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/agent-base/-/agent-base-6.0.2.tgz",
-      "integrity": "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "docs/legal/upstream/agent-base-6.0.2-LICENSE.txt",
-      "licenseFileSha256": "9392da8d1d2ccb224d60025fee4d6223ae0b863469fcd8c6b9461145723cf1c4"
-    },
-    {
-      "location": "node_modules/ffmpeg-static/node_modules/https-proxy-agent",
-      "version": "5.0.1",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-5.0.1.tgz",
-      "integrity": "sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "docs/legal/upstream/https-proxy-agent-5.0.1-LICENSE.txt",
-      "licenseFileSha256": "58f4074efa400c8397add18c6561d0a17e4721e24bfd1b4d1e8ca764a8cb3eca"
-    },
-    {
-      "location": "node_modules/ffprobe-static",
-      "version": "3.1.0",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/ffprobe-static/-/ffprobe-static-3.1.0.tgz",
-      "integrity": "sha512-Dvpa9uhVMOYivhHKWLGDoa512J751qN1WZAIO+Xw4L/mrUSPxS4DApzSUDbCFE/LUq2+xYnznEahTd63AqBSpA==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/ffprobe-static/LICENSE",
-      "licenseFileSha256": "b2ce1f1cf4da591f7f1f1d795c29815c15ca113a5fbd05bc23e94c8e47ec94a4"
     },
     {
       "location": "node_modules/figures",
@@ -2578,28 +2501,6 @@
       "licenseFileSha256": "71368fd0f5b4129191e9afcd1e1ef2dc89a9090d3e4d80bbab92dafd032b3bef"
     },
     {
-      "location": "node_modules/http-response-object",
-      "version": "3.0.2",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/http-response-object/-/http-response-object-3.0.2.tgz",
-      "integrity": "sha512-bqX0XTF6fnXSQcEJ2Iuyr75yVakyjIDCqroJQ/aHfSdlM743Cwqoi2nDYMzLGWUcuTWGWy8AAvOKXTfiv6q9RA==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/http-response-object/LICENSE",
-      "licenseFileSha256": "44191656d296391e0ec97e32f5385f0d02b6f2992694082d22ea04ba0f66f9e4"
-    },
-    {
-      "location": "node_modules/http-response-object/node_modules/@types/node",
-      "version": "10.17.60",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/@types/node/-/node-10.17.60.tgz",
-      "integrity": "sha512-F0KIgDJfy2nA3zMLmWGKxcH2ZVEtCZXHHdOQs2gSaQ27+lNeEfGxzkIw90aXswATX7AZ33tahPbzy6KAfUreVw==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/http-response-object/node_modules/@types/node/LICENSE",
-      "licenseFileSha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
-    },
-    {
       "location": "node_modules/https-proxy-agent",
       "version": "7.0.6",
       "developmentOnly": true,
@@ -2657,7 +2558,7 @@
     {
       "location": "node_modules/inherits",
       "version": "2.0.4",
-      "developmentOnly": false,
+      "developmentOnly": true,
       "licenseDeclared": "ISC",
       "resolved": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz",
       "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==",
@@ -3185,7 +3086,7 @@
     {
       "location": "node_modules/ms",
       "version": "2.1.3",
-      "developmentOnly": false,
+      "developmentOnly": true,
       "licenseDeclared": "MIT",
       "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
       "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
@@ -3357,17 +3258,6 @@
       "manuallyReviewedLicense": null,
       "licenseFile": "node_modules/p-limit/LICENSE",
       "licenseFileSha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
-    },
-    {
-      "location": "node_modules/parse-cache-control",
-      "version": "1.0.1",
-      "developmentOnly": false,
-      "licenseDeclared": "UNCONFIRMED",
-      "resolved": "https://registry.npmjs.org/parse-cache-control/-/parse-cache-control-1.0.1.tgz",
-      "integrity": "sha512-60zvsJReQPX5/QP0Kzfd/VrpjScIQ7SHBW6bFCYfEP+fp0Eppr1SHhIO5nd1PjZtvclzSzES9D/p5nFJurwfWg==",
-      "manuallyReviewedLicense": "BSD-3-Clause (verified installed LICENSE)",
-      "licenseFile": "node_modules/parse-cache-control/LICENSE",
-      "licenseFileSha256": "111f42b37daecc6c387d037ef25955bd269e7f9a46a736d5257a23560534763f"
     },
     {
       "location": "node_modules/parse-ms",
@@ -3581,7 +3471,7 @@
     {
       "location": "node_modules/progress",
       "version": "2.0.3",
-      "developmentOnly": false,
+      "developmentOnly": true,
       "licenseDeclared": "MIT",
       "resolved": "https://registry.npmjs.org/progress/-/progress-2.0.3.tgz",
       "integrity": "sha512-7PiHtLll5LdnKIMw100I+8xJXR5gW2QwWYkT6iJva0bXitZKa/XMrSbdmg3r2Xnaidz9Qumd0VPaMrZlF9V9sA==",
@@ -3698,17 +3588,6 @@
       "manuallyReviewedLicense": null,
       "licenseFile": null,
       "licenseFileSha256": null
-    },
-    {
-      "location": "node_modules/readable-stream",
-      "version": "3.6.2",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/readable-stream/-/readable-stream-3.6.2.tgz",
-      "integrity": "sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/readable-stream/LICENSE",
-      "licenseFileSha256": "ec62dc96da0099b87f4511736c87309335527fb7031639493e06c95728dc8c54"
     },
     {
       "location": "node_modules/redent",
@@ -3841,17 +3720,6 @@
       "manuallyReviewedLicense": null,
       "licenseFile": "node_modules/rrweb-cssom/LICENSE.txt",
       "licenseFileSha256": "e539937c489c4928ad7461669ec017f4d916fb3565fc26f5b8a0ce816d2ed23c"
-    },
-    {
-      "location": "node_modules/safe-buffer",
-      "version": "5.2.1",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz",
-      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/safe-buffer/LICENSE",
-      "licenseFileSha256": "c7cc929b57080f4b9d0c6cf57669f0463fc5b39906344dfc8d3bc43426b30eac"
     },
     {
       "location": "node_modules/safer-buffer",
@@ -4017,17 +3885,6 @@
       "manuallyReviewedLicense": null,
       "licenseFile": null,
       "licenseFileSha256": null
-    },
-    {
-      "location": "node_modules/string_decoder",
-      "version": "1.3.0",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/string_decoder/-/string_decoder-1.3.0.tgz",
-      "integrity": "sha512-hkRX8U1WjJFd8LsDJ2yQ/wWWxaopEsABU1XfkM8A+j0+85JAGppt16cr1Whg6KIbb4okU6Mql6BOj+uup/wKeA==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/string_decoder/LICENSE",
-      "licenseFileSha256": "11f2aafb37d06b3ee5bdaf06e9811141d0da05263c316f3d627f45c20d43261b"
     },
     {
       "location": "node_modules/string-width",
@@ -4327,17 +4184,6 @@
       "licenseFileSha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
     },
     {
-      "location": "node_modules/typedarray",
-      "version": "0.0.6",
-      "developmentOnly": false,
-      "licenseDeclared": "MIT",
-      "resolved": "https://registry.npmjs.org/typedarray/-/typedarray-0.0.6.tgz",
-      "integrity": "sha512-/aCDEGatGvZ2BIk+HmLf4ifCJFwvKFNb9/JeZPMulfgFracn9QFcAf5GO8B/mweUjSoblS5In0cWhqpfs/5PQA==",
-      "manuallyReviewedLicense": null,
-      "licenseFile": "node_modules/typedarray/LICENSE",
-      "licenseFileSha256": "26181ebee1063f3dc6766a3b6d05999a0da058f172eadf2ca5d15105ffd9735a"
-    },
-    {
       "location": "node_modules/typescript",
       "version": "5.9.3",
       "developmentOnly": true,
@@ -4439,7 +4285,7 @@
     {
       "location": "node_modules/util-deprecate",
       "version": "1.0.2",
-      "developmentOnly": false,
+      "developmentOnly": true,
       "licenseDeclared": "MIT",
       "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz",
       "integrity": "sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==",
@@ -4714,17 +4560,17 @@
   ],
   "binaries": [
     {
-      "file": "node_modules/ffmpeg-static/ffmpeg.exe",
-      "bytes": 82797568,
-      "sha256": "04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00",
-      "versionAndBuildConfiguration": "ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers\r\nbuilt with gcc 12.2.0 (Rev10, Built by MSYS2 project)\r\nconfiguration: --enable-gpl --enable-version3 --enable-static --pkg-config=pkgconf --disable-w32threads --disable-autodetect --enable-fontconfig --enable-iconv --enable-gnutls --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-zlib --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-sdl2 --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxvid --enable-libaom --enable-libopenjpeg --enable-libvpx --enable-mediafoundation --enable-libass --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-ffnvcodec --enable-nvdec --enable-nvenc --enable-dxva2 --enable-d3d11va --enable-libvpl --enable-libgme --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libvo-amrwbenc --enable-libgsm --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-librubberband\r\nlibavutil      58. 29.100 / 58. 29.100\r\nlibavcodec     60. 31.102 / 60. 31.102\r\nlibavformat    60. 16.100 / 60. 16.100\r\nlibavdevice    60.  3.100 / 60.  3.100\r\nlibavfilter     9. 12.100 /  9. 12.100\r\nlibswscale      7.  5.100 /  7.  5.100\r\nlibswresample   4. 12.100 /  4. 12.100\r\nlibpostproc    57.  3.100 / 57.  3.100\r\n",
+      "file": "native-bin/media-tools/ffmpeg.exe",
+      "bytes": 134499840,
+      "sha256": "5054ceae23d3d3bb1938c337838333be0a444305a3d89d53e184a9366a49edc9",
+      "versionAndBuildConfiguration": "ffmpeg version n9.0.2-22-g46d8f462ee-20261005 Copyright (c) 2000-2026 the FFmpeg developers\r\nbuilt with gcc 16.2.0 (crosstool-NG 1.29.0.7_b1a94f6)\r\nconfiguration: --prefix=/ffbuild/prefix --pkg-config-flags=--static --pkg-config=pkg-config --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --target-os=mingw32 --enable-version3 --disable-debug --disable-w32threads --enable-pthreads --enable-iconv --enable-zlib --enable-libxml2 --enable-libvmaf --enable-fontconfig --enable-libharfbuzz --enable-libfreetype --enable-libfribidi --enable-lcms2 --enable-vulkan --enable-libdav1d --enable-libvorbis --enable-librav1e --enable-librsvg --disable-libxcb --disable-xlib --disable-libpulse --enable-gmp --enable-lzma --enable-liblcevc-dec --enable-opencl --enable-amf --enable-libaom --disable-avisynth --enable-chromaprint --disable-libdavs2 --disable-libdvdread --disable-libdvdnav --disable-libfdk-aac --enable-ffnvcodec --enable-cuda-llvm --disable-frei0r --enable-libgme --enable-libkvazaar --enable-libaribb24 --enable-libaribcaption --enable-libass --enable-libbluray --enable-libjxl --enable-libmp3lame --enable-libopus --enable-libplacebo --enable-librist --enable-libssh --enable-libtheora --enable-libvpx --enable-libwebp --enable-libzmq --enable-lv2 --enable-libvpl --enable-openal --enable-liboapv --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libopenmpt --disable-librubberband --enable-schannel --enable-sdl2 --enable-libsnappy --enable-libsoxr --enable-libsrt --enable-libsvtav1 --enable-libtwolame --enable-libuavs3d --disable-libdrm --enable-vaapi --enable-vapoursynth --disable-libvidstab --enable-libvvenc --disable-whisper --disable-libx264 --disable-libx265 --disable-libxavs2 --disable-libxvid --enable-libzimg --enable-libzvbi --extra-cflags=-DLIBTWOLAME_STATIC --extra-cxxflags= --extra-libs=-lgomp --extra-ldflags=-pthread --extra-ldexeflags= --cc=x86_64-w64-mingw32-gcc --cxx=x86_64-w64-mingw32-g++ --ar=x86_64-w64-mingw32-gcc-ar --ranlib=x86_64-w64-mingw32-gcc-ranlib --nm=x86_64-w64-mingw32-gcc-nm --extra-version=20261005\r\nlibavutil      61.  1.102 / 61.  1.102\r\nlibavcodec     63.  1.102 / 63.  1.102\r\nlibavformat    63.  1.102 / 63.  1.102\r\nlibavdevice    63.  1.102 / 63.  1.102\r\nlibavfilter    12.  1.102 / 12.  1.102\r\nlibswscale     10.  1.102 / 10.  1.102\r\nlibswresample   7.  1.102 /  7.  1.102\r\n\r\nExiting with exit code 0\r\n",
       "compliance": "PENDING_CORRESPONDING_SOURCE_AND_BUILD_PROVENANCE"
     },
     {
-      "file": "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe",
-      "bytes": 63059968,
-      "sha256": "4303ec85855340689b1f8aa5d9c1dc06ef3e3090682de3034edc3fca2b0798d5",
-      "versionAndBuildConfiguration": "ffprobe version 4.0.2 Copyright (c) 2007-2018 the FFmpeg developers\r\nbuilt with gcc 7.3.1 (GCC) 20180722\r\nconfiguration: --enable-gpl --enable-version3 --enable-sdl2 --enable-bzlib --enable-fontconfig --enable-gnutls --enable-iconv --enable-libass --enable-libbluray --enable-libfreetype --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenjpeg --enable-libopus --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libtheora --enable-libtwolame --enable-libvpx --enable-libwavpack --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxml2 --enable-libzimg --enable-lzma --enable-zlib --enable-gmp --enable-libvidstab --enable-libvorbis --enable-libvo-amrwbenc --enable-libmysofa --enable-libspeex --enable-libxvid --enable-libaom --enable-libmfx --enable-amf --enable-ffnvcodec --enable-cuvid --enable-d3d11va --enable-nvenc --enable-nvdec --enable-dxva2 --enable-avisynth\r\nlibavutil      56. 14.100 / 56. 14.100\r\nlibavcodec     58. 18.100 / 58. 18.100\r\nlibavformat    58. 12.100 / 58. 12.100\r\nlibavdevice    58.  3.100 / 58.  3.100\r\nlibavfilter     7. 16.100 /  7. 16.100\r\nlibswscale      5.  1.100 /  5.  1.100\r\nlibswresample   3.  1.100 /  3.  1.100\r\nlibpostproc    55.  1.100 / 55.  1.100\r\n",
+      "file": "native-bin/media-tools/ffprobe.exe",
+      "bytes": 134300160,
+      "sha256": "2e9e184daf8a35da5ef0d8508ae8d9a0ba482896b1a03f06e03f458dc2266be5",
+      "versionAndBuildConfiguration": "ffprobe version n9.0.2-22-g46d8f462ee-20261005 Copyright (c) 2007-2026 the FFmpeg developers\r\nbuilt with gcc 16.2.0 (crosstool-NG 1.29.0.7_b1a94f6)\r\nconfiguration: --prefix=/ffbuild/prefix --pkg-config-flags=--static --pkg-config=pkg-config --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --target-os=mingw32 --enable-version3 --disable-debug --disable-w32threads --enable-pthreads --enable-iconv --enable-zlib --enable-libxml2 --enable-libvmaf --enable-fontconfig --enable-libharfbuzz --enable-libfreetype --enable-libfribidi --enable-lcms2 --enable-vulkan --enable-libdav1d --enable-libvorbis --enable-librav1e --enable-librsvg --disable-libxcb --disable-xlib --disable-libpulse --enable-gmp --enable-lzma --enable-liblcevc-dec --enable-opencl --enable-amf --enable-libaom --disable-avisynth --enable-chromaprint --disable-libdavs2 --disable-libdvdread --disable-libdvdnav --disable-libfdk-aac --enable-ffnvcodec --enable-cuda-llvm --disable-frei0r --enable-libgme --enable-libkvazaar --enable-libaribb24 --enable-libaribcaption --enable-libass --enable-libbluray --enable-libjxl --enable-libmp3lame --enable-libopus --enable-libplacebo --enable-librist --enable-libssh --enable-libtheora --enable-libvpx --enable-libwebp --enable-libzmq --enable-lv2 --enable-libvpl --enable-openal --enable-liboapv --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libopenmpt --disable-librubberband --enable-schannel --enable-sdl2 --enable-libsnappy --enable-libsoxr --enable-libsrt --enable-libsvtav1 --enable-libtwolame --enable-libuavs3d --disable-libdrm --enable-vaapi --enable-vapoursynth --disable-libvidstab --enable-libvvenc --disable-whisper --disable-libx264 --disable-libx265 --disable-libxavs2 --disable-libxvid --enable-libzimg --enable-libzvbi --extra-cflags=-DLIBTWOLAME_STATIC --extra-cxxflags= --extra-libs=-lgomp --extra-ldflags=-pthread --extra-ldexeflags= --cc=x86_64-w64-mingw32-gcc --cxx=x86_64-w64-mingw32-g++ --ar=x86_64-w64-mingw32-gcc-ar --ranlib=x86_64-w64-mingw32-gcc-ranlib --nm=x86_64-w64-mingw32-gcc-nm --extra-version=20261005\r\nlibavutil      61.  1.102 / 61.  1.102\r\nlibavcodec     63.  1.102 / 63.  1.102\r\nlibavformat    63.  1.102 / 63.  1.102\r\nlibavdevice    63.  1.102 / 63.  1.102\r\nlibavfilter    12.  1.102 / 12.  1.102\r\nlibswscale     10.  1.102 / 10.  1.102\r\nlibswresample   7.  1.102 /  7.  1.102\r\n",
       "compliance": "PENDING_CORRESPONDING_SOURCE_AND_BUILD_PROVENANCE"
     }
   ]

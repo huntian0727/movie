@@ -5,8 +5,6 @@ directories:
 asar: true
 asarUnpack:
   - node_modules/better-sqlite3/**
-  - node_modules/ffmpeg-static/**
-  - node_modules/ffprobe-static/**
 npmRebuild: false
 extraResources:
   - from: native-bin
@@ -22,9 +20,6 @@ files:
   - '!**/*.sqlite*'
   - '!tests/**'
   - '!.dbg/**'
-  - '!node_modules/ffprobe-static/bin/darwin/**'
-  - '!node_modules/ffprobe-static/bin/linux/**'
-  - '!node_modules/ffprobe-static/bin/win32/ia32/**'
   - '!node_modules/better-sqlite3/prebuilds/darwin-*.node'
   - '!node_modules/better-sqlite3/prebuilds/linux*.node'
   - '!node_modules/better-sqlite3/prebuilds/win32-arm64.node'

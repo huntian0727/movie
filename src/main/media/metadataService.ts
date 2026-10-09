@@ -1,6 +1,6 @@
-import { createRequire } from "node:module";
 import { execa } from "execa";
 import { resolvePackagedExecutablePath } from "./packagedExecutable.js";
+import { resolvePinnedMediaTool } from "./mediaBinaries.js";
 
 export interface MediaMetadata {
   durationMs: number | null;
@@ -28,10 +28,6 @@ export interface FfprobeOutput {
   }>;
 }
 
-interface FfprobeStaticModule {
-  path: string;
-}
-
 interface ProbeResult {
   stdout: string;
 }
@@ -45,9 +41,6 @@ interface DurationReaderDependencies {
   ffprobePath?: string;
   runProbe?: (ffprobePath: string, filePath: string) => Promise<ProbeResult>;
 }
-
-const require = createRequire(import.meta.url);
-const ffprobeStatic = require("ffprobe-static") as FfprobeStaticModule;
 
 export async function readMetadata(
   filePath: string,
@@ -123,7 +116,7 @@ function normalizeProbeValue(value: string | undefined): string | null {
 }
 
 function resolveFfprobePath(ffprobePathOverride?: string): string {
-  const ffprobePath = ffprobePathOverride ?? ffprobeStatic.path;
+  const ffprobePath = ffprobePathOverride ?? resolvePinnedMediaTool("ffprobe.exe");
 
   if (typeof ffprobePath !== "string" || ffprobePath.trim() === "") {
     throw new Error("ffprobe path is not configured");

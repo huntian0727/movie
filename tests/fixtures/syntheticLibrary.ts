@@ -1,10 +1,8 @@
 import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { promisify } from "node:util";
 
-const require = createRequire(import.meta.url);
 const execFileAsync = promisify(execFile);
 
 export interface SyntheticLibrary {
@@ -47,10 +45,7 @@ export async function createSyntheticLibrary(root: string): Promise<SyntheticLib
     writeFile(conflictTarget, Buffer.from("existing-target"))
   ]);
 
-  const ffmpegPath = require("ffmpeg-static") as string | null;
-  if (!ffmpegPath) {
-    throw new Error("ffmpeg-static did not provide an executable for the synthetic fixture");
-  }
+  const ffmpegPath = path.resolve(process.cwd(), "native-bin", "media-tools", "ffmpeg.exe");
   await execFileAsync(ffmpegPath, [
     "-hide_banner",
     "-loglevel", "error",

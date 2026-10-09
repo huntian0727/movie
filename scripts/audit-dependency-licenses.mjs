@@ -15,7 +15,7 @@ const packages = Object.entries(lock.packages).filter(([name]) => name).map(([lo
     licenseFile,
     licenseFileSha256: licenseFile ? createHash('sha256').update(readFileSync(licenseFile)).digest('hex') : null };
 });
-const binaries = ['node_modules/ffmpeg-static/ffmpeg.exe', 'node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe']
+const binaries = ['native-bin/media-tools/ffmpeg.exe', 'native-bin/media-tools/ffprobe.exe']
   .map((file) => {
     const bytes = readFileSync(file);
     const version = spawnSync(path.resolve(file), ['-version'], { encoding: 'utf8', windowsHide: true });

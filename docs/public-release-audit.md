@@ -128,3 +128,9 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 维护者已批准“默认安全、技术由工程处理”的保守方案，**没有授权许可证、正式发行和真实资料删除测试**。现行应用 UI 已改接 `onSubmitCleanup` 完整 SHA-256 校验，快速单项/当前页/筛选全集元数据删除入口不再对正常用户提供；完整校验成功后，用户仍须在后台任务二次输入 `DELETE` 才允许永久删除。旧 `autoDeleteAfterVerification=true` 直接拒绝；`submitFiltered` 及已有 workflowVersion=3 的 resume/retry/replay 在服务层拒绝，pump 再拒绝启动版本3任务，防止重启旧未完成快速任务意外执行。**快速元数据删除整个模式暂不可用**，未来 opt-in 需要独立设计和授权，绝非默认开启。未修改允许更改主数据、视频或批准发行的代码。
 
 安全测试/本轮最新实际结果见 `docs/ai/deliveries/2026-10-09-public-release-safe-delete-default.md`。虽然此项产品默认策略无需再等维护者逐项选择，其他发布阻塞——代码/图标权属、MIT/Apache 最终授权、完整 FFmpeg/FFprobe 对应源码与 wrapper 许可、签名及独立 reviewer、干净稳定 Win11 与历史签名版升级、历史个人信息公开范围——保持。**正式公众发布仍 FAIL。**
+
+## 2026-10-09 FFmpeg/FFprobe 实际更新至同套原生 LGPL 构建
+
+本工作分支的应用及隔离 unsigned 安装器不再包含 GPL `ffmpeg-static` JS 包装层和旧 FFprobe 4.0.2；通过严格的 ZIP/EXE SHA 检验与原生 `media-tools` 路径引入同套 FFmpeg/FFprobe 9.0.2-22。针对性媒体与许可证测试通过，完整 `test:release-gate` 第一次 PASS，Electron main、renderer-security、`dist:win`、`verify:artifact`、`release:metadata`、`test:packaged-smoke` 和 `test:installer-smoke` 实际 PASS。第三方 build-recipe 与 FFmpeg 主源码快照实际下载、哈希，43 个启用外部库均已定位到至少一个候选 recipe（其中 4 个需映射别名，未审查完整源码/许可）。**P1 仍然阻断公众发行**：外部库完整对应源码、补丁与授权、静态链接条件及安全补丁适用性、产权声明、签名/独立审核、干净 Win11 历史升级未闭环。全局结论工程 PASS_WITH_RISKS / 公众发布 FAIL；未合并 main、未创建正式 Tag/Release。最新详见 `docs/legal/FFMPEG-SOURCE-CANDIDATE.md` 及 `docs/ai/deliveries/2026-10-09-media-binary-wrapper-removal.md`。
+
+最终复测（本轮迁移）：`test:release-gate` **PASS，132 files / 1182 tests，附加5项原生工具契约测试 PASS**；旧测试脚本断言的首次失败仍保留于交付文档。原生工具由精确 SHA 的隔离候选提供，旧 GPL JavaScript wrapper 和 FFprobe 4.0.2 不再编入新测试包。**所有外部库许可/源码和长期可复现来源未放行，公众发行 FAIL**。
