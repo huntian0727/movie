@@ -21,3 +21,9 @@ NSIS 使用已构建文件清单做精确删除、非递归空目录清理；拒
 正式job还必须实时核对public-release环境：required reviewers、prevent self-review、禁止管理员绕过、唯一v* tag部署策略。本轮只读API返回404，配置尚未确认；不能仅凭YAML声明environment就认为已受人工批准保护。
 
 干净 Windows 11/no-Node、物理卷/SMB/ACL/磁盘满、实际历史签名版升级与人工 UI 验收仍需独立完成，见 [验收工具包](clean-windows11-acceptance.md) 和 [普通用户安装教程](windows-installation.md)。
+
+## 2026-10-09 免费分享发行策略变更
+
+项目自有代码已选定 MIT（见根目录 LICENSE）；维护者不计划商业化，也**不购买首个公众版本的 Windows 代码签名证书**。这意味着正式发行时，安装包可以在签名状态为 `NotSigned` 的情况下发布，但必须明确告知用户“未知发布者”和 SmartScreen 提示，公布 SHA-256，并继续保护下载渠道、保留安装/卸载的数据安全验收。
+
+**重要：目前该工作流的正式发布步骤仍要求签名证书与独立环境审批，尚未实现不签名公众发行通道；不能简单把 `unsigned-test-build`（独立身份/临时数据目录）重新命名成正式包。** 待 FFmpeg 候选许可与安装验证完成后，应独立新增有批准门禁、保留正式 appId/安装目录、跳过 Authenticode 的 `unsigned-public-release`，并使用原 NSIS 删除安全和 QA，最后再上架。任何二进制分发仍需履行第三方许可，免费分享不豁免。

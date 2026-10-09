@@ -1,0 +1,4 @@
+# Stable cross-platform bytes for release approval hashes.
+LICENSE text eol=lf
+package-lock.json text eol=lf
+build/release-approval.json text eol=lf

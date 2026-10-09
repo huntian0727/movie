@@ -15,10 +15,9 @@
      Select-Object Status,SignerCertificate,TimeStamperCertificate
    ```
 
-3. SHA-256 必须与该版本校验表完全一致。正式包签名应为 `Valid`，发布者应与维护者声明一致，并有可信时间戳。
-   若校验不符、发布者不符或来源不明，停止安装。SHA-256 能检查文件一致性，不能单独证明下载来源可信。
-4. 无证书测试包名称必须含 `unsigned-test-build`，其签名应为 `NotSigned`；它没有正式签名信誉。
-   不要关闭 SmartScreen 或防病毒程序来绕过警告。
+3. SHA-256 必须与**同一 GitHub Release 下的官方校验表**完全一致，下载来源应为项目维护者的 GitHub 仓库。SHA-256 只能核对文件内容，不能单独证明下载来源可信。
+4. 维护者选择**首个公众版本不购买代码签名证书**。若以后推出经过许可、验收的`unsigned-public-release`，签名结果预计为 `NotSigned`，Windows 可能显示“未知发布者”或 SmartScreen 警告；这与文件校验不一致或恶意软件警告不是同一回事，但也不能据此断言文件安全。若以后使用签名证书，则应要求 `Valid` 且发布者与签名时间戳符合该版本说明。
+5. 当前已有的 `unsigned-test-build` 只是**隔离测试包**，不等于未来公众未签名正式安装包。**不要关闭 SmartScreen 或防病毒程序绕过安全警告**；若系统拦截、文件校验不符或来源不明，应停止并向维护者反馈。
 
 ## 安装与首次使用
 

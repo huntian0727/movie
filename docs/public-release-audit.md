@@ -146,3 +146,7 @@ PR首轮实际Windows CI run37747001533的完整回归为FAIL：1174/1175通过�
 ## 2026-10-09 上游源码根目录许可证证据批量核查
 
 本轮只在家用 B5 工作树增加一项针对 GitHub **精确 Commit** 的许可证原文归档工具，结合上轮已确认的 43 个启用库、42 个不同来源仓库：GitHub 29 个仓库的根 LICENSE/COPYING/COPYRIGHT/NOTICE/AUTHORS 候选均已通过实际 API 与 Git blob SHA-1 核验，取得 49 份根文件和对应 SHA-256；无失败。29 个仓库的根文件可审查，不等于 29 个库的许可证/源码法律闭环，也不等于全部 42 个仓库。余下 13 个非 GitHub 仓库、源码 TAR（目前独立验证 2 份）、传递依赖、实际二进制构建关联、静态 LGPL3 对应源码/重新链接义务仍是正式发行 P1 阻塞。见 `docs/legal/NATIVE-MEDIA-LICENSE-EVIDENCE.md` 与 `native-media-license-availability.json`。正式发布 FAIL，`build/release-approval.json` 不变。
+
+## 2026-10-09 免费分享决定及许可证落地
+
+维护者明确要求个人纯免费分享、无商业化计划、最简化发布。已替换根目录 `LICENSE` 为 MIT 正式文本（版权 `huntian0727`），并更新 `package.json.license` 与 `package-lock.json` 项目授权字段、README。现有 `build/release-approval.json` 的 `applicationLicense` 与 `licenseSha256` 同步，但**保持 `approved:false`、`ownersConfirmed:false`、第三方二进制授权 false、手动验收 false**。MIT 仅覆盖拥有权利的项目自有代码，不改变 FFmpeg/ffprobe/外部库许可。用户已批准**首发不购买证书**，正式公众未签名包通道尚未实现。已有 unsigned-test-build 仍为内部 QA 身份，不能作为正式公众安装器上架。本次未修改用户应用、视频、SQLite 或现有快捷方式。

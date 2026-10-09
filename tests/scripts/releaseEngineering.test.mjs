@@ -15,6 +15,22 @@ const signedEnvironment = {
 };
 
 describe("release engineering trust boundaries", () => {
+  it("declares MIT for project-owned source while keeping binary distribution unapproved", async () => {
+    const pkg = JSON.parse(await readFile(path.resolve("package.json"), "utf8"));
+    const lock = JSON.parse(await readFile(path.resolve("package-lock.json"), "utf8"));
+    const license = await readFile(path.resolve("LICENSE"), "utf8");
+    const approval = JSON.parse(await readFile(path.resolve("build/release-approval.json"), "utf8"));
+    expect(pkg.license).toBe("MIT");
+    expect(lock.packages[""].license).toBe("MIT");
+    expect(license).toMatch(/^MIT License\r?\n/);
+    expect(license).toContain("Copyright (c) 2026 huntian0727");
+    expect(license).toContain("Permission is hereby granted");
+    expect(approval.applicationLicense).toBe("MIT");
+    expect(approval.licenseSha256).toBe(await hashFile(path.resolve("LICENSE")));
+    expect(approval.approved).toBe(false);
+    expect(approval.ownersConfirmed).toBe(false);
+    expect(approval.binaries.every((binary) => binary.sourceComplianceApproved === false)).toBe(true);
+  });
   it("gives unsigned builds separate file, app, GUID, package and data identities", () => {
     const flavor = createBuildFlavor(manifest, {});
     expect(flavor).toMatchObject({ releaseClass: "unsigned-test-build", appId: TEST_APP_ID, packageName: "local-video-manager-unsigned-test", userDataDirectoryName: "local-video-manager-unsigned-test", expectedPublisher: null });

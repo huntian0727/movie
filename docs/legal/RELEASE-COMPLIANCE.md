@@ -1,14 +1,12 @@
 # 发布授权与第三方材料
 
-审查日期：2026-10-08（Asia/Shanghai）。许可证决定尚未批准。
+最近更新：2026-10-09（Asia/Shanghai）。用户已明确选择“纯免费分享、无商业化计划、最简化发布”，项目自有代码按 MIT 授权。
 
 ## 项目自有代码
 
-Git 作者身份、AI 交付记录和仓库公开可见不构成授权证明。
-维护者需确认所有历史贡献、图标/截图、NativeHost C# 源码及引用代码的来源和授权。
-建议比较 MIT（简短、宽松复用）和 Apache-2.0（明确专利授权和相关终止条款）；
-最终选择由权利人决定。根目录 LICENSE 当前只是待决占位，不授予权利。
-参考 [MIT](https://choosealicense.com/licenses/mit/) 与 [Apache-2.0 原文](https://www.apache.org/licenses/LICENSE-2.0)。
+项目自有代码与可授权的文档已经采用仓库根目录 [MIT License](../../LICENSE)；`package.json` 和 `package-lock.json` 的项目许可字段相同。用户可以免费复制、修改、再分发，保留版权与许可声明即可。MIT 也允许其他人商业使用，作者本人不计划商业化不改变该许可授予。
+
+**此授权只涵盖维护者有权授权的项目部分，不覆盖 FFmpeg、FFprobe、Electron、npm 包、NativeHost 使用的第三方代码、MPV 或未明确许可的外部图标素材。** Git 作者身份、AI 交付记录和公开仓库不证明每一项历史素材的权属；项目所有历史贡献及图标的权属仍需分类，未经确认者不得放进正式二进制。当前发行审批保持 `approved:false` 和 `ownersConfirmed:false`，直到所有要分发的资产和二进制条件通过。
 
 ## 依赖清单
 
