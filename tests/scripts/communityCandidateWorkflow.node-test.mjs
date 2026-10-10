@@ -5,6 +5,13 @@ const candidateFile = ".github/workflows/windows-community-candidate.yml";
 const signedFile = ".github/workflows/windows-release.yml";
 const candidate = await readFile(candidateFile, "utf8");
 const signed = await readFile(signedFile, "utf8");
+const builder = await readFile("scripts/run-electron-builder.mjs", "utf8");
+
+test("every Windows package carries the primary third-party license index", () => {
+  assert.ok(builder.includes('from: "THIRD_PARTY_LICENSES.md", to: "legal/THIRD_PARTY_LICENSES.md"'));
+  assert.ok(builder.includes('from: "docs/legal", to: "legal"'));
+  assert.ok(builder.includes('from: "LICENSE", to: "legal/PROJECT-LICENSE.txt"'));
+});
 
 test("unsigned community candidate can only be manually dispatched", () => {
   assert.match(candidate, /^on:\s*\n\s+workflow_dispatch:/m);

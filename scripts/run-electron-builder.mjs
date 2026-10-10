@@ -35,7 +35,16 @@ flavor.complianceApprovalSha256 = await verifyFormalApproval(root, flavor);
 const buildDirectory = path.join(root, ".tmp", "release-engineering");
 await mkdir(buildDirectory, { recursive: true });
 await writeJson(path.join(buildDirectory, "build-flavor.json"), flavor);
+// Optional offline Electron runtime: only the verified 44.7.0 x64 release ZIP is accepted.
+const offlineElectronZip = process.env.MOVIE_ELECTRON_DIST_ZIP;
+if (offlineElectronZip) {
+  if (path.basename(offlineElectronZip).toLowerCase() !== "electron-v44.7.0-win32-x64.zip" ||
+      await hashFile(offlineElectronZip) !== "eee30dc8fa1f5ea95490e59f44e46ea68dd24c6e93d22facf70fe5c2d4c2665c") {
+    throw new Error("Offline Electron ZIP does not match pinned Electron 44.7.0 Windows x64 release.");
+  }
+}
 const configuration = {
+  ...(offlineElectronZip ? { electronDist: path.resolve(offlineElectronZip) } : {}),
   extends: path.join(root, "electron-builder.yml"), appId: flavor.appId,
   // Keep Windows resources tied to package.json rather than ambient CI counters.
   buildVersion: flavor.version, buildNumber: "0",
@@ -45,6 +54,7 @@ const configuration = {
     { from: "native-bin", to: "native-player", filter: ["NativeHost.exe"] },
     { from: mediaSource, to: "media-tools", filter: lite ? liteFiles : ["ffmpeg.exe", "ffprobe.exe", "LICENSE.txt", "SOURCE-STATUS.txt"] },
     { from: "docs/legal", to: "legal" },
+    { from: "THIRD_PARTY_LICENSES.md", to: "legal/THIRD_PARTY_LICENSES.md" },
     { from: "LICENSE", to: "legal/PROJECT-LICENSE.txt" },
     { from: path.join(buildDirectory, "build-flavor.json"), to: "build-flavor.json" }
   ],
