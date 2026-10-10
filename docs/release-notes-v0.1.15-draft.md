@@ -22,7 +22,7 @@
 
 ## 当前真实 QA 结果
 
-家用 B5 的 Windows 11 Insider：1,188 项单元测试全部通过；内部隔离身份的安装、修复、卸载、数据库/合成视频保留 smoke 测试 PASS；3,461 项 ASAR 内容检查 PASS。**干净稳定版 Windows 11 / 无 Node 的完整交互验收 NOT RUN；真实用户的视频播放人工验收 NOT RUN。**
+家用 B5 的 Windows 11 Insider：1,189 项 Vitest 测试（此前实际回归）全部通过；内部隔离身份的安装、修复、卸载、数据库/合成视频保留 smoke 测试 PASS；3,461 项 ASAR 内容检查 PASS。**干净稳定版 Windows 11 / 无 Node 的完整交互验收 NOT RUN；真实用户的视频播放人工验收 NOT RUN。**
 
 ## 第三方许可证与源码（仅正式审批通过后用于公众文案）
 
