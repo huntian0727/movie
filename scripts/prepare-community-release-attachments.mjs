@@ -16,6 +16,7 @@ export const pinnedSources = Object.freeze({
   sha256: "a996afcfd3f2601d0ef324f635d2c63adbb3abfb441c1d5aa0c87652db3258b4",
   size: 239498523,
 });
+export const nativeNoticeNames = Object.freeze(["COPYING.LGPLv2.1", "SOURCE.txt", "LIBVPL-LICENSE.txt", "LIBOPENH264-LICENSE.txt", "LIBWINPTHREAD-LICENSE.txt", "GCC-LICENSE.txt"]);
 const requiredAssets = [
   ["LICENSE", "PROJECT-LICENSE.txt"],
   ["THIRD_PARTY_LICENSES.md", "THIRD_PARTY_LICENSES.md"],
@@ -95,15 +96,19 @@ async function main(args) {
   }
   await stage(source, pinnedSources.name);
   for (const [from, to] of requiredAssets) await stage(path.join(root, from), to);
-  const lgpl = path.join(root, ".tmp", "native-media-lite-tools", "COPYING.LGPLv2.1");
-  await regularFile(lgpl);
-  if (await hashFile(lgpl) !== media.files["COPYING.LGPLv2.1"]) throw new Error("LGPL text not pinned.");
-  await stage(lgpl, "COPYING.LGPLv2.1");
+  // Include exact upstream license texts for every distributed native component.
+  for (const name of nativeNoticeNames) {
+    const file = path.join(root, ".tmp", "native-media-lite-tools", name);
+    await regularFile(file);
+    if (await hashFile(file) !== media.files[name]) throw new Error("Native notice SHA-256 mismatch: " + name);
+    await stage(file, name);
+  }
   const noticeName = "README-STAGING-NOT-FOR-PUBLICATION.txt";
   const notice = [
     "Movie / 拉面影视 - OFFLINE third-party companion only.",
     "NOT A RELEASE. NO INSTALLER INCLUDED. NEVER UPLOAD AS AN APPROVED BUNDLE.",
     "The FFmpeg Lite 8.1.2 source ZIP and other notices are staged with SHA-256.",
+    "OpenH264 is from MSYS2, not a Cisco-provided binary: no blanket patent license.",
     "Before public download: confirm FFmpeg LGPL static relinking obligations,",
     "complete source/distribution conditions, build the correct community identity,",
     "run clean Windows 11 QA, and publish matching installer and sources together.",

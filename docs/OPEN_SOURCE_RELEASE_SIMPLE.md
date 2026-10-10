@@ -23,6 +23,12 @@
 
 已经通过 [自动打包脚本](../scripts/prepare-community-release-attachments.mjs) 生成发布资料预备目录 `D:\\CodexReleaseAudit\\movie-community-support-20261010`，包含 FFmpeg Lite 的固定源码压缩包、MIT/LGPL 许可证、第三方组件声明、SBOM、编译选项、发布说明草稿、`SHA256SUMS.txt` 和状态清单。**10 个附件逐一哈希核验通过；不含 EXE，尚未公开发布。** 目前先完成其余工程准备，按维护者最新安排，办公电脑 D200707 只允许作为最后阶段的**隔离 Windows 11 验收环境宿主机**，不会在其实际办公系统安装映匣、运行研发任务或读取企业数据。
 
+## 2026-10-10 最新：许可证原文及权属最后一步
+
+- 最新的家用 B5 私有资料目录：`D:\\CodexReleaseAudit\\movie-community-support-20261010-owner-review`，**15 个已校验的完整附件**（较早的 10 项资料目录已由本版替代）。除了 FFmpeg 主 LGPL 文本，还包含 OpenH264、oneVPL、winpthreads、GCC 的实际许可证原文与来源说明。所有内容尚未对外公开。
+- 三张仓库截图已逐张目视检查，都是本项目界面及合成测试数据，没有看到真人照片、第三方影视画面、个人信息或公司文件；这不能替代作者的授权确认。
+- 所有权与正式发行的最简确认事项请看 [个人分享版最终决策记录](legal/PERSONAL_RELEASE_FINAL_DECISIONS.md)。当前只准备文件，不代表已经通过 LGPL 静态重链接验证，也不代表可以提前发布。
+
 ## 最终 GitHub Release 放什么
 
 | 附件 | 作用 |
