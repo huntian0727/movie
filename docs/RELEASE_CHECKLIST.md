@@ -35,3 +35,10 @@
 - **自动复核：** `node scripts/audit-release-readiness.mjs` 在现有材料下预期退出码 2（`BLOCKED`），输出到被忽略的 `.tmp/release-final-readiness/preflight.json`，不得绕过审批。特别注意 `ownersConfirmed=false`、`manualQaApproved=false` 和 `approved=false`。
 
 **下一次可真正放行的必要条件：** 静态 LGPL/第三方适用许可证结论和随公开版可获得的完整对应材料；干净稳定 Win11 手工与自动验收证据；代码/素材权属确认；随后才允许获批的独立社区安装身份构建、再次回归和真实公开 Release。
+
+## 2026-10-10 追加：可以独立关闭的校验漏洞已修复
+
+- 原发布前审计对“FFmpeg 存在”和“源码 ZIP 存在”没有严格校验固定哈希的缺口已关闭：`scripts/audit-release-readiness.mjs` 现在使用流式 SHA-256，并调用 `scripts/release-readiness-integrity.mjs` 检查实际文件内容、身份、元数据、固定 configure flags、审核 ZIP 大小和固定 SHA。
+- 原有 31 项媒体来源合同测试增加 14 项防篡改/反例测试，共 **45/45 PASS**。`package.json` 已将新增测试放入 `test:media-candidate-contract`，因此 GitHub Windows CI 的 `test:release-gate` 会自动覆盖这些检查。
+- B5 实际预检对安装器、FFmpeg 和私有源码审核包分别返回 PASS，但由于合法的发布门禁仍未满足，**总结果正确返回 BLOCKED（退出码 2）**。此结果不是程序失败，也不能由它批准 Release。
+- 检查属于只读 QA 证据，不改变发布审批、不触碰用户 SQLite 与视频、不把 `unsigned-test-build` 改名成公版。
