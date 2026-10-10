@@ -8,7 +8,7 @@
 2. **源码跟着安装包。** FFmpeg 8.1.2 的主源码、构建脚本、四份 MSYS2 原生依赖源码及许可材料已经在家用 B5 组成一个约 239 MB 的私人审核 ZIP，并核对 SHA-256。**还未公开提供**。正式下载页要与安装包一起提供适用的对应源码、编译说明和许可证（若特定 LGPL 静态链接要求重链接材料，也要一起满足）。不必购买商业许可、打电话给 FFmpeg 或准备公司法务审批。
 3. **用少量合成视频测一次安装。** 用与真实个人数据隔离的 Windows 环境试安装、首次运行、扫描、封面、播放、卸载，确认视频和 SQLite 没被删。现有 B5 自动 smoke 通过，但独立干净稳定 Win11 的真实操作验收仍没做；这是软件质量把关，不是 FFmpeg 的许可证条款。
 
-**只有一个未解决的 FFmpeg 技术点：** 当前的 `ffmpeg.exe` 是 `--enable-static --disable-shared` 构建。映匣调用的是独立 EXE，并没有直接链接 FFmpeg 库，但随包分发的静态 FFmpeg EXE 自己仍需满足适用 LGPL 条款。应一次性确认对应源码、构建/修改后重新链接所需材料是否齐备。**如果不能低成本满足，再换可合规分发的动态构建**，而不是重复审计同一批文件。参阅 [FFmpeg 官方清单](https://ffmpeg.org/legal.html) 与 [LGPL 2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)。
+**FFmpeg 静态构建：优先保留，无须现在更换。** 已从真实 FFmpeg 8.1.2 源码压缩包逐项查验 `fftools/ffmpeg.c`、`fftools/ffprobe.c` 均标注 LGPL v2.1+，并包含 `configure`、`Makefile`、LGPL 许可证和固定 Windows 构建脚本；构建脚本及 EXE 自身参数确认禁用 GPL/nonfree/version3。这为使用 LGPL §6(a) 的**完整源码、可修改并重新编译/重新链接**路线提供了直接的技术基础。映匣本身只通过独立进程调用 FFmpeg，因此不需要把 Electron 应用当作直接静态链接 FFmpeg 库的代码来处理。不过现有证据**尚未证明用附带说明就能成功重编译替换后的 FFmpeg**，也不自动排除第三方库的独立义务。最后只需对该具体路线做一次确认；若确实走不通，再选易合规的动态构建，不重复审计相同源码。参阅 [FFmpeg 官方清单](https://ffmpeg.org/legal.html) 与 [LGPL 2.1 §6](https://opensource.org/license/lgpl-2-1)。
 
 ## 已准备好的 FFmpeg 源码附件（仅家用 B5、本地待发布候选）
 
