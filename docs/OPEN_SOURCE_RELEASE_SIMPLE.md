@@ -10,6 +10,15 @@
 
 **只有一个未解决的 FFmpeg 技术点：** 当前的 `ffmpeg.exe` 是 `--enable-static --disable-shared` 构建。映匣调用的是独立 EXE，并没有直接链接 FFmpeg 库，但随包分发的静态 FFmpeg EXE 自己仍需满足适用 LGPL 条款。应一次性确认对应源码、构建/修改后重新链接所需材料是否齐备。**如果不能低成本满足，再换可合规分发的动态构建**，而不是重复审计同一批文件。参阅 [FFmpeg 官方清单](https://ffmpeg.org/legal.html) 与 [LGPL 2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)。
 
+## 已准备好的 FFmpeg 源码附件（仅家用 B5、本地待发布候选）
+
+已用 [固定归档脚本](../scripts/prepare-ffmpeg-source-companion.ps1) 从之前已验证的私人 REVIEW-v2 包整理出**一份普通用户可解压的源码 ZIP**。其 15 个文件已逐项重新读取并核对 SHA-256，未发现扫描范围内的本机私人路径或凭据文字。文件仅保存在 B5：
+
+- 文件：`D:\CodexReleaseAudit\ffmpeg-lite-20261009\community-release-companion-20261010\FFmpeg-Lite-8.1.2-Windows-x64-SOURCES-CANDIDATE.zip`
+- 大小：239,498,523 字节；SHA-256：`a996afcfd3f2601d0ef324f635d2c63adbb3abfb441c1d5aa0c87652db3258b4`
+- 外部校验文件：同目录的 `SHA256SUMS-SOURCE.txt`。
+- **仅说明材料已准备并校验完整**；并未上传 GitHub，没有对应正式安装器，也没有自动解除静态链接许可/发行验证限制。
+
 ## 最终 GitHub Release 放什么
 
 | 附件 | 作用 |
