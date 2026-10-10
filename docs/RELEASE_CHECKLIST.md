@@ -28,6 +28,10 @@
 
 最新用户约束：可**在其他工作完成后**使用办公电脑 D200707 作为隔离、干净 Windows 11 验收环境的宿主；仅限独立可销毁 VM/沙盒、使用合成媒体，不改宿主机项目、公司文件或办公配置；在执行这项测试前不访问办公电脑。原来“办公电脑一律禁止”的说明以本条为准。
 
+## 2026-10-10 安装包许可证自动一致性验证
+
+现有 `scripts/verify-packaged-artifact.mjs` 已引入 [逐份许可证校验](../scripts/verify-packaged-notices.mjs)：检查实际打包资源中的 7 份 MIT、第三方声明、FFmpeg 编译参数、对应源码说明、原生组件清单与 SPDX，必须与当前源码逐字节 SHA-256 一致；缺失、空白、替换均失败。`npm run verify:artifact` 已在家用 B5 实际打包输出上通过（3461 个应用归档条目，7 个许可证材料一致），媒体专项 59/59 通过。这是**技术内容校验**，不是 LGPL 授权履约的最终法律意见。
+
 ## 2026-10-10 许可原文与权属最终清点
 
 - 家用 B5 私有最新资料目录 `D:/CodexReleaseAudit/movie-community-support-20261010-owner-review/`：15 项已校验附件，新增真正的 oneVPL、OpenH264、winpthreads、GCC 许可文本和 FFmpeg 来源说明，代替较早的 10 项资料目录。没有公开上传。

@@ -3,6 +3,7 @@ import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { authenticode, hashFile, readJson, releaseOutputDirectory, verifyApplicationVersion } from "./release-engineering.mjs";
 import { candidateDirectory, liteFiles, liteRuntime, mediaVariant } from "./media-variant.mjs";
+import { verifyPackagedNotices } from "./verify-packaged-notices.mjs";
 
 const resourcesDirectory = path.join(process.cwd(), releaseOutputDirectory(), "win-unpacked", "resources");
 const asarPath = path.join(resourcesDirectory, "app.asar");
@@ -56,6 +57,8 @@ await Promise.all([
   regularFile(path.join(resourcesDirectory, "media-tools", "SOURCE-STATUS.txt")),
   ...(lite ? liteFiles.map(name => regularFile(path.join(resourcesDirectory, "media-tools", name))) : [])
 ]);
+// These notices ship with the application, and must match the reviewed sources byte-for-byte.
+const verifiedNotices = await verifyPackagedNotices(process.cwd(), resourcesDirectory);
 // Check copied binaries against the candidate build inputs, not merely directory existence.
 for (const [packaged, source] of [
   [binaries[0], path.join(process.cwd(), "node_modules", "better-sqlite3", "prebuilds", "win32-x64.node")],
@@ -83,7 +86,7 @@ if (lite) {
     throw new Error("Packaged Lite LGPL license differs from pinned source");
   }
 }
-console.log(`Packaged artifact content OK: ${files.length} asar entries, no forbidden development artifacts.`);
+console.log(`Packaged artifact content OK: ${files.length} asar entries, ${verifiedNotices} exact licensing notices, no forbidden development artifacts.`);
 
 async function regularFile(filePath) {
   const info = await lstat(filePath);
