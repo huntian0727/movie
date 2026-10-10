@@ -57,7 +57,9 @@ jobs:
 
   signed-release:
     name: Approved signed public release
-    if: startsWith(github.ref, 'refs/tags/')
+    # An unsigned community tag must not start the certificate-only public job.
+    # The maintainer must explicitly choose the signed channel to use this job.
+    if: startsWith(github.ref, 'refs/tags/') && vars.MOVIE_RELEASE_CHANNEL == 'signed'
     needs: unsigned-package-and-smoke
     runs-on: windows-2025
     # Configure required reviewers and protect tag deployment in this environment.

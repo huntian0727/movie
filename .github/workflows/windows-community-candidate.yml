@@ -1,0 +1,132 @@
+name: Unsigned Community Candidate (manual, metadata only)
+
+# This is deliberately not a tag-push or release trigger.
+# It never publishes or uploads the QA-only unsigned-test-build binary.
+on:
+  workflow_dispatch:
+    inputs:
+      acknowledge_unsigned_candidate:
+        description: "Explicit approval to prepare a private candidate, not publish it"
+        required: true
+        type: choice
+        options:
+          - DO_NOT_BUILD
+          - I_APPROVE_PRIVATE_UNSIGNED_COMMUNITY_CANDIDATE
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unsigned-community-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gated-candidate:
+    name: Approved unsigned Windows x64 community candidate
+    if: ${{ github.repository == 'huntian0727/movie' && inputs.acknowledge_unsigned_candidate == 'I_APPROVE_PRIVATE_UNSIGNED_COMMUNITY_CANDIDATE' }}
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      MOVIE_RELEASE_CLASS: unsigned-public-release
+      MOVIE_MEDIA_VARIANT: lite-candidate
+      RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED: 'true'
+      RELEASE_LICENSE_APPROVED: ${{ vars.RELEASE_LICENSE_APPROVED }}
+      RELEASE_BINARY_COMPLIANCE_APPROVED: ${{ vars.RELEASE_BINARY_COMPLIANCE_APPROVED }}
+      RELEASE_MANUAL_QA_APPROVED: ${{ vars.RELEASE_MANUAL_QA_APPROVED }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Require the exact version tag and recorded owner/legal/QA approvals
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF -ne "refs/tags/v$version") {
+            throw 'Manual dispatch must select the exact v<package.version> tag, never a branch or beta suffix.'
+          }
+          if (@($env:RELEASE_LICENSE_APPROVED, $env:RELEASE_BINARY_COMPLIANCE_APPROVED,
+                $env:RELEASE_MANUAL_QA_APPROVED) -contains 'false' -or
+              @($env:RELEASE_LICENSE_APPROVED, $env:RELEASE_BINARY_COMPLIANCE_APPROVED,
+                $env:RELEASE_MANUAL_QA_APPROVED) -contains '' -or
+              @($env:RELEASE_LICENSE_APPROVED, $env:RELEASE_BINARY_COMPLIANCE_APPROVED,
+                $env:RELEASE_MANUAL_QA_APPROVED) -contains $null) {
+            throw 'All three owner-controlled release repository variables must be explicitly true.'
+          }
+          foreach ($name in @('RELEASE_LICENSE_APPROVED', 'RELEASE_BINARY_COMPLIANCE_APPROVED',
+                               'RELEASE_MANUAL_QA_APPROVED')) {
+            if ([Environment]::GetEnvironmentVariable($name) -cne 'true') {
+              throw "Approval variable $name must be exactly true."
+            }
+          }
+          if ($env:CSC_LINK -or $env:WIN_CSC_LINK -or $env:CSC_KEY_PASSWORD) {
+            throw 'No signing credentials may be present in an unsigned build.'
+          }
+          $approval = Get-Content build/release-approval.json -Raw | ConvertFrom-Json
+          if ($approval.approved -ne $true -or $approval.ownersConfirmed -ne $true -or
+              $approval.manualQaApproved -ne $true) {
+            throw 'Reviewed and committed release-approval.json evidence is required.'
+          }
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.1
+          cache: npm
+      - run: npm install --global npm@10.9.8
+      - run: npm ci
+      - run: npm audit
+      - name: Full Windows safety and source-test gate
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+        run: npm run test:release-gate
+      - run: npm run package:dir
+      - run: npm run test:electron-smoke
+      - run: npm run test:renderer-security-smoke
+      - run: npm run verify:artifact
+      - name: Packaged candidate UI smoke (isolated temp user data)
+        run: npm run test:packaged-smoke
+      - run: npm run dist:win
+      - run: npm run verify:artifact
+      - run: npm run release:metadata
+      - name: Verify unsigned community identity and installer checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = 'release/unsigned-public-release'
+          $flavor = Get-Content "$dir/build-flavor.json" -Raw | ConvertFrom-Json
+          $metadata = Get-Content "$dir/build-metadata.json" -Raw | ConvertFrom-Json
+          if ($flavor.releaseClass -ne 'unsigned-public-release' -or
+              $flavor.appId -ne 'com.local.video.manager.community' -or
+              $flavor.nsisGuid -ne 'b73f7252-798d-48d9-b877-19fb6d355f83' -or
+              $metadata.releaseClass -ne 'unsigned-public-release' -or $metadata.signed -ne $false -or
+              $metadata.commit -ne $env:GITHUB_SHA -or $metadata.ref -ne $env:GITHUB_REF) {
+            throw 'Unsigned community build identity or commit does not match.'
+          }
+          if ($metadata.signatures.installer.status -ne 'NotSigned' -or
+              $metadata.signatures.application.status -ne 'NotSigned' -or
+              $metadata.signatures.nativeHost.status -ne 'NotSigned') {
+            throw 'Unsigned candidate contains an unexpected executable signature.'
+          }
+          if (@($metadata.installers).Count -ne 1 -or
+              $metadata.installers[0].name -ne $flavor.artifactName) {
+            throw 'Expected precisely one community installer in metadata.'
+          }
+          $installer = Join-Path $dir $flavor.artifactName
+          if ((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant() -ne
+              $metadata.installers[0].sha256) {
+            throw 'The unsigned community installer hash changed after metadata generation.'
+          }
+          if (-not (Select-String -LiteralPath "$dir/SHA256SUMS.txt" -SimpleMatch $metadata.installers[0].sha256)) {
+            throw 'SHA256SUMS.txt does not list the final approved candidate.'
+          }
+      - name: Archive verification metadata only (never upload an installer to public-repo Actions)
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: unsigned-community-CANDIDATE-metadata-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            release/unsigned-public-release/SHA256SUMS.txt
+            release/unsigned-public-release/build-metadata.json
+            release/unsigned-public-release/build-flavor.json
+            release/unsigned-public-release/FFMPEG-LITE-SBOM.spdx.json
