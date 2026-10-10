@@ -33,7 +33,8 @@ describe("release engineering trust boundaries", () => {
     expect(approval.applicationLicense).toBe("MIT");
     expect(approval.licenseSha256).toBe(await hashFile(path.resolve("LICENSE")));
     expect(approval.approved).toBe(false);
-    expect(approval.ownersConfirmed).toBe(false);
+    expect(approval.ownersConfirmed).toBe(true);
+    expect(approval.manualQaApproved).toBe(false);
     expect(approval.binaries.every((binary) => binary.sourceComplianceApproved === false)).toBe(true);
   });
   it("gives unsigned builds separate file, app, GUID, package and data identities", () => {

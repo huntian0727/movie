@@ -27,7 +27,7 @@
 
 - 最新的家用 B5 私有资料目录：`D:\\CodexReleaseAudit\\movie-community-support-20261010-owner-review`，**15 个已校验的完整附件**（较早的 10 项资料目录已由本版替代）。除了 FFmpeg 主 LGPL 文本，还包含 OpenH264、oneVPL、winpthreads、GCC 的实际许可证原文与来源说明。所有内容尚未对外公开。
 - 三张仓库截图已逐张目视检查，都是本项目界面及合成测试数据，没有看到真人照片、第三方影视画面、个人信息或公司文件；这不能替代作者的授权确认。
-- 所有权与正式发行的最简确认事项请看 [个人分享版最终决策记录](legal/PERSONAL_RELEASE_FINAL_DECISIONS.md)。当前只准备文件，不代表已经通过 LGPL 静态重链接验证，也不代表可以提前发布。
+- **项目所有者已在 2026-10-10 确认自有代码、文档及三张截图有权以 MIT 公开分享。** 已记录在 [个人分享版最终决策记录](legal/PERSONAL_RELEASE_FINAL_DECISIONS.md)；所有者不需要再重复确认。该确认不覆盖 FFmpeg 或其他第三方组件，也不能跳过 LGPL 最终分发核对和干净 Win11 验收，因此目前仍不得提前发布。
 
 ## 最终 GitHub Release 放什么
 

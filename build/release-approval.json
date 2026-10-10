@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "approved": false,
-  "ownersConfirmed": false,
+  "ownersConfirmed": true,
   "applicationLicense": "MIT",
   "licenseSha256": "67a5adfb62bada52970413032afa8c5dce450e09c32d5abe99b472c16f2d4e72",
   "packageLockSha256": null,

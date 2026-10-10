@@ -32,7 +32,7 @@
 
 - 家用 B5 私有最新资料目录 `D:/CodexReleaseAudit/movie-community-support-20261010-owner-review/`：15 项已校验附件，新增真正的 oneVPL、OpenH264、winpthreads、GCC 许可文本和 FFmpeg 来源说明，代替较早的 10 项资料目录。没有公开上传。
 - 已逐张目视检查仓库三张截图：都是本应用界面与合成示例 `sample.mp4`，未发现真实人物、个人媒体画面或办公内容。
-- 参见 [本人最终决策记录](legal/PERSONAL_RELEASE_FINAL_DECISIONS.md)：应用 MIT/仓库署名已有实际配置，但**源码/素材真实可授权范围只能由权利人确认**。FFmpeg 静态链接重链接可行性、OpenH264 第三方构建的独立专利事项及稳定 Win11 QA 仍待验证；不由脚本擅自签署法律结论。
+- **自有代码、文档和三张测试截图的 MIT 授权权利已由所有者确认（2026-10-10）**，记录见 [本人最终决策记录](legal/PERSONAL_RELEASE_FINAL_DECISIONS.md)，`ownersConfirmed=true`。FFmpeg 静态链接重链接可行性、OpenH264 第三方构建的独立专利事项及稳定 Win11 QA 仍待验证；`approved=false`，不会自动发布。
 
 ## 最后收尾进度（2026-10-09）
 
