@@ -19,6 +19,10 @@
 - 外部校验文件：同目录的 `SHA256SUMS-SOURCE.txt`。
 - **仅说明材料已准备并校验完整**；并未上传 GitHub，没有对应正式安装器，也没有自动解除静态链接许可/发行验证限制。
 
+## 实际离线发布附件（已在家用 B5 生成）
+
+已经通过 [自动打包脚本](../scripts/prepare-community-release-attachments.mjs) 生成发布资料预备目录 `D:\\CodexReleaseAudit\\movie-community-support-20261010`，包含 FFmpeg Lite 的固定源码压缩包、MIT/LGPL 许可证、第三方组件声明、SBOM、编译选项、发布说明草稿、`SHA256SUMS.txt` 和状态清单。**10 个附件逐一哈希核验通过；不含 EXE，尚未公开发布。** 目前先完成其余工程准备，按维护者最新安排，办公电脑 D200707 只允许作为最后阶段的**隔离 Windows 11 验收环境宿主机**，不会在其实际办公系统安装映匣、运行研发任务或读取企业数据。
+
 ## 最终 GitHub Release 放什么
 
 | 附件 | 作用 |
