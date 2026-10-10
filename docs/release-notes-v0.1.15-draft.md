@@ -24,6 +24,10 @@
 
 家用 B5 的 Windows 11 Insider：1,188 项单元测试全部通过；内部隔离身份的安装、修复、卸载、数据库/合成视频保留 smoke 测试 PASS；3,461 项 ASAR 内容检查 PASS。**干净稳定版 Windows 11 / 无 Node 的完整交互验收 NOT RUN；真实用户的视频播放人工验收 NOT RUN。**
 
+## 第三方许可证与源码（仅正式审批通过后用于公众文案）
+
+本软件通过独立进程使用 FFmpeg 8.1.2 / FFprobe 媒体工具，第三方版权与许可证仍由原权利人保留。正式上架时必须提供对应本次安装器的真实 FFmpeg / 运行库源码、许可证、构建说明及必要的静态重链接资料（若适用），并将真实下载地址和 SHA256 与安装包放在同一次 GitHub Release。现有私有审核 ZIP **不是**公众附件，正式源码链接目前尚不存在。详见 [源代码发布说明](legal/FFMPEG_SOURCE_NOTICE.md)、[实际构建信息](legal/FFMPEG_BUILD_INFO.md) 和 [组件清单](legal/NATIVE_COMPONENTS.md)。
+
 ## 当前发行阻塞（必须逐项有证据）
 
 - FFmpeg Lite 和相关 DLL 最终许可证/源码提供、静态重链接义务未放行；对应源码已私有归档，但尚未作为正式 Release 附件公开。

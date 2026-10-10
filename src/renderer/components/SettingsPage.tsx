@@ -1,7 +1,7 @@
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { SubtitleSettings } from "./SubtitleSettings";
 import type { SubtitleApi } from "../../shared/subtitles";
-import { ArrowLeft, Cloud, Database, FileDown, FolderSearch, Keyboard, RotateCcw } from "lucide-react";
+import { ArrowLeft, Cloud, Database, FileDown, FolderSearch, Info, Keyboard, RotateCcw } from "lucide-react";
 import type {
   AppSettings,
   AppSettingsUpdate,
@@ -171,6 +171,7 @@ export function SettingsPage({
           <a href="#settings-shortcuts">快捷键</a>
           <a href="#settings-cache">缓存</a>
           <a href="#settings-diagnostics">诊断与日志</a>
+          <a href="#settings-licenses">关于与许可证</a>
         </nav>
         <div className="settings-content">
         <section id="settings-library" className="settings-section"><div className="section-title"><FolderSearch size={20} /><div><h2>资料库</h2><p>控制新文件夹和启动扫描行为</p></div></div>
@@ -289,6 +290,10 @@ export function SettingsPage({
           </div>
           {diagnosticsPreview && <pre className="diagnostics-preview" aria-label="诊断内容预览">{JSON.stringify(diagnosticsPreview, null, 2)}</pre>}
           {diagnosticsMessage && <p className={diagnosticsMessage.includes("已导出") || diagnosticsMessage.includes("取消") ? "settings-success" : "settings-warning"}>{diagnosticsMessage}</p>}
+        </section>
+        <section id="settings-licenses" className="settings-section" aria-labelledby="settings-licenses-title">
+          <div className="section-title"><Info size={20} /><div><h2 id="settings-licenses-title">关于与第三方许可证</h2><p>项目自有代码与媒体工具分别遵循各自授权</p></div></div>
+          <div className="setting-row"><div><strong>FFmpeg / FFprobe</strong><span>本软件调用 FFmpeg 媒体工具独立进程，其适用许可包括 GNU LGPL v2.1 或后续版本。</span><span>FFmpeg 官方网站：https://ffmpeg.org</span><span>有关具体版本、对应源码、许可证和构建信息，请参阅 THIRD_PARTY_LICENSES.md、docs/legal/SOURCE_OFFER.md 及该版本发行说明。第三方版权归原权利人。</span></div></div>
         </section>
         </div>
       </div>

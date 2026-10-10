@@ -4,12 +4,12 @@
 
 | 关卡 | 已有证据 | 状态 |
 | --- | --- | --- |
-| GitHub Windows CI 与安全检查 | 最新已完成的 `4013e5f`：Windows run 37927837499、Security 37927837335 均 SUCCESS；此后新源码清单提交仍需跑自己的 CI | 已通过（截至 `4013e5f`） |
+| GitHub Windows CI 与安全检查 | PR #24 最近已核实的 `cd4d10f`：依赖审查、Electron native smoke、Windows Node/文件安全、无签名 NSIS 隔离 QA、全历史依赖扫描 **5/5 PASS**。本次文档/About 改动需由新提交重新跑 CI | 已通过（截至 `cd4d10f`，本次提交待验证） |
 | 固定第三方运行库来源 | 5/5 DLL、4/4 MSYS2 包和原始 PKGBUILD 对应哈希一致 | 已通过 |
 | FFmpeg 源码及构建脚本 | 8.1.2 核心源码、原 Windows 构建脚本已归档 | 已通过 |
 | 第三方对应源码包 | FFmpeg 8.1.2 + 四份精确 MSYS2 源包均已下载、哈希校验，4/4 配方吻合 | **已取得并私有归档** |
-| LGPL 条款适用及重链接材料 | 参见 [LGPL 清单](legal/LGPL_COMPLIANCE_CHECKLIST.md)，源码包存在不等于最终许可放行 | **阻塞** |
-| 干净稳定 Windows11 无 Node/开发工具 | 必须安装、扫描、播放、重启、修复安装及卸载并核对视频/SQLite | **阻塞** |
+| LGPL 条款适用及重链接材料 | 参见 [LGPL 清单](legal/LGPL_COMPLIANCE_CHECKLIST.md)、[具体构建参数](legal/FFMPEG_BUILD_INFO.md)、[专项审核](legal/FFMPEG-LITE-RELINK-REVIEW.md)，源码包存在不等于最终许可放行 | **阻塞** |
+| 干净稳定 Windows11 无 Node/开发工具 | 必须根据 [干净系统验收步骤与证据模板](QA/WINDOWS11_CLEAN_INSTALL_TEST.md) 安装、扫描、播放、重启、修复安装及卸载并核对视频/SQLite；当前仅有内部测试包 | **阻塞** |
 | `community` 身份真实 QA | 无签名**正式社区身份**安装器尚未生成；不能重命名 unsigned-test | **阻塞** |
 | 发行审批文件 | `build/release-approval.json.approved=false` 且各二进制许可批准 false | **阻塞** |
 | GitHub 发布授权 | PR #24 Draft、main 未合并；还没有正式版本 tag | **阻塞** |

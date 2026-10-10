@@ -17,6 +17,14 @@ const cacheStatus: MediaCacheStatus = {
 };
 
 describe("SettingsPage", () => {
+  it("shows the FFmpeg third-party notice and source guidance in settings without claiming public approval", () => {
+    render(<SettingsPage settings={settings} cacheLocation="C:\\Cache" cacheStatus={cacheStatus} />);
+    expect(screen.getByRole("link", { name: "关于与许可证" })).toHaveAttribute("href", "#settings-licenses");
+    expect(screen.getByRole("heading", { name: "关于与第三方许可证" })).toBeInTheDocument();
+    expect(screen.getByText(/GNU LGPL v2\.1/)).toBeInTheDocument();
+    expect(screen.getByText(/https:\/\/ffmpeg\.org/)).toBeInTheDocument();
+    expect(screen.getByText(/THIRD_PARTY_LICENSES\.md/)).toBeInTheDocument();
+  });
   it("shows credential recovery status and keeps the replacement field empty", () => {
     const recovery = { ...settings, cloudDrive: { ...settings.cloudDrive, configured: false,
       credentialError: "CloudDrive 安全凭据暂不可用，连接已停用；请重新输入 Token 并保存以恢复。原凭据已保留。" } };

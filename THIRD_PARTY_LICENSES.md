@@ -16,6 +16,10 @@
 详细的具体 DLL 名称、版本、精确来源/哈希、原始许可证和候选 SPDX 清单：
 - [第三方发布声明（草案）](docs/legal/THIRD_PARTY_RELEASE_NOTICES.md)
 - [FFmpeg Lite 对应源码与构建资料](docs/legal/SOURCE_OFFER.md)
+- [实际 FFmpeg 编译选项与 EXE SHA](docs/legal/FFMPEG_BUILD_INFO.md)
+- [未来正式 Release 的对应源码交付说明](docs/legal/FFMPEG_SOURCE_NOTICE.md)
+- [七个候选媒体原生二进制、版本和哈希](docs/legal/NATIVE_COMPONENTS.md)
+- [第三方发布前逐项审查清单](docs/legal/LICENSE_COMPLIANCE_CHECKLIST.md)
 - [LGPL / 第三方检查表](docs/legal/LGPL_COMPLIANCE_CHECKLIST.md)
 - [第三方二进制/源码映射](docs/legal/BINARY-SOURCE-MAP.md)
 
