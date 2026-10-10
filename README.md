@@ -2,7 +2,7 @@
 
 Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理索引、封面、收藏、播放记录和视频目录；视频保留在原位置。
 
-**第一次接触？** 阅读 [快速开始](docs/QUICK_START.md)、[Windows 安装与文件校验](docs/windows-installation.md)、[第三方组件说明](THIRD_PARTY_LICENSES.md)。当前安装包尚未批准公开发行；[v0.1.15 发行说明草稿](docs/release-notes-v0.1.15-draft.md) 不是可下载版本。
+**第一次接触？** 阅读 [快速开始](docs/QUICK_START.md)、[Windows 安装与文件校验](docs/windows-installation.md)、[第三方组件说明](THIRD_PARTY_LICENSES.md)。**个人免费分享的维护者只需先看 [最简发布指南](docs/OPEN_SOURCE_RELEASE_SIMPLE.md)**，历史详细审计文档不必逐篇阅读。当前安装包尚未批准公开发行；[v0.1.15 发行说明草稿](docs/release-notes-v0.1.15-draft.md) 不是可下载版本。
 
 **免费分享项目 · MIT 开源。** 维护者已选择将有权授权的项目自有代码和文档以 [MIT License](LICENSE) 公开提供；任何人均可免费使用、复制、修改和再分发，须保留版权及 MIT 许可声明。作者不计划商业化，但 MIT 本身不禁止他人商业使用。
 
@@ -24,7 +24,7 @@ Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理
 
 目标系统：Windows 11 x64；当前实机是 Windows 11 Insider，干净稳定版 Windows 11 验收仍需完成。
 普通用户运行安装包不需要安装 Node.js、npm 或开发工具。
-签名正式安装包只应从维护者批准的 GitHub Release 获取；当前没有本轮正式发行。
+首版计划使用独立身份的**无签名免费分享版**，只应从维护者批准的 GitHub Release 获取；当前没有本轮正式发行。
 
 测试包拥有独立 appId、安装名和 `%APPDATA%\local-video-manager-unsigned-test` 数据目录，不能当作现有正式版的升级包。
 完整下载、SHA-256、签名核对、安装、迁移和卸载步骤见 [普通用户安装教程](docs/windows-installation.md)。
@@ -78,14 +78,12 @@ npm run test:installer-smoke
 ~~~
 
 SQLite13 官方 N-API 文件已在 Node 与 Electron 中分别实测验证；旧版11 ABI文件不能复用，详见 [原生模块工作流](docs/native-abi-workflow.md)。
-测试包输出在 `release/unsigned-test-build`，正式候选在 `release/signed-release`；已有用户便携包不会被测试打包覆盖。
-正式构建同时需要受保护 GitHub environment、Secret 证书、实际 Authenticode 验证、许可证/二进制来源/人工 QA 哈希批准记录。
-没有这些材料时门禁拒绝正式发行，参见 [发布工作流](docs/release-workflow.md)。
+隔离测试包输出在 `release/unsigned-test-build`；拟采用的免费社区版使用单独的 `release/unsigned-public-release` 身份和目录，绝不重命名测试包。旧的 `release/signed-release` 是未选择的付费签名通道，**首版社区版不需要购买证书**。真实发布前仍须满足对应源码/许可及安装安全核对；现有工程门禁在证据不齐时继续拒绝发行，参见 [最简指南](docs/OPEN_SOURCE_RELEASE_SIMPLE.md) 和 [技术工作流](docs/release-workflow.md)。
 
 ## 已知限制与维护
 
 - npm audit不覆盖原生EXE。现有媒体二进制落后于官方后续安全修复，确切补丁适用性及替换方案未闭环，见 [二进制安全审查](docs/legal/native-binary-security.md)。
-- 当前工作分支的 FFmpeg/FFprobe 是固定来源的同套 9.0.2-22 LGPL 静态候选，已移除旧 npm 包装层；43 个可选外部库及传递依赖的完整对应源码/授权仍未闭环，因此**安装包不对公众分发**。
+- **默认 BtbN 候选**仍属于历史来源的未批准媒体工具；拟公开的社区版明确选择 [FFmpeg Lite 8.1.2](docs/legal/FFMPEG_BUILD_INFO.md) 与七个已锁定原生二进制，不混用两个候选的许可证和源码证据。Lite 的静态链接 LGPL 最终要求仍需处理，因此**当前安装包不对公众分发**。
 - 维护者选择个人免费分享，**首个公开版计划不购买代码签名证书**；Windows 可能提示未知发布者。干净无 Node 的 Windows 11 与旧版升级等安全验收仍需完成，不能将内部测试包当成正式版。
 - 旧 NSIS 卸载器可能递归删除安装目录，新包拒绝未经审查的旧版升级；不要把用户文件放入应用安装目录。
 - libmpv 和系统默认播放器由用户另行安装；编解码兼容性取决于实际格式与播放器。
