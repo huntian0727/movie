@@ -37,12 +37,16 @@ status: partial
 - 直接启动解压目录 portable-qa-lE0Y01 下的程序，隔离五视频资料库；实际 H.265/AAC 显示内嵌解码并播放到下一项，H.265/DTS MKV 帧从 00:00.042 变至 00:11.292，暂停成功。NativeHost 实际从该解压包 resources/native-player 启动，使用该包运行库；没有读取日常资料库。
 - 新一轮完整检查：lint/typecheck/build/Electron smoke PASS；Vitest 134 文件 / 1206 项 PASS；媒体契约 65/65、源码构建 Python 12/12 PASS。播放器新增依赖缺失/篡改、非 x64、额外 DLL、路径逃逸与正式发布阻断验证通过。独立 E2E npm 脚本仍不适用。
 - 私有源码审阅附件已生成，255285742 字节，SHA `b0caa9b90695515b97ddae5de7b3569ea1f867a09d2680ec488f81fa3770b77f`；包含原始完整源码证据 ZIP、原始二进制 map、源码恢复入口、95 份通知记录/70 份去重全文和 16 个生产者二进制组件组关系。实际补足 FreeType FTL/credit、GCC Runtime Exception、winpthreads 及 AMD/NVIDIA 头文件通知。ZIP CRC、内嵌完整源码 ZIP SHA 和每份通知 SHA 全部验证；无 Movie 程序候选、私钥、个人视频或数据库。通知数量是材料清单，不代替逐组件适用性审查。
+- 代码 `faf830ed32a21826caf785fbfbfea1718fef9523` 已普通推送分支及 main，备份 `backup-main-20261011-223320-95b0d7f`。Windows CI 38147665737（Node 安全/完整回归及 Electron smoke）、Security audit 38147665730 均 SUCCESS。
+- 从 faf830e 干净工作区重打后最终绿色 QA ZIP 224633609 字节，SHA `7311163a94931adbdcb618f39a11d61e71b91d974692b87752dea82b5402430e`，flavor.workspaceDirty=false、commit=faf830e。219 个解压文件逐字节核对 PASS，11 份许可材料 SHA 一致；portable-qa-BaPwzb 实际创建/重开资料库、扫描、缩略图、工作线程和安全 smoke PASS。app.asar SHA 保持 `b2108a29622c7e142ca3985a57d08bfe0366dc8ffcd41cadbc7be6c788705ab4`。本段为打包后的验证记录，后续仅文档提交不改变该程序包的代码来源。
+- 新运行库补测真实 2560×1440 HEVC/PCM A-law 测试副本：ffprobe/ffmpeg 解码、mpv 加载/跳转/推进/暂停 PASS；duration 468.855 秒。实际窗口两帧可见画面与视频内时钟推进。此轮实际音量为零，不将旧运行库的 PCM 听音确认转借为新库确认；源文件和现有沙盒均未改动。
 - 锁定 Node 22.23.1 / npm 10.9.8 完整检查：lint、typecheck、build PASS；Vitest 134 文件 / 1204 项 PASS；Electron smoke（SQLite/DPAPI/三身份/移动目录/preload/主进程）PASS；媒体候选契约 65/65 PASS；新源码构建测试 6/6 PASS。独立 E2E npm 脚本不存在，记为不适用。
 - 原始配方转换后 `bash -n`、工作流各 shell 步骤语法及 YAML 解析 PASS。真实 CLI 在 `.tmp` 中生成私钥、公钥验证、加密/解密并核对原字节 PASS。完整质量检查后提交脚本 ValidateOnly PASS；使用本轮等价检查的 `-SkipChecks`，正常推送并备份旧 main。
 
 ## Risks and follow-up
 
-- 本机中性样片与绿色 QA 包播放已验证；新候选的真实长片、高分辨率样片以及稳定 Windows 11 公开身份验收仍待完成。第三方发行审核尚未批准，不把本机功能测试当作许可批准。
+- 本机中性样片、绿色 QA 包及一份真实 1440p HEVC 已验证；其它真实长片、1080p/4K及新库 PCM 实听、稳定 Windows 11 公开身份验收仍待完成。第三方发行审核尚未批准，不把本机功能测试当作许可批准。
+- 正式发行接入仍待完成：目前 source-candidate 是显式私有播放器变体，CLI 仍为单独选择的 Lite；已编译的动态 FFmpeg/FFprobe 尚未成为实际应用媒体工具。后续可复用本次完整原生构建与源码，接入同一来源的 CLI，避免继续依赖未闭环的旧静态重链接路线。正式门禁必须覆盖全部新 DLL 与准确来源，不允许只批准主 libmpv。
 - 原有公开发行审批及候选锁保持未批准。没有公开程序附件、发行 Tag 或 GitHub Release。
 - 第一轮代码 `2c74079` 已普通推送分支及 main，备份 `backup-main-20261011-182759-6eb39a6`；Windows CI 38132047435、安全 38132047434 均成功。打包修正 `dac070d` 已普通推送分支及 main，备份 `backup-main-20261011-191614-2c74079`；Windows CI 38134948147、安全 38134948298 均成功。恢复入口 `95b0d7f` 已推送两分支，备份 `backup-main-20261011-193721-dac070d`；Windows CI 38136241830、安全 38136241823 成功。原生编译任务的 FAIL 与应用 CI 的 PASS 独立记录。
 - 稳定 Windows 11 普通用户和最终公开身份 ZIP 验收仍待完成。此次为构建工具及隔离绿色候选验证；日常桌面快捷方式仍用旧包，桌面版本尚未交付。现有 Windows 沙盒未重启或清空；D200707 尚未访问。
