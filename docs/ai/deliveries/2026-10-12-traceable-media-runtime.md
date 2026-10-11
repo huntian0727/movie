@@ -21,7 +21,11 @@
 - 新增三项回归覆盖隔离身份、正式发布阻断、共享依赖 SHA、许可证 SHA、额外 DLL、篡改、缺失、x86、路径逃逸及错误 ZIP。
 - 初次完整测试 1205 通过/4 失败：临时执行器把 MOVIE_PLAYER_VARIANT=source-candidate 强加到模拟旧正式发行的夹具，被现有正式门禁拒绝。修正临时测试执行器，不改变门禁；针对发行/新媒体的 29 项测试通过。完整回归重跑 135 文件/1209 项全部通过。
 - 锁定 Node 22.23.1/npm 10.9.8：lint、typecheck、build、Electron smoke PASS；媒体契约 65/65、新源码构建 Python 12/12 PASS。finish-and-push ValidateOnly 与 git diff --check PASS。
-- 新版绿色 ZIP 和包内 smoke 待生成核验；不得把上一轮旧媒体工具包的验收直接转借。
+- 从本轮代码提交 6a0abef13d493f49a8e849b2efd39bb93326670f 的干净工作区生成新绿色候选包：release/unsigned-test-build/拉面影视-0.1.15-x64-unsigned-test-build-Portable.zip，212829369 字节，SHA f4707f867e6fbd4a2d0090612e15c65ed1d89fe9d6e1bbb0ace68222afba6d47。
+- 包内 mediaVariant/playerRuntimeVariant 均为 source-candidate，workspaceDirty=false。媒体锁 SHA 70ab4dac7dfe6c433f26802861f5e1f3b76dcd8997cd2cd313e209a9f2e17fa5；播放器锁 SHA 11ad832489dabf095b9d06bb0c6011e8144905a5eeac25d69b24c2f76aac532f。
+- verify:zip PASS：portable-qa-vL3YDv 的 221 文件逐字节相等；12 份许可材料匹配；实际程序创建/重开资料库、扫描、缩略图生成/Renderer 解码、缓存重生成、工作线程和 IPC/CSP 防护 smoke PASS。应用及 NativeHost 明确 NotSigned，publicReleaseApproved=false。
+- 使用解压包 resources/media-tools 的两个 CLI，再次对六份视频执行应用实际封面、普通时间轴和快速取帧路径，全部 PASS。app.asar SHA 保持 b2108a29622c7e142ca3985a57d08bfe0366dc8ffcd41cadbc7be6c788705ab4，播放器全部 24 DLL 字节保持上一轮验证结果；没有把新媒体工具声称为新的播放器听音验证。
+- 检查三个桌面快捷方式真实目标：日常指向 release/win-unpacked/拉面影视.exe，绿色测试指向旧 portable-qa-nLMQRi，发布验收指向 D:/CodexReleaseAudit 下旧包。本轮未替换或从这些旧快捷方式启动；桌面版本尚未交付。新版隔离包的实际启动由上述包内 smoke 完成。
 - 独立 E2E npm 脚本不存在，记为不适用。
 
 ## Risks and follow-up
@@ -30,3 +34,4 @@
 - 第三方及嵌套静态组件适用性审核、稳定 Windows 11 正式身份验收与最终公开版本授权尚未完成。原始生产任务整体 FAIL 与后续本地系统依赖核验分别保留，不改写历史结论。
 - 已确认的新播放器文件未改动，无需重复 AAC/DTS/Opus 人工听音。真实 1440p 新库 PCM 仍无新的人耳确认，不转借旧沙盒确认。
 - 现有 Windows 沙盒与真实视频未清空，D200707 尚未访问。日常桌面快捷方式未替换；桌面版本尚未交付。无公开程序、版本 Tag 或 GitHub Release。
+- 本轮完整等价检查已在同一工作区执行并记录，代码先本地提交后从干净工作区打包；本记录补充真实包结果，再调用 finish-and-push -SkipChecks 正常推送两次本地提交并备份旧 main，避免为仅文档记录重跑全部测试。
