@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "testDate": "2026-10-11",
+  "timezone": "Asia/Shanghai",
+  "scope": "Private unsigned-test-build portable QA; not final release approval",
+  "artifact": {
+    "filename": "拉面影视-0.1.15-x64-unsigned-test-build-Portable.zip",
+    "codeCommit": "19465ef7500fb53c325a5079126497e1fe34cd57",
+    "sha256": "e52289cc4a50380d335c71601883ec78d556f726a228e08f38ad17c04a509228",
+    "extractedFilesVerified": 189
+  },
+  "environment": {
+    "implementation": "Windows Sandbox (.wsb mapped folders and LogonCommand)",
+    "guiEdition": "Windows 11 Enterprise Insider Preview",
+    "build": "26100.9606",
+    "registryProductName": "Windows 10 Enterprise",
+    "displayVersion": "24H2",
+    "architecture": "AMD64",
+    "account": "Default WDAGUtilityAccount; not a standard-user acceptance",
+    "externalCommandsBefore": {
+      "node": [],
+      "npm": [],
+      "ffmpeg": [],
+      "ffprobe": [],
+      "git": [],
+      "python": []
+    },
+    "profileExistedBefore": false,
+    "receiptSha256": "e58d884b9e010cf330193ae7fd21b0dfdf060d69a1fef169dd3049db6aa17ec6"
+  },
+  "fixtures": {
+    "kind": "Synthetic 35-second 320x180 color clips with AAC tone; no real user media",
+    "files": [
+      {
+        "name": "QA-H264-AAC.mp4",
+        "sha256": "2087e7b6e0873f1b1ee43d5eb27a425ee514d388acf3b5bf7ecbf27068341d2b"
+      },
+      {
+        "name": "QA-H265-AAC.mp4",
+        "sha256": "9ac3a0efa2da2f042cfcf02492b8b6c812e4a88adbc6505026f189bcebe1b5cf"
+      },
+      {
+        "name": "QA-MKV-H264-AAC.mkv",
+        "sha256": "65e1e97612975a62950e2fe3062140f1215e20aa022ec30bd59b69fb812555d0"
+      }
+    ]
+  },
+  "automated": {
+    "create": {
+      "status": "PASS",
+      "checks": {
+        "packaged": true,
+        "databaseQuickCheck": true,
+        "productName": true,
+        "structuredLogCreated": true,
+        "fixtureScanned": true,
+        "videoCount": 1,
+        "protocolRegistered": true,
+        "protocolRead": true,
+        "rendererMounted": true,
+        "preloadLoaded": true,
+        "preloadHasNoGenericInvoke": true,
+        "playerBridgeHasEmbeddedPlayback": true,
+        "playerBridgeMinimized": true,
+        "cspInlineScriptBlocked": true,
+        "cspExternalScriptBlocked": true,
+        "windowOpenBlocked": true,
+        "navigationBlocked": true,
+        "untrustedPageHasNoBridge": true,
+        "brandVisible": true,
+        "pageTitle": true,
+        "defaultAssetCenter": true,
+        "directoryRankingVisible": true,
+        "previewGeneratedBeforeMetadata": true,
+        "previewDecodedInRenderer": true,
+        "previewCacheHit": true,
+        "previewRegenerated": true,
+        "previewStableAcrossPagePolling": true,
+        "ffmpegLocated": true,
+        "ffprobeLocated": true,
+        "ffmpegExecutable": true,
+        "ffprobeExecutable": true,
+        "assetCenterWorkerQuery": true,
+        "libraryOverviewWorkerQuery": true,
+        "videoDataWorkerQuery": true,
+        "videoDataWorkerExport": true,
+        "videoDataWorkerSelection": true,
+        "duplicateWorkerQuery": true,
+        "metadataIssuesWorkerQuery": true,
+        "playbackDiagnosticWorkerQuery": true
+      },
+      "electron": "44.7.0",
+      "receiptSha256": "f41a1849941cee3251e7031e7d9a2fa8b40691274ebcddeb2f29d15b690857c0"
+    },
+    "verify": {
+      "status": "PASS",
+      "checks": {
+        "packaged": true,
+        "databaseQuickCheck": true,
+        "productName": true,
+        "structuredLogCreated": true,
+        "databaseReopenedAfterExit": true,
+        "videoCount": 1,
+        "assetCenterWorkerQuery": true,
+        "libraryOverviewWorkerQuery": true,
+        "videoDataWorkerQuery": true,
+        "videoDataWorkerExport": true,
+        "videoDataWorkerSelection": true,
+        "duplicateWorkerQuery": true,
+        "metadataIssuesWorkerQuery": true,
+        "playbackDiagnosticWorkerQuery": true
+      },
+      "electron": "44.7.0",
+      "receiptSha256": "46016b1775eba40489eb4c7fa8df871b8d2e46483705344a41783c9ff8b11fa2"
+    }
+  },
+  "observedGui": {
+    "firstLaunch": "PASS",
+    "scanThreeVideos": "PASS",
+    "thumbnails": "PASS",
+    "h264": {
+      "playback": "PASS",
+      "engine": "Chromium video",
+      "pause": "PASS",
+      "seek": "PASS",
+      "resume": "PASS",
+      "audio": "PASS_USER_CONFIRMED",
+      "audioEvidence": "User answered 能听到 to the tone question asked during H.264 playback; no per-format audio claim for other clips."
+    },
+    "h265": {
+      "playback": "PASS",
+      "engine": "Embedded native playback",
+      "pause": "PASS",
+      "forwardTenSeconds": "PASS",
+      "audio": "NOT_CONFIRMED"
+    },
+    "mkv": {
+      "playback": "PASS",
+      "engine": "Embedded native playback",
+      "pause": "PASS",
+      "forwardTenSeconds": "PASS",
+      "resume": "PASS",
+      "audio": "NOT_CONFIRMED"
+    },
+    "normalExit": "PASS",
+    "moveProgramAndReopen": "PASS",
+    "retainedThreeVideosOneFavoriteThreeHistoryEntries": "PASS",
+    "removeProgramDirectoryPreservingDataAndSourceVideos": "PASS"
+  },
+  "dataRetention": {
+    "first-exit": {
+      "at": "2026-10-11T13:05:04.0618055+08:00",
+      "quickCheck": "ok",
+      "schema": 15,
+      "videoCount": 3,
+      "favoriteCount": 1,
+      "metadataAndThumbnailsReady": true,
+      "history": [
+        {
+          "filename": "QA-H264-AAC.mp4",
+          "position_ms": 25080
+        },
+        {
+          "filename": "QA-H265-AAC.mp4",
+          "position_ms": 24041
+        },
+        {
+          "filename": "QA-MKV-H264-AAC.mkv",
+          "position_ms": 34792
+        }
+      ],
+      "sourceHashesUnchanged": true,
+      "programExists": true,
+      "uncleanMarkerPresent": false,
+      "databaseFiles": [
+        {
+          "name": "library.sqlite",
+          "sha256": "97e8d54f8a7255106f66cf1b213c4a4d7b558d21310b1c2bfedc3d0d526dddda"
+        },
+        {
+          "name": "library.sqlite-shm",
+          "sha256": "5ab9e7eafe8f89fc249773f721faa0a0d4a1eee2d8e97080fc6dd71f2cb198dd"
+        },
+        {
+          "name": "library.sqlite-wal",
+          "sha256": "20a54a827ad5683c103d5fe40fbcc92ef3911f575879e80c7b5e7a7902d1e62a"
+        }
+      ],
+      "receiptSha256": "378f11dfb1614cd6ad732805e73a38ed128b75806795671b88ae205edcc1ff55",
+      "verificationSha256": "43950c4b20e231ef2251057eee44e9659cc2da01467017de85496ea8a15f9a7e"
+    },
+    "reopen-exit": {
+      "at": "2026-10-11T13:06:10.7472230+08:00",
+      "quickCheck": "ok",
+      "schema": 15,
+      "videoCount": 3,
+      "favoriteCount": 1,
+      "metadataAndThumbnailsReady": true,
+      "history": [
+        {
+          "filename": "QA-H264-AAC.mp4",
+          "position_ms": 25080
+        },
+        {
+          "filename": "QA-H265-AAC.mp4",
+          "position_ms": 24041
+        },
+        {
+          "filename": "QA-MKV-H264-AAC.mkv",
+          "position_ms": 34792
+        }
+      ],
+      "sourceHashesUnchanged": true,
+      "programExists": true,
+      "uncleanMarkerPresent": false,
+      "databaseFiles": [
+        {
+          "name": "library.sqlite",
+          "sha256": "a63c53494951eac6a3c92c22497c326ba2f7b816747dce89d90f5ff93ce21fe3"
+        },
+        {
+          "name": "library.sqlite-shm",
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        },
+        {
+          "name": "library.sqlite-wal",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "receiptSha256": "bcfda44f8035994a2d00043bfefbff9223e966e5687c70ccb9a4dbc47e68b6f5",
+      "verificationSha256": "d7363c5bb5f627bbf938af1ff55cfa94c5c433c55f7bb27064a382b6a90ee865"
+    },
+    "program-removed": {
+      "at": "2026-10-11T13:06:36.1963550+08:00",
+      "quickCheck": "ok",
+      "schema": 15,
+      "videoCount": 3,
+      "favoriteCount": 1,
+      "metadataAndThumbnailsReady": true,
+      "history": [
+        {
+          "filename": "QA-H264-AAC.mp4",
+          "position_ms": 25080
+        },
+        {
+          "filename": "QA-H265-AAC.mp4",
+          "position_ms": 24041
+        },
+        {
+          "filename": "QA-MKV-H264-AAC.mkv",
+          "position_ms": 34792
+        }
+      ],
+      "sourceHashesUnchanged": true,
+      "programExists": false,
+      "uncleanMarkerPresent": false,
+      "databaseFiles": [
+        {
+          "name": "library.sqlite",
+          "sha256": "a63c53494951eac6a3c92c22497c326ba2f7b816747dce89d90f5ff93ce21fe3"
+        },
+        {
+          "name": "library.sqlite-shm",
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        },
+        {
+          "name": "library.sqlite-wal",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "receiptSha256": "b6921ca80ddfad425f113ceec5bb5b6e64da28ea70621fc9525a622315e45fee",
+      "verificationSha256": "878733a86ebb25bf6c0ce8d45573e8bf77d12d2edbdcebc0f4d97797b2b849ec"
+    }
+  },
+  "preparationFailure": {
+    "phase": "Before application launch",
+    "cause": "Bootstrap pre-created SyntheticMedia before copying that directory, causing a directory collision.",
+    "correction": "Create only the program directory before Copy-Item, preserve failed receipt and restart the disposable sandbox.",
+    "productFailure": false,
+    "failureReceiptSha256": "09ed0b2133ace9a5b20f61d9a40d3b3c414f982c909607bf0b21a2cc91cc0859"
+  },
+  "release": {
+    "ownersConfirmed": true,
+    "approved": false,
+    "manualQaApproved": false,
+    "binarySourceApprovals": false,
+    "approvalFileSha256": "0b74ae96f563342620c7f4b8dc7d1cef89005c32be98d89ef452c416fca8498d",
+    "githubReleasePublished": false
+  },
+  "limitations": [
+    "Insider preview guest, not stable Windows 11.",
+    "Default Sandbox account, not standard-user/no-UAC verification.",
+    "Native H.265 and MKV audio still unconfirmed.",
+    "Final public/community artifact, installer lifecycle, historical signed upgrade and Internet-download SmartScreen behavior not tested in this run.",
+    "Short synthetic clips; no high-resolution, HDR, NAS or real-user-media compatibility claim."
+  ]
+}
