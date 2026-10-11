@@ -27,6 +27,8 @@
 
 ## 剩余限制
 
+- 内嵌播放候选还包含固定 SHA 的 `libmpv-2.dll`，与 FFmpeg Lite 工具独立；其准确来源、原始许可文本和未完成事项见 [MPV_SOURCE_NOTICE.md](MPV_SOURCE_NOTICE.md)。不能把 FFmpeg Lite 的 SBOM 或审批用于批准 libmpv。
+
 - 许可文本、源码压缩包和 SBOM 目前都仅能证明“已采集及核验”，**不能证明“公众可下载”或“GPL/LGPL 所有条款已满足”**。
 - 候选实际启用 `--enable-static --disable-shared`；外部调用 `ffmpeg.exe` 并不消除可执行文件内部的链接要求。
 - 上述实际字节必须在将来最终公众版重新核对。如果换 FFmpeg 构建、重新编译 DLL、调整打包身份，旧 SHA 和人工 QA 不再适用于新产物。

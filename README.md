@@ -2,6 +2,8 @@
 
 Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理索引、封面、收藏、播放记录和视频目录；视频保留在原位置。
 
+需要解压即用的程序包？当前支持 [Windows ZIP 免安装版](docs/portable.md)，开发者使用 `npm run dist:zip`；候选 ZIP 与安装器受到相同的公开发行门槛保护。
+
 **第一次接触？** 阅读 [快速开始](docs/QUICK_START.md)、[Windows 安装与文件校验](docs/windows-installation.md)、[第三方组件说明](THIRD_PARTY_LICENSES.md)。**个人免费分享的维护者只需先看 [最简发布指南](docs/OPEN_SOURCE_RELEASE_SIMPLE.md)**，历史详细审计文档不必逐篇阅读。当前安装包尚未批准公开发行；[v0.1.15 发行说明草稿](docs/release-notes-v0.1.15-draft.md) 不是可下载版本。
 
 **免费分享项目 · MIT 开源。** 维护者已选择将有权授权的项目自有代码和文档以 [MIT License](LICENSE) 公开提供；任何人均可免费使用、复制、修改和再分发，须保留版权及 MIT 许可声明。作者不计划商业化，但 MIT 本身不禁止他人商业使用。
@@ -14,7 +16,7 @@ Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理
 - 支持嵌套来源和目录浏览、图片缩略图及大图浏览；移除来源只移除索引，不删除源视频。
 - 可配置 CloudDrive2 API 扫描、挂载目录及远端重复候选清理；HTTP 仅允许严格回环地址，其他连接必须 HTTPS。
 - 封面和时间轴预览采用可重建的独立缓存，默认上限 10 GiB；清理缓存不删除源视频。
-- 独立播放窗口，Chromium 能播放的格式可直接播放；内嵌 mpv 需要单独配置可用的 libmpv，包内 NativeHost.exe 本身不是完整 mpv 播放器。
+- 独立播放窗口，Chromium 能播放的格式可直接播放；当前隔离候选包将内嵌 mpv 的固定运行库一起打包，无需用户单独配置 DLL，运行库公开发行许可仍待审查。
 - 可选在线字幕搜索/下载与本地字幕；搜索可能向提供方发送文件名、关键词和语言等信息。
 - 移动、重命名和永久删除；永久删除不进入 Windows 回收站，删除后不能依靠 SQLite 恢复视频。
 
@@ -86,7 +88,7 @@ SQLite13 官方 N-API 文件已在 Node 与 Electron 中分别实测验证；旧
 - **默认 BtbN 候选**仍属于历史来源的未批准媒体工具；拟公开的社区版明确选择 [FFmpeg Lite 8.1.2](docs/legal/FFMPEG_BUILD_INFO.md) 与七个已锁定原生二进制，不混用两个候选的许可证和源码证据。Lite 的静态链接 LGPL 最终要求仍需处理，因此**当前安装包不对公众分发**。
 - 维护者选择个人免费分享，**首个公开版计划不购买代码签名证书**；Windows 可能提示未知发布者。干净无 Node 的 Windows 11 与旧版升级等安全验收仍需完成，不能将内部测试包当成正式版。
 - 旧 NSIS 卸载器可能递归删除安装目录，新包拒绝未经审查的旧版升级；不要把用户文件放入应用安装目录。
-- libmpv 和系统默认播放器由用户另行安装；编解码兼容性取决于实际格式与播放器。
+- 当前候选包附带固定 libmpv，系统默认播放器由用户另行安装；编解码兼容性仍需实际格式验证。libmpv 完整对应源码和许可审查尚未完成。
 - 当前使用 Electron 默认图标，尚未核准独立品牌图标。
 
 贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md)；私人安全报告：[SECURITY.md](SECURITY.md)；

@@ -13,7 +13,8 @@
 | SQLite / better-sqlite3 | 本地资料库及其 Node 原生绑定 | SQLite 为 Public Domain；better-sqlite3 及其依赖依各自许可证 |
 | FFmpeg / FFprobe 8.1.2 Lite（**内部 QA 候选**） | 元数据、封面和时间轴预览 | 上游声明 LGPL 2.1；**未经批准公开分发** |
 | Intel oneVPL / OpenH264 / MinGW/GCC 运行库（**候选**） | Lite 媒体工具运行依赖 | 需按各自实际许可证及 Runtime Exception 核验；不能一概称 MIT |
-| NativeHost.exe | Windows 原生播放器桥接 | 项目内编译；外部 libmpv **不随包提供** |
+| NativeHost.exe | Windows 原生播放器桥接 | 项目内编译；候选 libmpv 单独审查 |
+| libmpv-2.dll | 内嵌兼容解码 | 当前仅固定本机 QA 候选，附上游 Copyright/GPL/LGPL 文本；具体构建及完整依赖授权未批准，见 [MPV 来源说明](docs/legal/MPV_SOURCE_NOTICE.md) |
 
 详细的具体 DLL 名称、版本、精确来源/哈希、原始许可证和候选 SPDX 清单：
 - [第三方发布声明（草案）](docs/legal/THIRD_PARTY_RELEASE_NOTICES.md)

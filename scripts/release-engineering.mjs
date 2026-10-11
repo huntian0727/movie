@@ -13,6 +13,10 @@ export const COMMUNITY_APP_ID = "com.local.video.manager.community";
 export const COMMUNITY_NSIS_GUID = "b73f7252-798d-48d9-b877-19fb6d355f83";
 export const TEST_NSIS_GUID = "ec02b3c5-6e7a-4e3d-9f2a-1c6854cc8072";
 export const PRODUCT_NAME = "拉面影视";
+export function zipArtifactName(flavor) {
+  if (!flavor.artifactName?.endsWith("-Setup.exe")) throw new Error("Invalid installer artifact name.");
+  return flavor.artifactName.replace(/-Setup\.exe$/, "-Portable.zip");
+}
 
 export function releaseClassFor(env = process.env) {
   const requested = env.MOVIE_RELEASE_CLASS;
@@ -133,7 +137,8 @@ export async function verifyFormalApproval(root, flavor) {
   const required = {
     "ffmpeg.exe": path.join(mediaRoot, "ffmpeg.exe"),
     "ffprobe.exe": path.join(mediaRoot, "ffprobe.exe"),
-    "NativeHost.exe": path.join(root, "native-bin", "NativeHost.exe")
+    "NativeHost.exe": path.join(root, "native-bin", "NativeHost.exe"),
+    "libmpv-2.dll": path.join(root, "native-bin", "player-runtime", "libmpv-2.dll")
   };
   if (flavor.releaseClass === "unsigned-public-release") {
     if (flavor.appId !== COMMUNITY_APP_ID || flavor.nsisGuid !== COMMUNITY_NSIS_GUID ||

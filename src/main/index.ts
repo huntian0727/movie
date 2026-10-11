@@ -31,6 +31,7 @@ import {
 } from "./logging/index.js";
 import { DomainEventBus, PlayerWindowCoordinator } from "./playerWindow.js";
 import { EmbeddedPlayer } from "./embeddedPlayer/embeddedPlayer.js";
+import { embeddedPlayerRuntime } from "./embeddedPlayer/runtime.js";
 import { runPackagedSmoke } from "./packagedSmoke.js";
 import { configureSecurityLogger, configureWindowSecurity, installContentSecurityPolicy, installSessionPermissionPolicy, installMediaRequestPolicy } from "./security.js";
 import { RENDERER_ENTRY_URL, RENDERER_ORIGIN, RENDERER_SCHEME, registerRendererProtocol } from "./rendererProtocol.js";
@@ -229,8 +230,7 @@ app.whenReady().then(async () => {
     logger
   );
   embeddedPlayer = new EmbeddedPlayer(repo, () => playerWindows?.getPlayerWindow() ?? null, {
-    host: app.isPackaged ? path.join(process.resourcesPath, "native-player", "NativeHost.exe") : path.resolve(currentDir, "../../native-bin/NativeHost.exe"),
-    directory: path.join(userDataPath, "native-player")
+    ...embeddedPlayerRuntime(app.isPackaged, process.resourcesPath, path.resolve(currentDir, "../.."))
   }, playbackStartup, logger, videoId => subtitles.getPlaybackSubtitle(videoId));
   registerIpcHandlers(repo, {
     database,

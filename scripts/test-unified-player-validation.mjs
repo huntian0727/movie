@@ -1,6 +1,6 @@
 // Short, isolated QA against the production engine. Never opens the user's database.
 import { app, BrowserWindow } from "electron";
-import { mkdtempSync, mkdirSync, linkSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
 import { readFile, writeFile, copyFile, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { createInterface } from "node:readline";
@@ -35,8 +35,8 @@ app.whenReady().then(async () => {
   if (process.argv.includes("--seed-ui")) {
     const startupProfile = process.argv.includes("--startup-profile");
     const userData = app.getPath("userData"), media = path.join(root, "media");
-    mkdirSync(media, { recursive: true }); mkdirSync(path.join(userData, "native-player"), { recursive: true });
-    linkSync(path.join(fixtureRoot, "libmpv-2.dll"), path.join(userData, "native-player", "libmpv-2.dll"));
+    mkdirSync(media, { recursive: true });
+    // Startup uses the pinned bundled/staged runtime, including on a fresh data directory.
     const db = createDatabase(path.join(userData, "library.sqlite")), repo = new VideoRepository(db);
     const folder = repo.addSourceFolder(media, false), probe = path.resolve("native-bin/media-tools/ffprobe.exe");
     for (const [index, s] of samples.entries()) {

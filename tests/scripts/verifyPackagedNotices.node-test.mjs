@@ -20,7 +20,7 @@ async function fixture() {
 }
 test("all required license notice files must match by hash", async () => {
   const f = await fixture();
-  assert.equal(await verifyPackagedNotices(f.root, f.resources), 7);
+  assert.equal(await verifyPackagedNotices(f.root, f.resources), packagedNoticeMap.length);
 });
 
 test("tampering with packaged third-party notice must fail", async () => {

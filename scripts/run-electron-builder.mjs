@@ -1,16 +1,19 @@
 import { execFileSync, spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { createBuildFlavor, hashFile, readJson, verifyFormalApproval, writeJson } from "./release-engineering.mjs";
+import { createBuildFlavor, hashFile, readJson, verifyFormalApproval, writeJson, zipArtifactName } from "./release-engineering.mjs";
 import { candidateDirectory, liteFiles, mediaVariant } from "./media-variant.mjs";
+import { playerRuntimeDirectory, verifyPlayerRuntime } from "./native-player-runtime.mjs";
 
 const mode = process.argv[2];
-if (mode !== "--dir" && mode !== "--win-nsis") {
-  throw new Error("Usage: node scripts/run-electron-builder.mjs <--dir|--win-nsis>");
+if (!["--dir", "--win-nsis", "--win-zip"].includes(mode)) {
+  throw new Error("Usage: node scripts/run-electron-builder.mjs <--dir|--win-nsis|--win-zip>");
 }
 
 if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Windows x64 build environment required.");
 const root = process.cwd();
+const playerLock = await readJson(path.join(root, "scripts/native-player-runtime.lock.json"));
+await verifyPlayerRuntime(playerRuntimeDirectory(root), playerLock);
 const selectedVariant = mediaVariant();
 const mediaSource = candidateDirectory(root, selectedVariant);
 const lite = selectedVariant === "lite-candidate";
@@ -49,9 +52,10 @@ const configuration = {
   // Keep Windows resources tied to package.json rather than ambient CI counters.
   buildVersion: flavor.version, buildNumber: "0",
   directories: { output: flavor.outputDirectory },
-  win: { executableName: flavor.executableName, artifactName: flavor.artifactName, target: [{ target: "nsis", arch: ["x64"] }] },
+  win: { executableName: flavor.executableName, artifactName: mode === "--win-zip" ? zipArtifactName(flavor) : flavor.artifactName, target: [{ target: mode === "--win-zip" ? "zip" : "nsis", arch: ["x64"] }] },
   extraResources: [
-    { from: "native-bin", to: "native-player", filter: ["NativeHost.exe"] },
+    // NativeHost and its runtime are declared once in electron-builder.yml.
+    // Duplicating these entries across extends races Windows DLL copy operations.
     { from: mediaSource, to: "media-tools", filter: lite ? liteFiles : ["ffmpeg.exe", "ffprobe.exe", "LICENSE.txt", "SOURCE-STATUS.txt"] },
     { from: "docs/legal", to: "legal" },
     { from: "THIRD_PARTY_LICENSES.md", to: "legal/THIRD_PARTY_LICENSES.md" },
@@ -79,7 +83,7 @@ if (flavor.releaseClass === "unsigned-test-build" || flavor.releaseClass === "un
 }
 await writeJson(path.join(buildDirectory, "builder-config.json"), configuration);
 const electronBuilderCli = path.join(root, "node_modules", "electron-builder", "cli.js");
-const args = mode === "--dir" ? ["--dir", "--x64"] : ["--win", "nsis", "--x64"];
+const args = mode === "--dir" ? ["--dir", "--x64"] : ["--win", mode === "--win-zip" ? "zip" : "nsis", "--x64"];
 
 await new Promise((resolve, reject) => {
   const child = spawn(process.execPath, [electronBuilderCli, ...args, "--config", path.join(buildDirectory, "builder-config.json")], {

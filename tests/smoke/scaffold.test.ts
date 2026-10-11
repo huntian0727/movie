@@ -6,7 +6,7 @@ describe("project scaffold", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     expect(pkg.scripts.dev).toBeUndefined();
     expect(pkg.scripts["dev:renderer"]).toBe("vite --host 127.0.0.1");
-    expect(pkg.scripts["dev:electron"]).toBe("npm run prepare:media-tools && npm run verify:native:electron && node scripts/start-desktop.mjs");
+    expect(pkg.scripts["dev:electron"]).toBe("npm run prepare:media-tools && npm run prepare:player-runtime && npm run verify:native:electron && node scripts/start-desktop.mjs");
     expect(pkg.scripts.test).toBe("npm run test:node");
     expect(pkg.scripts["test:node"]).toContain("verify:native:node");
     expect(pkg.scripts["test:node"]).toContain("npm run prepare:media-tools");
@@ -22,6 +22,8 @@ describe("project scaffold", () => {
     expect(pkg.scripts["package:dir"]).toContain("prepare:electron");
     expect(pkg.scripts["package:dir"]).toContain("scripts/run-electron-builder.mjs --dir");
     expect(pkg.scripts["dist:win"]).toContain("scripts/run-electron-builder.mjs --win-nsis");
+    for (const script of ["package:dir", "dist:win", "dist:zip"]) expect(pkg.scripts[script]).toContain("npm run prepare:player-runtime");
+    expect(pkg.scripts["dist:zip"]).toContain("scripts/run-electron-builder.mjs --win-zip");
     expect(pkg.scripts["test:packaged-smoke"]).toContain("scripts/run-packaged-smoke.mjs");
     expect(pkg.scripts["test:installer-smoke"]).toContain("scripts/run-installer-smoke.mjs");
     expect(pkg.scripts.build).toBe("npm run clean && tsc -p tsconfig.node.json && tsc -p tsconfig.web.json && vite build");

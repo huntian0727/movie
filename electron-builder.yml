@@ -11,6 +11,13 @@ extraResources:
     to: native-player
     filter:
       - NativeHost.exe
+  - from: native-bin/player-runtime
+    to: native-player
+    filter:
+      - libmpv-2.dll
+      - Copyright
+      - LICENSE.GPL
+      - LICENSE.LGPL
 files:
   - dist-main/**
   - dist-renderer/**

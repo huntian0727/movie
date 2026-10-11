@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { assertSignature, assertTestFlavor, createBuildFlavor, hashFile, packagedFileManifest, renderRemovalManifest, releaseOutputDirectory, TEST_APP_ID, validateRelativeFile, verifyFormalApproval } from "../../scripts/release-engineering.mjs";
+import { assertSignature, assertTestFlavor, createBuildFlavor, hashFile, packagedFileManifest, renderRemovalManifest, releaseOutputDirectory, TEST_APP_ID, validateRelativeFile, verifyFormalApproval, zipArtifactName } from "../../scripts/release-engineering.mjs";
 
 const roots = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); });
@@ -41,6 +41,7 @@ describe("release engineering trust boundaries", () => {
     const flavor = createBuildFlavor(manifest, {});
     expect(flavor).toMatchObject({ releaseClass: "unsigned-test-build", appId: TEST_APP_ID, packageName: "local-video-manager-unsigned-test", userDataDirectoryName: "local-video-manager-unsigned-test", expectedPublisher: null });
     expect(flavor.artifactName).toBe("拉面影视-1.2.3-x64-unsigned-test-build-Setup.exe");
+    expect(zipArtifactName(flavor)).toBe("拉面影视-1.2.3-x64-unsigned-test-build-Portable.zip");
     expect(() => assertTestFlavor(flavor)).not.toThrow();
     expect(() => assertTestFlavor({ ...flavor, appId: "com.local.video.manager" })).toThrow();
     expect(() => assertTestFlavor({ ...flavor, userDataDirectoryName: "local-video-manager" })).toThrow();
@@ -92,7 +93,7 @@ describe("release engineering trust boundaries", () => {
   });
   it("requires source and separate Windows evidence for public builds; waives unsafe legacy upgrade only for separate identity", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "movie-community-approval-")); roots.push(root);
-    for (const dir of ["build", "docs/legal", ".tmp/native-media-lite-tools", "native-bin"]) {
+    for (const dir of ["build", "docs/legal", ".tmp/native-media-lite-tools", "native-bin/player-runtime"]) {
       await mkdir(path.join(root, dir), {recursive:true});
     }
     await writeFile(path.join(root, "package.json"), JSON.stringify(manifest));
@@ -102,10 +103,10 @@ describe("release engineering trust boundaries", () => {
     await writeFile(path.join(root, evidence), "Synthetic approval evidence; not a real license review.");
     const evidenceSha = await hashFile(path.join(root, evidence));
     const names = ["ffmpeg.exe", "ffprobe.exe", "libvpl-2.dll", "libopenh264-7.dll", "libwinpthread-1.dll",
-      "libgcc_s_seh-1.dll", "libstdc++-6.dll", "NativeHost.exe"];
+      "libgcc_s_seh-1.dll", "libstdc++-6.dll", "NativeHost.exe", "libmpv-2.dll"];
     const binaries = [];
     for (const name of names) {
-      const file = name === "NativeHost.exe" ? path.join(root,"native-bin",name) : path.join(root,".tmp","native-media-lite-tools",name);
+      const file = name === "libmpv-2.dll" ? path.join(root,"native-bin/player-runtime",name) : name === "NativeHost.exe" ? path.join(root,"native-bin",name) : path.join(root,".tmp","native-media-lite-tools",name);
       await writeFile(file, "synthetic-" + name);
       binaries.push({ name, sha256: await hashFile(file), sourceComplianceApproved: true,
         sourceEvidence: evidence, sourceEvidenceSha256: evidenceSha });
@@ -199,7 +200,7 @@ describe("release engineering trust boundaries", () => {
   });
   it("binds explicit approval to actual binary, dependency, license and evidence bytes", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "movie-release-binding-")); roots.push(root);
-    for (const directory of ["build", "docs/legal", "native-bin/media-tools", "native-bin"]) await mkdir(path.join(root, directory), { recursive: true });
+    for (const directory of ["build", "docs/legal", "native-bin/media-tools", "native-bin/player-runtime"]) await mkdir(path.join(root, directory), { recursive: true });
     await writeFile(path.join(root, "package.json"), JSON.stringify(manifest));
     await writeFile(path.join(root, "package-lock.json"), "synthetic-lock");
     await writeFile(path.join(root, "LICENSE"), "MIT License\nCopyright (c) Synthetic Test Fixtures\nPermission is hereby granted to test fixtures only.\n");
@@ -207,7 +208,7 @@ describe("release engineering trust boundaries", () => {
     await writeFile(path.join(root, evidence), "Synthetic evidence for isolated unit fixtures only.");
     const evidenceHash = await hashFile(path.join(root, evidence));
     const binaries = [];
-    for (const [name, relative] of [["ffmpeg.exe", "native-bin/media-tools/ffmpeg.exe"], ["ffprobe.exe", "native-bin/media-tools/ffprobe.exe"], ["NativeHost.exe", "native-bin/NativeHost.exe"]]) {
+    for (const [name, relative] of [["ffmpeg.exe", "native-bin/media-tools/ffmpeg.exe"], ["ffprobe.exe", "native-bin/media-tools/ffprobe.exe"], ["NativeHost.exe", "native-bin/NativeHost.exe"], ["libmpv-2.dll", "native-bin/player-runtime/libmpv-2.dll"]]) {
       await writeFile(path.join(root, relative), `synthetic-${name}`);
       binaries.push({ name, sha256: await hashFile(path.join(root, relative)), sourceComplianceApproved: true, sourceEvidence: evidence, sourceEvidenceSha256: evidenceHash });
     }
@@ -218,6 +219,12 @@ describe("release engineering trust boundaries", () => {
     await writeFile(approvalPath, JSON.stringify(approval));
     const flavor = createBuildFlavor(manifest, signedEnvironment);
     expect(await verifyFormalApproval(root, flavor)).toBe(await hashFile(approvalPath));
+    const playerApproval = approval.binaries.find(binary => binary.name === "libmpv-2.dll");
+    playerApproval.sourceComplianceApproved = false;
+    await writeFile(approvalPath, JSON.stringify(approval));
+    await expect(verifyFormalApproval(root, flavor)).rejects.toThrow(/binary/);
+    playerApproval.sourceComplianceApproved = true;
+    await writeFile(approvalPath, JSON.stringify(approval));
     await writeFile(path.join(root, "native-bin/media-tools/ffmpeg.exe"), "different-binary");
     await expect(verifyFormalApproval(root, flavor)).rejects.toThrow(/binary/);
     await writeFile(path.join(root, "native-bin/media-tools/ffmpeg.exe"), "synthetic-ffmpeg.exe");

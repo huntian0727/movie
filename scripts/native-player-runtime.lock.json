@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "status": "CANDIDATE_NOT_APPROVED",
+  "distributable": false,
+  "version": "mpv v0.41.0-1092-g3186d369f",
+  "releaseUrl": "https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261002",
+  "archiveUrl": "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261002/mpv-dev-x86_64-20261002-git-3186d369f9.7z",
+  "archiveSha256": "d873450cc1a7f881a8a10c33936d9555ad18a3809d827b9dbea55ba55caebcf9",
+  "files": {
+    "libmpv-2.dll": "8ca42a74311b813abc21f4264e7ed5f12a16419596bcbda96e49f10f8187befe",
+    "Copyright": "bfe9ee4cceabcb8ecbfadf208d04156f73d801e6a57369a5606bb8341e204a23",
+    "LICENSE.GPL": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+    "LICENSE.LGPL": "72b672113d642cbb8ef5dcc76938db801983c56e50b1400ab930f1a64d6dc8d9"
+  },
+  "noticeSourceBase": "https://raw.githubusercontent.com/mpv-player/mpv/3186d369f9/",
+  "notes": "Pinned local QA only. Upstream mpv notices do not establish this DLL's complete dependency/source compliance or permit public release. Exact dependency sources, build options and licensing compatibility remain unapproved."
+}

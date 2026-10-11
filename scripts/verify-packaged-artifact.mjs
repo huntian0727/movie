@@ -4,6 +4,7 @@ import path from "node:path";
 import { authenticode, hashFile, readJson, releaseOutputDirectory, verifyApplicationVersion } from "./release-engineering.mjs";
 import { candidateDirectory, liteFiles, liteRuntime, mediaVariant } from "./media-variant.mjs";
 import { verifyPackagedNotices } from "./verify-packaged-notices.mjs";
+import { verifyPlayerRuntime } from "./native-player-runtime.mjs";
 
 const resourcesDirectory = path.join(process.cwd(), releaseOutputDirectory(), "win-unpacked", "resources");
 const asarPath = path.join(resourcesDirectory, "app.asar");
@@ -24,6 +25,7 @@ if (asarBytes.includes(Buffer.from(workspacePath, "utf8"))) {
 }
 
 const flavor = await readJson(path.join(resourcesDirectory, "build-flavor.json"));
+await verifyPlayerRuntime(path.join(resourcesDirectory, "native-player"), await readJson(path.join(process.cwd(), "scripts/native-player-runtime.lock.json")));
 const manifest = await readJson(path.join(process.cwd(), "package.json"));
 if (flavor.version !== manifest.version || flavor.arch !== "x64" || flavor.mediaVariant !== mediaVariant()) throw new Error("Packaged build flavor is inconsistent.");
 const lite = flavor.mediaVariant === "lite-candidate";
