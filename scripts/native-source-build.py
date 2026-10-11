@@ -188,7 +188,7 @@ def bootstrap(work):
 SYSTEM_DLLS = {"advapi32.dll", "avrt.dll", "bcrypt.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll", "d3d11.dll", "d3d12.dll", "d3dcompiler_47.dll", "dnsapi.dll", "dwmapi.dll", "dwrite.dll", "dxgi.dll", "gdi32.dll", "imm32.dll", "iphlpapi.dll", "kernel32.dll", "ksuser.dll", "mfplat.dll", "mfuuid.dll", "msimg32.dll", "msvcrt.dll", "ncrypt.dll", "netapi32.dll", "normaliz.dll", "ntdll.dll", "ole32.dll", "oleaut32.dll", "opengl32.dll", "powrprof.dll", "psapi.dll", "rpcrt4.dll", "secur32.dll", "setupapi.dll", "shell32.dll", "shlwapi.dll", "ucrtbase.dll", "user32.dll", "userenv.dll", "usp10.dll", "version.dll", "winmm.dll", "winspool.drv", "wintrust.dll", "ws2_32.dll", "wtsapi32.dll"}
 # Windows Video for Windows / Audio Compression Manager. Verified Microsoft
 # system components; never copy them from the cross toolchain or user machine.
-SYSTEM_DLLS.update({"avicap32.dll", "avifil32.dll", "msacm32.dll", "d3d9.dll", "mf.dll", "mfreadwrite.dll", "uxtheme.dll"})
+SYSTEM_DLLS.update({"avicap32.dll", "avifil32.dll", "msacm32.dll", "d3d9.dll", "mf.dll", "mfreadwrite.dll", "uxtheme.dll", "cfgmgr32.dll", "shcore.dll"})
 
 
 def classify_imports(names, lookup):

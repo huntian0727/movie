@@ -4,11 +4,29 @@ import { copyFile, lstat, mkdir, readFile, rename, writeFile } from "node:fs/pro
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { playerRuntimeDirectory, verifyPlayerRuntime } from "./native-player-runtime.mjs";
+import { playerRuntimeDirectory, playerRuntimeLockPath, playerRuntimeVariant, verifyPlayerRuntime } from "./native-player-runtime.mjs";
+import { checkedFile, materializePinnedFiles, readPinnedZip, sha256 } from "./native-player-toolchain.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const lock = JSON.parse(await readFile(path.join(root, "scripts/native-player-runtime.lock.json"), "utf8"));
+const lock = JSON.parse(await readFile(playerRuntimeLockPath(root), "utf8"));
 const destination = playerRuntimeDirectory(root);
+if (playerRuntimeVariant() === "source-candidate") {
+  if (process.env.MOVIE_RELEASE_CLASS && process.env.MOVIE_RELEASE_CLASS !== "unsigned-test-build") throw new Error("Source player candidate requires private QA; formal distribution remains blocked.");
+  try { await verifyPlayerRuntime(destination, lock); console.log("Source player candidate already staged for private QA."); process.exit(0); }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+  const archive = process.env.MOVIE_SOURCE_PLAYER_ZIP;
+  if (!archive) throw new Error("MOVIE_SOURCE_PLAYER_ZIP must identify the retained private candidate ZIP.");
+  checkedFile(root, path.resolve(archive));
+  const bytes = await readFile(archive);
+  if (bytes.length !== lock.archiveBytes || sha256(bytes) !== lock.archiveSha256) throw new Error("Source player archive differs from its pinned producer output.");
+  const entries = readPinnedZip(bytes, name => Object.hasOwn(lock.files, name));
+  if (entries.size !== Object.keys(lock.files).length) throw new Error("Source player archive has missing runtime files.");
+  for (const [name, data] of entries) if (sha256(data) !== lock.files[name]) throw new Error("Source player archive entry differs: " + name);
+  materializePinnedFiles(root, destination, entries);
+  await verifyPlayerRuntime(destination, lock);
+  console.log("Exact source-built player closure staged; public distribution remains blocked.");
+  process.exit(0);
+}
 try { await verifyPlayerRuntime(destination, lock); console.log("Pinned player runtime already staged (not approved for distribution)."); process.exit(0); }
 catch (error) { if (error.code !== "ENOENT") throw error; }
 if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Player runtime requires Windows x64.");

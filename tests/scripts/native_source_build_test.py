@@ -107,7 +107,7 @@ class SourceCaptureTests(unittest.TestCase):
     def test_system_capture_dlls_are_not_bundled_and_missing_imports_still_fail(self):
         fake_system = Path("do-not-bundle-Microsoft-dll")
         dependency = Path("avcodec-63.dll")
-        found, missing = build.classify_imports(["AVICAP32.dll", "AVIFIL32.dll", "MSACM32.dll", "KERNEL32.dll", "avcodec-63.dll", "missing-dependency.dll"], {"avicap32.dll": fake_system, "avcodec-63.dll": dependency})
+        found, missing = build.classify_imports(["AVICAP32.dll", "AVIFIL32.dll", "MSACM32.dll", "CFGMGR32.dll", "SHCORE.dll", "KERNEL32.dll", "avcodec-63.dll", "missing-dependency.dll"], {"avicap32.dll": fake_system, "avcodec-63.dll": dependency})
         self.assertEqual(found, [dependency])
         self.assertEqual(missing, ["missing-dependency.dll"])
 

@@ -116,6 +116,7 @@ export async function hashFile(filePath) {
 
 export async function verifyFormalApproval(root, flavor) {
   if (flavor.releaseClass === "unsigned-test-build") return null;
+  if (flavor.playerRuntimeVariant === "source-candidate" || process.env.MOVIE_PLAYER_VARIANT === "source-candidate") throw new Error("Source player private candidate is not approved for formal distribution.");
   const approvalPath = path.join(root, "build", "release-approval.json");
   const approval = await readJson(approvalPath);
   const manifest = await readJson(path.join(root, "package.json"));

@@ -15,6 +15,9 @@ export const packagedNoticeMap = Object.freeze([
   ["docs/legal/NATIVE_COMPONENTS.md", "legal/NATIVE_COMPONENTS.md"],
   ["docs/legal/FFMPEG-LITE-SBOM.spdx.json", "legal/FFMPEG-LITE-SBOM.spdx.json"],
   ["docs/legal/MPV_SOURCE_NOTICE.md", "legal/MPV_SOURCE_NOTICE.md"],
+  ["docs/legal/NATIVE-SOURCE-CANDIDATE.md", "legal/NATIVE-SOURCE-CANDIDATE.md"],
+  ["docs/legal/NATIVE-SOURCE-CANDIDATE-NOTICES.txt", "legal/NATIVE-SOURCE-CANDIDATE-NOTICES.txt"],
+  ["docs/legal/NATIVE-SOURCE-CANDIDATE-REVIEW-INDEX.json", "legal/NATIVE-SOURCE-CANDIDATE-REVIEW-INDEX.json"],
 ]);
 
 async function requireRegular(file) {

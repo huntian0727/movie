@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createBuildFlavor, hashFile, readJson, verifyFormalApproval, writeJson, zipArtifactName } from "./release-engineering.mjs";
 import { candidateDirectory, liteFiles, mediaVariant } from "./media-variant.mjs";
-import { playerRuntimeDirectory, verifyPlayerRuntime } from "./native-player-runtime.mjs";
+import { playerRuntimeDirectory, playerRuntimeLockPath, playerRuntimeVariant, verifyPlayerRuntime } from "./native-player-runtime.mjs";
 
 const mode = process.argv[2];
 if (!["--dir", "--win-nsis", "--win-zip"].includes(mode)) {
@@ -12,7 +12,7 @@ if (!["--dir", "--win-nsis", "--win-zip"].includes(mode)) {
 
 if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Windows x64 build environment required.");
 const root = process.cwd();
-const playerLock = await readJson(path.join(root, "scripts/native-player-runtime.lock.json"));
+const playerLock = await readJson(playerRuntimeLockPath(root));
 await verifyPlayerRuntime(playerRuntimeDirectory(root), playerLock);
 const selectedVariant = mediaVariant();
 const mediaSource = candidateDirectory(root, selectedVariant);
@@ -31,9 +31,16 @@ if (await hashFile(path.join(mediaSource, "LICENSE.txt")) !== expectedLicense) {
   throw new Error("Native media license evidence has changed.");
 }
 const flavor = createBuildFlavor(await readJson(path.join(root, "package.json")));
+if (playerRuntimeVariant() === "source-candidate") {
+  if (flavor.releaseClass !== "unsigned-test-build") throw new Error("Source player candidate cannot enter a formal release.");
+  flavor.playerRuntimeVariant = "source-candidate";
+  flavor.playerRuntimeLockSha256 = await hashFile(playerRuntimeLockPath(root));
+}
 if (lite && !["unsigned-test-build", "unsigned-public-release"].includes(flavor.releaseClass)) throw new Error("Lite media requires isolated QA or explicitly approved unsigned community build.");
 if (flavor.releaseClass === "unsigned-public-release" && !lite) throw new Error("Unsigned public build requires the reviewed Lite media candidate.");
 flavor.commit = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8", windowsHide: true }).trim();
+flavor.workspaceDirty = Boolean(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8", windowsHide: true }).trim());
+if (flavor.releaseClass !== "unsigned-test-build" && flavor.workspaceDirty) throw new Error("Formal packaging requires a clean reviewed checkout.");
 flavor.complianceApprovalSha256 = await verifyFormalApproval(root, flavor);
 const buildDirectory = path.join(root, ".tmp", "release-engineering");
 await mkdir(buildDirectory, { recursive: true });
@@ -54,8 +61,9 @@ const configuration = {
   directories: { output: flavor.outputDirectory },
   win: { executableName: flavor.executableName, artifactName: mode === "--win-zip" ? zipArtifactName(flavor) : flavor.artifactName, target: [{ target: mode === "--win-zip" ? "zip" : "nsis", arch: ["x64"] }] },
   extraResources: [
-    // NativeHost and its runtime are declared once in electron-builder.yml.
-    // Duplicating these entries across extends races Windows DLL copy operations.
+    // NativeHost remains in the base config; exactly one runtime closure is
+    // declared here, avoiding duplicate copies racing over the same Windows DLL.
+    { from: playerRuntimeDirectory(root), to: "native-player", filter: Object.keys(playerLock.files) },
     { from: mediaSource, to: "media-tools", filter: lite ? liteFiles : ["ffmpeg.exe", "ffprobe.exe", "LICENSE.txt", "SOURCE-STATUS.txt"] },
     { from: "docs/legal", to: "legal" },
     { from: "THIRD_PARTY_LICENSES.md", to: "legal/THIRD_PARTY_LICENSES.md" },
