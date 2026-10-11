@@ -132,7 +132,8 @@
       "engine": "Embedded native playback",
       "pause": "PASS",
       "forwardTenSeconds": "PASS",
-      "audio": "NOT_CONFIRMED"
+      "audio": "PASS_USER_CONFIRMED",
+      "audioEvidence": "User separately answered 能听到 for this format during the subsequent Sandbox audio replay; see audioFollowUp."
     },
     "mkv": {
       "playback": "PASS",
@@ -140,7 +141,8 @@
       "pause": "PASS",
       "forwardTenSeconds": "PASS",
       "resume": "PASS",
-      "audio": "NOT_CONFIRMED"
+      "audio": "PASS_USER_CONFIRMED",
+      "audioEvidence": "User separately answered 能听到 for this format during the subsequent Sandbox audio replay; see audioFollowUp."
     },
     "normalExit": "PASS",
     "moveProgramAndReopen": "PASS",
@@ -290,8 +292,20 @@
   "limitations": [
     "Insider preview guest, not stable Windows 11.",
     "Default Sandbox account, not standard-user/no-UAC verification.",
-    "Native H.265 and MKV audio still unconfirmed.",
     "Final public/community artifact, installer lifecycle, historical signed upgrade and Internet-download SmartScreen behavior not tested in this run.",
     "Short synthetic clips; no high-resolution, HDR, NAS or real-user-media compatibility claim."
-  ]
+  ],
+  "audioFollowUp": {
+    "date": "2026-10-11",
+    "timezone": "Asia/Shanghai",
+    "artifactSha256": "e52289cc4a50380d335c71601883ec78d556f726a228e08f38ad17c04a509228",
+    "scope": "H.265 and MKV audio replay after restoring the same ZIP to C:\\MovieQA\\Program-updated in the existing Sandbox. Original database/removal receipts remain evidence of the earlier run; removal was not repeated after this replay.",
+    "programRestoredBeforeReplay": true,
+    "userResponses": {
+      "QA-H265-AAC.mp4": "能听到",
+      "QA-MKV-H264-AAC.mkv": "能听到"
+    },
+    "responseSource": "User replies to the two separate questions about QA-H265-AAC.mp4 and QA-MKV-H264-AAC.mkv after replay in the same Sandbox using the same verified ZIP.",
+    "deliveryRecord": "../ai/deliveries/2026-10-11-sandbox-audio-confirmation.md"
+  }
 }

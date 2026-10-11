@@ -27,9 +27,9 @@
 
 本轮合成 HEVC 静音连续播放 600.193 秒 PASS，期间暂停/恢复、回退、全屏切换和改变窗口大小正常。它不证明实际扬声器出声或更长、高分辨率/HDR 媒体的兼容性。
 
-随后在本机 Windows 沙盒（Windows 11 Enterprise Insider Preview 26100.9606）验证了最终绿色测试 ZIP：启动前不存在外部 Node/npm/FFmpeg/FFprobe/Git/Python；首次启动、三条合成视频扫描和缩略图、H.264/H.265/MKV 活动画面及暂停/跳转、换目录重启保存、移除程序后数据及源视频保留均 PASS。用户确认 H.264 测试音能听到；H.265/MKV 原生播放的声音尚未分别确认。详见 [实际沙盒验收](ai/deliveries/2026-10-11-sandbox-portable-acceptance.md)，不作为稳定版或公众版审批证据。
+随后在本机 Windows 沙盒（Windows 11 Enterprise Insider Preview 26100.9606）验证了最终绿色测试 ZIP：启动前不存在外部 Node/npm/FFmpeg/FFprobe/Git/Python；首次启动、三条合成视频扫描和缩略图、H.264/H.265/MKV 活动画面及暂停/跳转、换目录重启保存、移除程序后数据及源视频保留均 PASS。用户确认 H.264 测试音能听到；后续同包补播 H.265/MKV，用户也分别确认“能听到”。详见 [实际沙盒验收](ai/deliveries/2026-10-11-sandbox-portable-acceptance.md) 和 [声音补证](ai/deliveries/2026-10-11-sandbox-audio-confirmation.md)，不作为稳定版或公众版审批证据。
 
-此前隔离身份的安装/卸载回归已通过；本轮绿色包沙盒证据见上文。**干净稳定版 Windows 11 / 无 Node 的完整交互验收 NOT RUN；真实用户媒体及 H.265/MKV 原生播放人工试听未完成。** 当前提供的候选不能改名冒充正式版。
+此前隔离身份的安装/卸载回归已通过；本轮绿色包沙盒证据见上文。**干净稳定版 Windows 11 / 无 Node 的完整交互验收 NOT RUN；真实用户媒体兼容性与试听未完成。** 当前提供的候选不能改名冒充正式版。
 
 ## 第三方许可证与源码（仅正式审批通过后用于公众文案）
 

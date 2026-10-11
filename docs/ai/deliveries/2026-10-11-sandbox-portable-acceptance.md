@@ -35,8 +35,8 @@ SHA-256：`e52289cc4a50380d335c71601883ec78d556f726a228e08f38ad17c04a509228`。
 | 无额外运行库 | 未安装外部 Node.js/FFmpeg；打包程序 create/verify smoke 均 PASS，包括 SQLite、FFmpeg 执行、renderer/preload、预览和安全断言 |
 | 首次启动、扫描 | 实际 GUI 启动，添加目录后索引 3 条视频；三条元数据和缩略图均 ready |
 | H.264 MP4 | Chromium 播放有活动彩色画面；暂停、跳转、恢复 PASS；用户对当时测试音回答“能听到” |
-| H.265 MP4 | 内嵌解码有活动彩色画面；暂停及快进 10 秒 PASS；未单独确认声音 |
-| H.264 MKV | 内嵌解码有活动彩色画面；暂停、快进 10 秒及恢复 PASS；未单独确认声音 |
+| H.265 MP4 | 内嵌解码有活动彩色画面；暂停及快进 10 秒 PASS；后续同包沙盒补验，用户单独确认“能听到” |
+| H.264 MKV | 内嵌解码有活动彩色画面；暂停、快进 10 秒及恢复 PASS；后续同包沙盒补验，用户单独确认“能听到” |
 | 换目录重启 | 正常关闭，程序从 `C:\MovieQA\Program` 移到 `Program-updated` 后实际重启；仍有 3 条视频、1 个收藏、3 条历史 |
 | 数据保存 | 首次退出、换目录重启退出、移除程序后三份 SQLite 均 quick_check=ok，schema=15；相同视频 ID、收藏、历史位置完全保留 |
 | 移除绿色程序 | 程序及 NativeHost 正常退出后仅删除沙盒内程序目录；AppData 资料库保留，删除前后数据库文件 SHA 相同，三个源视频 SHA 均不变 |
@@ -57,7 +57,7 @@ SHA-256：`e52289cc4a50380d335c71601883ec78d556f726a228e08f38ad17c04a509228`。
 
 ## Risks and follow-up
 
-- 此次绿色测试包未复现播放黑屏，H.264 人工试听通过。H.265/MKV 经原生播放器输出的声音仍需人工确认；不能把 H.264 试听推广到两种原生播放样片。
+- 此次绿色测试包未复现播放黑屏。H.264 首轮试听通过；H.265/MKV 在同包重解压后的沙盒补验中获得用户分别确认“能听到”，见 [声音确认记录](2026-10-11-sandbox-audio-confirmation.md)。三份测试样片的声音均已有人工确认；原有数据和移除程序收据仍对应首次验收，并未在补播后再次移除程序。
 - 稳定 Windows 11、普通用户权限、真实高分辨率/HDR/更多编码、NAS、公众版身份和下载后 SmartScreen 行为仍未在本轮验证。绿色目录移除不等于安装器卸载或历史签名版升级验收。
 - libmpv 完整静态依赖源码、通知和宿主组合发行条件，以及 FFmpeg Lite 最终源码公开/适用重链接材料仍未放行。
 - `ownersConfirmed=true`、`approved=false`、`manualQaApproved=false`；各二进制 sourceComplianceApproved 均 false。没有发布 GitHub Release、上传公开程序或推版本发布标签。
