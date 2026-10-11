@@ -66,7 +66,7 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
 export function assertTestFlavor(flavor) {
   if (flavor.schemaVersion !== 1 || flavor.releaseClass !== "unsigned-test-build" || flavor.appId !== TEST_APP_ID ||
       flavor.nsisGuid !== TEST_NSIS_GUID || flavor.arch !== "x64" || flavor.userDataDirectoryName !== "local-video-manager-unsigned-test" ||
-      flavor.outputDirectory !== "release/unsigned-test-build" || !["btbn-candidate","lite-candidate"].includes(flavor.mediaVariant) || flavor.packageName !== "local-video-manager-unsigned-test" ||
+      flavor.outputDirectory !== "release/unsigned-test-build" || !["btbn-candidate","lite-candidate","source-candidate"].includes(flavor.mediaVariant) || flavor.packageName !== "local-video-manager-unsigned-test" ||
       flavor.executableName !== `${PRODUCT_NAME}-unsigned-test-build` || !flavor.artifactName?.endsWith("-unsigned-test-build-Setup.exe")) {
     throw new Error("Installer smoke only accepts the isolated unsigned test identity.");
   }
@@ -116,6 +116,7 @@ export async function hashFile(filePath) {
 
 export async function verifyFormalApproval(root, flavor) {
   if (flavor.releaseClass === "unsigned-test-build") return null;
+  if (flavor.mediaVariant === "source-candidate") throw new Error("Source media private candidate is not approved for formal distribution.");
   if (flavor.playerRuntimeVariant === "source-candidate" || process.env.MOVIE_PLAYER_VARIANT === "source-candidate") throw new Error("Source player private candidate is not approved for formal distribution.");
   const approvalPath = path.join(root, "build", "release-approval.json");
   const approval = await readJson(approvalPath);

@@ -78,7 +78,9 @@ async function prepareArchive() {
     }
   }
 }
-if (process.env.MOVIE_MEDIA_VARIANT === "lite-candidate") {
+if (process.env.MOVIE_MEDIA_VARIANT === "source-candidate") {
+  await import("./prepare-source-media.mjs");
+} else if (process.env.MOVIE_MEDIA_VARIANT === "lite-candidate") {
   await import("./prepare-lite-media.mjs");
 } else {
 if (process.env.MOVIE_MEDIA_VARIANT && process.env.MOVIE_MEDIA_VARIANT !== "btbn-candidate") throw new Error("Unknown media variant");

@@ -1,8 +1,10 @@
-# Source-built player: private QA candidate
+# Source-built native tools: private QA candidate
 
-This document applies only when `build-flavor.json` selects
-`playerRuntimeVariant: source-candidate`. The historical mpv binary described in
-`MPV_SOURCE_NOTICE.md` is not the player binary in that candidate.
+This document applies when `build-flavor.json` selects
+`playerRuntimeVariant: source-candidate` or `mediaVariant: source-candidate`.
+The historical mpv binary described in `MPV_SOURCE_NOTICE.md` is not the player
+binary in the source player candidate. Historical FFmpeg Lite materials apply
+to `lite-candidate`, not to the source media selection described here.
 
 Public redistribution remains blocked. Neither a matching hash nor successful
 playback sets `approved` or `sourceComplianceApproved` to true.
@@ -26,9 +28,19 @@ the two Microsoft-signed System32 components, and found no remaining unknown
 dependencies. Those system files are not copied into the application.
 
 Private QA packages copy the 24 DLLs and three upstream mpv notice files pinned
-in `scripts/native-source-player-runtime.lock.json`. They continue to use the
-separately selected media-tools variant; this is not a claim that the bundled
-FFmpeg command-line executables have changed.
+in `scripts/native-source-player-runtime.lock.json`. The separately selected
+`mediaVariant: source-candidate` copies FFmpeg.exe, FFprobe.exe and their exact
+12 DLL dependency closure from the same retained producer ZIP, pinned in
+`scripts/native-source-media.lock.json`. Every overlapping DLL has the same
+bytes as the player dependency. The other media variants remain unchanged.
+
+The source media selection uses shared FFmpeg `git-2026-10-11-b5902e6`, with
+GPL/nonfree disabled and corresponding source/toolchain evidence retained in
+the same source ZIP listed above. It ships the exact upstream
+`COPYING.LGPLv2.1` as `media-tools/LICENSE.txt` and
+`legal/FFMPEG-SOURCE-CANDIDATE-LICENSE.txt`. Full dependent-library notices are
+in `NATIVE-SOURCE-CANDIDATE-NOTICES.txt`. Private QA only: staging and successful
+probe/thumbnail tests do not approve redistribution.
 
 Actual build options include mpv `gpl=false`, shared libmpv, libass, LuaJIT and
 D3D11; JavaScript and subrandr are disabled. FFmpeg in this player's dependency

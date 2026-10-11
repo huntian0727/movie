@@ -2,7 +2,8 @@ import { listPackage } from "@electron/asar";
 import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { authenticode, hashFile, readJson, releaseOutputDirectory, verifyApplicationVersion } from "./release-engineering.mjs";
-import { candidateDirectory, liteFiles, liteRuntime, mediaVariant } from "./media-variant.mjs";
+import { candidateDirectory, liteFiles, liteRuntime, mediaLockPath, mediaVariant } from "./media-variant.mjs";
+import { verifySourceMedia } from "./native-source-media.mjs";
 import { verifyPackagedNotices } from "./verify-packaged-notices.mjs";
 import { playerRuntimeLockPath, playerRuntimeVariant, verifyPlayerRuntime } from "./native-player-runtime.mjs";
 
@@ -33,6 +34,11 @@ await verifyPlayerRuntime(path.join(resourcesDirectory, "native-player"), await 
 const manifest = await readJson(path.join(process.cwd(), "package.json"));
 if (flavor.version !== manifest.version || flavor.arch !== "x64" || flavor.mediaVariant !== mediaVariant()) throw new Error("Packaged build flavor is inconsistent.");
 const lite = flavor.mediaVariant === "lite-candidate";
+if (flavor.mediaVariant === "source-candidate") {
+  const lockPath = mediaLockPath(process.cwd(), flavor.mediaVariant);
+  if (flavor.releaseClass !== "unsigned-test-build" || flavor.mediaRuntimeLockSha256 !== await hashFile(lockPath)) throw new Error("Source media private-QA identity or lock differs.");
+  await verifySourceMedia(path.join(resourcesDirectory, "media-tools"), await readJson(lockPath));
+}
 const mediaSource = candidateDirectory(process.cwd(), flavor.mediaVariant);
 const unpacked = path.join(resourcesDirectory, "app.asar.unpacked", "node_modules");
 const binaries = [

@@ -37,7 +37,7 @@ sh /path/to/new-disposable-tree/rebuild.sh
 
 未来应用代码更新且原生依赖字节不变时，可复用已审查的源码材料和组件哈希；更新原生依赖时重跑这一构建留存流程，无需重新追查历史构建任务。最终应用 ZIP 仍执行自动完整性检查和与变更相关的人工验收。
 
-## Private player package verification
+## Private player and media package verification
 
 The recovered candidate from run 38134981406 is pinned separately in
 `scripts/native-source-player-runtime.lock.json`. It can be staged only from
@@ -46,7 +46,8 @@ the exact local ZIP, without changing `native-bin/player-runtime`:
 ```powershell
 $env:MOVIE_PLAYER_VARIANT = 'source-candidate'
 $env:MOVIE_SOURCE_PLAYER_ZIP = '.tmp/traceable-player-runtime/candidate-38134981406.zip'
-$env:MOVIE_MEDIA_VARIANT = 'lite-candidate'
+$env:MOVIE_SOURCE_NATIVE_ZIP = $env:MOVIE_SOURCE_PLAYER_ZIP
+$env:MOVIE_MEDIA_VARIANT = 'source-candidate'
 $env:MOVIE_RELEASE_CLASS = 'unsigned-test-build'
 npm run dist:zip
 npm run verify:zip
@@ -57,4 +58,9 @@ every selected DLL/notice, paths and x64 architecture. The package records the
 player variant and lock hash; verification requires the same selection. The
 runtime is copied exactly once, preserving all 24 dynamic dependencies. Public
 release remains blocked for this experimental selection. Ordinary builds retain
-the historical candidate. See `NATIVE-SOURCE-CANDIDATE.md` for exact scope.
+the historical candidate. The source media selection stages only the two
+command-line executables and their 12 DLL dependencies into
+`.tmp/native-source-media-tools`; it does not overwrite the old media tools.
+Both locks refer to the same retained ZIP and source evidence. Package and ZIP
+verification require exact media/player lock hashes and every copied file,
+including notices. See `NATIVE-SOURCE-CANDIDATE.md` for exact scope.

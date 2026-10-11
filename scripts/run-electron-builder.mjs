@@ -2,7 +2,8 @@ import { execFileSync, spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createBuildFlavor, hashFile, readJson, verifyFormalApproval, writeJson, zipArtifactName } from "./release-engineering.mjs";
-import { candidateDirectory, liteFiles, mediaVariant } from "./media-variant.mjs";
+import { candidateDirectory, liteFiles, mediaLockPath, mediaVariant } from "./media-variant.mjs";
+import { assertPrivateSourceMedia, verifySourceMedia } from "./native-source-media.mjs";
 import { playerRuntimeDirectory, playerRuntimeLockPath, playerRuntimeVariant, verifyPlayerRuntime } from "./native-player-runtime.mjs";
 
 const mode = process.argv[2];
@@ -17,20 +18,23 @@ await verifyPlayerRuntime(playerRuntimeDirectory(root), playerLock);
 const selectedVariant = mediaVariant();
 const mediaSource = candidateDirectory(root, selectedVariant);
 const lite = selectedVariant === "lite-candidate";
-const nativeLock = await readJson(path.join(root, "scripts", lite ? "native-media-lite.lock.json" : "native-media-candidate.lock.json"));
+const sourceMedia = selectedVariant === "source-candidate";
+const nativeLock = await readJson(mediaLockPath(root, selectedVariant));
+if (sourceMedia) { assertPrivateSourceMedia(); await verifySourceMedia(mediaSource, nativeLock); }
 if (nativeLock.status !== "CANDIDATE_NOT_APPROVED" || nativeLock.distributable !== false) {
   throw new Error("Native media licensing is not approved by source staging.");
 }
-const expectedExecutables = lite ? nativeLock.files : nativeLock.expectedExecutables;
+const expectedExecutables = lite || sourceMedia ? nativeLock.files : nativeLock.expectedExecutables;
 for (const [name, expected] of Object.entries(expectedExecutables)) {
   const actual = await hashFile(path.join(mediaSource, name));
   if (actual !== expected) throw new Error("Pinned native media input differs: " + name);
 }
-const expectedLicense = lite ? nativeLock.files["COPYING.LGPLv2.1"] : nativeLock.expectedLicenseSha256;
+const expectedLicense = sourceMedia ? nativeLock.files["LICENSE.txt"] : lite ? nativeLock.files["COPYING.LGPLv2.1"] : nativeLock.expectedLicenseSha256;
 if (await hashFile(path.join(mediaSource, "LICENSE.txt")) !== expectedLicense) {
   throw new Error("Native media license evidence has changed.");
 }
 const flavor = createBuildFlavor(await readJson(path.join(root, "package.json")));
+if (sourceMedia) flavor.mediaRuntimeLockSha256 = await hashFile(mediaLockPath(root, selectedVariant));
 if (playerRuntimeVariant() === "source-candidate") {
   if (flavor.releaseClass !== "unsigned-test-build") throw new Error("Source player candidate cannot enter a formal release.");
   flavor.playerRuntimeVariant = "source-candidate";
@@ -64,7 +68,7 @@ const configuration = {
     // NativeHost remains in the base config; exactly one runtime closure is
     // declared here, avoiding duplicate copies racing over the same Windows DLL.
     { from: playerRuntimeDirectory(root), to: "native-player", filter: Object.keys(playerLock.files) },
-    { from: mediaSource, to: "media-tools", filter: lite ? liteFiles : ["ffmpeg.exe", "ffprobe.exe", "LICENSE.txt", "SOURCE-STATUS.txt"] },
+    { from: mediaSource, to: "media-tools", filter: sourceMedia ? Object.keys(nativeLock.files) : lite ? liteFiles : ["ffmpeg.exe", "ffprobe.exe", "LICENSE.txt", "SOURCE-STATUS.txt"] },
     { from: "docs/legal", to: "legal" },
     { from: "THIRD_PARTY_LICENSES.md", to: "legal/THIRD_PARTY_LICENSES.md" },
     { from: "LICENSE", to: "legal/PROJECT-LICENSE.txt" },

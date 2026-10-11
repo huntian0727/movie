@@ -1,0 +1,32 @@
+# Traceable shared media runtime
+
+## Context
+
+继续 GitHub 发布收尾；上一轮已完成新动态播放器源码留存和本机画面、AAC/DTS/Opus 验证。本轮接入同一次原生构建已产出的 FFmpeg/FFprobe，避免应用继续使用另一路尚未完成静态重链接审阅的 Lite CLI。开发基准 7573481；独立分支 ai/traceable-media-runtime。
+
+开发前快照 2026-10-11_16-07-44-958_traceable-media-runtime，Git checkpoint checkpoint-20261012-000739-7573481-traceable-media-runtime 已推送。维护脚本验证保留的三个开发快照及三个迁移备份后删除一份旧开发快照，Errors=0，未触碰视频或当前资料库。
+
+## Changes
+
+- 增加显式 source-candidate 媒体变体，默认 BtbN/Lite 路线不变，独立暂存目录 .tmp/native-source-media-tools。
+- 从原始候选 ZIP 3b4b4d22a3cf303b05898dedd470a6f05b0bfaa532c4ca9ab481167cd8f21b99 中选取 FFmpeg、FFprobe 与实际导入闭包的 12 个 DLL。所有共用 DLL 与播放器锁的 SHA 相等；不重新编译，不覆盖旧运行库。
+- 新锁保存 14 个实际 PE 文件的 SHA/导入关系、生产任务和原始源码证据 SHA；补齐 FFmpeg 原始 COPYING.LGPLv2.1 和候选状态通知。
+- 准备、打包、实际包及 ZIP 验证支持这一变体，记录媒体锁 SHA，核验每个文件、通知、x64 架构并拒绝未知附加文件。正式发行保持阻断，不改 approved/manualQaApproved/sourceComplianceApproved。
+- 源码清单补充 includedInSourceMediaQa，说明媒体/播放器均能选择同一来源。完整通知比对从 11 项扩为 12 项。
+- 两份原生锁和审阅 JSON 固定 LF，避免 Windows 换行转换改变哈希。新源码审阅附件 release/native-source-media-review-20261012-lf/Native-Source-Review-38134981406.zip，255221205 字节，SHA 321019ed520fa6ea7aebaff0a0ff20d8f4b9f2efb68e7a14b2ea956e84365e50。包含原始完整源码证据、原始 map、两份锁、恢复入口和现有完整通知；未上传。
+
+## Verification
+
+- 实际新媒体工具通过五份中性样片及一份真实 2560×1440 HEVC/PCM A-law 视频的 ffprobe 元数据、应用 generateCover/generateTimelineFrame 两种取帧路径和快速取帧验证；18 份 JPEG 非空且格式有效。源视频只读，输出在忽略目录。
+- 新增三项回归覆盖隔离身份、正式发布阻断、共享依赖 SHA、许可证 SHA、额外 DLL、篡改、缺失、x86、路径逃逸及错误 ZIP。
+- 初次完整测试 1205 通过/4 失败：临时执行器把 MOVIE_PLAYER_VARIANT=source-candidate 强加到模拟旧正式发行的夹具，被现有正式门禁拒绝。修正临时测试执行器，不改变门禁；针对发行/新媒体的 29 项测试通过。完整回归重跑 135 文件/1209 项全部通过。
+- 锁定 Node 22.23.1/npm 10.9.8：lint、typecheck、build、Electron smoke PASS；媒体契约 65/65、新源码构建 Python 12/12 PASS。finish-and-push ValidateOnly 与 git diff --check PASS。
+- 新版绿色 ZIP 和包内 smoke 待生成核验；不得把上一轮旧媒体工具包的验收直接转借。
+- 独立 E2E npm 脚本不存在，记为不适用。
+
+## Risks and follow-up
+
+- 此轮完成统一媒体工具的私有验收接入。正式配置仍需支持这套原生材料的准确审批记录、全部 DLL 和可复用输入取得流程；不能用现有旧四项二进制记录批准新包。
+- 第三方及嵌套静态组件适用性审核、稳定 Windows 11 正式身份验收与最终公开版本授权尚未完成。原始生产任务整体 FAIL 与后续本地系统依赖核验分别保留，不改写历史结论。
+- 已确认的新播放器文件未改动，无需重复 AAC/DTS/Opus 人工听音。真实 1440p 新库 PCM 仍无新的人耳确认，不转借旧沙盒确认。
+- 现有 Windows 沙盒与真实视频未清空，D200707 尚未访问。日常桌面快捷方式未替换；桌面版本尚未交付。无公开程序、版本 Tag 或 GitHub Release。
