@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-11T04:14:07.621Z",
+  "status": "BUILD_RECIPE_IDENTIFIED_NOT_RELEASE_APPROVED",
+  "releaseAllowed": false,
+  "release": {
+    "url": "https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261002",
+    "asset": "mpv-dev-x86_64-20261002-git-3186d369f9.7z",
+    "bytes": 31499009,
+    "sha256": "d873450cc1a7f881a8a10c33936d9555ad18a3809d827b9dbea55ba55caebcf9"
+  },
+  "runtime": {
+    "dllSha256": "8ca42a74311b813abc21f4264e7ed5f12a16419596bcbda96e49f10f8187befe",
+    "properties": {
+      "mpv-version": "mpv v0.41.0-1092-g3186d369f",
+      "ffmpeg-version": "N-127087-g460cb0521",
+      "mpv-configuration": "-Dprefix=/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64/x86_64-w64-mingw32 -Dlibdir=/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64/x86_64-w64-mingw32/lib -Ddefault_library=shared -Dprefer_static=true -Ddebug=true -Db_ndebug=true -Doptimization=3 -Db_lto=true -Db_lto_mode=thin -Dlibmpv=true -Dpdf-build=enabled -Dlua=enabled -Djavascript=enabled -Dsdl2-gamepad=enabled -Dlibarchive=enabled -Dlibbluray=enabled -Ddvdnav=enabled -Duchardet=enabled -Drubberband=enabled -Dlcms2=enabled -Dopenal=enabled -Dspirv-cross=enabled -Dvulkan=enabled -Dvapoursynth=enabled -Dsubrandr=enabled -Dsixel=enabled -Dgl=enabled -Degl-angle=enabled -Dlibcurl=enabled -Dc_args=-Wno-error=int-conversion --cross-file=/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64/meson_cross.txt"
+    },
+    "probe": "Read-only mpv API properties from the actual pinned DLL; config=no, vo=null, ao=null; no media opened."
+  },
+  "sourceCommits": {
+    "mpv": "3186d369f9f090cd1363be0ac46a037824b702c6",
+    "ffmpeg": "460cb05218a236cb587516fe2c8b121403609d95"
+  },
+  "workflow": {
+    "url": "https://github.com/shinchiro/mpv-winbuild-cmake/actions/runs/36943730454",
+    "headSha": "05a60b3cfd04e3e3b89918f4a27f3dde2935dff2",
+    "path": ".github/workflows/mpv_clang.yml",
+    "x64JobId": 110640930062,
+    "jobLogUrl": "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/actions/jobs/110640930062/logs",
+    "savedTextLogSha256": "b2f1794679abb6b0c41b7df3f56e6eabfa602c8af2bc84a934bc88c6566bbaf3",
+    "savedTextLogBytes": 96302,
+    "logEncoding": "GitHub CLI text export saved as UTF-8 with BOM; not the raw HTTP-byte digest."
+  },
+  "recipes": [
+    {
+      "file": "packages/mpv.cmake",
+      "url": "https://raw.githubusercontent.com/shinchiro/mpv-winbuild-cmake/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/mpv.cmake",
+      "sha256": "cfb9b0fbaaf6013069fe3eeda7e9e9644546f09cd772dbd549f8eb7fa21c7122",
+      "bytes": 4648
+    },
+    {
+      "file": "packages/ffmpeg.cmake",
+      "url": "https://raw.githubusercontent.com/shinchiro/mpv-winbuild-cmake/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/ffmpeg.cmake",
+      "sha256": "359c9c7da360f57d3a438e6fe117af6169cbd9aa3672751fd2bfc31e02be8fff",
+      "bytes": 3147
+    },
+    {
+      "file": ".github/workflows/mpv_clang.yml",
+      "url": "https://raw.githubusercontent.com/shinchiro/mpv-winbuild-cmake/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/.github/workflows/mpv_clang.yml",
+      "sha256": "15a8ced32b685a23baeb6be08b8b58d757056d43c7008386e88e2beea89e4e9f",
+      "bytes": 14538
+    }
+  ],
+  "recipeSourceArchive": {
+    "url": "https://codeload.github.com/shinchiro/mpv-winbuild-cmake/tar.gz/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2",
+    "sha256": "8907f091a184a8b62927a5f60f383febd3fa8131ebc6d76e96e0a2cc6d83bbef",
+    "bytes": 82363,
+    "scope": "Build recipes only; not the complete corresponding sources of the DLL."
+  },
+  "observations": {
+    "runtimePreferStatic": true,
+    "runtimeGplFalseSwitchPresent": false,
+    "ffmpegRecipeEnableGpl": true,
+    "ffmpegRecipeEnableVersion3": true,
+    "ffmpegRecipeEnableLibx264": true,
+    "completeDependencyRevisionManifestRecovered": false,
+    "fullCorrespondingSourcesProvided": false,
+    "licenseCompatibilityReviewed": false,
+    "mpvAndEmbeddedFfmpegMainSourcesArchived": true
+  },
+  "unresolved": [
+    "All statically linked dependency revisions, complete sources, patches and notices remain unverified.",
+    "The build recipe uses moving Git sources, caches and a latest container; matching recipe commit alone is insufficient to reproduce or approve the DLL.",
+    "Do not infer an LGPL-only grant from the presence of LICENSE.LGPL; retain formal approval=false."
+  ],
+  "mainSourceArchives": [
+    {
+      "name": "mpv-3186d369f9f090cd1363be0ac46a037824b702c6.tar.gz",
+      "component": "mpv",
+      "commit": "3186d369f9f090cd1363be0ac46a037824b702c6",
+      "url": "https://codeload.github.com/mpv-player/mpv/tar.gz/3186d369f9f090cd1363be0ac46a037824b702c6",
+      "sha256": "9e160328ced1266571ee57ae5b16ea77cc5c8ac34ebc1ec549ea73b5b4c54128",
+      "bytes": 7475297,
+      "tarEntries": 1019
+    },
+    {
+      "name": "ffmpeg-embedded-in-mpv-460cb05218a236cb587516fe2c8b121403609d95.tar.gz",
+      "component": "ffmpeg-embedded-in-mpv",
+      "commit": "460cb05218a236cb587516fe2c8b121403609d95",
+      "url": "https://codeload.github.com/FFmpeg/FFmpeg/tar.gz/460cb05218a236cb587516fe2c8b121403609d95",
+      "sha256": "3decb6585d8cb3a34bf52b655a22c71bee89ba82d291d4c11b9f91fe358ff9ba",
+      "bytes": 17787577,
+      "tarEntries": 10945
+    },
+    {
+      "name": "mpv-build-recipes-05a60b3cfd04e3e3b89918f4a27f3dde2935dff2.tar.gz",
+      "component": "mpv-build-recipes",
+      "commit": "05a60b3cfd04e3e3b89918f4a27f3dde2935dff2",
+      "url": "https://codeload.github.com/shinchiro/mpv-winbuild-cmake/tar.gz/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2",
+      "sha256": "8907f091a184a8b62927a5f60f383febd3fa8131ebc6d76e96e0a2cc6d83bbef",
+      "bytes": 82363,
+      "tarEntries": 182
+    }
+  ]
+}

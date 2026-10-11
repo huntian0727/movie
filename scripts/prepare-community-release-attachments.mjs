@@ -9,6 +9,7 @@ import { createReadStream } from "node:fs";
 import { copyFile, lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { playerRuntimeDirectory, verifyPlayerRuntime } from "./native-player-runtime.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const pinnedSources = Object.freeze({
@@ -17,6 +18,7 @@ export const pinnedSources = Object.freeze({
   size: 239498523,
 });
 export const nativeNoticeNames = Object.freeze(["COPYING.LGPLv2.1", "SOURCE.txt", "LIBVPL-LICENSE.txt", "LIBOPENH264-LICENSE.txt", "LIBWINPTHREAD-LICENSE.txt", "GCC-LICENSE.txt"]);
+export const playerNoticeNames = Object.freeze(["Copyright", "LICENSE.GPL", "LICENSE.LGPL"]);
 const requiredAssets = [
   ["LICENSE", "PROJECT-LICENSE.txt"],
   ["THIRD_PARTY_LICENSES.md", "THIRD_PARTY_LICENSES.md"],
@@ -25,6 +27,9 @@ const requiredAssets = [
   ["docs/legal/THIRD_PARTY_RELEASE_NOTICES.md", "THIRD_PARTY_RELEASE_NOTICES.md"],
   ["docs/legal/FFMPEG-LITE-SBOM.spdx.json", "FFMPEG-LITE-SBOM.spdx.json"],
   ["docs/release-notes-v0.1.15-draft.md", "RELEASE-NOTES-DRAFT.md"],
+  ["docs/portable.md", "PORTABLE.md"],
+  ["docs/legal/MPV_SOURCE_NOTICE.md", "MPV_SOURCE_NOTICE.md"],
+  ["docs/legal/MPV-BUILD-RECIPE-EVIDENCE.json", "MPV-BUILD-RECIPE-EVIDENCE.json"],
 ];
 export function assertPinnedSource({ sha256, size }) {
   if (sha256 !== pinnedSources.sha256 || size !== pinnedSources.size) {
@@ -60,6 +65,8 @@ async function checkInput() {
   if (approval.approved !== false || media.distributable !== false || media.status !== "CANDIDATE_NOT_APPROVED") {
     throw new Error("This script stages only unapproved, nonpublic pre-QA materials.");
   }
+  const playerLock = JSON.parse(await readFile(path.join(root, "scripts/native-player-runtime.lock.json"), "utf8"));
+  await verifyPlayerRuntime(playerRuntimeDirectory(root), playerLock);
   const nativeDir = path.join(root, ".tmp", "native-media-lite-tools");
   for (const name of ["ffmpeg.exe", "ffprobe.exe", "libvpl-2.dll", "libopenh264-7.dll",
     "libwinpthread-1.dll", "libgcc_s_seh-1.dll", "libstdc++-6.dll"]) {
@@ -96,22 +103,27 @@ async function main(args) {
   }
   await stage(source, pinnedSources.name);
   for (const [from, to] of requiredAssets) await stage(path.join(root, from), to);
-  // Include exact upstream license texts for every distributed native component.
+  // Include pinned native notices without implying complete source/license approval.
   for (const name of nativeNoticeNames) {
     const file = path.join(root, ".tmp", "native-media-lite-tools", name);
     await regularFile(file);
     if (await hashFile(file) !== media.files[name]) throw new Error("Native notice SHA-256 mismatch: " + name);
     await stage(file, name);
   }
+  for (const name of playerNoticeNames) {
+    await stage(path.join(playerRuntimeDirectory(root), name), "MPV-" + name);
+  }
   const noticeName = "README-STAGING-NOT-FOR-PUBLICATION.txt";
   const notice = [
     "Movie / 拉面影视 - OFFLINE third-party companion only.",
     "NOT A RELEASE. NO INSTALLER INCLUDED. NEVER UPLOAD AS AN APPROVED BUNDLE.",
     "The FFmpeg Lite 8.1.2 source ZIP and other notices are staged with SHA-256.",
+    "MPV build-recipe evidence and notices are included; full MPV dependency sources are MISSING.",
     "OpenH264 is from MSYS2, not a Cisco-provided binary: no blanket patent license.",
     "Before public download: confirm FFmpeg LGPL static relinking obligations,",
     "complete source/distribution conditions, build the correct community identity,",
-    "run clean Windows 11 QA, and publish matching installer and sources together.",
+    "resolve MPV GPL/dependency/host distribution conditions, run clean Windows 11 QA,",
+    "and publish matching program ZIP or installer and complete sources together.",
     "See https://ffmpeg.org/legal.html and repository docs/OPEN_SOURCE_RELEASE_SIMPLE.md.",
     ""
   ].join("\n");
@@ -119,7 +131,7 @@ async function main(args) {
   assets.push({ name: noticeName, sha256: await hashFile(path.join(dest, noticeName)), size: Buffer.byteLength(notice) });
   await writeFile(path.join(dest, "SHA256SUMS.txt"), generateSha256Sums(assets), "utf8");
   await writeFile(path.join(dest, "STAGING-STATUS.json"), JSON.stringify({
-    status: "PENDING_WINDOWS_QA_AND_FFMPEG_DISTRIBUTION_REVIEW",
+    status: "PENDING_WINDOWS_QA_AND_THIRD_PARTY_DISTRIBUTION_REVIEW",
     approved: false, publicInstallerIncluded: false, version: "0.1.15", nativeSourceZip: pinnedSources.name,
     artifactCount: assets.length,
     assets,

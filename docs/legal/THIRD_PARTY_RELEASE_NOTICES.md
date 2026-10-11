@@ -9,5 +9,6 @@
 - **Cisco OpenH264** `libopenh264-7.dll`：MSYS2 `mingw-w64-x86_64-openh264 2.6.0-1`；原包声明 BSD-2-Clause。
 - **MinGW winpthreads** `libwinpthread-1.dll`：MSYS2 `mingw-w64-x86_64-libwinpthread 14.0.0.r179.g24aaa6147-1`；原包声明 MIT AND BSD-3-Clause-Clear。
 - **GCC Runtime** `libgcc_s_seh-1.dll` 与 `libstdc++-6.dll`：MSYS2 `mingw-w64-x86_64-gcc-libs 16.1.0-5`；原包整体声明 GPL-3.0-or-later WITH GCC-exception-3.1 AND LGPL-2.1-or-later。实际各个组件的许可适用性仍须核实。GCC Runtime Library Exception 3.1 原文见 [本仓库](GCC-RUNTIME-LIBRARY-EXCEPTION.txt)。
+- **libmpv** `libmpv-2.dll`：固定 shinchiro `20261002` / mpv `3186d369f9` 候选。实际配方启用 GPL FFmpeg，并优先静态依赖；不得当成 LGPL-only 构建。原始 Copyright / GPL / LGPL 文本随包附带；完整依赖源码与最终组合许可未批准，见 [运行库说明](MPV_SOURCE_NOTICE.md)和 [构建证据](MPV-BUILD-RECIPE-EVIDENCE.json)。
 
 上述 MSYS2 版本来自真实 Windows [构建任务](https://github.com/serversideup/ffmpeg-lgpl-builds/actions/runs/29303740323)，且与候选 DLL 完全一致；[机器可读证据](MSYS2-EXACT-PACKAGE-EVIDENCE.json)、[SBOM](FFMPEG-LITE-SBOM.spdx.json) 已归档。Electron 和 npm 等其余第三方运行依赖也应保留原有各自许可。**请勿把此草案当成完成发行许可审核或任何批准。**

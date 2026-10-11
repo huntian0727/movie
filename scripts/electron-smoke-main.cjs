@@ -14,6 +14,8 @@ app.whenReady().then(async () => {
     const assert = require("node:assert/strict");
     const root = process.argv.find(argument => argument.startsWith("--smoke-root="))?.slice("--smoke-root=".length);
     assert.ok(root, "Smoke runner must supply an isolated data directory.");
+    const { runReleaseIdentitySmoke } = await import("./release-identity-smoke.mjs");
+    await runReleaseIdentitySmoke(root, app);
     const previousUserData = app.getPath("userData");
     try {
       app.setPath("userData", root);

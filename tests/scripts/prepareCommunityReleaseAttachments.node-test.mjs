@@ -1,12 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertPinnedSource, generateSha256Sums, pinnedSources, nativeNoticeNames } from "../../scripts/prepare-community-release-attachments.mjs";
+import { assertPinnedSource, generateSha256Sums, pinnedSources, nativeNoticeNames, playerNoticeNames } from "../../scripts/prepare-community-release-attachments.mjs";
 
 test("prepares all six pinned third-party license and provenance notices", () => {
   assert.deepEqual([...nativeNoticeNames], [
     "COPYING.LGPLv2.1", "SOURCE.txt", "LIBVPL-LICENSE.txt",
     "LIBOPENH264-LICENSE.txt", "LIBWINPTHREAD-LICENSE.txt", "GCC-LICENSE.txt"
   ]);
+});
+
+test("includes original MPV notices without treating either license as a selected grant", () => {
+  assert.deepEqual([...playerNoticeNames], ["Copyright", "LICENSE.GPL", "LICENSE.LGPL"]);
 });
 
 test("accepts only verified FFmpeg source companion bytes and size", () => {

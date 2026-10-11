@@ -33,9 +33,10 @@
 
 | 附件 | 作用 |
 | --- | --- |
-| `拉面影视-0.1.15-x64-unsigned-public-Setup.exe` | 实际获准的**社区版身份**安装程序，绝不能拿 `unsigned-test-build` 改名充数 |
-| `SHA256SUMS.txt` | 核对实际安装器和源码附件 SHA-256 |
+| `拉面影视-0.1.15-x64-unsigned-public-Portable.zip` | 当前目标改为完整解压即用的**社区版身份**程序包，绝不能拿 `unsigned-test-build` 改名充数 |
+| `SHA256SUMS.txt` / 程序包的 `PORTABLE-SHA256SUMS.txt` | 核对实际绿色 ZIP 和源码附件 SHA-256 |
 | 经最终核验的 FFmpeg 对应源码 ZIP（包含必要重链接材料，如适用） | 必须与本次二进制确实对应，可供下载 |
+| 经最终核验的 libmpv 及静态依赖对应源码、构建说明和通知 | 新播放器 DLL 尚缺完整材料；FFmpeg Lite 的源码 ZIP 不涵盖它 |
 | `THIRD_PARTY_LICENSES.md` / `FFMPEG_BUILD_INFO.md` 和对应许可证文本 | 说明版权归属、构建方式、源码下载方法 |
 
 这里**没有已经存在的公众版安装包和对应源码下载链接**。私人 ZIP 的完整哈希与内容见 [源码获取说明](legal/FFMPEG_SOURCE_NOTICE.md)，不能把它写成已上传。具体版号以正式发行时的 `package.json` 为准。公开页同时写明：“未进行代码签名，Windows 可能提示未知发布者；只从官方 GitHub Release 下载并自行核对 SHA-256。无需关闭系统安全防护”。
@@ -49,3 +50,11 @@
 - **目前尚不能宣称 FFmpeg 分发合规已经闭环或公开发布已获批准。** 原有 [安全发行脚本说明](COMMUNITY_CANDIDATE_RUNBOOK.md) 和 [审批证据记录](legal/LICENSE_COMPLIANCE_CHECKLIST.md) 是内部详单；不应把它们误写成法律强制要求的企业审计手续。
 
 已完成的材料不再重复下载或重复审核。**免费、非商业分享仍须满足所带第三方软件的适用许可证。** 这份简明指引不降低实际义务，也不代替适用问题的专业判断。
+
+## 2026-10-11 绿色版收尾更新
+
+当前交付目标为 ZIP，资料库仍在 AppData。免费分享版使用 `local-video-manager-community`，测试版使用 `local-video-manager-unsigned-test`，两者均不自动读取旧版的 `local-video-manager`。同身份新版解压到新文件夹后继续使用该身份的资料库，详见 [绿色版说明](portable.md)。
+
+手动社区候选工作流已改为 `dist:zip` / `verify:zip`：验证审批哈希、EXE 与 NativeHost 的未签名状态、解压后逐文件 SHA 和实际启动；只归档校验元数据，不上传程序 ZIP，也不发布 Release。正式门禁仍关闭，工作流的 GitHub 执行尚未启动。
+
+本机已重新核验五个 DLL 和四份 FFmpeg 依赖源码包，并在 `D:/CodexReleaseAudit/movie-community-review-20261011` 整理 **21 份哈希校验附件**。其中新增 MPV 原始通知和固定构建配方证据，但没有完整 MPV 静态依赖源码。它仍是私人审核目录，不是公开发行附件。

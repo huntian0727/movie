@@ -38,8 +38,7 @@ import { RENDERER_ENTRY_URL, RENDERER_ORIGIN, RENDERER_SCHEME, registerRendererP
 import { createSettingsStore } from "./settings/settingsStore.js";
 import { configureCloudDriveRuntime } from "./clouddrive/mountedScanner.js";
 import { showMainWindowMaximized } from "./windowPresentation.js";
-import { legacyUserDataPath } from "./legacyUserDataPath.js";
-import { readReleaseFlavor } from "./releaseFlavor.js";
+import { readReleaseFlavor, releaseUserDataPath } from "./releaseFlavor.js";
 
 // Renderer/webviews run without hardware acceleration so the app starts on
 // machines without a usable GPU (remote desktops, VMs, older GPUs). Without
@@ -54,11 +53,8 @@ const packagedSmokeUserData = process.env.VIDEO_MANAGER_PACKAGED_SMOKE_USER_DATA
 const releaseFlavor = app.isPackaged ? readReleaseFlavor(process.resourcesPath, app.getVersion()) : undefined;
 if (packagedSmokeUserData) {
   app.setPath("userData", path.resolve(packagedSmokeUserData));
-} else if (releaseFlavor?.releaseClass === "unsigned-test-build") {
-  app.setPath("userData", path.join(app.getPath("appData"), releaseFlavor.userDataDirectoryName));
 } else {
-  // Keep existing libraries/settings after changing the visible product name.
-  app.setPath("userData", legacyUserDataPath(app.getPath("appData")));
+  app.setPath("userData", releaseUserDataPath(app.getPath("appData"), releaseFlavor));
 }
 const startupUserDataPath = app.getPath("userData");
 const databasePath = path.join(startupUserDataPath, "library.sqlite");

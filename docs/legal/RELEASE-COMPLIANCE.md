@@ -6,7 +6,7 @@
 
 项目自有代码与可授权的文档已经采用仓库根目录 [MIT License](../../LICENSE)；`package.json` 和 `package-lock.json` 的项目许可字段相同。用户可以免费复制、修改、再分发，保留版权与许可声明即可。MIT 也允许其他人商业使用，作者本人不计划商业化不改变该许可授予。
 
-**此授权只涵盖维护者有权授权的项目部分，不覆盖 FFmpeg、FFprobe、Electron、npm 包、NativeHost 使用的第三方代码、MPV 或未明确许可的外部图标素材。** Git 作者身份、AI 交付记录和公开仓库不证明每一项历史素材的权属；项目所有历史贡献及图标的权属仍需分类，未经确认者不得放进正式二进制。当前发行审批保持 `approved:false` 和 `ownersConfirmed:false`，直到所有要分发的资产和二进制条件通过。
+**此授权只涵盖维护者有权授权的项目部分，不覆盖 FFmpeg、FFprobe、Electron、npm 包、NativeHost 使用的第三方代码、MPV 或未明确许可的外部图标素材。** Git 作者身份、AI 交付记录和公开仓库不证明每一项历史素材的权属。维护者已经确认自有代码、文档和测试截图的权属，当前 `ownersConfirmed:true`；第三方二进制与干净 Windows 验收未完成，`approved:false`。权属确认不代替第三方发行核验。
 
 ## 依赖清单
 

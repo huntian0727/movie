@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { hashFile, packagedFileManifest, readJson, releaseOutputDirectory, validateRelativeFile, zipArtifactName } from "./release-engineering.mjs";
+import { authenticode, hashFile, packagedFileManifest, readJson, releaseOutputDirectory, validateRelativeFile, verifyFormalApproval, zipArtifactName } from "./release-engineering.mjs";
 import { verifyPlayerRuntime } from "./native-player-runtime.mjs";
 import { runPackagedSmoke } from "./run-packaged-smoke.mjs";
 
@@ -12,6 +12,12 @@ const flavor = await readJson(path.join(output,"win-unpacked/resources/build-fla
 validateRelativeFile(flavor.executableName + ".exe");
 validateRelativeFile(zipArtifactName(flavor));
 if (flavor.outputDirectory !== releaseOutputDirectory()) throw new Error("ZIP flavor/output mismatch.");
+const approvalSha256 = await verifyFormalApproval(root, flavor);
+if (flavor.complianceApprovalSha256 !== approvalSha256) throw new Error("ZIP release approval differs from its packaged record.");
+const signatures = {
+  application: await authenticode(path.join(output,"win-unpacked",flavor.executableName+".exe"),flavor),
+  nativeHost: await authenticode(path.join(output,"win-unpacked/resources/native-player/NativeHost.exe"),flavor)
+};
 const archive = path.join(output,zipArtifactName(flavor));
 const extracted = await mkdtemp(path.join(output,"portable-qa-"));
 // Reject paths outside the extraction root and Windows case collisions before extracting.
@@ -40,7 +46,7 @@ for(const name of expected.files) {
 }
 await verifyPlayerRuntime(path.join(extracted,"resources/native-player"),await readJson(path.join(root,"scripts/native-player-runtime.lock.json")));
 await runPackagedSmoke(path.join(extracted,flavor.executableName+".exe"));
-const result={archive,sha256:await hashFile(archive),filesVerified:expected.files.length,extracted,commit:flavor.commit,appAsarSha256:await hashFile(path.join(extracted,"resources/app.asar")),releaseClass:flavor.releaseClass,publicReleaseApproved:false};
+const result={archive,sha256:await hashFile(archive),filesVerified:expected.files.length,extracted,commit:flavor.commit,appAsarSha256:await hashFile(path.join(extracted,"resources/app.asar")),releaseClass:flavor.releaseClass,approvalSha256,signatures,publicReleaseApproved:false};
 await writeFile(path.join(output,"portable-qa.json"),JSON.stringify(result,null,2)+"\n");
 await writeFile(path.join(output,"PORTABLE-SHA256SUMS.txt"),`${result.sha256}  ${path.basename(archive)}\n`);
 console.log(JSON.stringify(result,null,2));

@@ -53,18 +53,26 @@ test("candidate has no public release or write credentials", () => {
   assert.match(candidate, /unsigned-community-CANDIDATE-/);
   assert.doesNotMatch(candidate, /release\/unsigned-test-build\/\*Setup/);
   assert.doesNotMatch(candidate, /release\/unsigned-public-release\/\*Setup/);
+  const uploaded = candidate.slice(candidate.indexOf('      - name: Archive verification metadata only'));
+  assert.doesNotMatch(uploaded, /\.zip\b|\*Portable|win-unpacked/);
 });
 
 test("candidate must verify artifact and run packaged smoke before archiving", () => {
   assert.match(candidate, /npm run test:release-gate/);
   assert.match(candidate, /npm run test:packaged-smoke/);
-  assert.match(candidate, /npm run dist:win/);
+  assert.match(candidate, /npm run dist:zip/);
   assert.match(candidate, /npm run verify:artifact/);
-  assert.match(candidate, /npm run release:metadata/);
+  assert.match(candidate, /npm run verify:zip/);
   assert.match(candidate, /release\/unsigned-public-release/);
   assert.match(candidate, /com\.local\.video\.manager\.community/);
-  assert.match(candidate, /NotSigned/);
-  assert.match(candidate, /Get-FileHash -LiteralPath \$installer -Algorithm SHA256/);
+  assert.match(candidate, /publicReleaseApproved -ne \$false/);
+  assert.match(candidate, /signatures\.application\.status -ne 'NotSigned'/);
+  assert.match(candidate, /signatures\.nativeHost\.status -ne 'NotSigned'/);
+  assert.match(candidate, /\$metadata\.approvalSha256 -ne \$flavor\.complianceApprovalSha256/);
+  assert.match(candidate, /Get-FileHash -LiteralPath \$archive -Algorithm SHA256/);
+  assert.match(candidate, /\$metadata\.filesVerified -le 0/);
+  assert.match(candidate, /PORTABLE-SHA256SUMS\.txt/);
+  assert.doesNotMatch(candidate, /npm run dist:win/);
 });
 
 test("signed release tag trigger is opt-in and requires signed channel", () => {

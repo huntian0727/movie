@@ -1,4 +1,4 @@
-name: Unsigned Community Candidate (manual, metadata only)
+name: Unsigned Community ZIP Candidate (manual, metadata only)
 
 # This is deliberately not a tag-push or release trigger.
 # It never publishes or uploads the QA-only unsigned-test-build binary.
@@ -85,39 +85,44 @@ jobs:
       - run: npm run verify:artifact
       - name: Packaged candidate UI smoke (isolated temp user data)
         run: npm run test:packaged-smoke
-      - run: npm run dist:win
-      - run: npm run verify:artifact
-      - run: npm run release:metadata
-      - name: Verify unsigned community identity and installer checksum
+      - run: npm run dist:zip
+      - run: npm run verify:zip
+      - name: Verify unsigned community ZIP identity and checksum
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $dir = 'release/unsigned-public-release'
           $flavor = Get-Content "$dir/build-flavor.json" -Raw | ConvertFrom-Json
-          $metadata = Get-Content "$dir/build-metadata.json" -Raw | ConvertFrom-Json
+          $metadata = Get-Content "$dir/portable-qa.json" -Raw | ConvertFrom-Json
           if ($flavor.releaseClass -ne 'unsigned-public-release' -or
               $flavor.appId -ne 'com.local.video.manager.community' -or
               $flavor.nsisGuid -ne 'b73f7252-798d-48d9-b877-19fb6d355f83' -or
-              $metadata.releaseClass -ne 'unsigned-public-release' -or $metadata.signed -ne $false -or
-              $metadata.commit -ne $env:GITHUB_SHA -or $metadata.ref -ne $env:GITHUB_REF) {
+              $metadata.releaseClass -ne 'unsigned-public-release' -or
+              $metadata.publicReleaseApproved -ne $false -or
+              $metadata.commit -ne $env:GITHUB_SHA -or $flavor.commit -ne $env:GITHUB_SHA) {
             throw 'Unsigned community build identity or commit does not match.'
           }
-          if ($metadata.signatures.installer.status -ne 'NotSigned' -or
-              $metadata.signatures.application.status -ne 'NotSigned' -or
-              $metadata.signatures.nativeHost.status -ne 'NotSigned') {
-            throw 'Unsigned candidate contains an unexpected executable signature.'
+          # verify:zip checked application/NativeHost Authenticode; the ZIP
+          # itself has a SHA-256 rather than an executable signature.
+          if ($metadata.signatures.application.status -ne 'NotSigned' -or
+              $metadata.signatures.nativeHost.status -ne 'NotSigned' -or
+              $metadata.approvalSha256 -ne $flavor.complianceApprovalSha256) {
+            throw 'Unexpected executable signature or stale release-approval record.'
           }
-          if (@($metadata.installers).Count -ne 1 -or
-              $metadata.installers[0].name -ne $flavor.artifactName) {
-            throw 'Expected precisely one community installer in metadata.'
+          $zipName = $flavor.artifactName -replace '-Setup\.exe$', '-Portable.zip'
+          $archives = @(Get-ChildItem -LiteralPath $dir -Filter '*-Portable.zip' -File)
+          if ($archives.Count -ne 1 -or $archives[0].Name -ne $zipName -or
+              [IO.Path]::GetFullPath($metadata.archive) -ne $archives[0].FullName -or
+              $metadata.filesVerified -le 0) {
+            throw 'Expected exactly the community ZIP that passed extraction and packaged smoke.'
           }
-          $installer = Join-Path $dir $flavor.artifactName
-          if ((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant() -ne
-              $metadata.installers[0].sha256) {
-            throw 'The unsigned community installer hash changed after metadata generation.'
+          $archive = Join-Path $dir $zipName
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $metadata.sha256) {
+            throw 'The unsigned community ZIP hash changed after verification.'
           }
-          if (-not (Select-String -LiteralPath "$dir/SHA256SUMS.txt" -SimpleMatch $metadata.installers[0].sha256)) {
-            throw 'SHA256SUMS.txt does not list the final approved candidate.'
+          $sum = "$($metadata.sha256)  $zipName"
+          if ((Get-Content -LiteralPath "$dir/PORTABLE-SHA256SUMS.txt" -Raw).Trim() -cne $sum) {
+            throw 'PORTABLE-SHA256SUMS.txt must list the exact verified ZIP hash and name.'
           }
       - name: Archive verification metadata only (never upload an installer to public-repo Actions)
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -126,7 +131,6 @@ jobs:
           retention-days: 7
           if-no-files-found: error
           path: |
-            release/unsigned-public-release/SHA256SUMS.txt
-            release/unsigned-public-release/build-metadata.json
+            release/unsigned-public-release/PORTABLE-SHA256SUMS.txt
+            release/unsigned-public-release/portable-qa.json
             release/unsigned-public-release/build-flavor.json
-            release/unsigned-public-release/FFMPEG-LITE-SBOM.spdx.json
