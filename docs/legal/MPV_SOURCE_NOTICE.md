@@ -21,4 +21,6 @@
 
 已继续取得准确 mpv 主源码（7475297 字节）、内嵌 FFmpeg 主源码（17787577 字节）和构建配方源码。三份 TAR 均完整列举通过，mpv 包内的三个原始许可证/版权文件与运行库锁定哈希一致。各自提交、URL、SHA 和条目数已加入机器证据。它们保存在本机私人 `D:/CodexReleaseAudit/movie-mpv-partial-sources-20261011`，明确标为 **PARTIAL / NOT APPROVED**；不是完整对应源码，更没有公开上传。内嵌 FFmpeg 与用于扫描/预览的 FFmpeg Lite 8.1.2 是两个不同构建，不能用后者的源码包代替前者。
 
+本轮继续从固定原任务日志列出 89 个构建下载目标，每个目标关联到准确提交中的配方及其 SHA，详见 [材料缺口清单](MPV-SOURCE-GAPS.md) 和 [配方目标机器清单](MPV-SOURCE-GAPS-INVENTORY.json)。该清单含头文件/工具/打包目标，不是 DLL 实际链接组件清单，不能代替仍缺的实际版本、完整依赖源码及通知。
+
 `build/release-approval.json` 新增 libmpv 独立审批项，仍为 `sourceComplianceApproved:false`。正式 NSIS 和 ZIP 都必须检查准确 DLL 哈希与已审查的源码证据；暂不生成公开 Release。候选运行库锁保持 `distributable:false`，仅证明来源锁定和本机功能验收。

@@ -1,0 +1,1459 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-11",
+  "timezone": "Asia/Shanghai",
+  "status": "GAPS_INVENTORY_ONLY_NOT_APPROVED",
+  "releaseAllowed": false,
+  "scope": "Download targets requested by the exact x64 build job. Includes headers/tools/packaging and is not an inventory of libraries linked into the DLL. Recipe candidates only match literal ExternalProject_Add target names; ambiguous or absent matches remain explicit.",
+  "inputs": {
+    "workflowUrl": "https://github.com/shinchiro/mpv-winbuild-cmake/actions/runs/36943730454",
+    "workflowCommit": "05a60b3cfd04e3e3b89918f4a27f3dde2935dff2",
+    "logSha256": "b2f1794679abb6b0c41b7df3f56e6eabfa602c8af2bc84a934bc88c6566bbaf3",
+    "recipeArchiveSha256": "8907f091a184a8b62927a5f60f383febd3fa8131ebc6d76e96e0a2cc6d83bbef",
+    "dllSha256": "8ca42a74311b813abc21f4264e7ed5f12a16419596bcbda96e49f10f8187befe",
+    "downloadCommandLineNumber": 364
+  },
+  "targetCount": 89,
+  "unresolvedRecipeTargetCount": 0,
+  "missingDeliverables": [
+    "Actual per-dependency revisions or immutable archive hashes from this job, including restored cache inputs; identify linked libraries separately from build/download targets.",
+    "Full exact dependency sources, submodules, patches and generated configuration needed for the actual DLL build; main mpv/FFmpeg archives alone are insufficient.",
+    "Original per-component copyright and license notices tied to the confirmed revisions.",
+    "Build environment/toolchain/container identity, commands and configuration for the actual pinned DLL; current recipe and latest image tag alone are insufficient.",
+    "Recorded host/runtime distribution compatibility review and an approved source-delivery route tied to exact hashes; no automatic approval."
+  ],
+  "targets": [
+    {
+      "target": "amf-headers",
+      "recipeCandidates": [
+        {
+          "path": "packages/amf-headers.cmake",
+          "sha256": "bb0628f31bfd4e6db57ef3c5381f10e8bf8fb666acb62394558e71e34b339dca",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/amf-headers.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "angle-headers",
+      "recipeCandidates": [
+        {
+          "path": "packages/angle-headers.cmake",
+          "sha256": "9a1b2255f2811337e8b3ff7e05da3944969d98652ed722281589dc640f428b06",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/angle-headers.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "aom",
+      "recipeCandidates": [
+        {
+          "path": "packages/aom.cmake",
+          "sha256": "73c4f6335a5be0a8fb8639cea1936faa61c861f4cdb5c129e5384e3f04441eee",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/aom.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "avisynth-headers",
+      "recipeCandidates": [
+        {
+          "path": "packages/avisynth-headers.cmake",
+          "sha256": "4cd756ff326b00256d03d03e4f86e1554a8b1a57f7d014368b99057149ca6685",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/avisynth-headers.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "brotli",
+      "recipeCandidates": [
+        {
+          "path": "packages/brotli.cmake",
+          "sha256": "b8554a6c7028bd3b0f1dd9361c0b7c6c6312e87d3793f3ce3dbf7f89d9fb9bc1",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/brotli.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "bzip2",
+      "recipeCandidates": [
+        {
+          "path": "packages/bzip2.cmake",
+          "sha256": "22c06023a62280f46de2b3dd73daac92eff15e6c6ad48be32c5a101bf911d0ec",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/bzip2.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "c-ares",
+      "recipeCandidates": [
+        {
+          "path": "packages/c-ares.cmake",
+          "sha256": "ff158ffb4add510160a78eef6473625d965ebf4bd57b0fc1e23275fcb48c6013",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/c-ares.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "dav1d",
+      "recipeCandidates": [
+        {
+          "path": "packages/dav1d.cmake",
+          "sha256": "c64418c6e46a296d414a4345eb8e7f61f68ae63490c573f6bcb7988e8b3782dc",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/dav1d.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "davs2",
+      "recipeCandidates": [
+        {
+          "path": "packages/davs2.cmake",
+          "sha256": "0a8183fbcb5eb2c9ed6eec17ffd3e47d33663c484f5834b5a32e235ae3d772a2",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/davs2.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "expat",
+      "recipeCandidates": [
+        {
+          "path": "packages/expat.cmake",
+          "sha256": "368e92a92117d8b96989c2050301ecf8f93947581eee899dd7d696284985450f",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/expat.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "ffmpeg",
+      "recipeCandidates": [
+        {
+          "path": "packages/ffmpeg.cmake",
+          "sha256": "359c9c7da360f57d3a438e6fe117af6169cbd9aa3672751fd2bfc31e02be8fff",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/ffmpeg.cmake"
+        }
+      ],
+      "runtimeExactCommit": "460cb05218a236cb587516fe2c8b121403609d95",
+      "exactMainSourceArchive": {
+        "name": "ffmpeg-embedded-in-mpv-460cb05218a236cb587516fe2c8b121403609d95.tar.gz",
+        "sha256": "3decb6585d8cb3a34bf52b655a22c71bee89ba82d291d4c11b9f91fe358ff9ba",
+        "bytes": 17787577
+      },
+      "linkedInActualDll": true,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "fontconfig",
+      "recipeCandidates": [
+        {
+          "path": "packages/fontconfig.cmake",
+          "sha256": "c20c10d75476bf1f99818e5dda7644c94ae157372b9fd396c09f1b2122b006aa",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/fontconfig.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "freetype2",
+      "recipeCandidates": [
+        {
+          "path": "packages/freetype2.cmake",
+          "sha256": "eed687f636ec335af2e341537e089857f75a659e69d02da5176715628bf3b035",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/freetype2.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "fribidi",
+      "recipeCandidates": [
+        {
+          "path": "packages/fribidi.cmake",
+          "sha256": "9a220a21c07099ebc6391d828a677697c4f147a781fcb54f86e038dbbf620321",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/fribidi.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "game-music-emu",
+      "recipeCandidates": [
+        {
+          "path": "packages/game-music-emu.cmake",
+          "sha256": "c023ad08da8c0c7e6ad9bf0511e0acd5dabf53591cd15492e9385d677a5b3dbc",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/game-music-emu.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "glad",
+      "recipeCandidates": [
+        {
+          "path": "packages/glad.cmake",
+          "sha256": "ee80b01e4fce4561f1d9dfa9f51474cc4b48ef7ef739227db6099aed36016468",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/glad.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "glslang",
+      "recipeCandidates": [
+        {
+          "path": "packages/glslang.cmake",
+          "sha256": "164f4cef085f0224eb9b98eb7b4093880e5ad2ea4dba60bb00131f33f94a5d13",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/glslang.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "graphengine",
+      "recipeCandidates": [
+        {
+          "path": "packages/graphengine.cmake",
+          "sha256": "acfd98328265bee49b86a7ce64d6dd3e8c9201952385f3911625840a9a01869b",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/graphengine.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "harfbuzz",
+      "recipeCandidates": [
+        {
+          "path": "packages/harfbuzz.cmake",
+          "sha256": "9b8a2f9f2b7dfb440ff7f6c925489ae1cee64b3119f5556f6c103c786f653f4b",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/harfbuzz.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "highway",
+      "recipeCandidates": [
+        {
+          "path": "packages/highway.cmake",
+          "sha256": "26b46bc1f08f35d7fda6f2bab349224e39a3972942ccad7aca3b8b768954fa87",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/highway.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "lame",
+      "recipeCandidates": [
+        {
+          "path": "packages/lame.cmake",
+          "sha256": "2fc016fa58c3d768c9f872ca715309c7b94cf815a4c3352d325f4d25650c2fa3",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/lame.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "lcms2",
+      "recipeCandidates": [
+        {
+          "path": "packages/lcms2.cmake",
+          "sha256": "78ac60adc47be993cf59f7f1d318d78558a2850755a8b4b5181f68434245edbe",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/lcms2.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libarchive",
+      "recipeCandidates": [
+        {
+          "path": "packages/libarchive.cmake",
+          "sha256": "4f5dd14180a11f34159bb652ab536ffb3118f867fe76b2a7d312d0624491ed61",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libarchive.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libaribcaption",
+      "recipeCandidates": [
+        {
+          "path": "packages/libaribcaption.cmake",
+          "sha256": "a66502a1e55c8ba94f8d8ef9641e983e9da3e0832ffae287007cfd1cccae65c6",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libaribcaption.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libass",
+      "recipeCandidates": [
+        {
+          "path": "packages/libass.cmake",
+          "sha256": "41ec0c08160e4d0a31b2d9dc214985056ad9b61d77530c526ee77b0acc9c84b6",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libass.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libbluray",
+      "recipeCandidates": [
+        {
+          "path": "packages/libbluray.cmake",
+          "sha256": "0a5d301070c3239a673a1b7f360d6a14cf4f3c9b366c8a29a09bb463208ca71b",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libbluray.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libbs2b",
+      "recipeCandidates": [
+        {
+          "path": "packages/libbs2b.cmake",
+          "sha256": "95c5f9d08215685a2cc367e302d6f248cfb66040d2d27f972f2e17f612a10ac9",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libbs2b.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libdvdcss",
+      "recipeCandidates": [
+        {
+          "path": "packages/libdvdcss.cmake",
+          "sha256": "d04294b88d2ff8444ac8ce40227b34970903d72c855d4561db902d2b304825eb",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libdvdcss.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libdvdnav",
+      "recipeCandidates": [
+        {
+          "path": "packages/libdvdnav.cmake",
+          "sha256": "e1295fb2df314fca53d7a92247ee11b6592c62b49cd28dd4a79224225a1e9619",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libdvdnav.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libdvdread",
+      "recipeCandidates": [
+        {
+          "path": "packages/libdvdread.cmake",
+          "sha256": "bc494f70ffccbc75e021def2c2f21d913161bdf2912a33d9efccd99516041676",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libdvdread.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libiconv",
+      "recipeCandidates": [
+        {
+          "path": "packages/libiconv.cmake",
+          "sha256": "4ef38914020072ff0a3ea21415809cbfae6c095ad9b7ff03e82c04df3da4a20a",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libiconv.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libjpeg",
+      "recipeCandidates": [
+        {
+          "path": "packages/libjpeg.cmake",
+          "sha256": "8ab2b1835ec12a5db8152146b8a814b7944b69f0b8ec0d477d79cd731a7c5019",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libjpeg.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libjxl",
+      "recipeCandidates": [
+        {
+          "path": "packages/libjxl.cmake",
+          "sha256": "ac5b42e265fd2949fb2ed9429ca8ce96a1784fe2e4bf908cdfdec1e7fb9e4bd7",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libjxl.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libmodplug",
+      "recipeCandidates": [
+        {
+          "path": "packages/libmodplug.cmake",
+          "sha256": "5c41503e29f825753f204d0e98bc2560e5d67ffbb14f4a194d8d4a0a593cf0b0",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libmodplug.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libmysofa",
+      "recipeCandidates": [
+        {
+          "path": "packages/libmysofa.cmake",
+          "sha256": "f36dca3dece42a06f1d201d2fec621dcb37e978ef7617231787a223cb2eeb532",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libmysofa.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libopenmpt",
+      "recipeCandidates": [
+        {
+          "path": "packages/libopenmpt.cmake",
+          "sha256": "0d5c354daa9e076768405bb2fc2aae75e8ad49800a305dfd2a2709eac61c400d",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libopenmpt.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libplacebo",
+      "recipeCandidates": [
+        {
+          "path": "packages/libplacebo.cmake",
+          "sha256": "64c407a343a43bfe8b372b12d5dac4621d1362f094239cfb2c215e6ce213332f",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libplacebo.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libpng",
+      "recipeCandidates": [
+        {
+          "path": "packages/libpng.cmake",
+          "sha256": "b6d7aa5b712c87b0d023e1506fefe0190eeab6849c3e63eeba9f329d65657720",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libpng.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libpsl",
+      "recipeCandidates": [
+        {
+          "path": "packages/libpsl.cmake",
+          "sha256": "de81de4a2791976cc1d52c114f3861ceae2154f825b3dcb0e609e09163d8b56f",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libpsl.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libsamplerate",
+      "recipeCandidates": [
+        {
+          "path": "packages/libsamplerate.cmake",
+          "sha256": "aec154ae791c215ef7669c30718bbc0dec7f6b727ea90145892b2ed664875b65",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libsamplerate.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libsdl2",
+      "recipeCandidates": [
+        {
+          "path": "packages/libsdl2.cmake",
+          "sha256": "e323098f27a92e23b406698ff1de547ca64c2d53c026fadd56a3e8d1e8732473",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libsdl2.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libsoxr",
+      "recipeCandidates": [
+        {
+          "path": "packages/libsoxr.cmake",
+          "sha256": "cec59d2ed74e2de1d3984eee656d475df047a2331d4b68219677d3a363bde38e",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libsoxr.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libsrt",
+      "recipeCandidates": [
+        {
+          "path": "packages/libsrt.cmake",
+          "sha256": "ab11608addcf34fac0f738a5abe3c35ead91e9bf1802373b2e5a94c6312b22b7",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libsrt.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libssh",
+      "recipeCandidates": [
+        {
+          "path": "packages/libssh.cmake",
+          "sha256": "31a497f6b79da6d518f3422456fdbaca58d354455a3ebf8832bc0f0bd2f568d6",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libssh.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libudfread",
+      "recipeCandidates": [
+        {
+          "path": "packages/libudfread.cmake",
+          "sha256": "0607b8034ca0feaebb4caff99cfca1ed1be8108c8c35b29b85a58ec0d872112a",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libudfread.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libunibreak",
+      "recipeCandidates": [
+        {
+          "path": "packages/libunibreak.cmake",
+          "sha256": "049156f79446ae26709c711abc0321c38ed723f5e45815de7cd5d2a11a74c00a",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libunibreak.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libva",
+      "recipeCandidates": [
+        {
+          "path": "packages/libva.cmake",
+          "sha256": "93ec04ce9d24844d548c69d20cc077c7c1a187901886d3956e021ed1b9aeb718",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libva.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libvpl",
+      "recipeCandidates": [
+        {
+          "path": "packages/libvpl.cmake",
+          "sha256": "f590f3290564e30bb17237ba2ea77e1e434a0e30dea524fbecd8bdbea8031527",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libvpl.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libvpx",
+      "recipeCandidates": [
+        {
+          "path": "packages/libvpx.cmake",
+          "sha256": "728c41fd3b6613fb0df4025b65c2ea8bb66781441cba23569c94cb36e9342164",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libvpx.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libwebp",
+      "recipeCandidates": [
+        {
+          "path": "packages/libwebp.cmake",
+          "sha256": "390d3b131e2dfa8a4fa093b7d05b2d3e6967962240057f0c183d4201f045aa45",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libwebp.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libxml2",
+      "recipeCandidates": [
+        {
+          "path": "packages/libxml2.cmake",
+          "sha256": "49de5caa0199c4291564408254f830539073721286aa3c715650d2fb791706fd",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libxml2.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libzimg",
+      "recipeCandidates": [
+        {
+          "path": "packages/libzimg.cmake",
+          "sha256": "918aac808ae4d526a9148c16735a615c6e7467ccda623afca07d34aee4b87c06",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libzimg.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "libzvbi",
+      "recipeCandidates": [
+        {
+          "path": "packages/libzvbi.cmake",
+          "sha256": "a647dbfaf97d65e6cc60a0ed0c19cca2a5316f1d3ec9fadd45e368d4f66bb2e9",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/libzvbi.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "luajit",
+      "recipeCandidates": [
+        {
+          "path": "packages/luajit.cmake",
+          "sha256": "75ffc396d502c453d4606238430fc70171aebfa3e26410a4f5b65405c7c49022",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/luajit.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "lzo",
+      "recipeCandidates": [
+        {
+          "path": "packages/lzo.cmake",
+          "sha256": "dbdb89326b8a02674195a34fff54a2d98f640f178fe62211fb7e2a6675cf3aa4",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/lzo.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "mpv",
+      "recipeCandidates": [
+        {
+          "path": "packages/mpv.cmake",
+          "sha256": "cfb9b0fbaaf6013069fe3eeda7e9e9644546f09cd772dbd549f8eb7fa21c7122",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/mpv.cmake"
+        }
+      ],
+      "runtimeExactCommit": "3186d369f9f090cd1363be0ac46a037824b702c6",
+      "exactMainSourceArchive": {
+        "name": "mpv-3186d369f9f090cd1363be0ac46a037824b702c6.tar.gz",
+        "sha256": "9e160328ced1266571ee57ae5b16ea77cc5c8ac34ebc1ec549ea73b5b4c54128",
+        "bytes": 7475297
+      },
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": "MAIN_MPV_NOTICES_ONLY",
+      "releaseApproved": false
+    },
+    {
+      "target": "mpv-packaging",
+      "recipeCandidates": [
+        {
+          "path": "packages/mpv-packaging.cmake",
+          "sha256": "301bedf93ba5c4533d01b76139e9fc89e73085ab5050c2c3b493df93b7b8538a",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/mpv-packaging.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "mpv-release",
+      "recipeCandidates": [
+        {
+          "path": "packages/mpv-release.cmake",
+          "sha256": "b9d03ca2a8dcf744cc2840817b69a5eee8230bf6d87b314b90b55d71116d8415",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/mpv-release.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "mujs",
+      "recipeCandidates": [
+        {
+          "path": "packages/mujs.cmake",
+          "sha256": "226d428b98e53dd5a1dea6609f0a273293a56951f53012408e4ee57b3a28fce4",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/mujs.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "nghttp2",
+      "recipeCandidates": [
+        {
+          "path": "packages/nghttp2.cmake",
+          "sha256": "d0d670835d662475e66d5083e745469f252458c0596b99c7cd34a2ba667ee872",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/nghttp2.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "nghttp3",
+      "recipeCandidates": [
+        {
+          "path": "packages/nghttp3.cmake",
+          "sha256": "190be5c09681097f68656ccac9b40b6de639ef861ce1c304601abd62a2ec1f54",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/nghttp3.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "ngtcp2",
+      "recipeCandidates": [
+        {
+          "path": "packages/ngtcp2.cmake",
+          "sha256": "fcf6d10a3544073065b35eb8ff9d8e9efc788de979f5dedbbc6c522e87abec54",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/ngtcp2.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "nvcodec-headers",
+      "recipeCandidates": [
+        {
+          "path": "packages/nvcodec-headers.cmake",
+          "sha256": "ada268ec2e56867a085e66f491e4bdce80bc2ccf84e591ecef75030ee04cab9f",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/nvcodec-headers.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "ogg",
+      "recipeCandidates": [
+        {
+          "path": "packages/ogg.cmake",
+          "sha256": "434cc5dd65190191772ffd44c68d10cffdb063eee3ea78f4b562b42be762bc2f",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/ogg.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "openal-soft",
+      "recipeCandidates": [
+        {
+          "path": "packages/openal-soft.cmake",
+          "sha256": "7dfbca2848cbba0ff98d87b3fe4b29931ed9dddef59ccc8eb531c22aea00f5ab",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/openal-soft.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "openssl",
+      "recipeCandidates": [
+        {
+          "path": "packages/openssl.cmake",
+          "sha256": "79cd848d11ebb59ccc55db4fa237e94d600428bbd9ae255c9abeb613ca4be8fc",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/openssl.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "opus",
+      "recipeCandidates": [
+        {
+          "path": "packages/opus.cmake",
+          "sha256": "2762c05c3e2cabf4f3959fdf60ea88bca522151be5940bd454cc5d3a106aa428",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/opus.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "opus-dnn",
+      "recipeCandidates": [
+        {
+          "path": "packages/opus-dnn.cmake",
+          "sha256": "6d0290f20a218b724317b260eace7e69da8529c644a7cbc0e4ae533c0d2adbed",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/opus-dnn.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "rubberband",
+      "recipeCandidates": [
+        {
+          "path": "packages/rubberband.cmake",
+          "sha256": "988619a42e100de14d5c05cd65fd80b49b13334324726eb6634f56b7c4b05da0",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/rubberband.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "shaderc",
+      "recipeCandidates": [
+        {
+          "path": "packages/shaderc.cmake",
+          "sha256": "d96198710bb6747e4386c706ceedc9c542d7f6a8c368b8c4623db7ee98233daa",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/shaderc.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "speex",
+      "recipeCandidates": [
+        {
+          "path": "packages/speex.cmake",
+          "sha256": "75a53b5a46f60bb1c09805c712fc8522e9ddeea55c02bdc033f07795d0541038",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/speex.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "spirv-cross",
+      "recipeCandidates": [
+        {
+          "path": "packages/spirv-cross.cmake",
+          "sha256": "a101e31511fed851006a88ecd8df71acd5fe498d9adc800d7bd455baf1e7a56c",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/spirv-cross.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "spirv-headers",
+      "recipeCandidates": [
+        {
+          "path": "packages/spirv-headers.cmake",
+          "sha256": "55f35846e4bac576a88351eba0d4e141b6786e0988004a3b1fdff111ac0ca173",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/spirv-headers.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "spirv-tools",
+      "recipeCandidates": [
+        {
+          "path": "packages/spirv-tools.cmake",
+          "sha256": "3feb4110baa93cabded6564caba08bdce883fba93797fa40860bd3713271bfc8",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/spirv-tools.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "subrandr",
+      "recipeCandidates": [
+        {
+          "path": "packages/subrandr.cmake",
+          "sha256": "cbf83815bc10a86c38151633826e413d34167410bc9569ee22c045c53a01f477",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/subrandr.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "svtav1",
+      "recipeCandidates": [
+        {
+          "path": "packages/svtav1.cmake",
+          "sha256": "4649b91fa340471263d52ef23fcd5dd0ff520dc60e91df564ce1059c4be27c9e",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/svtav1.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "uavs3d",
+      "recipeCandidates": [
+        {
+          "path": "packages/uavs3d.cmake",
+          "sha256": "d3d8b5282f9b0a82041cb702415eabdb1e762d1fae36d0203609c08546cc3714",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/uavs3d.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "uchardet",
+      "recipeCandidates": [
+        {
+          "path": "packages/uchardet.cmake",
+          "sha256": "8f47694c5e80817a39e78d60710b2d16a2e462b237af9a5a662e289060f104f8",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/uchardet.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "vapoursynth",
+      "recipeCandidates": [
+        {
+          "path": "packages/vapoursynth.cmake",
+          "sha256": "af684ecd93f7c8a7b33d65e727c6de42c5dcd8492e558d0d8b6cedcc8fbc0dc6",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/vapoursynth.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "vorbis",
+      "recipeCandidates": [
+        {
+          "path": "packages/vorbis.cmake",
+          "sha256": "398d8290d23fbf27eedee4a39d435c061a5fe51b20a1d67cc22e063ace9a057d",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/vorbis.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "vulkan",
+      "recipeCandidates": [
+        {
+          "path": "packages/vulkan.cmake",
+          "sha256": "d904d9ffb4a86d14849824f34a932fadf0b18c9fe58619c83392a339943a0bef",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/vulkan.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "vulkan-header",
+      "recipeCandidates": [
+        {
+          "path": "packages/vulkan-header.cmake",
+          "sha256": "b8a40525e3c781c51663ed3dadd3bf837035b94cfac1c1c2589679b21567fe36",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/vulkan-header.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "x264",
+      "recipeCandidates": [
+        {
+          "path": "packages/x264.cmake",
+          "sha256": "bc49bd473b91620a8a71f9b88bd28b85a3cc8f680cb283a6f8e1808f5f737ec7",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/x264.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "x265",
+      "recipeCandidates": [
+        {
+          "path": "packages/x265.cmake",
+          "sha256": "1e85d352aeda1b77378f00e691b2dc8cd3c350f8f33968f6b147c062043a142a",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/x265.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "xvidcore",
+      "recipeCandidates": [
+        {
+          "path": "packages/xvidcore.cmake",
+          "sha256": "48ac0fd5e16a4f93fedd986d1f4c8a90e597585936d92fcf919e79d72ec83ebc",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/xvidcore.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "xxhash",
+      "recipeCandidates": [
+        {
+          "path": "packages/xxhash.cmake",
+          "sha256": "0e732aa5a163749cc3876e34309f48cea3fb60464f5d6c229b4ce03e5eb647bb",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/xxhash.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "xz",
+      "recipeCandidates": [
+        {
+          "path": "packages/xz.cmake",
+          "sha256": "d7c809cfae2f7bb73bd3b216ee412dc8155f9fef481ea367fc87e87da3ce71b7",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/xz.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "zlib",
+      "recipeCandidates": [
+        {
+          "path": "packages/zlib.cmake",
+          "sha256": "1946f0b75dcb229abe0323644e9453c0868fef1264c28a64f2f02fb4b0f0369d",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/zlib.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    },
+    {
+      "target": "zstd",
+      "recipeCandidates": [
+        {
+          "path": "packages/zstd.cmake",
+          "sha256": "84c3e98c148ab52579c99106ac5f1256e842d3dd51369ad222c1d9f71fb716cb",
+          "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/packages/zstd.cmake"
+        }
+      ],
+      "runtimeExactCommit": null,
+      "exactMainSourceArchive": null,
+      "linkedInActualDll": null,
+      "completeSourceAndPatchesVerified": false,
+      "exactNoticesVerified": false,
+      "releaseApproved": false
+    }
+  ]
+}
