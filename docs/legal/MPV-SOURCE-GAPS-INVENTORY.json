@@ -53,7 +53,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "0cb8023c01f92b29f3738ea7472d06f8f059ed84",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "FIXED_RECIPE_RESET_NOT_BINARY_PROOF",
+        "recipeGitReset": "0cb8023c01f92b29f3738ea7472d06f8f059ed84",
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "angle-headers-0cb8023c01f92b29f3738ea7472d06f8f059ed84.tar.gz",
+          "sha256": "188cf3984802c8a126ed1a866eb3a7cccf5274fc0529017ab6458ef7ea5652d3",
+          "bytes": 16993490
+        }
+      }
     },
     {
       "target": "aom",
@@ -69,7 +81,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "e80624b5ed070d8e88a39ea78cae60d25a65adba",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "aom-e80624b5ed070d8e88a39ea78cae60d25a65adba.tar.gz",
+          "sha256": "2e10ad37fb808d6f56a14f326c4848828b82af80c52f74558dceeba1902447a3",
+          "bytes": 6705745
+        }
+      }
     },
     {
       "target": "avisynth-headers",
@@ -133,7 +157,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "f4156c12c8b36f5cb8f8a53658d44b24263c6ad1",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "c-ares-f4156c12c8b36f5cb8f8a53658d44b24263c6ad1.tar.gz",
+          "sha256": "c1f483dd8581c30d5571e7be4efe39c3ea6c375d832d754db4f268287e9a5c45",
+          "bytes": 724626
+        }
+      }
     },
     {
       "target": "dav1d",
@@ -181,7 +217,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "1271a4831878ba897c520365c88567aed59ad168",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "expat-1271a4831878ba897c520365c88567aed59ad168.tar.gz",
+          "sha256": "8ba50acdda8cd72a6952f2d29edcd03ccfda5860561908c7ad5fc7065cfe2b18",
+          "bytes": 8484012
+        }
+      }
     },
     {
       "target": "ffmpeg",
@@ -201,7 +249,19 @@
       "linkedInActualDll": true,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "460cb05218a236cb587516fe2c8b121403609d95",
+        "actualDllRevisionVerified": true,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "ffmpeg-460cb05218a236cb587516fe2c8b121403609d95.tar.gz",
+          "sha256": "3decb6585d8cb3a34bf52b655a22c71bee89ba82d291d4c11b9f91fe358ff9ba",
+          "bytes": 17787577
+        }
+      }
     },
     {
       "target": "fontconfig",
@@ -217,7 +277,15 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "COLLECTION_FAILED",
+        "archive": null
+      }
     },
     {
       "target": "freetype2",
@@ -233,7 +301,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "adf52842066d16931bb0c16da1ffa2ca277c8a00",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "freetype2-adf52842066d16931bb0c16da1ffa2ca277c8a00.tar.gz",
+          "sha256": "1018c4e07d569ff0d2720746b8adbb96959fb0750d4baed797b5ec2d17faf900",
+          "bytes": 2573542
+        }
+      }
     },
     {
       "target": "fribidi",
@@ -329,7 +409,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "b58d201455298c0d9d8dfdc0c7d21b851381b660",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "harfbuzz-b58d201455298c0d9d8dfdc0c7d21b851381b660.tar.gz",
+          "sha256": "05a7a56a8477c12604dc71ad4ff004140afa53dfd59db6cc8f5ba2c256f6e055",
+          "bytes": 38815678
+        }
+      }
     },
     {
       "target": "highway",
@@ -345,7 +437,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "1332fe861b6b90deab51011f285d8f922701d549",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "highway-1332fe861b6b90deab51011f285d8f922701d549.tar.gz",
+          "sha256": "5c49056e4ddaa2f0a21bf199fc82a75aa0f45dd9bf3fe0e83cd4842513c163a7",
+          "bytes": 12171108
+        }
+      }
     },
     {
       "target": "lame",
@@ -377,7 +481,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "772f106dd4ab67b21cfd77f2698290aa9279e6ac",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "lcms2-772f106dd4ab67b21cfd77f2698290aa9279e6ac.tar.gz",
+          "sha256": "533840df8a576cd1fb18903aaf9c0be8b4428a9623792ea01e16086660d20616",
+          "bytes": 6242587
+        }
+      }
     },
     {
       "target": "libarchive",
@@ -393,7 +509,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "d294297f9ecade3b2446b677bd087ad84fb7965a",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "libarchive-d294297f9ecade3b2446b677bd087ad84fb7965a.tar.gz",
+          "sha256": "00d80ac457e6ea0512ebb287335f656b29de287b4452038ff43a0c9379f4f368",
+          "bytes": 6816975
+        }
+      }
     },
     {
       "target": "libaribcaption",
@@ -617,7 +745,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "92b5ac6db79f4d680eb656692f7bf51e9606f42a",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "libplacebo-92b5ac6db79f4d680eb656692f7bf51e9606f42a.tar.gz",
+          "sha256": "367eb22a5c366ad9152e44968fcaf4deaaf08f1835649150b887b51d79444d13",
+          "bytes": 883673
+        }
+      }
     },
     {
       "target": "libpng",
@@ -681,7 +821,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "b29a2827f801d1e2278c308acd447ca51ac8e057",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "libsdl2-b29a2827f801d1e2278c308acd447ca51ac8e057.tar.gz",
+          "sha256": "c605e6e6c8bbe1be71f8947c17f14de2dcbd877771216c4b33b4355f1cd5698c",
+          "bytes": 7913547
+        }
+      }
     },
     {
       "target": "libsoxr",
@@ -713,7 +865,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "4b8813f1dcd9dba7015dbb51585332c85ad73a2a",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "libsrt-4b8813f1dcd9dba7015dbb51585332c85ad73a2a.tar.gz",
+          "sha256": "17be66c07052c13e55a8380fc01fc72595af51314b9361ae32ffd8e5fbd341fd",
+          "bytes": 1803416
+        }
+      }
     },
     {
       "target": "libssh",
@@ -825,7 +989,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "91505ed91fcefa81f6c79a87a1d0740701e4e565",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "libwebp-91505ed91fcefa81f6c79a87a1d0740701e4e565.tar.gz",
+          "sha256": "27c1ee86005087e6338baaa0e3f15af6a7ae9986f53620fa95e83230526564ec",
+          "bytes": 3897140
+        }
+      }
     },
     {
       "target": "libxml2",
@@ -1069,7 +1245,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "3b41d45046d523ca1b8cc409eef90bd71b45c496",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "openal-soft-3b41d45046d523ca1b8cc409eef90bd71b45c496.tar.gz",
+          "sha256": "0e9c6983beaa3471da84bfd0d5f5d6f63d0e7b441b7a9ecceda622e77895d32b",
+          "bytes": 1620685
+        }
+      }
     },
     {
       "target": "openssl",
@@ -1085,7 +1273,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "d8bf6cdd4849925c30e4f1911c7acb49cb34b702",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "FIXED_RECIPE_RESET_NOT_BINARY_PROOF",
+        "recipeGitReset": "d8bf6cdd4849925c30e4f1911c7acb49cb34b702",
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "openssl-d8bf6cdd4849925c30e4f1911c7acb49cb34b702.tar.gz",
+          "sha256": "8009a601f3dcfb1ac974b03cd43dd9862b8db088e5d971293c7ba49abeb9775a",
+          "bytes": 55580317
+        }
+      }
     },
     {
       "target": "opus",
@@ -1149,7 +1349,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "f6949aa1ddaac54a10268ed55ad71a0d2e441b5c",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "shaderc-f6949aa1ddaac54a10268ed55ad71a0d2e441b5c.tar.gz",
+          "sha256": "6f9f56256b5ff0ad238e64e3575a7c072075c01b6c8542502a3c0e215fc48d47",
+          "bytes": 240703
+        }
+      }
     },
     {
       "target": "speex",
@@ -1213,7 +1425,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "4f3a92dfbd5b49593e43b3c245b6688da2ad933a",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "spirv-tools-4f3a92dfbd5b49593e43b3c245b6688da2ad933a.tar.gz",
+          "sha256": "bc9008f1c1ab648c95d9bd6984c968c6f16d03df364512c25343beeda8d8ea76",
+          "bytes": 3573824
+        }
+      }
     },
     {
       "target": "subrandr",
@@ -1245,7 +1469,15 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "COLLECTION_FAILED",
+        "archive": null
+      }
     },
     {
       "target": "uavs3d",
@@ -1325,7 +1557,19 @@
       "linkedInActualDll": null,
       "completeSourceAndPatchesVerified": false,
       "exactNoticesVerified": false,
-      "releaseApproved": false
+      "releaseApproved": false,
+      "candidateSourceRecovery": {
+        "fullCommit": "a3f52c7e776b3d8ab3a731f0dc2b4080d27de33e",
+        "actualDllRevisionVerified": false,
+        "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+        "recipeGitReset": null,
+        "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+        "archive": {
+          "name": "vulkan-a3f52c7e776b3d8ab3a731f0dc2b4080d27de33e.tar.gz",
+          "sha256": "00224e08925ae2ab60095b1fceb37ab7ad0872790048b5df90c01acf58300234",
+          "bytes": 1873515
+        }
+      }
     },
     {
       "target": "vulkan-header",
@@ -1455,5 +1699,6 @@
       "exactNoticesVerified": false,
       "releaseApproved": false
     }
-  ]
+  ],
+  "candidateRecoveryEvidence": "MPV-DEPENDENCY-SOURCE-RECOVERY.json"
 }

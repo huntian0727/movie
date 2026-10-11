@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-11",
+  "status": "PRIVATE_SOURCE_REVIEW_ARCHIVE_REVERIFIED_NOT_APPROVED",
+  "releaseAllowed": false,
+  "archive": {
+    "name": "FFmpeg-Lite-8.1.2-corresponding-sources-REVIEW-v2.zip",
+    "bytes": 239488121,
+    "sha256": "6ed202c4e30627624e2678a2a62e7c9c6e347be4a57d9b6af248fd45571b15d4",
+    "zipEntries": 14
+  },
+  "verifiedChecksums": 13,
+  "files": [
+    {
+      "name": "ffmpeg-8.1.2.tar.xz",
+      "sha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
+      "bytes": 11710924
+    },
+    {
+      "name": "ffmpeg-lgpl-buildscripts-v8.1.2-27.tar.gz",
+      "sha256": "8da5eba4cb5662b4744403bf2de8b70a5a274de200ce39ae69f2602e404f439e",
+      "bytes": 32279
+    },
+    {
+      "name": "GCC-RUNTIME-LIBRARY-EXCEPTION-3.1.txt",
+      "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74",
+      "bytes": 3324
+    },
+    {
+      "name": "LGPL_COMPLIANCE_CHECKLIST.md",
+      "sha256": "1cf6c4ca1ed83349fd8ec289881ac776d6b161f27f7f45e7006f6edf5df9f554",
+      "bytes": 2349
+    },
+    {
+      "name": "mingw-w64-gcc-16.1.0-5.src.tar.zst",
+      "sha256": "947166ed372d28ab8ffa25a66bc5e37a60a42e96a686424ce58cad304fcaea15",
+      "bytes": 102479270
+    },
+    {
+      "name": "mingw-w64-libvpl-2.17.0-1.src.tar.zst",
+      "sha256": "4bd392447f4a5f986462cfc412ab7ace3dfaa980e53b41f35d08c44b8b31cc9d",
+      "bytes": 12923471
+    },
+    {
+      "name": "mingw-w64-openh264-2.6.0-1.src.tar.zst",
+      "sha256": "034c3e843d8bd584ffd95d89c8cdecfb71a0191afaacc2ccb6b12ca3119541ac",
+      "bytes": 60290594
+    },
+    {
+      "name": "mingw-w64-winpthreads-14.0.0.r179.g24aaa6147-1.src.tar.zst",
+      "sha256": "5b1659ca665551b57c3c4b0075ef323839457eeb62c3cc3855df9149f84978d6",
+      "bytes": 51994397
+    },
+    {
+      "name": "MSYS2-EXACT-PACKAGE-EVIDENCE.json",
+      "sha256": "48cdf82052320999b6f5422d08ff3193e2b5ffaeffac38d7c7e3f0e391c97195",
+      "bytes": 7035
+    },
+    {
+      "name": "MSYS2-EXACT-SOURCE-EVIDENCE.json",
+      "sha256": "e4ec624b01bb53478a32010f96cfb1aa2a5b77b27cce98679254be582b47558c",
+      "bytes": 3808
+    },
+    {
+      "name": "README_SOURCE.txt",
+      "sha256": "270c47fbefd3c890223ef70d42b6615822e9537ffe23397ce529f4c50674453c",
+      "bytes": 628
+    },
+    {
+      "name": "SOURCE_OFFER.md",
+      "sha256": "59163c0e571030879f0e199fef1181a7979c949049031bceacf75a45b25d64d9",
+      "bytes": 4505
+    },
+    {
+      "name": "THIRD_PARTY_RELEASE_NOTICES.md",
+      "sha256": "32510bde6637542bbcb22ee15178742d2931c44b48abac4e79017479185e2eda",
+      "bytes": 1773
+    }
+  ],
+  "unresolved": [
+    "No public source delivery was performed.",
+    "Actual source/binary build reproduction, static-link obligations review and final distribution approval remain open."
+  ]
+}

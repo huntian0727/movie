@@ -1,0 +1,1322 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-11",
+  "releaseAllowed": false,
+  "dllSha256": "8ca42a74311b813abc21f4264e7ed5f12a16419596bcbda96e49f10f8187befe",
+  "debugArchive": {
+    "name": "mpv-debug-x86_64-20261002-git-3186d369f9.7z",
+    "sha256": "c3fecb0607cb12f0a95b6f95c1df8dad9987aff3227c871b57dd879b2dca364f",
+    "bytes": 57640375,
+    "artifactId": 11203170689,
+    "workflowRun": 36943730454,
+    "workflowArtifactZipDigest": "sha256:1d5e3e3455b5575215f1d3604faf606d559fada4b0d045a127aab136770001ae",
+    "scope": "Hash is of the downloaded inner 7z. API digest is of the outer artifact ZIP and was not equated with the 7z hash."
+  },
+  "debugPdb": {
+    "sha256": "cba77162d43d3c7b8ba4a43efb852aa61343fa39a2a17117897e0baa8ebacf13",
+    "bytes": 369942528,
+    "guidBytes": "8f279cec15b1e9d84c4c44205044422e",
+    "age": 1
+  },
+  "dllCodeViewCandidates": [
+    {
+      "guidBytes": "9c13edd1784132bb4c4c44205044422e",
+      "age": 1,
+      "path": "/__w/mpv-winbuild-cmake/mpv-winbuild-cmake/build_x86_64/packages/mpv-prefix/src/mpv-build/libmpv-2.pdb"
+    }
+  ],
+  "pdbMatchesDll": false,
+  "helper": {
+    "path": "cmake/custom_steps.cmake",
+    "sha256": "b5dc88003f81d95e9a86c4befe1bac1472a4ec15c6d9a56a8bfd9c5fabf698a2",
+    "scope": "Read only; upstream shell commands were not executed.",
+    "url": "https://github.com/shinchiro/mpv-winbuild-cmake/blob/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2/cmake/custom_steps.cmake"
+  },
+  "logSha256": "b2f1794679abb6b0c41b7df3f56e6eabfa602c8af2bc84a934bc88c6566bbaf3",
+  "status": "PARTIAL_CANDIDATE_SOURCE_RECOVERY_NOT_RELEASE_APPROVED",
+  "privateArchiveDirectory": "D:/CodexReleaseAudit/movie-mpv-recovered-candidate-sources-20261011",
+  "sourceCandidates": [
+    {
+      "target": "lcms2",
+      "startLine": 404,
+      "fetches": [
+        {
+          "old": "35cef87",
+          "tip": "772f106",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 406
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/mm2/Little-CMS",
+      "recipePath": "packages/lcms2.cmake",
+      "recipeSha256": "78ac60adc47be993cf59f7f1d318d78558a2850755a8b4b5181f68434245edbe",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "772f106",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "772f106dd4ab67b21cfd77f2698290aa9279e6ac",
+      "commitUrl": "https://github.com/mm2/Little-CMS/commit/772f106dd4ab67b21cfd77f2698290aa9279e6ac",
+      "committerDate": "2026-10-01T17:02:46Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "lcms2-772f106dd4ab67b21cfd77f2698290aa9279e6ac.tar.gz",
+        "url": "https://codeload.github.com/mm2/Little-CMS/tar.gz/772f106dd4ab67b21cfd77f2698290aa9279e6ac",
+        "sha256": "533840df8a576cd1fb18903aaf9c0be8b4428a9623792ea01e16086660d20616",
+        "bytes": 6242587,
+        "tarEntries": 435,
+        "allNoticeMemberCount": 5,
+        "topLevelNotices": [
+          {
+            "member": "Little-CMS-772f106dd4ab67b21cfd77f2698290aa9279e6ac/AUTHORS",
+            "sha256": "4847d97cd41e980794939b1d2694bd8f67b92856ec80e95c2fcfc34066f0df93",
+            "bytes": 1010
+          },
+          {
+            "member": "Little-CMS-772f106dd4ab67b21cfd77f2698290aa9279e6ac/LICENSE",
+            "sha256": "6dbd60437f8ef91d8de1f08ad75882547fd4931bfcc3566a0735f28db1484d31",
+            "bytes": 1080
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "expat",
+      "startLine": 427,
+      "fetches": [
+        {
+          "old": "084c14c",
+          "tip": "1271a48",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 430
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/libexpat/libexpat",
+      "recipePath": "packages/expat.cmake",
+      "recipeSha256": "368e92a92117d8b96989c2050301ecf8f93947581eee899dd7d696284985450f",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "1271a48",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "1271a4831878ba897c520365c88567aed59ad168",
+      "commitUrl": "https://github.com/libexpat/libexpat/commit/1271a4831878ba897c520365c88567aed59ad168",
+      "committerDate": "2026-10-01T17:50:32Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "expat-1271a4831878ba897c520365c88567aed59ad168.tar.gz",
+        "url": "https://codeload.github.com/libexpat/libexpat/tar.gz/1271a4831878ba897c520365c88567aed59ad168",
+        "sha256": "8ba50acdda8cd72a6952f2d29edcd03ccfda5860561908c7ad5fc7065cfe2b18",
+        "bytes": 8484012,
+        "tarEntries": 251,
+        "allNoticeMemberCount": 3,
+        "topLevelNotices": [
+          {
+            "member": "libexpat-1271a4831878ba897c520365c88567aed59ad168/COPYING",
+            "sha256": "73cc92f80889ab23c7287b1a11dd50fdec190c3f26ebe5938c579043817d651e",
+            "bytes": 1144
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "freetype2",
+      "startLine": 435,
+      "fetches": [
+        {
+          "old": "c30faba",
+          "tip": "adf5284",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 437
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/freetype/freetype",
+      "recipePath": "packages/freetype2.cmake",
+      "recipeSha256": "eed687f636ec335af2e341537e089857f75a659e69d02da5176715628bf3b035",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "adf5284",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "adf52842066d16931bb0c16da1ffa2ca277c8a00",
+      "commitUrl": "https://github.com/freetype/freetype/commit/adf52842066d16931bb0c16da1ffa2ca277c8a00",
+      "committerDate": "2026-10-01T12:45:11Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "freetype2-adf52842066d16931bb0c16da1ffa2ca277c8a00.tar.gz",
+        "url": "https://codeload.github.com/freetype/freetype/tar.gz/adf52842066d16931bb0c16da1ffa2ca277c8a00",
+        "sha256": "1018c4e07d569ff0d2720746b8adbb96959fb0750d4baed797b5ec2d17faf900",
+        "bytes": 2573542,
+        "tarEntries": 841,
+        "allNoticeMemberCount": 1,
+        "topLevelNotices": [
+          {
+            "member": "freetype-adf52842066d16931bb0c16da1ffa2ca277c8a00/LICENSE.TXT",
+            "sha256": "bd36c8b474855fa294c2ec5c184544478ef3720aad37d65a6296a4f264fd2d3b",
+            "bytes": 2149
+          }
+        ],
+        "submoduleFiles": [
+          "freetype-adf52842066d16931bb0c16da1ffa2ca277c8a00/.gitmodules"
+        ],
+        "topLevelSubmoduleDescriptions": [
+          "[submodule \"dlg\"]\n\tpath = subprojects/dlg\n\turl = https://github.com/nyorain/dlg.git\n"
+        ],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "harfbuzz",
+      "startLine": 445,
+      "fetches": [
+        {
+          "old": "eb033319",
+          "tip": "b58d2014",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 448
+        },
+        {
+          "old": "96f6aa84",
+          "tip": "c27beebf",
+          "branch": "beyond-64k",
+          "remoteBranch": "origin/beyond-64k",
+          "line": 449
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/harfbuzz/harfbuzz",
+      "recipePath": "packages/harfbuzz.cmake",
+      "recipeSha256": "9b8a2f9f2b7dfb440ff7f6c925489ae1cee64b3119f5556f6c103c786f653f4b",
+      "recipeGitTag": "main",
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "b58d2014",
+      "selectedBranch": "main",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "b58d201455298c0d9d8dfdc0c7d21b851381b660",
+      "commitUrl": "https://github.com/harfbuzz/harfbuzz/commit/b58d201455298c0d9d8dfdc0c7d21b851381b660",
+      "committerDate": "2026-10-01T22:11:36Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "harfbuzz-b58d201455298c0d9d8dfdc0c7d21b851381b660.tar.gz",
+        "url": "https://codeload.github.com/harfbuzz/harfbuzz/tar.gz/b58d201455298c0d9d8dfdc0c7d21b851381b660",
+        "sha256": "05a7a56a8477c12604dc71ad4ff004140afa53dfd59db6cc8f5ba2c256f6e055",
+        "bytes": 38815678,
+        "tarEntries": 4034,
+        "allNoticeMemberCount": 7,
+        "topLevelNotices": [
+          {
+            "member": "harfbuzz-b58d201455298c0d9d8dfdc0c7d21b851381b660/AUTHORS",
+            "sha256": "19bfe8f5ed100636cd24ab0c90a3f71c21d8b02d9ba00719447a0faab364d49f",
+            "bytes": 201
+          },
+          {
+            "member": "harfbuzz-b58d201455298c0d9d8dfdc0c7d21b851381b660/COPYING",
+            "sha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
+            "bytes": 1971
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "openssl",
+      "startLine": 461,
+      "fetches": [
+        {
+          "old": "3ca9cd10b",
+          "tip": "7ef69a722",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 463
+        },
+        {
+          "old": "5b3a9e930",
+          "tip": "1fd9d72e7",
+          "branch": "feature/ossl_fn",
+          "remoteBranch": "origin/feature/ossl_fn",
+          "line": 464
+        },
+        {
+          "old": "e7f8787bb",
+          "tip": "b8fc1d5a6",
+          "branch": "openssl-3.5",
+          "remoteBranch": "origin/openssl-3.5",
+          "line": 465
+        },
+        {
+          "old": "44881ed0c",
+          "tip": "7bbd203fc",
+          "branch": "openssl-3.6",
+          "remoteBranch": "origin/openssl-3.6",
+          "line": 466
+        },
+        {
+          "old": "bde16d1aa",
+          "tip": "517ce5370",
+          "branch": "openssl-4.0",
+          "remoteBranch": "origin/openssl-4.0",
+          "line": 467
+        },
+        {
+          "old": "ae24bfbd4",
+          "tip": "ede5fe374",
+          "branch": "openssl-4.1",
+          "remoteBranch": "origin/openssl-4.1",
+          "line": 468
+        }
+      ],
+      "stampRemoved": false,
+      "url": "https://github.com/openssl/openssl",
+      "recipePath": "packages/openssl.cmake",
+      "recipeSha256": "79cd848d11ebb59ccc55db4fa237e94d600428bbd9ae255c9abeb613ca4be8fc",
+      "recipeGitTag": null,
+      "recipeGitReset": "d8bf6cdd4849925c30e4f1911c7acb49cb34b702",
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "d8bf6cdd4849925c30e4f1911c7acb49cb34b702",
+      "selectedBranch": "master",
+      "evidenceLevel": "FIXED_RECIPE_RESET_NOT_BINARY_PROOF",
+      "fullCommit": "d8bf6cdd4849925c30e4f1911c7acb49cb34b702",
+      "commitUrl": "https://github.com/openssl/openssl/commit/d8bf6cdd4849925c30e4f1911c7acb49cb34b702",
+      "committerDate": "2026-07-18T12:53:09Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "openssl-d8bf6cdd4849925c30e4f1911c7acb49cb34b702.tar.gz",
+        "url": "https://codeload.github.com/openssl/openssl/tar.gz/d8bf6cdd4849925c30e4f1911c7acb49cb34b702",
+        "sha256": "8009a601f3dcfb1ac974b03cd43dd9862b8db088e5d971293c7ba49abeb9775a",
+        "bytes": 55580317,
+        "tarEntries": 6374,
+        "allNoticeMemberCount": 4,
+        "topLevelNotices": [
+          {
+            "member": "openssl-d8bf6cdd4849925c30e4f1911c7acb49cb34b702/AUTHORS.md",
+            "sha256": "b9f638dfc06b59c2d3b808186c3b30f713805a5db390f5b77b1703ac58acb83e",
+            "bytes": 1022
+          },
+          {
+            "member": "openssl-d8bf6cdd4849925c30e4f1911c7acb49cb34b702/LICENSE.txt",
+            "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a",
+            "bytes": 10175
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "libsrt",
+      "startLine": 469,
+      "fetches": [
+        {
+          "old": "74d7083",
+          "tip": "4b8813f",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 471
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/Haivision/srt",
+      "recipePath": "packages/libsrt.cmake",
+      "recipeSha256": "ab11608addcf34fac0f738a5abe3c35ead91e9bf1802373b2e5a94c6312b22b7",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "4b8813f",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "4b8813f1dcd9dba7015dbb51585332c85ad73a2a",
+      "commitUrl": "https://github.com/Haivision/srt/commit/4b8813f1dcd9dba7015dbb51585332c85ad73a2a",
+      "committerDate": "2026-10-01T12:09:54Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "libsrt-4b8813f1dcd9dba7015dbb51585332c85ad73a2a.tar.gz",
+        "url": "https://codeload.github.com/Haivision/srt/tar.gz/4b8813f1dcd9dba7015dbb51585332c85ad73a2a",
+        "sha256": "17be66c07052c13e55a8380fc01fc72595af51314b9361ae32ffd8e5fbd341fd",
+        "bytes": 1803416,
+        "tarEntries": 392,
+        "allNoticeMemberCount": 1,
+        "topLevelNotices": [
+          {
+            "member": "srt-4b8813f1dcd9dba7015dbb51585332c85ad73a2a/LICENSE",
+            "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
+            "bytes": 16726
+          }
+        ],
+        "submoduleFiles": [
+          "srt-4b8813f1dcd9dba7015dbb51585332c85ad73a2a/.gitmodules"
+        ],
+        "topLevelSubmoduleDescriptions": [
+          "[submodule \"submodules/abi-compliance-checker\"]\n\tpath = submodules/abi-compliance-checker\n\turl = https://github.com/lvc/abi-compliance-checker.git\n"
+        ],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "libwebp",
+      "startLine": 479,
+      "fetches": [
+        {
+          "old": "b3a9f08",
+          "tip": "91505ed",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 481
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://chromium.googlesource.com/webm/libwebp",
+      "recipePath": "packages/libwebp.cmake",
+      "recipeSha256": "390d3b131e2dfa8a4fa093b7d05b2d3e6967962240057f0c183d4201f045aa45",
+      "recipeGitTag": "main",
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "91505ed",
+      "selectedBranch": "main",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "fullCommit": "91505ed91fcefa81f6c79a87a1d0740701e4e565",
+      "archive": {
+        "name": "libwebp-91505ed91fcefa81f6c79a87a1d0740701e4e565.tar.gz",
+        "url": "https://chromium.googlesource.com/webm/libwebp/+archive/91505ed91fcefa81f6c79a87a1d0740701e4e565.tar.gz",
+        "sha256": "27c1ee86005087e6338baaa0e3f15af6a7ae9986f53620fa95e83230526564ec",
+        "bytes": 3897140,
+        "tarEntries": 375,
+        "allNoticeMemberCount": 2,
+        "topLevelNotices": [
+          {
+            "member": "AUTHORS",
+            "sha256": "f251be89fd442bd9d701360730aea163cc8e2076ff03528f59267dc2c4f8b60a",
+            "bytes": 3279
+          },
+          {
+            "member": "COPYING",
+            "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf",
+            "bytes": 1496
+          }
+        ],
+        "submoduleFiles": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "libarchive",
+      "startLine": 483,
+      "fetches": [
+        {
+          "old": "b85aa23",
+          "tip": "d294297",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 485
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/libarchive/libarchive",
+      "recipePath": "packages/libarchive.cmake",
+      "recipeSha256": "4f5dd14180a11f34159bb652ab536ffb3118f867fe76b2a7d312d0624491ed61",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "d294297",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "d294297f9ecade3b2446b677bd087ad84fb7965a",
+      "commitUrl": "https://github.com/libarchive/libarchive/commit/d294297f9ecade3b2446b677bd087ad84fb7965a",
+      "committerDate": "2026-10-01T21:23:46Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "libarchive-d294297f9ecade3b2446b677bd087ad84fb7965a.tar.gz",
+        "url": "https://codeload.github.com/libarchive/libarchive/tar.gz/d294297f9ecade3b2446b677bd087ad84fb7965a",
+        "sha256": "00d80ac457e6ea0512ebb287335f656b29de287b4452038ff43a0c9379f4f368",
+        "bytes": 6816975,
+        "tarEntries": 1581,
+        "allNoticeMemberCount": 1,
+        "topLevelNotices": [
+          {
+            "member": "libarchive-d294297f9ecade3b2446b677bd087ad84fb7965a/COPYING",
+            "sha256": "30e556b3959e3985d66efefec5eaac51d4995053caa1d3cffe6eb916f146f229",
+            "bytes": 3089
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "fontconfig",
+      "startLine": 490,
+      "fetches": [
+        {
+          "old": "bd8f7b5",
+          "tip": "d416ada",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 492
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://gitlab.freedesktop.org/fontconfig/fontconfig",
+      "recipePath": "packages/fontconfig.cmake",
+      "recipeSha256": "c20c10d75476bf1f99818e5dda7644c94ae157372b9fd396c09f1b2122b006aa",
+      "recipeGitTag": "main",
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "d416ada",
+      "selectedBranch": "main",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "sourceCollectionStatus": "COLLECTION_FAILED",
+      "collectionError": "HTTP 406 https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc/fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc.tar.gz",
+      "fullCommit": "d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
+      "commitUrl": "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/commit/d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
+      "archiveApiAttemptError": "HTTP 406 https://gitlab.freedesktop.org/api/v4/projects/fontconfig%2Ffontconfig/repository/archive.tar.gz?sha=d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "highway",
+      "startLine": 494,
+      "fetches": [
+        {
+          "old": "d6a05fc",
+          "tip": "1332fe8",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 500
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/google/highway",
+      "recipePath": "packages/highway.cmake",
+      "recipeSha256": "26b46bc1f08f35d7fda6f2bab349224e39a3972942ccad7aca3b8b768954fa87",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "1332fe8",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "1332fe861b6b90deab51011f285d8f922701d549",
+      "commitUrl": "https://github.com/google/highway/commit/1332fe861b6b90deab51011f285d8f922701d549",
+      "committerDate": "2026-10-01T18:32:14Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "highway-1332fe861b6b90deab51011f285d8f922701d549.tar.gz",
+        "url": "https://codeload.github.com/google/highway/tar.gz/1332fe861b6b90deab51011f285d8f922701d549",
+        "sha256": "5c49056e4ddaa2f0a21bf199fc82a75aa0f45dd9bf3fe0e83cd4842513c163a7",
+        "bytes": 12171108,
+        "tarEntries": 426,
+        "allNoticeMemberCount": 2,
+        "topLevelNotices": [
+          {
+            "member": "highway-1332fe861b6b90deab51011f285d8f922701d549/LICENSE",
+            "sha256": "85de9303e7a81f35d81befd51a4004c41b5e7f7e40cd4e3f5ff609ecd71a0e44",
+            "bytes": 13435
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "aom",
+      "startLine": 504,
+      "fetches": [
+        {
+          "old": "34c31c53",
+          "tip": "e80624b5",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 506
+        },
+        {
+          "old": "1dfb7a15",
+          "tip": "51c3d8cf",
+          "branch": "quibblepants",
+          "remoteBranch": "origin/quibblepants",
+          "line": 507
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://aomedia.googlesource.com/aom",
+      "recipePath": "packages/aom.cmake",
+      "recipeSha256": "73c4f6335a5be0a8fb8639cea1936faa61c861f4cdb5c129e5384e3f04441eee",
+      "recipeGitTag": "main",
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "e80624b5",
+      "selectedBranch": "main",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "fullCommit": "e80624b5ed070d8e88a39ea78cae60d25a65adba",
+      "archive": {
+        "name": "aom-e80624b5ed070d8e88a39ea78cae60d25a65adba.tar.gz",
+        "url": "https://aomedia.googlesource.com/aom/+archive/e80624b5ed070d8e88a39ea78cae60d25a65adba.tar.gz",
+        "sha256": "2e10ad37fb808d6f56a14f326c4848828b82af80c52f74558dceeba1902447a3",
+        "bytes": 6705745,
+        "tarEntries": 1599,
+        "allNoticeMemberCount": 10,
+        "topLevelNotices": [
+          {
+            "member": "AUTHORS",
+            "sha256": "c31b80ca48fde06ca03aef2f3dec15413fe0c2661fe6b56e86ccd69dbc6f9a1d",
+            "bytes": 13178
+          },
+          {
+            "member": "LICENSE",
+            "sha256": "4764a286d8b2faeaf42f4418e7d7a28d58fc8fd4d00a3d0a7f44b0a4099de7f2",
+            "bytes": 1316
+          }
+        ],
+        "submoduleFiles": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "angle-headers",
+      "startLine": 509,
+      "fetches": [
+        {
+          "old": "8f1c9f81",
+          "tip": "0855dd00",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 511
+        },
+        {
+          "old": "4bf6339c",
+          "tip": "bad2d7da",
+          "branch": "chromium/7871",
+          "remoteBranch": "origin/chromium/7871",
+          "line": 512
+        },
+        {
+          "old": "dfeede58",
+          "tip": "77c4c35a",
+          "branch": "chromium/8078",
+          "remoteBranch": "origin/chromium/8078",
+          "line": 516
+        }
+      ],
+      "stampRemoved": false,
+      "url": "https://github.com/google/angle",
+      "recipePath": "packages/angle-headers.cmake",
+      "recipeSha256": "9a1b2255f2811337e8b3ff7e05da3944969d98652ed722281589dc640f428b06",
+      "recipeGitTag": "main",
+      "recipeGitReset": "0cb8023c01f92b29f3738ea7472d06f8f059ed84",
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "0cb8023c01f92b29f3738ea7472d06f8f059ed84",
+      "selectedBranch": "main",
+      "evidenceLevel": "FIXED_RECIPE_RESET_NOT_BINARY_PROOF",
+      "fullCommit": "0cb8023c01f92b29f3738ea7472d06f8f059ed84",
+      "commitUrl": "https://github.com/google/angle/commit/0cb8023c01f92b29f3738ea7472d06f8f059ed84",
+      "committerDate": "2026-07-06T21:23:32Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "angle-headers-0cb8023c01f92b29f3738ea7472d06f8f059ed84.tar.gz",
+        "url": "https://codeload.github.com/google/angle/tar.gz/0cb8023c01f92b29f3738ea7472d06f8f059ed84",
+        "sha256": "188cf3984802c8a126ed1a866eb3a7cccf5274fc0529017ab6458ef7ea5652d3",
+        "bytes": 16993490,
+        "tarEntries": 4831,
+        "allNoticeMemberCount": 27,
+        "topLevelNotices": [
+          {
+            "member": "angle-0cb8023c01f92b29f3738ea7472d06f8f059ed84/AUTHORS",
+            "sha256": "a4e8f505acefb7a17165654b10a2bee6f6486e933befde8d81e2237839efe6e2",
+            "bytes": 1751
+          },
+          {
+            "member": "angle-0cb8023c01f92b29f3738ea7472d06f8f059ed84/LICENSE",
+            "sha256": "bf4da21bd20bcfb5b60b7ecc67fa864a79be049e21d6178076887f178dd6c71a",
+            "bytes": 1643
+          }
+        ],
+        "submoduleFiles": [
+          "angle-0cb8023c01f92b29f3738ea7472d06f8f059ed84/.gitmodules"
+        ],
+        "topLevelSubmoduleDescriptions": [
+          "[submodule \"build\"]\n\tpath = build\n\turl = https://chromium.googlesource.com/chromium/src/build\n\tgclient-condition = not build_with_chromium\n[submodule \"buildtools\"]\n\tpath = buildtools\n\turl = https://chromium.googlesource.com/chromium/src/buildtools\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/clang-format/script\"]\n\tpath = third_party/clang-format/script\n\turl = https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format\n\tgclient-condition = not build_with_chromium\n[submodule \"testing\"]\n\tpath = testing\n\turl = https://chromium.googlesource.com/chromium/src/testing\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/abseil-cpp\"]\n\tpath = third_party/abseil-cpp\n\turl = https://chromium.googlesource.com/chromium/src/third_party/abseil-cpp\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/android_build_tools\"]\n\tpath = third_party/android_build_tools\n\turl = https://chromium.googlesource.com/chromium/src/third_party/android_build_tools\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/android_deps\"]\n\tpath = third_party/android_deps\n\turl = https://chromium.googlesource.com/chromium/src/third_party/android_deps\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/android_platform\"]\n\tpath = third_party/android_platform\n\turl = https://chromium.googlesource.com/chromium/src/third_party/android_platform\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/android_sdk\"]\n\tpath = third_party/android_sdk\n\turl = https://chromium.googlesource.com/chromium/src/third_party/android_sdk\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/astc-encoder/src\"]\n\tpath = third_party/astc-encoder/src\n\turl = https://chromium.googlesource.com/external/github.com/ARM-software/astc-encoder\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/catapult\"]\n\tpath = third_party/catapult\n\turl = https://chromium.googlesource.com/catapult\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/cherry\"]\n\tpath = third_party/cherry\n\turl = https://android.googlesource.com/platform/external/cherry\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/colorama/src\"]\n\tpath = third_party/colorama/src\n\turl = https://chromium.googlesource.com/external/colorama\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/clspv/src\"]\n\tpath = third_party/clspv/src\n\turl = https://chromium.googlesource.com/external/github.com/google/clspv\n\tgclient-condition = checkout_angle_cl_deps and not build_with_chromium\n[submodule \"third_party/cpu_features/src\"]\n\tpath = third_party/cpu_features/src\n\turl = https://chromium.googlesource.com/external/github.com/google/cpu_features\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/dawn\"]\n\tpath = third_party/dawn\n\turl = https://dawn.googlesource.com/dawn\n\tgclient-condition = checkout_angle_dawn_deps and not build_with_chromium\n[submodule \"third_party/depot_tools\"]\n\tpath = third_party/depot_tools\n\turl = https://chromium.googlesource.com/chromium/tools/depot_tools\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/EGL-Registry/src\"]\n\tpath = third_party/EGL-Registry/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/EGL-Registry\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/flatbuffers/src\"]\n\tpath = third_party/flatbuffers/src\n\turl = https://chromium.googlesource.com/external/github.com/google/flatbuffers\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/gles1_conform\"]\n\tpath = third_party/gles1_conform\n\turl = https://chrome-internal.googlesource.com/angle/es-cts\n\tgclient-condition = checkout_angle_internal\n[submodule \"third_party/glmark2/src\"]\n\tpath = third_party/glmark2/src\n\turl = https://chromium.googlesource.com/external/github.com/glmark2/glmark2\n[submodule \"third_party/googletest/src\"]\n\tpath = third_party/googletest/src\n\turl = https://chromium.googlesource.com/external/github.com/google/googletest\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/ijar\"]\n\tpath = third_party/ijar\n\turl = https://chromium.googlesource.com/chromium/src/third_party/ijar\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/libdrm/src\"]\n\tpath = third_party/libdrm/src\n\turl = https://chromium.googlesource.com/chromiumos/third_party/libdrm\n\tgclient-condition = checkout_angle_mesa or not build_with_chromium\n[submodule \"third_party/libjpeg_turbo\"]\n\tpath = third_party/libjpeg_turbo\n\turl = https://chromium.googlesource.com/chromium/deps/libjpeg_turbo\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/libpng/src\"]\n\tpath = third_party/libpng/src\n\turl = https://android.googlesource.com/platform/external/libpng\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/llvm/src\"]\n\tpath = third_party/llvm/src\n\turl = https://chromium.googlesource.com/external/github.com/llvm/llvm-project\n\tgclient-condition = checkout_angle_cl_deps and not build_with_chromium\n[submodule \"third_party/jinja2\"]\n\tpath = third_party/jinja2\n\turl = https://chromium.googlesource.com/chromium/src/third_party/jinja2\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/jsoncpp\"]\n\tpath = third_party/jsoncpp\n\turl = https://chromium.googlesource.com/chromium/src/third_party/jsoncpp\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/libc++/src\"]\n\tpath = third_party/libc++/src\n\turl = https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/libc++abi/src\"]\n\tpath = third_party/libc++abi/src\n\turl = https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/llvm-libc/src\"]\n\tpath = third_party/llvm-libc/src\n\turl = https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libc\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/libunwind/src\"]\n\tpath = third_party/libunwind/src\n\turl = https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/markupsafe\"]\n\tpath = third_party/markupsafe\n\turl = https://chromium.googlesource.com/chromium/src/third_party/markupsafe\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/mesa/src\"]\n\tpath = third_party/mesa/src\n\turl = https://chromium.googlesource.com/external/github.com/Mesa3D/mesa\n\tgclient-condition = checkout_angle_mesa\n[submodule \"third_party/meson\"]\n\tpath = third_party/meson\n\turl = https://chromium.googlesource.com/external/github.com/mesonbuild/meson\n\tgclient-condition = checkout_angle_mesa\n[submodule \"third_party/nasm\"]\n\tpath = third_party/nasm\n\turl = https://chromium.googlesource.com/chromium/deps/nasm\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/OpenCL-CTS/src\"]\n\tpath = third_party/OpenCL-CTS/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/OpenCL-CTS\n\tgclient-condition = checkout_angle_cl_deps and not build_with_chromium\n[submodule \"third_party/OpenCL-Docs/src\"]\n\tpath = third_party/OpenCL-Docs/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/OpenCL-Docs\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/OpenCL-ICD-Loader/src\"]\n\tpath = third_party/OpenCL-ICD-Loader/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/OpenCL-ICD-Loader\n\tgclient-condition = checkout_angle_cl_deps and not build_with_chromium\n[submodule \"third_party/OpenGL-Registry/src\"]\n\tpath = third_party/OpenGL-Registry/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/OpenGL-Registry\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/perfetto\"]\n\tpath = third_party/perfetto\n\turl = https://android.googlesource.com/platform/external/perfetto\n\tgclient-condition = not build_with_chromium and checkout_angle_perfetto\n[submodule \"third_party/partition_alloc\"]\n    path = third_party/partition_alloc\n    url = https://chromium.googlesource.com/chromium/src/base/allocator/partition_allocator\n    gclient-condition = not build_with_chromium and checkout_angle_partition_alloc\n[submodule \"third_party/protobuf\"]\n\tpath = third_party/protobuf\n\turl = https://chromium.googlesource.com/chromium/src/third_party/protobuf\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/Python-Markdown\"]\n\tpath = third_party/Python-Markdown\n\turl = https://chromium.googlesource.com/chromium/src/third_party/Python-Markdown\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/rapidjson/src\"]\n\tpath = third_party/rapidjson/src\n\turl = https://chromium.googlesource.com/external/github.com/Tencent/rapidjson\n[submodule \"third_party/re2/src\"]\n\tpath = third_party/re2/src\n\turl = https://chromium.googlesource.com/external/github.com/google/re2\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/requests/src\"]\n\tpath = third_party/requests/src\n\turl = https://chromium.googlesource.com/external/github.com/kennethreitz/requests\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/rust\"]\n\tpath = third_party/rust\n\turl = https://chromium.googlesource.com/chromium/src/third_party/rust\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/six\"]\n\tpath = third_party/six\n\turl = https://chromium.googlesource.com/chromium/src/third_party/six\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"third_party/SwiftShader\"]\n\tpath = third_party/SwiftShader\n\turl = https://swiftshader.googlesource.com/SwiftShader\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/VK-GL-CTS/src\"]\n\tpath = third_party/VK-GL-CTS/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/VK-GL-CTS\n[submodule \"third_party/vulkan-deps\"]\n\tpath = third_party/vulkan-deps\n\turl = https://chromium.googlesource.com/vulkan-deps\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/glslang/src\"]\n\tpath = third_party/glslang/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/glslang\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/lunarg-vulkantools/src\"]\n\tpath = third_party/lunarg-vulkantools/src\n\turl = https://chromium.googlesource.com/external/github.com/LunarG/VulkanTools\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/spirv-cross/src\"]\n\tpath = third_party/spirv-cross/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/SPIRV-Cross\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/spirv-headers/src\"]\n\tpath = third_party/spirv-headers/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/SPIRV-Headers\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/spirv-tools/src\"]\n\tpath = third_party/spirv-tools/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/SPIRV-Tools\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/vulkan-headers/src\"]\n\tpath = third_party/vulkan-headers/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Headers\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/vulkan-loader/src\"]\n\tpath = third_party/vulkan-loader/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Loader\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/vulkan-tools/src\"]\n\tpath = third_party/vulkan-tools/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Tools\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/vulkan-utility-libraries/src\"]\n\tpath = third_party/vulkan-utility-libraries/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-Utility-Libraries\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/vulkan-validation-layers/src\"]\n\tpath = third_party/vulkan-validation-layers/src\n\turl = https://chromium.googlesource.com/external/github.com/KhronosGroup/Vulkan-ValidationLayers\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/vulkan_memory_allocator\"]\n\tpath = third_party/vulkan_memory_allocator\n\turl = https://chromium.googlesource.com/external/github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator\n\tgclient-condition = not build_with_chromium\n[submodule \"third_party/zlib\"]\n\tpath = third_party/zlib\n\turl = https://chromium.googlesource.com/chromium/src/third_party/zlib\n\tgclient-condition = not build_with_chromium\n[submodule \"tools/android\"]\n\tpath = tools/android\n\turl = https://chromium.googlesource.com/chromium/src/tools/android\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"tools/clang\"]\n\tpath = tools/clang\n\turl = https://chromium.googlesource.com/chromium/src/tools/clang\n\tgclient-condition = not build_with_chromium\n[submodule \"tools/mb\"]\n\tpath = tools/mb\n\turl = https://chromium.googlesource.com/chromium/src/tools/mb\n\tgclient-condition = not build_with_chromium\n[submodule \"tools/md_browser\"]\n\tpath = tools/md_browser\n\turl = https://chromium.googlesource.com/chromium/src/tools/md_browser\n\tgclient-condition = not build_with_chromium\n[submodule \"tools/memory\"]\n\tpath = tools/memory\n\turl = https://chromium.googlesource.com/chromium/src/tools/memory\n\tgclient-condition = not build_with_chromium\n[submodule \"tools/perf\"]\n\tpath = tools/perf\n\turl = https://chromium.googlesource.com/chromium/src/tools/perf\n\tgclient-condition = not build_with_chromium\n[submodule \"tools/protoc_wrapper\"]\n\tpath = tools/protoc_wrapper\n\turl = https://chromium.googlesource.com/chromium/src/tools/protoc_wrapper\n\tgclient-condition = not build_with_chromium\n[submodule \"tools/python\"]\n\tpath = tools/python\n\turl = https://chromium.googlesource.com/chromium/src/tools/python\n\tgclient-condition = checkout_android and not build_with_chromium\n[submodule \"tools/rust\"]\n\tpath = tools/rust\n\turl = https://chromium.googlesource.com/chromium/src/tools/rust\n\tgclient-condition = not build_with_chromium\n[submodule \"tools/valgrind\"]\n\tpath = tools/valgrind\n\turl = https://chromium.googlesource.com/chromium/src/tools/valgrind\n\tgclient-condition = not build_with_chromium\n[submodule \"tools/win\"]\n\tpath = tools/win\n\turl = https://chromium.googlesource.com/chromium/src/tools/win\n\tgclient-condition = checkout_win and not build_with_chromium\n[submodule \"third_party/wayland/src\"]\n\tpath = third_party/wayland/src\n\turl = https://chromium.googlesource.com/external/anongit.freedesktop.org/git/wayland/wayland\n        gclient-condition = not build_with_chromium and host_os == \"linux\"\n[submodule \"third_party/wayland-protocols/src\"]\n\tpath = third_party/wayland-protocols/src\n\turl = https://chromium.googlesource.com/external/anongit.freedesktop.org/git/wayland/wayland-protocols\n        gclient-condition = not build_with_chromium and host_os == \"linux\"\n[submodule \"third_party/expat/src\"]\n\tpath = third_party/expat/src\n\turl = https://chromium.googlesource.com/external/github.com/libexpat/libexpat\n        gclient-condition = not build_with_chromium and host_os == \"linux\"\n"
+        ],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "vulkan",
+      "startLine": 523,
+      "fetches": [
+        {
+          "old": "7bc5c1a",
+          "tip": "a3f52c7",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 525
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/KhronosGroup/Vulkan-Loader",
+      "recipePath": "packages/vulkan.cmake",
+      "recipeSha256": "d904d9ffb4a86d14849824f34a932fadf0b18c9fe58619c83392a339943a0bef",
+      "recipeGitTag": "main",
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "a3f52c7",
+      "selectedBranch": "main",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "a3f52c7e776b3d8ab3a731f0dc2b4080d27de33e",
+      "commitUrl": "https://github.com/KhronosGroup/Vulkan-Loader/commit/a3f52c7e776b3d8ab3a731f0dc2b4080d27de33e",
+      "committerDate": "2026-10-01T22:03:15Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "vulkan-a3f52c7e776b3d8ab3a731f0dc2b4080d27de33e.tar.gz",
+        "url": "https://codeload.github.com/KhronosGroup/Vulkan-Loader/tar.gz/a3f52c7e776b3d8ab3a731f0dc2b4080d27de33e",
+        "sha256": "00224e08925ae2ab60095b1fceb37ab7ad0872790048b5df90c01acf58300234",
+        "bytes": 1873515,
+        "tarEntries": 332,
+        "allNoticeMemberCount": 1,
+        "topLevelNotices": [
+          {
+            "member": "Vulkan-Loader-a3f52c7e776b3d8ab3a731f0dc2b4080d27de33e/LICENSE.txt",
+            "sha256": "43c0a37e6a0fa7ff3c843b3ec5a4fac84b712558ddac103fbd4c1649662a9ece",
+            "bytes": 11661
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "spirv-tools",
+      "startLine": 527,
+      "fetches": [
+        {
+          "old": "486d613",
+          "tip": "4f3a92d",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 529
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/KhronosGroup/SPIRV-Tools",
+      "recipePath": "packages/spirv-tools.cmake",
+      "recipeSha256": "3feb4110baa93cabded6564caba08bdce883fba93797fa40860bd3713271bfc8",
+      "recipeGitTag": "main",
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "4f3a92d",
+      "selectedBranch": "main",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "4f3a92dfbd5b49593e43b3c245b6688da2ad933a",
+      "commitUrl": "https://github.com/KhronosGroup/SPIRV-Tools/commit/4f3a92dfbd5b49593e43b3c245b6688da2ad933a",
+      "committerDate": "2026-10-01T20:46:07Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "spirv-tools-4f3a92dfbd5b49593e43b3c245b6688da2ad933a.tar.gz",
+        "url": "https://codeload.github.com/KhronosGroup/SPIRV-Tools/tar.gz/4f3a92dfbd5b49593e43b3c245b6688da2ad933a",
+        "sha256": "bc9008f1c1ab648c95d9bd6984c968c6f16d03df364512c25343beeda8d8ea76",
+        "bytes": 3573824,
+        "tarEntries": 1855,
+        "allNoticeMemberCount": 2,
+        "topLevelNotices": [
+          {
+            "member": "SPIRV-Tools-4f3a92dfbd5b49593e43b3c245b6688da2ad933a/LICENSE",
+            "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+            "bytes": 11358
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "openal-soft",
+      "startLine": 533,
+      "fetches": [
+        {
+          "old": "6d39f8f",
+          "tip": "3b41d45",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 535
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/kcat/openal-soft",
+      "recipePath": "packages/openal-soft.cmake",
+      "recipeSha256": "7dfbca2848cbba0ff98d87b3fe4b29931ed9dddef59ccc8eb531c22aea00f5ab",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "3b41d45",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "3b41d45046d523ca1b8cc409eef90bd71b45c496",
+      "commitUrl": "https://github.com/kcat/openal-soft/commit/3b41d45046d523ca1b8cc409eef90bd71b45c496",
+      "committerDate": "2026-10-01T18:15:57Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "openal-soft-3b41d45046d523ca1b8cc409eef90bd71b45c496.tar.gz",
+        "url": "https://codeload.github.com/kcat/openal-soft/tar.gz/3b41d45046d523ca1b8cc409eef90bd71b45c496",
+        "sha256": "0e9c6983beaa3471da84bfd0d5f5d6f63d0e7b441b7a9ecceda622e77895d32b",
+        "bytes": 1620685,
+        "tarEntries": 536,
+        "allNoticeMemberCount": 6,
+        "topLevelNotices": [
+          {
+            "member": "openal-soft-3b41d45046d523ca1b8cc409eef90bd71b45c496/COPYING",
+            "sha256": "d808ce217e5b611854da622b57ec29fe545584c48bc5352fae72a4b6e5074a15",
+            "bytes": 23330
+          },
+          {
+            "member": "openal-soft-3b41d45046d523ca1b8cc409eef90bd71b45c496/LICENSE-pffft",
+            "sha256": "64056328b3e7bc104e24ef96accc1a7abead156f0c02d1b87c97e3f3a28030de",
+            "bytes": 1669
+          },
+          {
+            "member": "openal-soft-3b41d45046d523ca1b8cc409eef90bd71b45c496/LICENSE.Apache-2.0.txt",
+            "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+            "bytes": 11358
+          },
+          {
+            "member": "openal-soft-3b41d45046d523ca1b8cc409eef90bd71b45c496/LICENSE.BSD-3-Clause.txt",
+            "sha256": "b5a08cf98996dd83aa906a72c163600f6cb17a65ce546a553815a1267abd43ff",
+            "bytes": 1652
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "shaderc",
+      "startLine": 539,
+      "fetches": [
+        {
+          "old": "a8abeb0",
+          "tip": "f6949aa",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 541
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/google/shaderc",
+      "recipePath": "packages/shaderc.cmake",
+      "recipeSha256": "d96198710bb6747e4386c706ceedc9c542d7f6a8c368b8c4623db7ee98233daa",
+      "recipeGitTag": "main",
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "f6949aa",
+      "selectedBranch": "main",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "f6949aa1ddaac54a10268ed55ad71a0d2e441b5c",
+      "commitUrl": "https://github.com/google/shaderc/commit/f6949aa1ddaac54a10268ed55ad71a0d2e441b5c",
+      "committerDate": "2026-10-01T21:48:28Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "shaderc-f6949aa1ddaac54a10268ed55ad71a0d2e441b5c.tar.gz",
+        "url": "https://codeload.github.com/google/shaderc/tar.gz/f6949aa1ddaac54a10268ed55ad71a0d2e441b5c",
+        "sha256": "6f9f56256b5ff0ad238e64e3575a7c072075c01b6c8542502a3c0e215fc48d47",
+        "bytes": 240703,
+        "tarEntries": 278,
+        "allNoticeMemberCount": 5,
+        "topLevelNotices": [
+          {
+            "member": "shaderc-f6949aa1ddaac54a10268ed55ad71a0d2e441b5c/AUTHORS",
+            "sha256": "9fb4b067e4c9a1f91ea1c26465b3d1c6b515cb24860e0dbb719879925a5a1248",
+            "bytes": 310
+          },
+          {
+            "member": "shaderc-f6949aa1ddaac54a10268ed55ad71a0d2e441b5c/LICENSE",
+            "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+            "bytes": 11357
+          },
+          {
+            "member": "shaderc-f6949aa1ddaac54a10268ed55ad71a0d2e441b5c/license-checker.cfg",
+            "sha256": "ff39f110e4b17c6a2e24eacc14a32674c2c1f2385828bdc23a0399d3475fffc8",
+            "bytes": 872
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "libsdl2",
+      "startLine": 546,
+      "fetches": [
+        {
+          "old": "264fd15b",
+          "tip": "b29a2827",
+          "branch": "SDL2",
+          "remoteBranch": "origin/SDL2",
+          "line": 548
+        },
+        {
+          "old": "56a72f8c",
+          "tip": "ea7a2dab",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 549
+        },
+        {
+          "old": "e5a19198",
+          "tip": "a6e6a345",
+          "branch": "release-3.4.x",
+          "remoteBranch": "origin/release-3.4.x",
+          "line": 550
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/libsdl-org/SDL",
+      "recipePath": "packages/libsdl2.cmake",
+      "recipeSha256": "e323098f27a92e23b406698ff1de547ca64c2d53c026fadd56a3e8d1e8732473",
+      "recipeGitTag": "SDL2",
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "b29a2827",
+      "selectedBranch": "SDL2",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "b29a2827f801d1e2278c308acd447ca51ac8e057",
+      "commitUrl": "https://github.com/libsdl-org/SDL/commit/b29a2827f801d1e2278c308acd447ca51ac8e057",
+      "committerDate": "2026-10-01T20:55:50Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "libsdl2-b29a2827f801d1e2278c308acd447ca51ac8e057.tar.gz",
+        "url": "https://codeload.github.com/libsdl-org/SDL/tar.gz/b29a2827f801d1e2278c308acd447ca51ac8e057",
+        "sha256": "c605e6e6c8bbe1be71f8947c17f14de2dcbd877771216c4b33b4355f1cd5698c",
+        "bytes": 7913547,
+        "tarEntries": 2150,
+        "allNoticeMemberCount": 11,
+        "topLevelNotices": [
+          {
+            "member": "SDL-b29a2827f801d1e2278c308acd447ca51ac8e057/LICENSE.txt",
+            "sha256": "1c040b8271b37e5076359f8fd54240e371114112924d2df81ef87c7d6a1dfdfd",
+            "bytes": 884
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "libplacebo",
+      "startLine": 556,
+      "fetches": [
+        {
+          "old": "1937bee",
+          "tip": "92b5ac6",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 558
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/haasn/libplacebo",
+      "recipePath": "packages/libplacebo.cmake",
+      "recipeSha256": "64c407a343a43bfe8b372b12d5dac4621d1362f094239cfb2c215e6ce213332f",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "92b5ac6",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "92b5ac6db79f4d680eb656692f7bf51e9606f42a",
+      "commitUrl": "https://github.com/haasn/libplacebo/commit/92b5ac6db79f4d680eb656692f7bf51e9606f42a",
+      "committerDate": "2026-10-01T15:02:45Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "libplacebo-92b5ac6db79f4d680eb656692f7bf51e9606f42a.tar.gz",
+        "url": "https://codeload.github.com/haasn/libplacebo/tar.gz/92b5ac6db79f4d680eb656692f7bf51e9606f42a",
+        "sha256": "367eb22a5c366ad9152e44968fcaf4deaaf08f1835649150b887b51d79444d13",
+        "bytes": 883673,
+        "tarEntries": 277,
+        "allNoticeMemberCount": 2,
+        "topLevelNotices": [
+          {
+            "member": "libplacebo-92b5ac6db79f4d680eb656692f7bf51e9606f42a/LICENSE",
+            "sha256": "b3aa400aca6d2ba1f0bd03bd98d03d1fe7489a3bbb26969d72016360af8a5c9d",
+            "bytes": 24478
+          }
+        ],
+        "submoduleFiles": [
+          "libplacebo-92b5ac6db79f4d680eb656692f7bf51e9606f42a/.gitmodules"
+        ],
+        "topLevelSubmoduleDescriptions": [
+          "[submodule \"demos/3rdparty/nuklear\"]\n\tpath = demos/3rdparty/nuklear\n\turl = https://github.com/Immediate-Mode-UI/Nuklear.git\n[submodule \"3rdparty/glad\"]\n\tpath = 3rdparty/glad\n\turl = https://github.com/Dav1dde/glad\n[submodule \"3rdparty/jinja\"]\n\tpath = 3rdparty/jinja\n\turl = https://github.com/pallets/jinja\n[submodule \"3rdparty/markupsafe\"]\n\tpath = 3rdparty/markupsafe\n\turl = https://github.com/pallets/markupsafe\n[submodule \"3rdparty/Vulkan-Headers\"]\n\tpath = 3rdparty/Vulkan-Headers\n\turl = https://github.com/KhronosGroup/Vulkan-Headers\n[submodule \"3rdparty/fast_float\"]\n\tpath = 3rdparty/fast_float\n\turl = https://github.com/fastfloat/fast_float.git\n"
+        ],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "c-ares",
+      "startLine": 564,
+      "fetches": [
+        {
+          "old": "5b18148",
+          "tip": "f4156c1",
+          "branch": "main",
+          "remoteBranch": "origin/main",
+          "line": 566
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/c-ares/c-ares",
+      "recipePath": "packages/c-ares.cmake",
+      "recipeSha256": "ff158ffb4add510160a78eef6473625d965ebf4bd57b0fc1e23275fcb48c6013",
+      "recipeGitTag": "main",
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "f4156c1",
+      "selectedBranch": "main",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "f4156c12c8b36f5cb8f8a53658d44b24263c6ad1",
+      "commitUrl": "https://github.com/c-ares/c-ares/commit/f4156c12c8b36f5cb8f8a53658d44b24263c6ad1",
+      "committerDate": "2026-10-01T03:54:24Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "c-ares-f4156c12c8b36f5cb8f8a53658d44b24263c6ad1.tar.gz",
+        "url": "https://codeload.github.com/c-ares/c-ares/tar.gz/f4156c12c8b36f5cb8f8a53658d44b24263c6ad1",
+        "sha256": "c1f483dd8581c30d5571e7be4efe39c3ea6c375d832d754db4f268287e9a5c45",
+        "bytes": 724626,
+        "tarEntries": 600,
+        "allNoticeMemberCount": 2,
+        "topLevelNotices": [
+          {
+            "member": "c-ares-f4156c12c8b36f5cb8f8a53658d44b24263c6ad1/AUTHORS",
+            "sha256": "10274d04e1aa59b340e84dbef26550bfc9827fc70908f78bfa755e1a8729939b",
+            "bytes": 1258
+          },
+          {
+            "member": "c-ares-f4156c12c8b36f5cb8f8a53658d44b24263c6ad1/LICENSE.md",
+            "sha256": "460f5e768fda3752ca2169a95df062578a10fb126bfd65f3b9b1a1bed2f84807",
+            "bytes": 1211
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "svtav1",
+      "startLine": 568,
+      "fetches": [
+        {
+          "old": "e6e7d4b",
+          "tip": "d235cfc",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 570
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://gitlab.com/AOMediaCodec/SVT-AV1",
+      "recipePath": "packages/svtav1.cmake",
+      "recipeSha256": "4649b91fa340471263d52ef23fcd5dd0ff520dc60e91df564ce1059c4be27c9e",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "d235cfc",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "sourceCollectionStatus": "COLLECTION_FAILED",
+      "collectionError": "HTTP 406 https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/d235cfcc0cfa0a24ec32ea77ec156907921e3a23/SVT-AV1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23.tar.gz",
+      "fullCommit": "d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
+      "commitUrl": "https://gitlab.com/AOMediaCodec/SVT-AV1/-/commit/d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
+      "archiveApiAttemptError": "HTTP 406 https://gitlab.com/api/v4/projects/AOMediaCodec%2FSVT-AV1/repository/archive.tar.gz?sha=d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
+      "actualDllRevisionVerified": false,
+      "linkedInActualDll": null
+    },
+    {
+      "target": "ffmpeg",
+      "startLine": 572,
+      "fetches": [
+        {
+          "old": "5a54fcf75",
+          "tip": "460cb0521",
+          "branch": "master",
+          "remoteBranch": "origin/master",
+          "line": 574
+        },
+        {
+          "old": "a11352c9a",
+          "tip": "44c539c74",
+          "branch": "release/8.0",
+          "remoteBranch": "origin/release/8.0",
+          "line": 575
+        },
+        {
+          "old": "29e619e76",
+          "tip": "330caae0c",
+          "branch": "release/8.1",
+          "remoteBranch": "origin/release/8.1",
+          "line": 576
+        },
+        {
+          "old": "2a571b606",
+          "tip": "46d8f462e",
+          "branch": "release/9.0",
+          "remoteBranch": "origin/release/9.0",
+          "line": 577
+        }
+      ],
+      "stampRemoved": true,
+      "url": "https://github.com/FFmpeg/FFmpeg",
+      "recipePath": "packages/ffmpeg.cmake",
+      "recipeSha256": "359c9c7da360f57d3a438e6fe117af6169cbd9aa3672751fd2bfc31e02be8fff",
+      "recipeGitTag": null,
+      "recipeGitReset": null,
+      "forceRebuildHelperUsed": true,
+      "status": "FETCH_TIP_CANDIDATES_NOT_BINARY_REVISION_PROOF",
+      "selectedRevision": "460cb0521",
+      "selectedBranch": "master",
+      "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
+      "fullCommit": "460cb05218a236cb587516fe2c8b121403609d95",
+      "commitUrl": "https://github.com/FFmpeg/FFmpeg/commit/460cb05218a236cb587516fe2c8b121403609d95",
+      "committerDate": "2026-10-01T22:38:53Z",
+      "sourceCollectionStatus": "CANDIDATE_TOP_LEVEL_SOURCE_ARCHIVED",
+      "archive": {
+        "name": "ffmpeg-460cb05218a236cb587516fe2c8b121403609d95.tar.gz",
+        "url": "https://codeload.github.com/FFmpeg/FFmpeg/tar.gz/460cb05218a236cb587516fe2c8b121403609d95",
+        "sha256": "3decb6585d8cb3a34bf52b655a22c71bee89ba82d291d4c11b9f91fe358ff9ba",
+        "bytes": 17787577,
+        "tarEntries": 10945,
+        "allNoticeMemberCount": 8,
+        "topLevelNotices": [
+          {
+            "member": "FFmpeg-460cb05218a236cb587516fe2c8b121403609d95/COPYING.GPLv2",
+            "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+            "bytes": 18092
+          },
+          {
+            "member": "FFmpeg-460cb05218a236cb587516fe2c8b121403609d95/COPYING.GPLv3",
+            "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+            "bytes": 35147
+          },
+          {
+            "member": "FFmpeg-460cb05218a236cb587516fe2c8b121403609d95/COPYING.LGPLv2.1",
+            "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30",
+            "bytes": 26517
+          },
+          {
+            "member": "FFmpeg-460cb05218a236cb587516fe2c8b121403609d95/COPYING.LGPLv3",
+            "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
+            "bytes": 7651
+          },
+          {
+            "member": "FFmpeg-460cb05218a236cb587516fe2c8b121403609d95/LICENSE.md",
+            "sha256": "e6dc72d5665a1ebd6dcc841de59278dad4ca77ecc47b03f1064a55c3e9ea8bb8",
+            "bytes": 4352
+          }
+        ],
+        "submoduleFiles": [],
+        "topLevelSubmoduleDescriptions": [],
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "actualDllRevisionVerified": true,
+      "linkedInActualDll": true
+    }
+  ],
+  "summary": {
+    "candidateTargets": 21,
+    "archives": 19,
+    "newDependencyOrHeaderArchives": 18,
+    "knownEmbeddedFfmpegArchiveReverified": 1,
+    "failedSourceDownloads": 2,
+    "originalTopLevelNoticesHashed": 35,
+    "binaryVerifiedRevisionCountAmongCandidates": 1,
+    "totalBuildDownloadTargets": 89
+  },
+  "unresolved": [
+    "Unchanged restored-cache inputs and the final linked-library inventory remain unknown. Candidates other than the known embedded FFmpeg are recipe/log inferences, not binary-attested revisions.",
+    "fontconfig and SVT-AV1 full commit IDs resolved through public API; archive and archive API routes returned HTTP 406.",
+    "Submodules, complete toolchain/layers, generated configuration and original component build logs remain incomplete.",
+    "Complete notice coverage, host/runtime compatibility review and public source-delivery route remain unapproved."
+  ],
+  "observedAt": "2026-10-11T05:46:43.102Z",
+  "timezone": "Asia/Shanghai",
+  "inputs": {
+    "workflowUrl": "https://github.com/shinchiro/mpv-winbuild-cmake/actions/runs/36943730454",
+    "workflowCommit": "05a60b3cfd04e3e3b89918f4a27f3dde2935dff2",
+    "jobLogUrl": "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/actions/jobs/110640930062/logs",
+    "logEncoding": "GitHub CLI text export saved as UTF-8 with BOM; not the raw HTTP-byte digest.",
+    "recipeSourceArchive": {
+      "url": "https://codeload.github.com/shinchiro/mpv-winbuild-cmake/tar.gz/05a60b3cfd04e3e3b89918f4a27f3dde2935dff2",
+      "sha256": "8907f091a184a8b62927a5f60f383febd3fa8131ebc6d76e96e0a2cc6d83bbef",
+      "bytes": 82363,
+      "scope": "Build recipes only; not the complete corresponding sources of the DLL."
+    },
+    "existingDllVerifiedSourceCommits": {
+      "mpv": "3186d369f9f090cd1363be0ac46a037824b702c6",
+      "ffmpeg": "460cb05218a236cb587516fe2c8b121403609d95"
+    }
+  },
+  "container": {
+    "image": "ghcr.io/shinchiro/archlinux:latest",
+    "pullManifestDigest": "sha256:cd58ab59a9d214aa80bce8ca00be79f97888978f88c906dd3cf32f5b5a1faaca",
+    "logLine": 80,
+    "scope": "Digest printed by the original x64 job docker pull; container layers and complete toolchain have not been archived or reproduced."
+  },
+  "availableUpstreamMaterials": {
+    "observedAt": "2026-10-11T05:46:43.102Z",
+    "workflowUrl": "https://github.com/shinchiro/mpv-winbuild-cmake/actions/runs/36943730454",
+    "artifactApiUrl": "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/actions/runs/36943730454/artifacts",
+    "artifacts": [
+      {
+        "name": "mpv-x86_64-debug",
+        "id": 11203170689,
+        "expired": false,
+        "zipDigest": "sha256:1d5e3e3455b5575215f1d3604faf606d559fada4b0d045a127aab136770001ae"
+      },
+      {
+        "name": "mpv-x86_64",
+        "id": 11203101053,
+        "expired": false,
+        "zipDigest": "sha256:45599672c21472f5360f3289e24ef4a7e9acec2de4f79b59166942bc851d79fb"
+      },
+      {
+        "name": "mpv-aarch64-debug",
+        "id": 11202873120,
+        "expired": false,
+        "zipDigest": "sha256:d731a9569366a7b222c364b7a917252bb098f8bbf793912b025021b2652ce2f9"
+      },
+      {
+        "name": "mpv-i686",
+        "id": 11202791757,
+        "expired": false,
+        "zipDigest": "sha256:db8c6dd9612802fb17e391ed7cf939fd030dcb22f03570df3c113958440878a7"
+      },
+      {
+        "name": "mpv-x86_64_v3-debug",
+        "id": 11202553477,
+        "expired": false,
+        "zipDigest": "sha256:571c535976918d0c4cf0ba2b29542318e084276cea1b79ed8b1b2800e788f041"
+      },
+      {
+        "name": "mpv-x86_64_v3",
+        "id": 11202553468,
+        "expired": false,
+        "zipDigest": "sha256:7352823680f1c41a335b6a1ce2a5b1a829ee217ce8602b2ba8e2c463378bbd3c"
+      },
+      {
+        "name": "mpv-aarch64",
+        "id": 11202388968,
+        "expired": false,
+        "zipDigest": "sha256:10db0ca51209125e161031b517da75bdcee88436637c1bc55deca79e185912d7"
+      },
+      {
+        "name": "mpv-i686-debug",
+        "id": 11202207720,
+        "expired": false,
+        "zipDigest": "sha256:8c0d92af5181490ac73791a4caa30a04ad94f1219d6708d0abfbbf23c75321af"
+      }
+    ],
+    "x64FullLogsArtifactPresent": false,
+    "cacheApiUrl": "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/actions/caches",
+    "cacheCount": 9,
+    "exactRunOrRestoredCacheKeyPresent": false,
+    "scope": "Snapshot of public API results at observedAt; not a claim about future retention or private materials."
+  },
+  "debugIdentityMethod": "PE32+ IMAGE_DEBUG_DIRECTORY CodeView RSDS GUID+age compared with MSF7 PDB info stream GUID+age"
+}
