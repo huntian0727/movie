@@ -12,6 +12,9 @@ FILE = Path(__file__).resolve().parents[2] / "scripts/native-source-build.py"
 spec = importlib.util.spec_from_file_location("native_source_build", FILE)
 build = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(build)
+gcc_spec = importlib.util.spec_from_file_location("collect_gcc", FILE.with_name("collect-native-gcc-source.py"))
+gcc = importlib.util.module_from_spec(gcc_spec)
+gcc_spec.loader.exec_module(gcc)
 
 
 class SourceCaptureTests(unittest.TestCase):
@@ -96,6 +99,26 @@ class SourceCaptureTests(unittest.TestCase):
         with tarfile.open(self.root / "evidence/dependency.tar.gz") as tar:
             self.assertIn("dependency/third_party/nested/source.txt", tar.getnames())
             self.assertFalse(any(".git" in Path(p).parts for p in tar.getnames()))
+
+    def test_system_capture_dlls_are_not_bundled_and_missing_imports_still_fail(self):
+        fake_system = Path("do-not-bundle-Microsoft-dll")
+        dependency = Path("avcodec-63.dll")
+        found, missing = build.classify_imports(["AVICAP32.dll", "AVIFIL32.dll", "MSACM32.dll", "KERNEL32.dll", "avcodec-63.dll", "missing-dependency.dll"], {"avicap32.dll": fake_system, "avcodec-63.dll": dependency})
+        self.assertEqual(found, [dependency])
+        self.assertEqual(missing, ["missing-dependency.dll"])
+
+    def test_gcc_base_source_is_bound_to_the_actual_mingw_package_version(self):
+        self.assertEqual(gcc.gcc_source_identity("13.2.0-6ubuntu1+26.1"), ("gcc-13", "13.2.0-6ubuntu1"))
+        with self.assertRaises(ValueError):
+            gcc.gcc_source_identity("latest")
+
+    def test_gcc_descriptor_rejects_escaping_or_duplicate_archives(self):
+        body = "Checksums-Sha256:\n " + "a" * 64 + " 123 gcc.tar.gz\nFiles:\n"
+        self.assertEqual(gcc.dsc_files(body)[0]["bytes"], 123)
+        with self.assertRaises(ValueError):
+            gcc.dsc_files(body.replace("gcc.tar.gz", "../escape.tar.gz"))
+        with self.assertRaises(ValueError):
+            gcc.dsc_files(body.replace("Files:\n", " " + "a" * 64 + " 123 gcc.tar.gz\n"))
 
 
 if __name__ == "__main__":

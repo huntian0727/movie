@@ -37,6 +37,7 @@ def patch_recipe(raw, helper):
     if hashlib.sha256(raw).hexdigest() != RECIPE_SHA:
         raise ValueError("Upstream recipe bytes differ")
     text = raw.decode()
+    text = replace_once(text, 'wget="wget --progress=bar:force"', 'wget="wget --progress=bar:force --timeout=45 --tries=2"')
     # Keep dynamic linking; remove GPL, Rust subtitle renderer and JS scripting.
     # libass and LuaJIT remain available. These features need candidate QA.
     text = replace_once(text, "--target-os=mingw32 --enable-gpl", "--target-os=mingw32 --disable-gpl --disable-nonfree")
@@ -175,7 +176,8 @@ def bootstrap(work):
     (evidence / "movie-build-mingw64.sh").write_text(patched)
     (evidence / "source-capture.py").write_bytes(Path(__file__).read_bytes())
     recipe.write_text(patched)
-    env = {**os.environ, "TARGET": "x86_64-w64-mingw32", "RUST_TARGET": "x86_64-pc-windows-gnu", "BUILD_JOBS": "2"}
+    env = {**os.environ, "TARGET": "x86_64-w64-mingw32", "RUST_TARGET": "x86_64-pc-windows-gnu", "BUILD_JOBS": "2",
+           "GIT_HTTP_LOW_SPEED_LIMIT": "1024", "GIT_HTTP_LOW_SPEED_TIME": "90"}
     subprocess.run(["bash", str(recipe), "meson"], cwd=tree, env=env, check=True)
     # Record exact configurations and import tables before selecting DLL closure.
     shutil.copyfile(tree / "ffmpeg/builddir/ffbuild/config.log", evidence / "ffmpeg-config.txt")
@@ -184,6 +186,22 @@ def bootstrap(work):
 
 
 SYSTEM_DLLS = {"advapi32.dll", "avrt.dll", "bcrypt.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll", "d3d11.dll", "d3d12.dll", "d3dcompiler_47.dll", "dnsapi.dll", "dwmapi.dll", "dwrite.dll", "dxgi.dll", "gdi32.dll", "imm32.dll", "iphlpapi.dll", "kernel32.dll", "ksuser.dll", "mfplat.dll", "mfuuid.dll", "msimg32.dll", "msvcrt.dll", "ncrypt.dll", "netapi32.dll", "normaliz.dll", "ntdll.dll", "ole32.dll", "oleaut32.dll", "opengl32.dll", "powrprof.dll", "psapi.dll", "rpcrt4.dll", "secur32.dll", "setupapi.dll", "shell32.dll", "shlwapi.dll", "ucrtbase.dll", "user32.dll", "userenv.dll", "usp10.dll", "version.dll", "winmm.dll", "winspool.drv", "wintrust.dll", "ws2_32.dll", "wtsapi32.dll"}
+# Windows Video for Windows / Audio Compression Manager. Verified Microsoft
+# system components; never copy them from the cross toolchain or user machine.
+SYSTEM_DLLS.update({"avicap32.dll", "avifil32.dll", "msacm32.dll", "d3d9.dll", "mf.dll", "mfreadwrite.dll", "uxtheme.dll"})
+
+
+def classify_imports(names, lookup):
+    dependencies, unresolved = [], []
+    for name in names:
+        lower = name.lower()
+        if lower in SYSTEM_DLLS or lower.startswith(("api-ms-win-", "ext-ms-win-")):
+            continue
+        if lower in lookup:
+            dependencies.append(lookup[lower])
+        else:
+            unresolved.append(name)
+    return dependencies, unresolved
 
 
 def pack_runtime(work):
@@ -196,6 +214,7 @@ def pack_runtime(work):
     roots = [tree / "mingw_build/libmpv-2.dll", prefix / "bin/ffmpeg.exe", prefix / "bin/ffprobe.exe"]
     queue = roots.copy()
     copied = {}
+    unresolved = set()
     while queue:
         file = queue.pop()
         key = file.name.lower()
@@ -205,14 +224,12 @@ def pack_runtime(work):
         table = subprocess.check_output(["x86_64-w64-mingw32-objdump", "-p", str(file)], text=True)
         imports = re.findall(r"DLL Name:\s*(\S+)", table)
         copied[key] = {"name": file.name, "sha256": digest(file), "bytes": file.stat().st_size, "imports": imports}
-        for name in imports:
-            lower = name.lower()
-            if lower in lookup:
-                queue.append(lookup[lower])
-            elif lower not in SYSTEM_DLLS and not lower.startswith(("api-ms-win-", "ext-ms-win-")):
-                raise ValueError("Unresolved native import: " + name)
+        dependencies, missing = classify_imports(imports, lookup)
+        queue.extend(dependencies)
+        unresolved.update(missing)
     evidence = work / "evidence"
     data = {"schemaVersion": 1, "approved": False, "sourceComplianceApproved": False,
+            "closureValid": not unresolved, "unresolvedImports": sorted(unresolved),
             "mpvCommit": MPV_COMMIT, "movieCommit": os.environ.get("GITHUB_SHA"), "files": list(copied.values()),
             "inputsSha256": digest(evidence / "inputs.json"), "toolchainManifestSha256": digest(work.parent / "toolchain-sha256.txt"),
             "buildRecipeSha256": digest(evidence / "movie-build-mingw64.sh"), "sourceCollectorSha256": digest(evidence / "source-capture.py"),
@@ -221,6 +238,11 @@ def pack_runtime(work):
     for name in ["Copyright", "LICENSE.GPL", "LICENSE.LGPL"]:
         shutil.copyfile(tree / name, runtime / name)
     shutil.make_archive(str(work / "runtime-private-candidate"), "zip", runtime)
+    if unresolved:
+        # Preserve encrypted-only recovery material so a packaging error does
+        # not discard a completed 30-minute compilation. This is NOT a valid
+        # runtime candidate; CI still fails and records every missing import.
+        raise ValueError("Unresolved native imports: " + ", ".join(sorted(unresolved)))
 
 
 if __name__ == "__main__":

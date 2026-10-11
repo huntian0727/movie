@@ -50,7 +50,10 @@ test("source workflow never uploads a plaintext executable or grants publishing 
   for (const upload of uploads) {
     assert.doesNotMatch(upload, /path:[\s\S]*?(?:runtime\/|\.zip|\.exe|\.dll|private\.pem)/);
   }
-  assert.match(body, /path: \.tmp\/native-private-output\//);
+  const privateUpload = uploads[1];
+  assert.match(privateUpload, /\.tmp\/native-private-output\/candidate\.envelope\.json/);
+  assert.match(privateUpload, /\.tmp\/native-private-output\/binary-source-map\.json/);
+  assert.doesNotMatch(privateUpload, /\.tmp\/native-private-output\/\s*$/m);
   assert.match(body, /source-evidence/);
   assert.match(body, /--download-only/);
   assert.match(body, /persist-credentials: false/);

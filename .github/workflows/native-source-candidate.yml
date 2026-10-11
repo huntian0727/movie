@@ -49,9 +49,10 @@ jobs:
           done | sort -u > .tmp/native-toolchain/source-packages.txt
           cd .tmp/native-toolchain
           while read -r package; do apt-get source --download-only "$package"; done < source-packages.txt
+          python3 ../../scripts/collect-native-gcc-source.py .
           sha256sum * > ../toolchain-sha256.txt
       - name: Build native libraries and retain source inputs before compilation
-        run: python3 scripts/native-source-build.py build .tmp/native-source-candidate
+        run: timeout --kill-after=30s 90m python3 scripts/native-source-build.py build .tmp/native-source-candidate
       - name: Check actual LGPL configuration under Wine
         run: |
           cd .tmp/native-source-candidate/runtime
@@ -61,10 +62,15 @@ jobs:
           grep -q -- '--disable-nonfree' ../evidence/ffmpeg-version.txt
           if grep -qE -- '--enable-(gpl|nonfree)' ../evidence/ffmpeg-version.txt; then exit 1; fi
       - name: Encrypt candidate for local verification
+        if: always()
         run: |
           mkdir -p .tmp/native-private-output
-          node scripts/private-native-artifact.mjs seal .tmp/native-source-candidate/runtime-private-candidate.zip .tmp/native-private-output/candidate.envelope.json
-          cp .tmp/native-source-candidate/evidence/binary-source-map.json .tmp/native-private-output/
+          if test -f .tmp/native-source-candidate/runtime-private-candidate.zip; then
+            node scripts/private-native-artifact.mjs seal .tmp/native-source-candidate/runtime-private-candidate.zip .tmp/native-private-output/candidate.envelope.json
+            cp .tmp/native-source-candidate/evidence/binary-source-map.json .tmp/native-private-output/
+          else
+            echo 'No native runtime was generated.'
+          fi
       - name: Retain source evidence, including when a dependency build fails
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -77,9 +83,12 @@ jobs:
             .tmp/native-toolchain/
             .tmp/toolchain-sha256.txt
       - name: Retain ciphertext only; never release an unapproved native binary
+        if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: native-private-candidate-${{ github.run_id }}
           retention-days: 7
-          if-no-files-found: error
-          path: .tmp/native-private-output/
+          if-no-files-found: warn
+          path: |
+            .tmp/native-private-output/candidate.envelope.json
+            .tmp/native-private-output/binary-source-map.json
