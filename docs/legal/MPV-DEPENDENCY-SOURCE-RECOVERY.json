@@ -518,13 +518,35 @@
       "selectedRevision": "d416ada",
       "selectedBranch": "main",
       "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
-      "sourceCollectionStatus": "COLLECTION_FAILED",
-      "collectionError": "HTTP 406 https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc/fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc.tar.gz",
+      "sourceCollectionStatus": "CANDIDATE_API_TREE_SNAPSHOT_ARCHIVED",
       "fullCommit": "d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
       "commitUrl": "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/commit/d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
-      "archiveApiAttemptError": "HTTP 406 https://gitlab.freedesktop.org/api/v4/projects/fontconfig%2Ffontconfig/repository/archive.tar.gz?sha=d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
       "actualDllRevisionVerified": false,
-      "linkedInActualDll": null
+      "linkedInActualDll": null,
+      "archive": {
+        "name": "fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc-api-tree-snapshot.tar.gz",
+        "bytes": 675901,
+        "sha256": "41aa0f8d67f382bb419b5071762ad2019d3c3289fa41aa22a0c97c46914772eb",
+        "tarEntries": 736,
+        "topLevelNotices": [
+          {
+            "member": "fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc/AUTHORS",
+            "sha256": "db6d73a160bb2de10268f88ef60aae91771fefdeee4992b791c76ce6592a4a4b",
+            "bytes": 62
+          },
+          {
+            "member": "fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc/COPYING",
+            "sha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067",
+            "bytes": 8616
+          }
+        ],
+        "scope": "Locally assembled verified API tree snapshot; not an upstream-issued archive. Gitlink/submodule contents are excluded and separately recorded.",
+        "collectionKind": "GITLAB_PUBLIC_API_COMMIT_TREE_AND_BLOB_SNAPSHOT",
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "apiSnapshotEvidence": "MPV-GITLAB-SOURCE-SNAPSHOTS.json",
+      "previousArchiveDownloadFailure": "HTTP 406 https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc/fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc.tar.gz"
     },
     {
       "target": "highway",
@@ -1119,13 +1141,35 @@
       "selectedRevision": "d235cfc",
       "selectedBranch": "master",
       "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
-      "sourceCollectionStatus": "COLLECTION_FAILED",
-      "collectionError": "HTTP 406 https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/d235cfcc0cfa0a24ec32ea77ec156907921e3a23/SVT-AV1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23.tar.gz",
+      "sourceCollectionStatus": "CANDIDATE_API_TREE_SNAPSHOT_ARCHIVED",
       "fullCommit": "d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
       "commitUrl": "https://gitlab.com/AOMediaCodec/SVT-AV1/-/commit/d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
-      "archiveApiAttemptError": "HTTP 406 https://gitlab.com/api/v4/projects/AOMediaCodec%2FSVT-AV1/repository/archive.tar.gz?sha=d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
       "actualDllRevisionVerified": false,
-      "linkedInActualDll": null
+      "linkedInActualDll": null,
+      "archive": {
+        "name": "svtav1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23-api-tree-snapshot.tar.gz",
+        "bytes": 11064925,
+        "sha256": "5d455342f5901930c0af7e4d18ffc05d14e3375bf655a5a7e4af965d72f88181",
+        "tarEntries": 1324,
+        "topLevelNotices": [
+          {
+            "member": "svtav1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23/LICENSE-BSD2.md",
+            "sha256": "c582fcbeb9cf972a60d298bfaf41dc5adff2dd14208946edcb9bb56a281e8438",
+            "bytes": 1316
+          },
+          {
+            "member": "svtav1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23/LICENSE.md",
+            "sha256": "0acc2fcb27472bdc9aaf8b71f37055bbdac4f54671b7d922f241bd7fcd0dd3e6",
+            "bytes": 1709
+          }
+        ],
+        "scope": "Locally assembled verified API tree snapshot; not an upstream-issued archive. Gitlink/submodule contents are excluded and separately recorded.",
+        "collectionKind": "GITLAB_PUBLIC_API_COMMIT_TREE_AND_BLOB_SNAPSHOT",
+        "completeWithSubmodules": false,
+        "licenseCompatibilityApproved": false
+      },
+      "apiSnapshotEvidence": "MPV-GITLAB-SOURCE-SNAPSHOTS.json",
+      "previousArchiveDownloadFailure": "HTTP 406 https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/d235cfcc0cfa0a24ec32ea77ec156907921e3a23/SVT-AV1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23.tar.gz"
     },
     {
       "target": "ffmpeg",
@@ -1220,17 +1264,19 @@
   ],
   "summary": {
     "candidateTargets": 21,
-    "archives": 19,
-    "newDependencyOrHeaderArchives": 18,
+    "archives": 21,
+    "newDependencyOrHeaderArchives": 20,
     "knownEmbeddedFfmpegArchiveReverified": 1,
-    "failedSourceDownloads": 2,
-    "originalTopLevelNoticesHashed": 35,
+    "failedSourceDownloads": 0,
+    "originalTopLevelNoticesHashed": 39,
     "binaryVerifiedRevisionCountAmongCandidates": 1,
-    "totalBuildDownloadTargets": 89
+    "totalBuildDownloadTargets": 89,
+    "apiAssembledSnapshotCount": 2,
+    "upstreamArchiveRoutesStillFailingCount": 2
   },
   "unresolved": [
     "Unchanged restored-cache inputs and the final linked-library inventory remain unknown. Candidates other than the known embedded FFmpeg are recipe/log inferences, not binary-attested revisions.",
-    "fontconfig and SVT-AV1 full commit IDs resolved through public API; archive and archive API routes returned HTTP 406.",
+    "fontconfig and SVT-AV1: local snapshots now archived from exact commit-ref public tree/blob APIs with object hash checks; upstream tar/zip archive endpoints still fail. Snapshot candidates are not actual DLL input proof.",
     "Submodules, complete toolchain/layers, generated configuration and original component build logs remain incomplete.",
     "Complete notice coverage, host/runtime compatibility review and public source-delivery route remain unapproved."
   ],
@@ -1318,5 +1364,6 @@
     "exactRunOrRestoredCacheKeyPresent": false,
     "scope": "Snapshot of public API results at observedAt; not a claim about future retention or private materials."
   },
-  "debugIdentityMethod": "PE32+ IMAGE_DEBUG_DIRECTORY CodeView RSDS GUID+age compared with MSF7 PDB info stream GUID+age"
+  "debugIdentityMethod": "PE32+ IMAGE_DEBUG_DIRECTORY CodeView RSDS GUID+age compared with MSF7 PDB info stream GUID+age",
+  "followUpEvidence": "MPV-GITLAB-SOURCE-SNAPSHOTS.json"
 }

@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "testDate": "2026-10-11",
+  "timezone": "Asia/Shanghai",
+  "scope": "Seven user-provided real files in private unsigned-test-build Windows Sandbox library; partial final acceptance",
+  "releaseAllowed": false,
+  "artifact": {
+    "filename": "拉面影视-0.1.15-x64-unsigned-test-build-Portable.zip",
+    "codeCommit": "19465ef7500fb53c325a5079126497e1fe34cd57",
+    "bytes": 231942619,
+    "sha256": "e52289cc4a50380d335c71601883ec78d556f726a228e08f38ad17c04a509228"
+  },
+  "environment": {
+    "implementation": "Windows Sandbox",
+    "guiEdition": "Windows 11 Enterprise Insider Preview",
+    "build": "26100.9606",
+    "architecture": "AMD64",
+    "accountScope": "Default sandbox account; not a non-administrator stable-Windows acceptance",
+    "cleanEnvironmentEvidence": "2026-10-11-sandbox-portable-evidence.json"
+  },
+  "privacy": {
+    "realNamesPathsScreenshotsAndDatabaseCommitted": false,
+    "aliases": "Aliases A–G identify technical test cases only; personal titles and paths omitted.",
+    "originalMediaModifiedByTest": false,
+    "sourceMediaHashesCollected": false
+  },
+  "scan": {
+    "added": 7,
+    "failed": 0,
+    "totalAfter": 10,
+    "sourceFolders": 2,
+    "jpegNotIndexedAsVideo": true
+  },
+  "databaseSnapshot": {
+    "scope": "Local copy after normal application exit; examined read-only with Python sqlite3 on host. SQLite may rebuild copied SHM; no source-file hash equality claim.",
+    "quickCheck": "ok",
+    "totalVideos": 10,
+    "sourceFolders": 2,
+    "playHistoryRows": 10,
+    "durableFileReceipts": [
+      {
+        "name": "library.sqlite",
+        "bytes": 290816,
+        "sha256": "a63c53494951eac6a3c92c22497c326ba2f7b816747dce89d90f5ff93ce21fe3"
+      },
+      {
+        "name": "library.sqlite-wal",
+        "bytes": 3011752,
+        "sha256": "b0633d8f4341b441e84df14c8c8da284f4a1d8ff6b0908aa5a6967fea7980149"
+      }
+    ]
+  },
+  "videos": [
+    {
+      "alias": "A",
+      "extension": ".mkv",
+      "bytes": 1979528511,
+      "durationMs": 5104024,
+      "width": 712,
+      "height": 368,
+      "videoCodec": "h264",
+      "videoProfile": "main",
+      "pixelFormat": "yuv420p",
+      "audioCodec": "aac",
+      "route": "embedded",
+      "metadataStatus": "ready",
+      "codecProbeStatus": "ready",
+      "isMissing": false,
+      "savedHistoryPositionMs": 1203110,
+      "activity": {
+        "status": "PASS",
+        "observedSeconds": [
+          6,
+          26,
+          131,
+          197
+        ],
+        "scope": "Two or more visually changing frames with advancing playback time; partial playback, not a full-duration stress test."
+      },
+      "audio": {
+        "status": "PASS_USER_CONFIRMED",
+        "reply": "声音正常"
+      },
+      "controls": {
+        "pause": "PASS",
+        "pausedPositionSeconds": 219,
+        "seek": "PASS",
+        "seekPositionSeconds": 1145,
+        "resume": "PASS"
+      },
+      "previewSnapshot": {
+        "thumbnailStatus": "ready",
+        "timelineStatus": "pending"
+      }
+    },
+    {
+      "alias": "B",
+      "extension": ".mp4",
+      "bytes": 12724538,
+      "durationMs": 50271,
+      "width": 540,
+      "height": 960,
+      "videoCodec": "h264",
+      "videoProfile": "high",
+      "pixelFormat": "yuv420p",
+      "audioCodec": "aac",
+      "route": "Chromium",
+      "metadataStatus": "ready",
+      "codecProbeStatus": "ready",
+      "isMissing": false,
+      "savedHistoryPositionMs": 50270,
+      "activity": {
+        "status": "PASS",
+        "observedSeconds": [
+          14,
+          42,
+          19,
+          29
+        ],
+        "scope": "Two or more visually changing frames with advancing playback time; partial playback, not a full-duration stress test."
+      },
+      "audio": {
+        "status": "NOT_USER_CONFIRMED"
+      },
+      "controls": {
+        "pause": "PASS",
+        "pausedPositionSeconds": 42,
+        "seek": "PASS",
+        "seekPositionSeconds": 19,
+        "resume": "PASS",
+        "reachedEnd": "PASS",
+        "hoverPreview": "PASS"
+      },
+      "previewSnapshot": {
+        "thumbnailStatus": "pending",
+        "timelineStatus": "pending"
+      }
+    },
+    {
+      "alias": "C",
+      "extension": ".mp4",
+      "bytes": 145006717,
+      "durationMs": 468855,
+      "width": 2560,
+      "height": 1440,
+      "videoCodec": "hevc",
+      "videoProfile": "main",
+      "pixelFormat": "yuvj420p",
+      "audioCodec": "pcm_alaw",
+      "route": "embedded",
+      "metadataStatus": "ready",
+      "codecProbeStatus": "ready",
+      "isMissing": false,
+      "savedHistoryPositionMs": 91035,
+      "activity": {
+        "status": "PASS",
+        "observedSeconds": [
+          4,
+          13,
+          54,
+          85
+        ],
+        "scope": "Two or more visually changing frames with advancing playback time; partial playback, not a full-duration stress test."
+      },
+      "audio": {
+        "status": "NOT_USER_CONFIRMED"
+      },
+      "controls": {
+        "status": "NOT_INDIVIDUALLY_TESTED"
+      },
+      "previewSnapshot": {
+        "thumbnailStatus": "pending",
+        "timelineStatus": "pending"
+      },
+      "durationObservation": {
+        "indexedDurationMs": 468855,
+        "headerDuration": "07:48",
+        "laterRuntimeTotal": "07:25",
+        "status": "OBSERVED_DIFFERENCE_NOT_DIAGNOSED",
+        "scope": "Runtime total differs from indexed metadata during later playback; no attribution to application or input file without further evidence."
+      }
+    },
+    {
+      "alias": "D",
+      "extension": ".mp4",
+      "bytes": 100370173,
+      "durationMs": 403619,
+      "width": 2560,
+      "height": 1440,
+      "videoCodec": "hevc",
+      "videoProfile": "main",
+      "pixelFormat": "yuvj420p",
+      "audioCodec": "pcm_alaw",
+      "route": "embedded",
+      "metadataStatus": "ready",
+      "codecProbeStatus": "ready",
+      "isMissing": false,
+      "savedHistoryPositionMs": 19959,
+      "activity": {
+        "status": "PASS",
+        "observedSeconds": [
+          4,
+          13,
+          19
+        ],
+        "scope": "Two or more visually changing frames with advancing playback time; partial playback, not a full-duration stress test."
+      },
+      "audio": {
+        "status": "NOT_USER_CONFIRMED"
+      },
+      "controls": {
+        "status": "NOT_INDIVIDUALLY_TESTED"
+      },
+      "previewSnapshot": {
+        "thumbnailStatus": "ready",
+        "timelineStatus": "pending"
+      }
+    },
+    {
+      "alias": "E",
+      "extension": ".mp4",
+      "bytes": 415396405,
+      "durationMs": 164919,
+      "width": 1920,
+      "height": 1080,
+      "videoCodec": "h264",
+      "videoProfile": "high",
+      "pixelFormat": "yuvj420p",
+      "audioCodec": "aac",
+      "route": "embedded",
+      "metadataStatus": "ready",
+      "codecProbeStatus": "ready",
+      "isMissing": false,
+      "savedHistoryPositionMs": 118889,
+      "activity": {
+        "status": "PASS",
+        "observedSeconds": [
+          6,
+          20,
+          27,
+          89,
+          98,
+          112
+        ],
+        "scope": "Two or more visually changing frames with advancing playback time; partial playback, not a full-duration stress test."
+      },
+      "audio": {
+        "status": "PASS_USER_CONFIRMED",
+        "reply": "声音正常"
+      },
+      "controls": {
+        "pause": "PASS",
+        "pausedPositionSeconds": 98,
+        "seek": "PASS",
+        "seekPositionSeconds": 81,
+        "resume": "PASS"
+      },
+      "previewSnapshot": {
+        "thumbnailStatus": "pending",
+        "timelineStatus": "pending"
+      }
+    },
+    {
+      "alias": "F",
+      "extension": ".mp4",
+      "bytes": 27175668,
+      "durationMs": 121107,
+      "width": 2560,
+      "height": 1440,
+      "videoCodec": "hevc",
+      "videoProfile": "main",
+      "pixelFormat": "yuvj420p",
+      "audioCodec": null,
+      "route": "embedded",
+      "metadataStatus": "ready",
+      "codecProbeStatus": "ready",
+      "isMissing": false,
+      "savedHistoryPositionMs": 20998,
+      "activity": {
+        "status": "PASS",
+        "observedSeconds": [
+          4,
+          14,
+          20
+        ],
+        "scope": "Two or more visually changing frames with advancing playback time; partial playback, not a full-duration stress test."
+      },
+      "audio": {
+        "status": "NO_AUDIO_STREAM_IN_METADATA"
+      },
+      "controls": {
+        "status": "NOT_INDIVIDUALLY_TESTED"
+      },
+      "previewSnapshot": {
+        "thumbnailStatus": "pending",
+        "timelineStatus": "pending"
+      }
+    },
+    {
+      "alias": "G",
+      "extension": ".mp4",
+      "bytes": 73746357,
+      "durationMs": 29035,
+      "width": 1920,
+      "height": 1080,
+      "videoCodec": "h264",
+      "videoProfile": "high",
+      "pixelFormat": "yuvj420p",
+      "audioCodec": "aac",
+      "route": "embedded",
+      "metadataStatus": "ready",
+      "codecProbeStatus": "ready",
+      "isMissing": false,
+      "savedHistoryPositionMs": 23584,
+      "activity": {
+        "status": "PASS",
+        "observedSeconds": [
+          3,
+          16,
+          23
+        ],
+        "scope": "Two or more visually changing frames with advancing playback time; partial playback, not a full-duration stress test."
+      },
+      "audio": {
+        "status": "NOT_USER_CONFIRMED"
+      },
+      "controls": {
+        "status": "NOT_INDIVIDUALLY_TESTED"
+      },
+      "previewSnapshot": {
+        "thumbnailStatus": "ready",
+        "timelineStatus": "pending"
+      }
+    }
+  ],
+  "restart": {
+    "status": "PASS_GUI_OBSERVED",
+    "applicationOnly": true,
+    "sandboxRestarted": false,
+    "totalVideos": 10,
+    "sourceFolders": 2,
+    "recentPlaybackCount": 10,
+    "metadataPending": 0,
+    "metadataFailed": 0,
+    "scanFailures": 0,
+    "resume": [
+      {
+        "alias": "A",
+        "restoredPositionSeconds": 1203,
+        "advancingPlaybackSeconds": 1211
+      },
+      {
+        "alias": "C",
+        "restoredPositionSeconds": 91,
+        "advancingPlaybackSeconds": 98
+      }
+    ]
+  },
+  "limits": [
+    "No 4K sample was supplied or tested.",
+    "Real thumbnails and timeline previews were not fully checked per file; several copied statuses remain pending. This does not prove failure or full preview acceptance.",
+    "Audio confirmations are case-specific; an audio stream or advancing timer is not evidence of audible output.",
+    "The stable Windows 11 non-administrator/public-package identity acceptance and third-party release approvals remain open.",
+    "No real-media deletion/uninstall was performed; previous synthetic media preservation evidence remains separate.",
+    "One real HEVC sample later showed runtime total 07:25 versus indexed/header 07:48; duration accuracy has not been diagnosed or accepted."
+  ]
+}

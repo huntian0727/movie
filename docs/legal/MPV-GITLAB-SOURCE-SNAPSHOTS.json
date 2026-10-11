@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-11",
+  "releaseAllowed": false,
+  "status": "API_TREE_SNAPSHOTS_NOT_BINARY_VERIFIED_OR_RELEASE_APPROVED",
+  "sources": [
+    {
+      "target": "fontconfig",
+      "commit": "d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
+      "commitUrl": "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/commit/d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
+      "committerDate": "2026-10-01T10:26:15.000+00:00",
+      "projectApiUrl": "https://gitlab.freedesktop.org/api/v4/projects/890",
+      "collectionKind": "GITLAB_PUBLIC_API_COMMIT_TREE_AND_BLOB_SNAPSHOT",
+      "rootTreeComputedSha1": "027977e1aa62deedbc408ba58a8df6c3b1493d94",
+      "treeCount": 32,
+      "blobPathCount": 736,
+      "uniqueBlobCount": 727,
+      "submodules": [],
+      "allBlobGitObjectIdsVerified": true,
+      "allNonRootTreeGitObjectIdsVerified": true,
+      "rootTreeScope": "Computed from the commit-ref root listing. Root hash was not compared with a separately obtained raw commit object.",
+      "actualDllRevisionVerified": false,
+      "releaseAllowed": false,
+      "archive": {
+        "name": "fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc-api-tree-snapshot.tar.gz",
+        "bytes": 675901,
+        "sha256": "41aa0f8d67f382bb419b5071762ad2019d3c3289fa41aa22a0c97c46914772eb",
+        "tarEntries": 736,
+        "topLevelNotices": [
+          {
+            "member": "fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc/AUTHORS",
+            "sha256": "db6d73a160bb2de10268f88ef60aae91771fefdeee4992b791c76ce6592a4a4b",
+            "bytes": 62
+          },
+          {
+            "member": "fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc/COPYING",
+            "sha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067",
+            "bytes": 8616
+          }
+        ],
+        "scope": "Locally assembled verified API tree snapshot; not an upstream-issued archive. Gitlink/submodule contents are excluded and separately recorded."
+      },
+      "treeManifestSha256": "faa2d0ff3264014c44ed844a131fbefe92f87dbbb143e2441522376985724227"
+    },
+    {
+      "target": "svtav1",
+      "commit": "d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
+      "commitUrl": "https://gitlab.com/AOMediaCodec/SVT-AV1/-/commit/d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
+      "committerDate": "2026-10-01T10:00:57.000-07:00",
+      "projectApiUrl": "https://gitlab.com/api/v4/projects/24327400",
+      "collectionKind": "GITLAB_PUBLIC_API_COMMIT_TREE_AND_BLOB_SNAPSHOT",
+      "rootTreeComputedSha1": "c30e355e438c39d18997ee8d6a967ccf07e638bc",
+      "treeCount": 80,
+      "blobPathCount": 1324,
+      "uniqueBlobCount": 1322,
+      "submodules": [],
+      "allBlobGitObjectIdsVerified": true,
+      "allNonRootTreeGitObjectIdsVerified": true,
+      "rootTreeScope": "Computed from the commit-ref root listing. Root hash was not compared with a separately obtained raw commit object.",
+      "actualDllRevisionVerified": false,
+      "releaseAllowed": false,
+      "archive": {
+        "name": "svtav1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23-api-tree-snapshot.tar.gz",
+        "bytes": 11064925,
+        "sha256": "5d455342f5901930c0af7e4d18ffc05d14e3375bf655a5a7e4af965d72f88181",
+        "tarEntries": 1324,
+        "topLevelNotices": [
+          {
+            "member": "svtav1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23/LICENSE-BSD2.md",
+            "sha256": "c582fcbeb9cf972a60d298bfaf41dc5adff2dd14208946edcb9bb56a281e8438",
+            "bytes": 1316
+          },
+          {
+            "member": "svtav1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23/LICENSE.md",
+            "sha256": "0acc2fcb27472bdc9aaf8b71f37055bbdac4f54671b7d922f241bd7fcd0dd3e6",
+            "bytes": 1709
+          }
+        ],
+        "scope": "Locally assembled verified API tree snapshot; not an upstream-issued archive. Gitlink/submodule contents are excluded and separately recorded."
+      },
+      "treeManifestSha256": "39535487bdf7a3a5efea2ba6c3036c5bc2a38ec9a45f108ca85387aa35375005"
+    }
+  ],
+  "privateArchiveDirectory": "D:/CodexReleaseAudit/movie-gitlab-candidate-snapshots-20261011",
+  "observedAt": "2026-10-11T06:06:30.441Z",
+  "timezone": "Asia/Shanghai",
+  "probes": [
+    {
+      "target": "fontconfig",
+      "origin": "https://gitlab.freedesktop.org",
+      "project": "fontconfig/fontconfig",
+      "commit": "d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
+      "projectId": 890,
+      "treeStatus": 200,
+      "treeCount": 50,
+      "topLicense": {
+        "id": "cd5fca1a03b03a815bfb8c4e8ea40a022b38507d",
+        "name": "COPYING",
+        "type": "blob",
+        "path": "COPYING",
+        "mode": "100644"
+      },
+      "licenseStatus": 200,
+      "archiveAttempts": [
+        {
+          "url": "https://gitlab.freedesktop.org/api/v4/projects/890/repository/archive.tar.gz?sha=d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
+          "status": 406
+        },
+        {
+          "url": "https://gitlab.freedesktop.org/api/v4/projects/890/repository/archive.zip?sha=d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc",
+          "status": 406
+        }
+      ]
+    },
+    {
+      "target": "svtav1",
+      "origin": "https://gitlab.com",
+      "project": "AOMediaCodec/SVT-AV1",
+      "commit": "d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
+      "projectId": 24327400,
+      "treeStatus": 200,
+      "treeCount": 23,
+      "topLicense": {
+        "id": "4d380cfb5c8b1406cdfbe0388b81d642304ab766",
+        "name": "LICENSE-BSD2.md",
+        "type": "blob",
+        "path": "LICENSE-BSD2.md",
+        "mode": "100644"
+      },
+      "licenseStatus": 200,
+      "archiveAttempts": [
+        {
+          "url": "https://gitlab.com/api/v4/projects/24327400/repository/archive.tar.gz?sha=d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
+          "status": 406
+        },
+        {
+          "url": "https://gitlab.com/api/v4/projects/24327400/repository/archive.zip?sha=d235cfcc0cfa0a24ec32ea77ec156907921e3a23",
+          "status": 406
+        }
+      ]
+    }
+  ],
+  "unresolved": [
+    "Ordinary upstream archive endpoints still returned HTTP 406; the two alternatives are local API snapshots, not upstream-issued tarballs.",
+    "These selected candidates have not been proven actual inputs to libmpv-2.dll. Unchanged caches, complete linked components, generated inputs/toolchain, full notice coverage and compatibility review remain open.",
+    "No public source distribution or release approval has occurred."
+  ]
+}

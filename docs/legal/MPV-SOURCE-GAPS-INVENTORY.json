@@ -283,8 +283,13 @@
         "actualDllRevisionVerified": false,
         "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
         "recipeGitReset": null,
-        "sourceCollectionStatus": "COLLECTION_FAILED",
-        "archive": null
+        "sourceCollectionStatus": "CANDIDATE_API_TREE_SNAPSHOT_ARCHIVED",
+        "archive": {
+          "name": "fontconfig-d416ada7b20a1cdd5050b60a7a1bbdb3d9ddd2dc-api-tree-snapshot.tar.gz",
+          "sha256": "41aa0f8d67f382bb419b5071762ad2019d3c3289fa41aa22a0c97c46914772eb",
+          "bytes": 675901,
+          "collectionKind": "GITLAB_PUBLIC_API_COMMIT_TREE_AND_BLOB_SNAPSHOT"
+        }
       }
     },
     {
@@ -1475,8 +1480,13 @@
         "actualDllRevisionVerified": false,
         "evidenceLevel": "LOG_FETCH_PLUS_RECIPE_INFERENCE_NOT_BINARY_PROOF",
         "recipeGitReset": null,
-        "sourceCollectionStatus": "COLLECTION_FAILED",
-        "archive": null
+        "sourceCollectionStatus": "CANDIDATE_API_TREE_SNAPSHOT_ARCHIVED",
+        "archive": {
+          "name": "svtav1-d235cfcc0cfa0a24ec32ea77ec156907921e3a23-api-tree-snapshot.tar.gz",
+          "sha256": "5d455342f5901930c0af7e4d18ffc05d14e3375bf655a5a7e4af965d72f88181",
+          "bytes": 11064925,
+          "collectionKind": "GITLAB_PUBLIC_API_COMMIT_TREE_AND_BLOB_SNAPSHOT"
+        }
       }
     },
     {
