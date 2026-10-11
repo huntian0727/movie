@@ -75,7 +75,9 @@ def collect(directory, binary_version):
             with urllib.request.urlopen(files[row["name"]], timeout=120) as response, temporary.open("wb") as out:
                 shutil.copyfileobj(response, out)
             temporary.rename(file)
-        if file.stat().st_size != row["bytes"] or hashlib.file_digest(file.open("rb"), "sha256").hexdigest() != row["sha256"]:
+        with file.open("rb") as stream:
+            actual_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+        if file.stat().st_size != row["bytes"] or actual_hash != row["sha256"]:
             raise ValueError("GCC source archive identity mismatch: " + row["name"])
     result = {"schemaVersion": 1, "approved": False, "binaryPackageVersion": binary_version,
               "sourcePackage": package, "sourceVersion": version, "publication": publication["self_link"],

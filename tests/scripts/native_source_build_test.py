@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -15,6 +16,9 @@ spec.loader.exec_module(build)
 gcc_spec = importlib.util.spec_from_file_location("collect_gcc", FILE.with_name("collect-native-gcc-source.py"))
 gcc = importlib.util.module_from_spec(gcc_spec)
 gcc_spec.loader.exec_module(gcc)
+restore_spec = importlib.util.spec_from_file_location("restore_sources", FILE.with_name("restore-native-source-inputs.py"))
+restore_sources = importlib.util.module_from_spec(restore_spec)
+restore_spec.loader.exec_module(restore_sources)
 
 
 class SourceCaptureTests(unittest.TestCase):
@@ -119,6 +123,53 @@ class SourceCaptureTests(unittest.TestCase):
             gcc.dsc_files(body.replace("gcc.tar.gz", "../escape.tar.gz"))
         with self.assertRaises(ValueError):
             gcc.dsc_files(body.replace("Files:\n", " " + "a" * 64 + " 123 gcc.tar.gz\n"))
+
+    def restoration_fixture(self, dependency_path="dependency/source.c"):
+        evidence = self.root / "evidence"
+        rows = []
+        for name, kind, files in [
+            ("mpv", "pinned-source", {"mpv-" + "a" * 40 + "/ci/build-mingw64.sh": b"original recipe"}),
+            ("dependency", "pre-build-source-tree", {dependency_path: b"captured source"})
+        ]:
+            archive = evidence / (name + ".tar.gz")
+            with tarfile.open(archive, "w:gz") as tar:
+                for path, body in files.items():
+                    member = tarfile.TarInfo(path)
+                    member.size = len(body)
+                    tar.addfile(member, io.BytesIO(body))
+            rows.append({"name": name, "kind": kind, "archive": archive.name,
+                         "bytes": archive.stat().st_size, "sha256": build.digest(archive), "commit": "a" * 40})
+        (evidence / "inputs.json").write_text(json.dumps({"schemaVersion": 1, "approved": False, "inputs": rows}))
+        (evidence / "movie-build-mingw64.sh").write_text('export SOURCE_CAPTURE="/old/helper"\n# preserved options\n-Dgpl=false\n')
+        (evidence / "source-capture.py").write_text("# captured collector\n")
+        return evidence
+
+    def test_captured_sources_restore_without_network_or_existing_tree_writes(self):
+        evidence = self.restoration_fixture()
+        destination = self.root / "restored"
+        with patch("urllib.request.urlopen", side_effect=AssertionError("No network during restoration")):
+            result = restore_sources.restore(evidence, destination)
+        self.assertEqual((destination / "mpv/dependency/source.c").read_bytes(), b"captured source")
+        self.assertIn("-Dgpl=false", (destination / "mpv/ci/build-mingw64.sh").read_text())
+        self.assertFalse(result["compiled"])
+        self.assertFalse(result["approved"])
+        with self.assertRaisesRegex(ValueError, "must be new"):
+            restore_sources.restore(evidence, destination)
+
+    def test_changed_source_input_prevents_any_restore_output(self):
+        evidence = self.restoration_fixture()
+        (evidence / "dependency.tar.gz").write_bytes(b"replacement archive")
+        destination = self.root / "restored"
+        with self.assertRaisesRegex(ValueError, "identity mismatch"):
+            restore_sources.restore(evidence, destination)
+        self.assertFalse(destination.exists())
+
+    def test_source_member_traversal_prevents_any_restore_output(self):
+        evidence = self.restoration_fixture("dependency/../../outside.txt")
+        destination = self.root / "restored"
+        with self.assertRaisesRegex(ValueError, "Unsafe source member"):
+            restore_sources.restore(evidence, destination)
+        self.assertFalse(destination.exists())
 
 
 if __name__ == "__main__":

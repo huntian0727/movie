@@ -20,6 +20,19 @@
 
 所有结果保持 `approved:false` 与 `sourceComplianceApproved:false`。CI 成功只证明构建完成及所执行检查通过。原有 `release-approval.json`、运行库锁和公开发行门槛都保持独立。
 
+## 从保存的输入重建
+
+在新的 Linux 构建目录安装证据中记录的工具链版本，然后运行：
+
+```sh
+python3 scripts/restore-native-source-inputs.py /path/to/evidence /path/to/new-disposable-tree
+sh /path/to/new-disposable-tree/rebuild.sh
+```
+
+第一步核验所有源码档案的字节数、SHA-256 和成员路径后才创建新目录；拒绝覆盖已有目录。它恢复 mpv、实际依赖树及已包含的递归子模块，而不是再次解析浮动 Git 分支。构建配方只迁移源码采集器路径，保留当次编译选项。保存的源码证据目录必须一起保留，采集器会验证原档案；不要修改或删除证据来绕过失败。第二步才实际编译，不自动打包或批准发行。
+
+恢复操作本身无需联网。原始配方对已存在的依赖目录跳过下载，Meson 使用 `wrap_mode=nodownload`；仍需在对应 Linux 工具链上验证重编，不能把本机恢复成功写成位级可重复构建通过。
+
 源码下载有超时/重试上限，Git HTTP 慢连接有退出阈值。编译进程最长 90 分钟，之后预留时间上传已经采集的证据；Runner 本身异常中断仍可能无法上传。
 
 未来应用代码更新且原生依赖字节不变时，可复用已审查的源码材料和组件哈希；更新原生依赖时重跑这一构建留存流程，无需重新追查历史构建任务。最终应用 ZIP 仍执行自动完整性检查和与变更相关的人工验收。
