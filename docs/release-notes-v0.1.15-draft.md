@@ -29,7 +29,7 @@
 
 随后在本机 Windows 沙盒（Windows 11 Enterprise Insider Preview 26100.9606）验证了最终绿色测试 ZIP：启动前不存在外部 Node/npm/FFmpeg/FFprobe/Git/Python；首次启动、三条合成视频扫描和缩略图、H.264/H.265/MKV 活动画面及暂停/跳转、换目录重启保存、移除程序后数据及源视频保留均 PASS。用户确认 H.264 测试音能听到；后续同包补播 H.265/MKV，用户也分别确认“能听到”。详见 [实际沙盒验收](ai/deliveries/2026-10-11-sandbox-portable-acceptance.md) 和 [声音补证](ai/deliveries/2026-10-11-sandbox-audio-confirmation.md)，不作为稳定版或公众版审批证据。
 
-随后在同一 Insider 沙盒补验七份用户提供的真实视频：四份 H.264（含 MKV、竖屏 MP4 和两份 1080p）与三份 1440p H.265 均有活动画面；长篇 MKV、竖屏 MP4、真实 1080p 的暂停/跳转/恢复通过。用户分别确认长篇 MKV 和真实 1080p MP4 的声音正常。重开应用后 10 条视频、2 个来源、10 条最近播放记录保留，长篇 MKV 从 20:03 成功续播；隔离数据库副本 quick_check 为 ok。详见 [脱敏真实媒体证据](QA/2026-10-11-sandbox-real-media-evidence.json)。其余音轨确认、逐份封面/时间轴预览、4K 和更长时间兼容性不能据此推定完成。
+随后在同一 Insider 沙盒补验七份用户提供的真实视频：四份 H.264（含 MKV、竖屏 MP4 和两份 1080p）与三份 1440p H.265 均有活动画面；长篇 MKV、竖屏 MP4、真实 1080p 的暂停/跳转/恢复通过。用户分别确认长篇 MKV、真实 1080p MP4，以及样本 C（2560×1440 H.265 / PCM A-law）的声音正常。重开应用后 10 条视频、2 个来源、10 条最近播放记录保留，长篇 MKV 从 20:03 成功续播；隔离数据库副本 quick_check 为 ok。详见 [脱敏真实媒体证据](QA/2026-10-11-sandbox-real-media-evidence.json) 和 [H.265 声音补证](ai/deliveries/2026-10-11-real-hevc-audio-confirmation.md)。其余音轨确认、逐份封面/时间轴预览、4K 和更长时间兼容性不能据此推定完成。
 
 一份真实 H.265 样本后续 GUI 总时长与索引存在差异；FFprobe 与直接 libmpv 的完整加速解码均保持 468.855 秒，未重现 GUI 差异，原因仍待定位。未将源文件判为损坏，也未声称该问题已修复。
 

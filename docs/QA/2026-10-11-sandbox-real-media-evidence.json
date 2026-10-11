@@ -164,7 +164,10 @@
         "scope": "Two or more visually changing frames with advancing playback time; partial playback, not a full-duration stress test."
       },
       "audio": {
-        "status": "NOT_USER_CONFIRMED"
+        "status": "PASS_USER_CONFIRMED",
+        "reply": "声音正常",
+        "scope": "User feedback for this real 2560×1440 HEVC / PCM A-law sample only; no confirmation for other samples or duration accuracy.",
+        "feedbackQuestionItemId": "[\"request_user_input_async\",\"call_2a5840371deb414291cc0349bfcfdfa7\",0]"
       },
       "controls": {
         "status": "NOT_INDIVIDUALLY_TESTED"
