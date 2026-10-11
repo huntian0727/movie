@@ -22,7 +22,8 @@
     "realNamesPathsScreenshotsAndDatabaseCommitted": false,
     "aliases": "Aliases A–G identify technical test cases only; personal titles and paths omitted.",
     "originalMediaModifiedByTest": false,
-    "sourceMediaHashesCollected": false
+    "sourceMediaHashesCollected": false,
+    "privateReadOnlyDiagnosticCopyCreated": true
   },
   "scan": {
     "added": 7,
@@ -176,8 +177,171 @@
         "indexedDurationMs": 468855,
         "headerDuration": "07:48",
         "laterRuntimeTotal": "07:25",
-        "status": "OBSERVED_DIFFERENCE_NOT_DIAGNOSED",
-        "scope": "Runtime total differs from indexed metadata during later playback; no attribution to application or input file without further evidence."
+        "status": "OBSERVED_GUI_DIFFERENCE_NOT_REPRODUCED_HEADLESS",
+        "scope": "Runtime total differs from indexed metadata during later playback; no attribution to application or input file without further evidence.",
+        "diagnostics": {
+          "scope": "Read-only private copied sample, no personal filename or path published. Direct libmpv via ctypes; no application/NativeHost/renderer, no display/audio output. Speed=100 playback is not real-time GUI acceptance.",
+          "copyBytes": 145006717,
+          "copySha256": "33ff1eef8ed450a8b0c316c730bf19f880c13e8c282b785551246e8a0a7e351d",
+          "ffprobe": {
+            "programs": [],
+            "stream_groups": [],
+            "streams": [
+              {
+                "index": 0,
+                "codec_name": "hevc",
+                "codec_type": "video",
+                "r_frame_rate": "25/1",
+                "avg_frame_rate": "2344400/93771",
+                "start_time": "0.000000",
+                "duration": "468.855000",
+                "nb_frames": "11722"
+              },
+              {
+                "index": 1,
+                "codec_name": "pcm_alaw",
+                "codec_type": "audio",
+                "r_frame_rate": "0/0",
+                "avg_frame_rate": "0/0",
+                "start_time": "0.000000",
+                "duration": "468.760125",
+                "nb_frames": "3750400"
+              }
+            ],
+            "format": {
+              "start_time": "0.000000",
+              "duration": "468.855000"
+            }
+          },
+          "libmpv": {
+            "dllSha256": "8ca42a74311b813abc21f4264e7ed5f12a16419596bcbda96e49f10f8187befe",
+            "noApplicationRendererOrNativeHost": true,
+            "output": "vo=null,ao=null,pause=yes",
+            "observations": [
+              {
+                "seek": null,
+                "time": 0,
+                "duration": 468.855
+              },
+              {
+                "seek": 120,
+                "time": 120.033,
+                "duration": 468.855
+              },
+              {
+                "seek": 300,
+                "time": 300.024,
+                "duration": 468.855
+              },
+              {
+                "seek": 430,
+                "time": 430.017,
+                "duration": 468.855
+              }
+            ],
+            "fastPlayback": {
+              "output": "vo=null,ao=null,speed=100; no sound/window",
+              "observations": [
+                {
+                  "wallSecond": 1,
+                  "time": 33.918,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 2,
+                  "time": 65.156,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 3,
+                  "time": 99.435,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 4,
+                  "time": 134.953,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 5,
+                  "time": 170.27100000000002,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 6,
+                  "time": 203.949,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 7,
+                  "time": 239.947,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 8,
+                  "time": 272.305,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 9,
+                  "time": 304.224,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 10,
+                  "time": 333.022,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 11,
+                  "time": 360.341,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 12,
+                  "time": 386.139,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 13,
+                  "time": 416.898,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 14,
+                  "time": 446.656,
+                  "duration": 468.855
+                },
+                {
+                  "wallSecond": 15,
+                  "time": 468.815,
+                  "duration": 468.855
+                }
+              ]
+            }
+          },
+          "packets": [
+            {
+              "stream": 0,
+              "packets": 11722,
+              "firstPts": 0,
+              "lastPts": 468.815,
+              "maxPts": 468.815,
+              "summedPacketDuration": 468.85500000009125,
+              "dtsJumpsGreaterThanSecond": []
+            },
+            {
+              "stream": 1,
+              "packets": 11720,
+              "firstPts": 0,
+              "lastPts": 468.76,
+              "maxPts": 468.76,
+              "summedPacketDuration": 468.7601250000922,
+              "dtsJumpsGreaterThanSecond": []
+            }
+          ],
+          "conclusion": "FFprobe and direct libmpv report 468.855 seconds before/after seeks and throughout full accelerated decode; packet timestamps show no jumps greater than one second. GUI discrepancy remains unexplained; not attributed to input corruption or fixed."
+        }
       }
     },
     {
@@ -362,6 +526,6 @@
     "Audio confirmations are case-specific; an audio stream or advancing timer is not evidence of audible output.",
     "The stable Windows 11 non-administrator/public-package identity acceptance and third-party release approvals remain open.",
     "No real-media deletion/uninstall was performed; previous synthetic media preservation evidence remains separate.",
-    "One real HEVC sample later showed runtime total 07:25 versus indexed/header 07:48; duration accuracy has not been diagnosed or accepted."
+    "One real HEVC sample showed GUI total 07:25–07:26 versus indexed/header 07:48. Direct libmpv full accelerated decode and FFprobe stay at 468.855 seconds; the GUI discrepancy remains unaccepted and unexplained."
   ]
 }
