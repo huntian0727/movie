@@ -1,0 +1,85 @@
+name: Native LGPL source-retaining candidate (private binary)
+
+# No release/tag trigger, no approval mutations, no plaintext executable upload.
+on:
+  workflow_dispatch:
+    inputs:
+      recipient_public_key_base64:
+        description: "RSA public key for the local private candidate recipient; never a private key"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-source-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source-build:
+    if: github.repository == 'huntian0727/movie'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CANDIDATE_PUBLIC_KEY_BASE64: ${{ inputs.recipient_public_key_base64 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.1
+      - name: Validate the recipient before building
+        run: |
+          node scripts/private-native-artifact.mjs validate-recipient
+      - name: Install cross compiler and record its exact packages
+        run: |
+          sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ccache g++-mingw-w64-x86-64 gcc-multilib nasm ninja-build pkgconf cmake python3-pip wine64 wine
+          python3 -m pip install meson==1.10.0
+          mkdir -p .tmp/native-toolchain
+          dpkg-query -W > .tmp/native-toolchain/installed-packages.txt
+          x86_64-w64-mingw32-gcc-posix --version > .tmp/native-toolchain/compiler.txt
+          meson --version > .tmp/native-toolchain/meson-version.txt
+          for package in gcc-mingw-w64-x86-64-posix g++-mingw-w64-x86-64-posix mingw-w64-x86-64-dev binutils-mingw-w64-x86-64; do
+            dpkg-query -W -f='${source:Package}=${source:Version}\n' "$package"
+            cp /usr/share/doc/"$package"/copyright .tmp/native-toolchain/"$package"-copyright.txt
+          done | sort -u > .tmp/native-toolchain/source-packages.txt
+          cd .tmp/native-toolchain
+          while read -r package; do apt-get source --download-only "$package"; done < source-packages.txt
+          sha256sum * > ../toolchain-sha256.txt
+      - name: Build native libraries and retain source inputs before compilation
+        run: python3 scripts/native-source-build.py build .tmp/native-source-candidate
+      - name: Check actual LGPL configuration under Wine
+        run: |
+          cd .tmp/native-source-candidate/runtime
+          wine ./ffmpeg.exe -version > ../evidence/ffmpeg-version.txt 2>&1
+          wine ./ffprobe.exe -version > ../evidence/ffprobe-version.txt 2>&1
+          grep -q -- '--disable-gpl' ../evidence/ffmpeg-version.txt
+          grep -q -- '--disable-nonfree' ../evidence/ffmpeg-version.txt
+          if grep -qE -- '--enable-(gpl|nonfree)' ../evidence/ffmpeg-version.txt; then exit 1; fi
+      - name: Encrypt candidate for local verification
+        run: |
+          mkdir -p .tmp/native-private-output
+          node scripts/private-native-artifact.mjs seal .tmp/native-source-candidate/runtime-private-candidate.zip .tmp/native-private-output/candidate.envelope.json
+          cp .tmp/native-source-candidate/evidence/binary-source-map.json .tmp/native-private-output/
+      - name: Retain source evidence, including when a dependency build fails
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: native-source-evidence-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            .tmp/native-source-candidate/evidence/
+            .tmp/native-toolchain/
+            .tmp/toolchain-sha256.txt
+      - name: Retain ciphertext only; never release an unapproved native binary
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: native-private-candidate-${{ github.run_id }}
+          retention-days: 7
+          if-no-files-found: error
+          path: .tmp/native-private-output/

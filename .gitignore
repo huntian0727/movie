@@ -90,3 +90,4 @@ _staging/
 _asar-repack/
 _test-launch.cjs
 native-bin/
+__pycache__/
