@@ -344,6 +344,75 @@
             }
           ],
           "conclusion": "FFprobe and direct libmpv report 468.855 seconds before/after seeks and throughout full accelerated decode; packet timestamps show no jumps greater than one second. GUI discrepancy remains unexplained; not attributed to input corruption or fixed."
+        },
+        "guiFollowUp": {
+          "testDate": "2026-10-11",
+          "artifactChanged": false,
+          "applicationCodeChanged": false,
+          "scope": "Reopened the same sample in the existing Insider Sandbox app; screenshot observations only, no numeric IPC trace and no full uninterrupted playback.",
+          "status": "NOT_REPRODUCED_IN_GUI_FOLLOW_UP_ROOT_CAUSE_OPEN",
+          "headerDuration": "07:48",
+          "observations": [
+            {
+              "operation": "restored playback",
+              "time": "07:38",
+              "total": "07:48"
+            },
+            {
+              "operation": "pause",
+              "time": "07:45",
+              "total": "07:48"
+            },
+            {
+              "operation": "seek backward while paused",
+              "time": "02:00",
+              "total": "07:48"
+            },
+            {
+              "operation": "resume with changed frame",
+              "time": "02:18",
+              "total": "07:48"
+            },
+            {
+              "operation": "pause and later reobserve unchanged",
+              "time": "02:27",
+              "total": "07:48"
+            },
+            {
+              "operation": "seek forward while paused",
+              "time": "05:04",
+              "total": "07:48"
+            },
+            {
+              "operation": "seek near end while paused",
+              "time": "07:13",
+              "total": "07:48"
+            },
+            {
+              "operation": "resume near end",
+              "time": "07:14",
+              "total": "07:48"
+            }
+          ],
+          "controls": {
+            "pause": "PASS_GUI_OBSERVED",
+            "seek": "PASS_GUI_OBSERVED",
+            "resume": "PASS_GUI_OBSERVED"
+          },
+          "hoverPreview": {
+            "status": "PASS_GUI_OBSERVED",
+            "observedLabels": [
+              "05:05",
+              "07:10"
+            ],
+            "scope": "Visible preview images at these two positions only; historical database snapshot statuses unchanged."
+          },
+          "conclusion": "All observed totals match the 07:48 indexed display in this repeat. Previous GUI difference retained; no identified cause or claimed fix.",
+          "endTransition": {
+            "status": "PASS_GUI_OBSERVED_NEXT_VIDEO",
+            "nextAlias": "A",
+            "scope": "After near-end resume the playlist automatically switched to A with active playback; exact C EOF timestamp was not captured, so no exact end-time assertion."
+          }
         }
       }
     },
