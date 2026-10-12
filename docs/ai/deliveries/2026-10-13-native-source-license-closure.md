@@ -21,6 +21,7 @@ status: partial
 - 39 个源码批准位置已关联这份审阅表的固定哈希，所有 sourceComplianceApproved、原生 approved、总 approved 和 manualQaApproved 仍为 false。
 - 增加源码审阅资料生成器：只从精确源码 ZIP、已提交代码与审阅资料生成新外部目录；包含对应原生源码、NativeHost 源码/编译 pin 与独立的 exact-commit 应用源码 ZIP。拒绝篡改输入、程序型顶层输入、路径异常、脏工作区及覆盖现有目录，不上传或批准发布。
 - 打包声明校验从 12 项扩展为 17 项，新文件随 docs/legal 自动打包，并继续要求 SHA-256 与源码逐字匹配。正式 source 批准另绑定 20 份审阅文件/NativeHost 构建资料的摘要，防止只保留审阅表哈希却替换许可正文。上游 TXT 按原始字节，自有文本仅统一 CRLF/LF 作审阅摘要，安装包对构建源码的原始 SHA 校验不变。新增生成器/路径/许可声明测试接入原生源码测试入口。
+- 关于与许可证页面增加 libmpv/MPlayer 版权、按具体构建适用的 GPL/LGPL 条款、共享库修改/调试权利与 FreeType 贡献者署名。不把旧播放器与源码播放器误标为同一种许可证。
 
 ## Verification
 
@@ -29,7 +30,7 @@ status: partial
 - 本次新增 ZIP 路径测试最初发现 Windows ZipInfo 会规范化反斜杠；生成器改为检查 orig_filename，原样构造的反斜杠成员现已拒绝。没有删测试或放宽输入条件。
 - 本轮锁定 Node 22.23.1/npm 10.9.8：lint、typecheck、build、Electron smoke PASS；Vitest 138 文件 / 1250 测试 PASS，媒体合同 65 PASS，Python 原生源码/审阅测试 27 PASS。正式资料变更、审阅行缺失/重复、正文篡改和上游 TXT 换行变化均有拒绝验证。
 - 实际新包与独立源码资料需在这次提交成为干净 checkpoint 后生成；结果追加在本记录，不套用上一轮包的材料校验。自动交付仅在以上七项完整检查本轮通过后使用 SkipChecks，避免重复跑相同检查。
-- 没有变更 src 或 NativeHost.cs，没有重编 FFmpeg/libmpv，没有声称冷重编译/逐字节重现通过。E2E 脚本不适用。
+- 关于页调整后再次完整执行七项检查：PASS，仍为 138 / 1250、65、27；渲染构建包含新署名。除关于页署名外，播放、扫描、资料库逻辑和 NativeHost.cs 不变；没有重编 FFmpeg/libmpv，没有声称冷重编译/逐字节重现通过。E2E 脚本不适用。
 
 ## Risks and follow-up
 

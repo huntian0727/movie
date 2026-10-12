@@ -294,6 +294,8 @@ export function SettingsPage({
         <section id="settings-licenses" className="settings-section" aria-labelledby="settings-licenses-title">
           <div className="section-title"><Info size={20} /><div><h2 id="settings-licenses-title">关于与第三方许可证</h2><p>项目自有代码与媒体工具分别遵循各自授权</p></div></div>
           <div className="setting-row"><div><strong>FFmpeg / FFprobe</strong><span>本软件调用 FFmpeg 媒体工具独立进程，其适用许可包括 GNU LGPL v2.1 或后续版本。</span><span>FFmpeg 官方网站：https://ffmpeg.org</span><span>有关具体版本、对应源码、许可证和构建信息，请参阅 THIRD_PARTY_LICENSES.md、docs/legal/SOURCE_OFFER.md 及该版本发行说明。第三方版权归原权利人。</span></div></div>
+          <div className="setting-row"><div><strong>libmpv 内嵌播放器</strong><span>内嵌播放使用 libmpv，版权归 mpv / MPlayer 贡献者及相关权利人。具体构建遵循其对应的 GPL / LGPL 条款。</span><span>mpv 官方网站：https://mpv.io</span><span>完整许可证、对应源码和共享库替换说明见随附 legal 目录及该版本发行说明；允许按适用条款修改库，并为调试这些修改进行逆向工程。</span></div></div>
+          <div className="setting-row"><div><strong>FreeType</strong><span>本软件使用 FreeType Project 的部分代码，版权归其贡献者；完整 FTL 与其他适用声明见随附 legal 目录。</span><span>FreeType 官方网站：https://freetype.org</span></div></div>
         </section>
         </div>
       </div>
