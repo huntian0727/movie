@@ -8,6 +8,12 @@
 
 新私有社区绿色验收包使用最终社区资料库身份。实际批准状态仍为 false；最终公开授权程序和稳定 Windows 11 验收要求不变。下节的 Lite 静态路线是 10 月 10 日的历史候选记录，不是当前源代码路线需要反复重做的工作。普通更新复用原生包的方法见 `../SOURCE_COMMUNITY_RELEASE.md`。
 
+### 本机沙盒实际验收（2026-10-12）
+
+用户选择本机沙盒，本次按该选择完成私有社区 ZIP 的功能验收。被测代码为 `41b44c7d4fea4c04b162ea6c8124ee1e3db684e1`，云端包 SHA-256 为 `3a6e456e54aa332387cc228ad9041e7ce6066f45941b9437e4ffa961696e7b07`。H.264/AAC、H.265/AAC、H.265/DTS、VP9/Opus、真实 1440p H.265/PCM A-law 均有活动画面。用户本轮对真实 PCM 与 H.264/AAC 分别回答“声音正常”，对 H.265/AAC、DTS、Opus 共同回答“三类声音都正常”。扫描、封面、播放控制、重启续播及移除绿色程序后的数据保留通过。
+
+实际沙盒仍显示 Windows 11 企业版 Insider Preview，26100.9606，默认沙盒账号；这份记录证明本次环境内的功能，不能写成稳定系统或标准用户验证。`approved`、`manualQaApproved` 与原生源码许可批准仍为 false。具体范围与限制见 `../QA/2026-10-12-source-community-sandbox-evidence.json` 和 `../ai/deliveries/2026-10-12-source-community-sandbox-acceptance.md`。自有资产权属确认无需重复，旧 Lite 路线不会因此重新开启。
+
 ## 1. 2026-10-10 的 Lite 候选事实（历史路线）
 
 - 当前个人分享版选择 FFmpeg / FFprobe **8.1.2** 的固定 Windows x64 Lite 构建，而非仓库中历史 GPL/旧 FFprobe 候选。发行方：serversideup/ffmpeg-lgpl-builds v8.1.2-27。

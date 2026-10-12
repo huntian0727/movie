@@ -12,6 +12,8 @@
 
 工程流程已支持前四步的准备。当前所有真实发布批准仍为 false，尚未公开产品 Release；正式发布动作仍须遵循 `docs/legal/PERSONAL_RELEASE_FINAL_DECISIONS.md` 的最后确认。
 
+2026-10-12：用户指定本机沙盒，已完成云端工作流 `38237353737` 的具体社区 QA ZIP 功能与人耳声音验收（代码 `41b44c7`、SHA-256 `3a6e456e54aa332387cc228ad9041e7ce6066f45941b9437e4ffa961696e7b07`）。五类画面/声音、扫描/封面、播放控制、移动与删除绿色程序后的资料库保留均已记录。环境实际为 Insider Preview 26100.9606，未扩张成稳定普通用户系统结论。详见 `QA/2026-10-12-source-community-sandbox-evidence.json`；文档提交不会改变已验收的包，也不会自动打开正式发布批准。
+
 ## 哪些内容可以复用
 
 原生组件没有变更时，`scripts/native-source-media.lock.json`、`scripts/native-source-player-runtime.lock.json`、固定原生 ZIP、固定源码 ZIP，以及针对这些具体哈希的源码许可审核可以复用。新版应用仍要通过应用测试、打包校验和相关 Windows 功能验收。修改 FFmpeg/libmpv/依赖版本、编译选项、NativeHost 或这些文件哈希时，应更新受影响的原生证据与批准记录。

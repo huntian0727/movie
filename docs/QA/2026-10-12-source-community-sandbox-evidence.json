@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 1,
+  "testDate": "2026-10-12",
+  "timezone": "Asia/Shanghai",
+  "scope": "Exact cloud community QA ZIP, local Windows Sandbox; scoped functional and human audio acceptance complete",
+  "status": "PASS_SCOPED_SANDBOX_ACCEPTANCE",
+  "releaseAllowed": false,
+  "artifact": {
+    "commit": "41b44c7d4fea4c04b162ea6c8124ee1e3db684e1",
+    "sha256": "3a6e456e54aa332387cc228ad9041e7ce6066f45941b9437e4ffa961696e7b07",
+    "releaseClass": "unsigned-community-qa",
+    "filesVerified": 231,
+    "filename": "拉面影视-0.1.15-x64-community-qa-Portable.zip",
+    "bytes": 212842097,
+    "producerWorkflowRun": 38237353737,
+    "workspaceDirty": false
+  },
+  "environment": {
+    "implementation": "Windows Sandbox",
+    "guiEdition": "Windows 11 Enterprise Insider Preview",
+    "build": "26100.9606",
+    "architecture": "AMD64",
+    "displayVersion": "24H2",
+    "accountScope": "Default Sandbox account; standard-user rights not certified",
+    "stableWindowsCoverage": false,
+    "standardUserCoverage": false,
+    "externalCommandsBefore": {
+      "node": [],
+      "npm": [],
+      "ffmpeg": [],
+      "ffprobe": [],
+      "git": [],
+      "python": []
+    },
+    "profileExistedBefore": false,
+    "existingSandboxAtStart": false
+  },
+  "privacy": {
+    "originalMediaModified": false,
+    "privateNamesPathsScreenshotsDatabasesAndMachineIdsCommitted": false,
+    "sampleNaming": "Neutral fixture aliases; one retained real HEVC/PCM sample plus synthetic fixtures",
+    "oldDesktopRealVideoFolder": "Previous Sandbox session was already absent at start; not closed or restarted by this test"
+  },
+  "automated": {
+    "smoke": {
+      "create": {
+        "ok": true,
+        "phase": "create",
+        "checks": {
+          "packaged": true,
+          "databaseQuickCheck": true,
+          "productName": true,
+          "structuredLogCreated": true,
+          "fixtureScanned": true,
+          "videoCount": 1,
+          "protocolRegistered": true,
+          "protocolRead": true,
+          "rendererMounted": true,
+          "preloadLoaded": true,
+          "preloadHasNoGenericInvoke": true,
+          "playerBridgeHasEmbeddedPlayback": true,
+          "playerBridgeMinimized": true,
+          "cspInlineScriptBlocked": true,
+          "cspExternalScriptBlocked": true,
+          "windowOpenBlocked": true,
+          "navigationBlocked": true,
+          "untrustedPageHasNoBridge": true,
+          "brandVisible": true,
+          "pageTitle": true,
+          "defaultAssetCenter": true,
+          "directoryRankingVisible": true,
+          "previewGeneratedBeforeMetadata": true,
+          "previewDecodedInRenderer": true,
+          "previewCacheHit": true,
+          "previewRegenerated": true,
+          "previewStableAcrossPagePolling": true,
+          "ffmpegLocated": true,
+          "ffprobeLocated": true,
+          "ffmpegExecutable": true,
+          "ffprobeExecutable": true,
+          "assetCenterWorkerQuery": true,
+          "libraryOverviewWorkerQuery": true,
+          "videoDataWorkerQuery": true,
+          "videoDataWorkerExport": true,
+          "videoDataWorkerSelection": true,
+          "duplicateWorkerQuery": true,
+          "metadataIssuesWorkerQuery": true,
+          "playbackDiagnosticWorkerQuery": true
+        },
+        "electron": "44.7.0"
+      },
+      "verify": {
+        "ok": true,
+        "phase": "verify",
+        "checks": {
+          "packaged": true,
+          "databaseQuickCheck": true,
+          "productName": true,
+          "structuredLogCreated": true,
+          "databaseReopenedAfterExit": true,
+          "videoCount": 1,
+          "assetCenterWorkerQuery": true,
+          "libraryOverviewWorkerQuery": true,
+          "videoDataWorkerQuery": true,
+          "videoDataWorkerExport": true,
+          "videoDataWorkerSelection": true,
+          "duplicateWorkerQuery": true,
+          "metadataIssuesWorkerQuery": true,
+          "playbackDiagnosticWorkerQuery": true
+        },
+        "electron": "44.7.0"
+      }
+    },
+    "extractionReceiptSha256": "e7d52630bb6c8d882bcbae6e56b44f9fc2b99925d7002e8b3ded68359be20016"
+  },
+  "observedGui": {
+    "firstLaunch": "PASS",
+    "scan": {
+      "videos": 10,
+      "sources": 2,
+      "failures": 0
+    },
+    "thumbnails": "PASS_ALL_10",
+    "realHevc1440p": {
+      "video": "PASS_MOVING_FRAMES",
+      "audio": "PASS_USER_CONFIRMED",
+      "pause": {
+        "positionSeconds": 25,
+        "stableAcrossTwoObservations": true
+      },
+      "seek": {
+        "targetSeconds": 184,
+        "previewVisible": true
+      },
+      "resume": {
+        "advancingSeconds": 186
+      },
+      "duration": {
+        "displayedSeconds": 468,
+        "scope": "Observed partial playback only; no full-duration claim"
+      },
+      "audioEvidence": {
+        "reply": "声音正常",
+        "source": "Owner replies in this conversation to exact cloud ZIP playback questions",
+        "date": "2026-10-12"
+      }
+    },
+    "h264Aac": {
+      "video": "PASS_MOVING_FRAMES",
+      "route": "Chromium",
+      "audio": "PASS_USER_CONFIRMED",
+      "pauseSeconds": 29,
+      "seekSeconds": 58,
+      "resumeSeconds": 61,
+      "previewVisible": true,
+      "audioEvidence": {
+        "reply": "声音正常",
+        "source": "Owner replies in this conversation to exact cloud ZIP playback questions",
+        "date": "2026-10-12"
+      }
+    },
+    "hevcAac": {
+      "video": "PASS_MOVING_FRAMES",
+      "route": "embedded",
+      "observedSeconds": [
+        0,
+        13
+      ],
+      "audio": "PASS_USER_CONFIRMED",
+      "audioEvidence": {
+        "reply": "三类声音都正常",
+        "source": "Owner replies in this conversation to exact cloud ZIP playback questions",
+        "date": "2026-10-12"
+      }
+    },
+    "hevcDtsMkv": {
+      "video": "PASS_MOVING_FRAMES",
+      "route": "embedded",
+      "observedSeconds": [
+        0,
+        13
+      ],
+      "audio": "PASS_USER_CONFIRMED",
+      "audioEvidence": {
+        "reply": "三类声音都正常",
+        "source": "Owner replies in this conversation to exact cloud ZIP playback questions",
+        "date": "2026-10-12"
+      }
+    },
+    "vp9OpusMkv": {
+      "video": "PASS_MOVING_FRAMES",
+      "route": "embedded",
+      "observedSeconds": [
+        0,
+        11
+      ],
+      "audio": "PASS_USER_CONFIRMED",
+      "pauseSeconds": 47,
+      "seekSeconds": 58,
+      "resumeSeconds": 61,
+      "previewVisible": true,
+      "audioEvidence": {
+        "reply": "三类声音都正常",
+        "source": "Owner replies in this conversation to exact cloud ZIP playback questions",
+        "date": "2026-10-12"
+      }
+    },
+    "moveAndRestart": "PASS",
+    "restartGui": {
+      "videos": 10,
+      "sources": 2,
+      "favorites": 1,
+      "history": 7,
+      "issues": 0
+    },
+    "resumeAfterRestart": {
+      "realVideoSavedMs": 298904,
+      "guiObservedSeconds": [
+        300,
+        330
+      ]
+    },
+    "removeProgram": "PASS",
+    "restoreExactProgramFromReadOnlyInput": "PASS_GUI_REOPENED_SAME_LIBRARY"
+  },
+  "dataRetention": {
+    "first-exit": {
+      "quickCheck": "ok",
+      "schema": 15,
+      "videos": 10,
+      "sources": 2,
+      "history": 7,
+      "favorites": 1,
+      "sourceHashesUnchanged": true,
+      "programExists": true,
+      "receiptSha256": "0e420e14f19be50807ede6b518440476a4a1f26706151a4121ec8ec7998305ed"
+    },
+    "reopen-exit": {
+      "quickCheck": "ok",
+      "schema": 15,
+      "videos": 10,
+      "sources": 2,
+      "history": 7,
+      "favorites": 1,
+      "sourceHashesUnchanged": true,
+      "programExists": true,
+      "receiptSha256": "10a5c52f2611820111c7ad7de63dde49e89e6f1d77cfe328bc8dea6aec55b901"
+    },
+    "program-removed": {
+      "quickCheck": "ok",
+      "schema": 15,
+      "videos": 10,
+      "sources": 2,
+      "history": 7,
+      "favorites": 1,
+      "sourceHashesUnchanged": true,
+      "programExists": false,
+      "receiptSha256": "49faee5d1685b954e824871c7f42ef150a79147506ce05fe5d034fcc07850dd7"
+    }
+  },
+  "fixtures": {
+    "originalCount": 6,
+    "extendedSyntheticCount": 4,
+    "total": 10,
+    "extendedDurationSeconds": 120,
+    "extensionMethod": "Stream-copy repetitions of retained 12-second synthetic clips using the exact cloud package FFmpeg; original files unchanged",
+    "sourceHashChecks": "All six copied originals and all four extended read-only inputs checked; no original-media files committed"
+  },
+  "approvals": {
+    "ownersConfirmed": true,
+    "manualQaApproved": false,
+    "approved": false,
+    "nativeSourceApproved": false,
+    "versionTagCreated": false,
+    "publicReleasePublished": false
+  },
+  "limitations": [
+    "Sandbox still identifies as Insider Preview; no stable Windows or standard-user acceptance claim.",
+    "Timeline preview images were visible on three tested cases; persisted timeline_preview_status remains pending for all 10, so full timeline completion is not certified.",
+    "No new 4K, HDR, long-duration stress, installer, SmartScreen or signed-upgrade validation.",
+    "Dual-audio/subtitle fixture scanned but its switching/subtitle controls were not tested in this session.",
+    "Source license approval and final public authorization remain open; no approval flags changed.",
+    "Daily desktop version has not been delivered."
+  ]
+}
