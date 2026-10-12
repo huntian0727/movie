@@ -4,6 +4,7 @@ import { legacyUserDataPath } from "./legacyUserDataPath.js";
 
 const identities = {
   "unsigned-test-build": { appId: "com.local.video.manager.unsignedtest", profile: "local-video-manager-unsigned-test" },
+  "unsigned-community-qa": { appId: "com.local.video.manager.community", profile: "local-video-manager-community" },
   "unsigned-public-release": { appId: "com.local.video.manager.community", profile: "local-video-manager-community" },
   "signed-release": { appId: "com.local.video.manager", profile: "local-video-manager" }
 } as const;

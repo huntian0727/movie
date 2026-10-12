@@ -110,7 +110,7 @@ async function createWindow(): Promise<void> {
     height: 800,
     minWidth: 980,
     minHeight: 640,
-    title: releaseFlavor?.releaseClass === "unsigned-test-build" ? "拉面影视 · unsigned-test-build" : "拉面影视",
+    title: releaseFlavor?.releaseClass === "unsigned-community-qa" ? "拉面影视 · 社区版验收（未发布）" : releaseFlavor?.releaseClass === "unsigned-test-build" ? "拉面影视 · unsigned-test-build" : "拉面影视",
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
@@ -125,10 +125,10 @@ async function createWindow(): Promise<void> {
     }
   });
   configureWindowSecurity(window, { role: "main", entryUrl: rendererEntryUrl });
-  if (releaseFlavor?.releaseClass === "unsigned-test-build") {
+  if (releaseFlavor?.releaseClass === "unsigned-test-build" || releaseFlavor?.releaseClass === "unsigned-community-qa") {
     window.webContents.on("page-title-updated", (event) => {
       event.preventDefault();
-      window.setTitle("拉面影视 · unsigned-test-build");
+      window.setTitle(releaseFlavor.releaseClass === "unsigned-community-qa" ? "拉面影视 · 社区版验收（未发布）" : "拉面影视 · unsigned-test-build");
     });
   }
 

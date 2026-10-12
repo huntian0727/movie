@@ -1,0 +1,95 @@
+name: Source runtime community ZIP (manual, private delivery)
+on:
+  workflow_dispatch:
+    inputs:
+      release_class:
+        description: "QA builds remain private; formal builds require approved records and the exact version tag"
+        required: true
+        default: unsigned-community-qa
+        type: choice
+        options:
+          - unsigned-community-qa
+          - unsigned-public-release
+permissions:
+  contents: read
+concurrency:
+  group: source-community-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.repository == 'huntian0727/movie'
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      MOVIE_RELEASE_CLASS: ${{ inputs.release_class }}
+      MOVIE_MEDIA_VARIANT: source-candidate
+      MOVIE_PLAYER_VARIANT: source-candidate
+      RELEASE_LICENSE_APPROVED: ${{ vars.RELEASE_LICENSE_APPROVED }}
+      RELEASE_BINARY_COMPLIANCE_APPROVED: ${{ vars.RELEASE_BINARY_COMPLIANCE_APPROVED }}
+      RELEASE_MANUAL_QA_APPROVED: ${{ vars.RELEASE_MANUAL_QA_APPROVED }}
+      RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED: 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.1
+          cache: npm
+      - name: Check build identity before retrieving inputs
+        run: node --input-type=module -e "import {createBuildFlavor,readJson} from './scripts/release-engineering.mjs'; console.log(createBuildFlavor(await readJson('package.json'),process.env,{signingCredentialsRequired:false}).releaseClass)"
+      - name: Retrieve pinned runtime and retained source archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/prepare-source-release-inputs.mjs
+      - run: npm install --global npm@10.9.8
+      - run: npm ci
+      - run: npm audit
+      - name: Full quality checks with independent release-test fixtures
+        env:
+          MOVIE_RELEASE_CLASS: ''
+          MOVIE_MEDIA_VARIANT: ''
+          MOVIE_PLAYER_VARIANT: ''
+        run: |
+          npm run lint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:release-gate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:electron-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: npm run dist:zip
+      - run: npm run verify:zip
+      - run: npm run release:metadata -- --portable
+      - name: Encrypt the verified ZIP for private delivery
+        if: vars.PRIVATE_QA_RECIPIENT_PUBLIC_KEY != ''
+        env:
+          CANDIDATE_PUBLIC_KEY_BASE64: ${{ vars.PRIVATE_QA_RECIPIENT_PUBLIC_KEY }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $directory = "release/$env:MOVIE_RELEASE_CLASS"
+          $qa = Get-Content "$directory/portable-qa.json" -Raw | ConvertFrom-Json
+          if ($qa.publicReleaseApproved -ne $false -or $qa.releaseClass -ne $env:MOVIE_RELEASE_CLASS -or $qa.commit -ne $env:GITHUB_SHA) { throw 'Private ZIP evidence differs' }
+          if ((Get-FileHash -LiteralPath $qa.archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $qa.sha256) { throw 'ZIP changed after QA' }
+          node scripts/private-native-artifact.mjs seal $qa.archive "$directory/private-community.zip.enc"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload metadata only
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: source-community-verification-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            release/${{ inputs.release_class }}/PORTABLE-SHA256SUMS.txt
+            release/${{ inputs.release_class }}/SHA256SUMS.txt
+            release/${{ inputs.release_class }}/portable-qa.json
+            release/${{ inputs.release_class }}/build-metadata.json
+            release/${{ inputs.release_class }}/build-flavor.json
+      - name: Upload encrypted private delivery only
+        if: vars.PRIVATE_QA_RECIPIENT_PUBLIC_KEY != ''
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: encrypted-source-community-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 7
+          path: release/${{ inputs.release_class }}/private-community.zip.enc

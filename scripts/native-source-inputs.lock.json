@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "repository": "huntian0727/movie",
+  "releaseId": 409795833,
+  "tag": "checkpoint-20261012-003909-e1ef20a-source-release-pipeline",
+  "assets": [
+    { "name": "candidate-38134981406.zip", "destination": "native-runtime.zip", "bytes": 39814033, "sha256": "3b4b4d22a3cf303b05898dedd470a6f05b0bfaa532c4ca9ab481167cd8f21b99" },
+    { "name": "source-evidence-38134981406.zip", "destination": "source-evidence.zip", "bytes": 255050585, "sha256": "3e242199da78c68939ebcbc8bb70bae4c2e57102b7aadc5ceb6b54317880e70a" }
+  ]
+}

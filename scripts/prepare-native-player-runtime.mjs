@@ -6,12 +6,13 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { playerRuntimeDirectory, playerRuntimeLockPath, playerRuntimeVariant, verifyPlayerRuntime } from "./native-player-runtime.mjs";
 import { checkedFile, materializePinnedFiles, readPinnedZip, sha256 } from "./native-player-toolchain.mjs";
+import { assertPrivateSourceMedia } from "./native-source-media.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const lock = JSON.parse(await readFile(playerRuntimeLockPath(root), "utf8"));
 const destination = playerRuntimeDirectory(root);
 if (playerRuntimeVariant() === "source-candidate") {
-  if (process.env.MOVIE_RELEASE_CLASS && process.env.MOVIE_RELEASE_CLASS !== "unsigned-test-build") throw new Error("Source player candidate requires private QA; formal distribution remains blocked.");
+  assertPrivateSourceMedia();
   try { await verifyPlayerRuntime(destination, lock); console.log("Source player candidate already staged for private QA."); process.exit(0); }
   catch (error) { if (error.code !== "ENOENT") throw error; }
   const archive = process.env.MOVIE_SOURCE_PLAYER_ZIP;

@@ -56,14 +56,31 @@ export async function runReleaseIdentitySmoke(root, app) {
         assert.equal((await readFile(path.join(userData, "settings.json"), "utf8")).includes(token), false);
       }
     }
+    // Private community QA and the final community build must reopen the same
+    // database and DPAPI token across a program-folder update.
+    const qa = createBuildFlavor(manifest, { MOVIE_RELEASE_CLASS: "unsigned-community-qa" });
+    const qaResources = path.join(root, "community-qa-program", "resources");
+    await mkdir(qaResources, { recursive: true });
+    await writeFile(path.join(qaResources, "build-flavor.json"), JSON.stringify(qa));
+    app.setPath("userData", releaseUserDataPath(appData, readReleaseFlavor(qaResources, manifest.version)));
+    assert.equal(app.getPath("userData"), path.join(appData, "local-video-manager-community"));
+    assert.equal((await createSettingsStore()).getCloudDriveToken(), "synthetic-profile-2");
+    const qaDatabase = new Database(path.join(app.getPath("userData"), "library.sqlite"));
+    try {
+      assert.deepEqual(qaDatabase.prepare("SELECT id FROM identity_sentinel").all(), [{ id: "unsigned-public-release" }]);
+      qaDatabase.exec("CREATE TABLE community_qa_update (id TEXT PRIMARY KEY); INSERT INTO community_qa_update VALUES ('qa-saved')");
+    } finally { qaDatabase.close(); }
     // Revisit older profiles after community initialization to detect overwrites.
     for (const [index, item] of cases.entries()) {
       app.setPath("userData", path.join(appData, item.directory));
       assert.equal((await createSettingsStore()).getCloudDriveToken(), `synthetic-profile-${index}`);
       const database = new Database(path.join(app.getPath("userData"), "library.sqlite"), { readonly: true });
-      try { assert.deepEqual(database.prepare("SELECT id FROM identity_sentinel").all(), [{ id: item.releaseClass }]); }
+      try {
+        assert.deepEqual(database.prepare("SELECT id FROM identity_sentinel").all(), [{ id: item.releaseClass }]);
+        if (item.releaseClass === "unsigned-public-release") assert.deepEqual(database.prepare("SELECT id FROM community_qa_update").all(), [{ id: "qa-saved" }]);
+      }
       finally { database.close(); }
     }
-    console.log("Release identity smoke OK: builder/runtime parity, three SQLite/DPAPI profiles, moved-folder reopen and no cross-profile overwrite.");
+    console.log("Release identity smoke OK: four build classes, three SQLite/DPAPI profiles, community QA-to-release persistence, moved-folder reopen and no cross-profile overwrite.");
   } finally { app.setPath("userData", previousUserData); }
 }

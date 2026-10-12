@@ -10,3 +10,6 @@ docs/legal/GCC-RUNTIME-LIBRARY-EXCEPTION.txt -text
 # Collected upstream texts retain original line endings and whitespace.
 docs/legal/NATIVE-SOURCE-CANDIDATE-NOTICES.txt -text -whitespace
 docs/legal/FFMPEG-SOURCE-CANDIDATE-LICENSE.txt -text -whitespace
+
+scripts/native-source-inputs.lock.json text eol=lf
+build/native-source-approval.json text eol=lf

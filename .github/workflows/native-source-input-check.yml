@@ -1,0 +1,28 @@
+name: Private native input transport check
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    if: github.repository == 'huntian0727/movie'
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.23.1
+      - name: Retrieve exact retained inputs using this workflow token
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/prepare-source-release-inputs.mjs
+      - name: Retain metadata only
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: private-native-input-verification-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 7
+          path: .tmp/native-source-inputs/transport-verification.json

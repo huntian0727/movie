@@ -27,6 +27,13 @@ describe("packaged identity before opening user data", () => {
     expect(releaseUserDataPath("C:\\Users\\QA\\AppData\\Roaming", flavor))
       .toBe("C:\\Users\\QA\\AppData\\Roaming\\local-video-manager-community");
   });
+  it("reopens the community profile from a private QA build, never the existing desktop profile", () => {
+    const qa = readReleaseFlavor(fixture({ releaseClass: "unsigned-community-qa",
+      appId: "com.local.video.manager.community", userDataDirectoryName: "local-video-manager-community" }), "0.1.15");
+    expect(releaseUserDataPath("C:\\QA", qa)).toBe(path.join("C:\\QA", "local-video-manager-community"));
+    expect(() => readReleaseFlavor(fixture({ releaseClass: "unsigned-community-qa",
+      appId: "com.local.video.manager", userDataDirectoryName: "local-video-manager" }), "0.1.15")).toThrow();
+  });
   it("keeps development and signed upgrade paths stable, separate from QA and community", () => {
     const root = "C:\\Users\\QA\\AppData\\Roaming";
     const signed = readReleaseFlavor(fixture({ releaseClass: "signed-release", appId: "com.local.video.manager",

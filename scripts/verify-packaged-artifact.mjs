@@ -1,7 +1,7 @@
 import { listPackage } from "@electron/asar";
 import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
-import { authenticode, hashFile, readJson, releaseOutputDirectory, verifyApplicationVersion } from "./release-engineering.mjs";
+import { authenticode, createBuildFlavor, hashFile, readJson, releaseOutputDirectory, verifyApplicationVersion, verifyFormalApproval } from "./release-engineering.mjs";
 import { candidateDirectory, liteFiles, liteRuntime, mediaLockPath, mediaVariant } from "./media-variant.mjs";
 import { verifySourceMedia } from "./native-source-media.mjs";
 import { verifyPackagedNotices } from "./verify-packaged-notices.mjs";
@@ -28,15 +28,19 @@ if (asarBytes.includes(Buffer.from(workspacePath, "utf8"))) {
 const flavor = await readJson(path.join(resourcesDirectory, "build-flavor.json"));
 const selectedPlayer = playerRuntimeVariant();
 if ((flavor.playerRuntimeVariant || "legacy-candidate") !== selectedPlayer) throw new Error("Packaged player variant differs from verification inputs.");
-if (selectedPlayer === "source-candidate" && (flavor.releaseClass !== "unsigned-test-build" ||
-  flavor.playerRuntimeLockSha256 !== await hashFile(playerRuntimeLockPath(process.cwd())))) throw new Error("Source player private-QA identity or lock differs.");
+if (selectedPlayer === "source-candidate" && flavor.playerRuntimeLockSha256 !== await hashFile(playerRuntimeLockPath(process.cwd()))) throw new Error("Source player lock differs.");
 await verifyPlayerRuntime(path.join(resourcesDirectory, "native-player"), await readJson(playerRuntimeLockPath(process.cwd())));
 const manifest = await readJson(path.join(process.cwd(), "package.json"));
 if (flavor.version !== manifest.version || flavor.arch !== "x64" || flavor.mediaVariant !== mediaVariant()) throw new Error("Packaged build flavor is inconsistent.");
+const expectedIdentity = createBuildFlavor(manifest, process.env, { signingCredentialsRequired: false });
+for (const key of Object.keys(expectedIdentity).filter(key => !["commit", "complianceApprovalSha256"].includes(key))) {
+  if (flavor[key] !== expectedIdentity[key]) throw new Error("Packaged identity differs: " + key);
+}
+if (flavor.complianceApprovalSha256 !== await verifyFormalApproval(process.cwd(), flavor)) throw new Error("Packaged approval record differs.");
 const lite = flavor.mediaVariant === "lite-candidate";
 if (flavor.mediaVariant === "source-candidate") {
   const lockPath = mediaLockPath(process.cwd(), flavor.mediaVariant);
-  if (flavor.releaseClass !== "unsigned-test-build" || flavor.mediaRuntimeLockSha256 !== await hashFile(lockPath)) throw new Error("Source media private-QA identity or lock differs.");
+  if (flavor.mediaRuntimeLockSha256 !== await hashFile(lockPath)) throw new Error("Source media lock differs.");
   await verifySourceMedia(path.join(resourcesDirectory, "media-tools"), await readJson(lockPath));
 }
 const mediaSource = candidateDirectory(process.cwd(), flavor.mediaVariant);

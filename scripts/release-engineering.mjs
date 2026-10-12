@@ -5,6 +5,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { candidateDirectory, liteRuntime, mediaVariant } from "./media-variant.mjs";
+import { isPrivateRelease, verifySourceReleaseApproval } from "./source-release-approval.mjs";
 
 const execute = promisify(execFile);
 export const PRODUCTION_APP_ID = "com.local.video.manager";
@@ -20,10 +21,11 @@ export function zipArtifactName(flavor) {
 
 export function releaseClassFor(env = process.env) {
   const requested = env.MOVIE_RELEASE_CLASS;
-  if (requested && !["signed-release","unsigned-public-release","unsigned-test-build"].includes(requested)) {
+  if (requested && !["signed-release","unsigned-public-release","unsigned-test-build","unsigned-community-qa"].includes(requested)) {
     throw new Error("Unrecognized release class; refusing release build.");
   }
   if (requested === "unsigned-public-release") return "unsigned-public-release";
+  if (requested === "unsigned-community-qa") return "unsigned-community-qa";
   if (requested === "signed-release" || (!requested && env.GITHUB_REF?.startsWith("refs/tags/"))) return "signed-release";
   return "unsigned-test-build";
 }
@@ -35,9 +37,10 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version)) throw new Error("A safe semantic package version is required.");
   const releaseClass = releaseClassFor(env);
   const tagged = env.GITHUB_REF?.startsWith("refs/tags/") === true;
-  const formal = releaseClass !== "unsigned-test-build";
+  const formal = !isPrivateRelease({ releaseClass });
   const signed = releaseClass === "signed-release";
-  const community = releaseClass === "unsigned-public-release";
+  const communityQa = releaseClass === "unsigned-community-qa";
+  const community = releaseClass === "unsigned-public-release" || communityQa;
   const certificate = Boolean(env.CSC_LINK || env.WIN_CSC_LINK || env.CSC_KEY_PASSWORD);
   if (formal) {
     if (env.GITHUB_ACTIONS !== "true") throw new Error("Formal builds require GitHub Actions.");
@@ -48,7 +51,7 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
     if (signed && (signingCredentialsRequired && (!env.CSC_LINK || !env.CSC_KEY_PASSWORD))) throw new Error("Formal signed builds require GitHub Actions signing secrets.");
     if (signed && !env.WINDOWS_EXPECTED_PUBLISHER?.trim()) throw new Error("Formal signed builds require expected publisher identity.");
     if (community && certificate) throw new Error("Unsigned public builds cannot contain signing credentials.");
-    if (community && mediaVariant(env) !== "lite-candidate") throw new Error("Unsigned public builds require reviewed Lite media source.");
+    if (community && mediaVariant(env) !== "lite-candidate" && !(mediaVariant(env) === "source-candidate" && env.MOVIE_PLAYER_VARIANT === "source-candidate")) throw new Error("Unsigned public builds require reviewed Lite media or the paired source runtime.");
     if (community && env.RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED !== "true") throw new Error("Explicit unsigned public risk acknowledgement is required.");
   } else if (certificate) throw new Error("Signing credentials must not be supplied to unsigned test builds.");
   return {
@@ -56,9 +59,9 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
     appId: community ? COMMUNITY_APP_ID : signed ? PRODUCTION_APP_ID : TEST_APP_ID,
     nsisGuid: community ? COMMUNITY_NSIS_GUID : signed ? null : TEST_NSIS_GUID,
     packageName: community ? "local-video-manager-community" : signed ? "local-video-manager" : "local-video-manager-unsigned-test",
-    executableName: community ? `${PRODUCT_NAME}-免费分享版` : signed ? PRODUCT_NAME : `${PRODUCT_NAME}-unsigned-test-build`,
+    executableName: community ? `${PRODUCT_NAME}-免费分享版${communityQa ? "-QA" : ""}` : signed ? PRODUCT_NAME : `${PRODUCT_NAME}-unsigned-test-build`,
     userDataDirectoryName: community ? "local-video-manager-community" : signed ? "local-video-manager" : "local-video-manager-unsigned-test",
-    artifactName: `${PRODUCT_NAME}-${manifest.version}-x64-${community ? "unsigned-public-Setup" : signed ? "Setup" : "unsigned-test-build-Setup"}.exe`,
+    artifactName: `${PRODUCT_NAME}-${manifest.version}-x64-${communityQa ? "community-qa-Setup" : community ? "unsigned-public-Setup" : signed ? "Setup" : "unsigned-test-build-Setup"}.exe`,
     expectedPublisher: signed ? env.WINDOWS_EXPECTED_PUBLISHER.trim() : null, commit: env.GITHUB_SHA ?? "local"
   };
 }
@@ -115,9 +118,10 @@ export async function hashFile(filePath) {
 }
 
 export async function verifyFormalApproval(root, flavor) {
-  if (flavor.releaseClass === "unsigned-test-build") return null;
-  if (flavor.mediaVariant === "source-candidate") throw new Error("Source media private candidate is not approved for formal distribution.");
-  if (flavor.playerRuntimeVariant === "source-candidate" || process.env.MOVIE_PLAYER_VARIANT === "source-candidate") throw new Error("Source player private candidate is not approved for formal distribution.");
+  if (isPrivateRelease(flavor)) return null;
+  const sourcePair = flavor.mediaVariant === "source-candidate" && flavor.playerRuntimeVariant === "source-candidate";
+  if ((flavor.mediaVariant === "source-candidate" || flavor.playerRuntimeVariant === "source-candidate" || process.env.MOVIE_PLAYER_VARIANT === "source-candidate") &&
+      (!sourcePair || flavor.releaseClass !== "unsigned-public-release")) throw new Error("Source runtime pair is not approved for this formal release.");
   const approvalPath = path.join(root, "build", "release-approval.json");
   const approval = await readJson(approvalPath);
   const manifest = await readJson(path.join(root, "package.json"));
@@ -135,6 +139,12 @@ export async function verifyFormalApproval(root, flavor) {
   }
   if (await hashFile(path.join(root, "LICENSE")) !== approval.licenseSha256 ||
       await hashFile(path.join(root, "package-lock.json")) !== approval.packageLockSha256) throw new Error("Approved license/dependency hashes no longer match the candidate.");
+  if (sourcePair) {
+    if (flavor.appId !== COMMUNITY_APP_ID || flavor.nsisGuid !== COMMUNITY_NSIS_GUID) throw new Error("Source public build must retain its isolated community identity.");
+    const sourceApproval = await verifySourceReleaseApproval(root, flavor, verifyEvidence);
+    await verifyEvidence(root, approval.cleanWindows11Evidence, approval.cleanWindows11EvidenceSha256);
+    return createHash("sha256").update(await hashFile(approvalPath) + ":" + sourceApproval).digest("hex");
+  }
   const mediaRoot = candidateDirectory(root, flavor.mediaVariant);
   const required = {
     "ffmpeg.exe": path.join(mediaRoot, "ffmpeg.exe"),
@@ -164,7 +174,7 @@ async function verifyEvidence(root, relative, expectedHash) {
   if (await hashFile(filePath) !== expectedHash) throw new Error("Reviewed source/manual QA evidence has changed.");
 }
 export function assertSignature(result, flavor) {
-  if (flavor.releaseClass === "unsigned-test-build" || flavor.releaseClass === "unsigned-public-release") {
+  if (isPrivateRelease(flavor) || flavor.releaseClass === "unsigned-public-release") {
     if (result.status !== "NotSigned") throw new Error("Unsigned artifact must be explicitly unsigned.");
     return;
   }

@@ -15,11 +15,9 @@ validateRelativeFile(flavor.executableName + ".exe");
 validateRelativeFile(zipArtifactName(flavor));
 if (flavor.outputDirectory !== releaseOutputDirectory()) throw new Error("ZIP flavor/output mismatch.");
 if (flavor.mediaVariant !== mediaVariant()) throw new Error("ZIP media variant differs from verification inputs.");
-if (flavor.mediaVariant === "source-candidate" && (flavor.releaseClass !== "unsigned-test-build" ||
-  flavor.mediaRuntimeLockSha256 !== await hashFile(mediaLockPath(root, flavor.mediaVariant)))) throw new Error("ZIP source media lock or private identity differs.");
+if (flavor.mediaVariant === "source-candidate" && flavor.mediaRuntimeLockSha256 !== await hashFile(mediaLockPath(root, flavor.mediaVariant))) throw new Error("ZIP source media lock differs.");
 if ((flavor.playerRuntimeVariant || "legacy-candidate") !== playerRuntimeVariant()) throw new Error("ZIP player variant differs from verification inputs.");
-if (playerRuntimeVariant() === "source-candidate" && (flavor.releaseClass !== "unsigned-test-build" ||
-  flavor.playerRuntimeLockSha256 !== await hashFile(playerRuntimeLockPath(root)))) throw new Error("ZIP source player lock or private identity differs.");
+if (playerRuntimeVariant() === "source-candidate" && flavor.playerRuntimeLockSha256 !== await hashFile(playerRuntimeLockPath(root))) throw new Error("ZIP source player lock differs.");
 const approvalSha256 = await verifyFormalApproval(root, flavor);
 if (flavor.complianceApprovalSha256 !== approvalSha256) throw new Error("ZIP release approval differs from its packaged record.");
 const signatures = {

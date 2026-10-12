@@ -62,3 +62,16 @@ Before public distribution: review component-specific applicability and
 the source companion, approve the exact binary/source relationship, run stable Windows
 11 ordinary-user QA for the final public identity, and use the existing formal
 release gate. Source candidates are currently rejected by that gate.
+# Release engineering update (2026-10-12)
+
+`unsigned-community-qa` can now produce a private, clearly named portable QA ZIP
+using the final community AppData identity. This does not grant public approval.
+The paired source media/player route can enter `unsigned-public-release` only
+after both `build/release-approval.json` and `build/native-source-approval.json`
+have explicit reviewed approvals, matching hashes/source evidence and actual
+clean Windows QA. The source approval inventories 39 distributed PE paths,
+including duplicated dependency bytes at their separate media/player paths.
+All current real approval records remain false. Signed source distribution and
+mixed source/legacy formal variants remain unsupported. The original producer
+FAIL and closure-false evidence below remain unchanged.
+

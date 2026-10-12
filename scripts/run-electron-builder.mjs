@@ -5,6 +5,7 @@ import { createBuildFlavor, hashFile, readJson, verifyFormalApproval, writeJson,
 import { candidateDirectory, liteFiles, mediaLockPath, mediaVariant } from "./media-variant.mjs";
 import { assertPrivateSourceMedia, verifySourceMedia } from "./native-source-media.mjs";
 import { playerRuntimeDirectory, playerRuntimeLockPath, playerRuntimeVariant, verifyPlayerRuntime } from "./native-player-runtime.mjs";
+import { isPrivateRelease } from "./source-release-approval.mjs";
 
 const mode = process.argv[2];
 if (!["--dir", "--win-nsis", "--win-zip"].includes(mode)) {
@@ -34,14 +35,15 @@ if (await hashFile(path.join(mediaSource, "LICENSE.txt")) !== expectedLicense) {
   throw new Error("Native media license evidence has changed.");
 }
 const flavor = createBuildFlavor(await readJson(path.join(root, "package.json")));
+if (flavor.releaseClass === "unsigned-community-qa" && mode === "--win-nsis") throw new Error("Private community QA is a portable ZIP only; installer approval is separate.");
 if (sourceMedia) flavor.mediaRuntimeLockSha256 = await hashFile(mediaLockPath(root, selectedVariant));
 if (playerRuntimeVariant() === "source-candidate") {
-  if (flavor.releaseClass !== "unsigned-test-build") throw new Error("Source player candidate cannot enter a formal release.");
+  if (!isPrivateRelease(flavor) && !(sourceMedia && flavor.releaseClass === "unsigned-public-release")) throw new Error("Source player requires private QA or approved paired community release.");
   flavor.playerRuntimeVariant = "source-candidate";
   flavor.playerRuntimeLockSha256 = await hashFile(playerRuntimeLockPath(root));
 }
-if (lite && !["unsigned-test-build", "unsigned-public-release"].includes(flavor.releaseClass)) throw new Error("Lite media requires isolated QA or explicitly approved unsigned community build.");
-if (flavor.releaseClass === "unsigned-public-release" && !lite) throw new Error("Unsigned public build requires the reviewed Lite media candidate.");
+if (lite && !isPrivateRelease(flavor) && flavor.releaseClass !== "unsigned-public-release") throw new Error("Lite media requires isolated QA or explicitly approved unsigned community build.");
+if (flavor.releaseClass === "unsigned-public-release" && !lite && !sourceMedia) throw new Error("Unsigned public build requires reviewed media inputs.");
 flavor.commit = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8", windowsHide: true }).trim();
 flavor.workspaceDirty = Boolean(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8", windowsHide: true }).trim());
 if (flavor.releaseClass !== "unsigned-test-build" && flavor.workspaceDirty) throw new Error("Formal packaging requires a clean reviewed checkout.");
@@ -77,7 +79,7 @@ const configuration = {
   nsis: { include: path.join(root, "build", "installer.nsh"), allowToChangeInstallationDirectory: false },
   afterPack: path.join(root, "scripts", "release-after-pack.cjs")
 };
-if (flavor.releaseClass === "unsigned-test-build" || flavor.releaseClass === "unsigned-public-release") {
+if (isPrivateRelease(flavor) || flavor.releaseClass === "unsigned-public-release") {
   configuration.productName = flavor.executableName;
   configuration.extraMetadata = { name: flavor.packageName };
   // Keep Windows product/version resources accurate while explicitly skipping
