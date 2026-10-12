@@ -15,10 +15,16 @@ describe("source community workflow delivery boundaries", () => {
     }
     expect(workflow).toContain("createBuildFlavor");
     expect(workflow).toContain("prepare-source-release-inputs.mjs");
-    expect(workflow).toContain("npm run test:release-gate");
-    const quality = workflow.slice(workflow.indexOf("- name: Full quality checks"), workflow.indexOf("- run: npm run dist:zip"));
-    expect(quality).toContain("TEMP: \u0024{{ runner.temp }}");
-    expect(quality).toContain("TMP: \u0024{{ runner.temp }}");
+    expect(workflow).toContain("verify-source-build-ci.mjs");
+    expect(workflow.indexOf("verify-source-build-ci.mjs")).toBeLessThan(workflow.indexOf("prepare-source-release-inputs.mjs"));
+    expect(workflow).toContain("actions: read");
+    expect(workflow).toContain(".tmp/source-release-ci/exact-commit-ci.json");
+    const mainCi = await readFile(".github/workflows/windows-ci.yml", "utf8");
+    expect(mainCi).toContain("npm run test:release-gate");
+    expect(mainCi).toContain("TEMP: \u0024{{ runner.temp }}");
+    expect(mainCi).toContain("TMP: \u0024{{ runner.temp }}");
+    expect(workflow).toContain("npm run test:electron-smoke");
+    expect(workflow).toContain("npm run test:renderer-security-smoke");
     expect(workflow).not.toMatch(/--testTimeout|--retry|--exclude|--passWithNoTests/);
     expect(workflow).toContain("npm run verify:zip");
     expect(workflow).toContain("npm run release:metadata -- --portable");

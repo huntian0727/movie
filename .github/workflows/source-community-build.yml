@@ -19,10 +19,11 @@ jobs:
   build:
     if: github.repository == 'huntian0727/movie'
     # Private draft GET requires push-level Contents permission (actual read
-    # probe returned 403). GH_TOKEN is exposed only to the input-download step.
+    # probe returned 403). GH_TOKEN is exposed only to CI/input read steps.
     # No release/tag mutation or plaintext-program upload is present here.
     permissions:
       contents: write
+      actions: read
     runs-on: windows-2025
     timeout-minutes: 60
     env:
@@ -43,6 +44,10 @@ jobs:
           cache: npm
       - name: Check build identity before retrieving inputs
         run: node --input-type=module -e "import {createBuildFlavor,readJson} from './scripts/release-engineering.mjs'; console.log(createBuildFlavor(await readJson('package.json'),process.env,{signingCredentialsRequired:false}).releaseClass)"
+      - name: Require complete successful main CI and security audit for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/verify-source-build-ci.mjs
       - name: Retrieve pinned runtime and retained source archives
         env:
           GH_TOKEN: ${{ github.token }}
@@ -50,22 +55,9 @@ jobs:
       - run: npm install --global npm@10.9.8
       - run: npm ci
       - run: npm audit
-      - name: Full quality checks with independent release-test fixtures
-        env:
-          # Same scratch volume as the existing Windows CI large SQLite gate.
-          TEMP: ${{ runner.temp }}
-          TMP: ${{ runner.temp }}
-          MOVIE_RELEASE_CLASS: ''
-          MOVIE_MEDIA_VARIANT: ''
-          MOVIE_PLAYER_VARIANT: ''
-        run: |
-          npm run lint
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run test:release-gate
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run test:electron-smoke
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - run: npm run dist:zip
+      - run: npm run test:electron-smoke
+      - run: npm run test:renderer-security-smoke
       - run: npm run verify:zip
       - run: npm run release:metadata -- --portable
       - name: Encrypt the verified ZIP for private delivery
@@ -93,6 +85,7 @@ jobs:
             release/${{ inputs.release_class }}/portable-qa.json
             release/${{ inputs.release_class }}/build-metadata.json
             release/${{ inputs.release_class }}/build-flavor.json
+            .tmp/source-release-ci/exact-commit-ci.json
       - name: Upload encrypted private delivery only
         if: vars.PRIVATE_QA_RECIPIENT_PUBLIC_KEY != ''
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

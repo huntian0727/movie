@@ -6,7 +6,7 @@
 
 1. 修改应用、更新版本与 lockfile，按 AGENTS.md 做开发备份、检查和正常提交。
 2. 手动运行 **Source runtime community ZIP (manual, private delivery)**，选择开发分支与 `unsigned-community-qa`。
-3. 工作流取回固定的运行库及对应源码，核对大小和 SHA-256，运行质量检查、打包、解压和程序 smoke。无需重编 FFmpeg、libmpv 或重复获取第三方源码。
+3. 工作流要求同一个完整 Commit 的最新主分支 Windows CI 与安全检查已成功；缺失、运行中、失败、取消都不能替代成功结果。随后取回固定运行库与源码并核对大小和 SHA-256，执行构建、Electron/Renderer 安全 smoke、ZIP 解压及实际程序 smoke。无需重编 FFmpeg、libmpv 或重复获取第三方源码，也不重复运行已通过的完整主 CI。
 4. 从验证资料与加密交付中取得具体 ZIP，进行本次改动相关的 Windows 验收。私钥只在维护者本机；GitHub 仅配置 RSA 公钥。
 5. 对这个具体版本完成必要证据与最终公开授权后，才创建精确版本 tag、选择 `unsigned-public-release` 构建正式包，并发布程序、校验和、Release Notes、对应源码与适用许可材料。
 
@@ -20,7 +20,7 @@
 
 ## 私有输入与交付
 
-固定输入存放于已有 checkpoint 对应的私有 GitHub 草稿，`scripts/native-source-inputs.lock.json` 绑定草稿 ID、文件名、长度和哈希。实际取包探针已证明 GitHub 的只读 Contents token 返回 403；只有两个手动取包工作流的 job 请求读取私有草稿所需的 Contents write 权限，取包脚本仅执行 GET，不创建 tag、不发布 Release。其他工作流不因此提高权限。
+固定输入存放于已有 checkpoint 对应的私有 GitHub 草稿，`scripts/native-source-inputs.lock.json` 绑定草稿 ID、文件名、长度和哈希。实际取包探针已证明 GitHub 的只读 Contents token 返回 403；只有两个手动取包工作流的 job 请求读取私有草稿所需的 Contents write 权限，CI/取包脚本仅执行 GET，不创建 tag、不发布 Release。打包 job 另有 Actions read 用于核对当前 Commit 的 CI；其他工作流不因此提高权限。
 
 下载脚本不向对象存储转发 GitHub token。公开仓库的 Actions artifact 只保存验证元数据及 RSA-OAEP/AES-GCM 加密的程序；不上传明文程序 ZIP或私钥。草稿保持私有也不代表它已经获得第三方分发批准。
 
