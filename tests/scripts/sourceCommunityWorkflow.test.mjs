@@ -8,7 +8,8 @@ describe("source community workflow delivery boundaries", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).not.toMatch(/\n\s+(push|release|pull_request):/);
     expect(workflow).toContain("contents: read");
-    expect(workflow).not.toMatch(/contents: write|gh release|softprops\/action-gh-release|BEGIN.*PRIVATE KEY/);
+    expect(workflow.match(/contents: write/g)).toHaveLength(1);
+    expect(workflow).not.toMatch(/gh release|softprops\/action-gh-release|BEGIN.*PRIVATE KEY/);
     for (const name of ["RELEASE_LICENSE_APPROVED", "RELEASE_BINARY_COMPLIANCE_APPROVED", "RELEASE_MANUAL_QA_APPROVED"]) {
       expect(workflow).toContain(`${name}: \u0024{{ vars.${name} }}`);
     }
@@ -26,6 +27,7 @@ describe("source community workflow delivery boundaries", () => {
   it("uses the same pinned inputs in its read-only transport probe", async () => {
     const probe = await readFile(".github/workflows/native-source-input-check.yml", "utf8");
     expect(probe).toContain("contents: read"); expect(probe).toContain("prepare-source-release-inputs.mjs");
+    expect(probe.match(/contents: write/g)).toHaveLength(1);
     expect(probe).toContain("path: .tmp/native-source-inputs/transport-verification.json");
     expect(probe).not.toMatch(/npm ci|gh release|candidate-private|\.zip\s*$/m);
   });

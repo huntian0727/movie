@@ -6,6 +6,10 @@ permissions:
 jobs:
   check:
     if: github.repository == 'huntian0727/movie'
+    # GitHub rejected contents:read access to this private draft with HTTP 403.
+    # This manual job only performs GETs and retains verification metadata.
+    permissions:
+      contents: write
     runs-on: windows-2025
     timeout-minutes: 15
     steps:

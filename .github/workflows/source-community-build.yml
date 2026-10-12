@@ -18,6 +18,11 @@ concurrency:
 jobs:
   build:
     if: github.repository == 'huntian0727/movie'
+    # Private draft GET requires push-level Contents permission (actual read
+    # probe returned 403). GH_TOKEN is exposed only to the input-download step.
+    # No release/tag mutation or plaintext-program upload is present here.
+    permissions:
+      contents: write
     runs-on: windows-2025
     timeout-minutes: 60
     env:
