@@ -10,6 +10,16 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 class CompanionTests(unittest.TestCase):
+    def test_public_source_scope_cannot_promote_stable_or_unapproved(self):
+        approval = {"approved": True, "version": "1.2.3-beta.1", "scope": "public-prerelease-portable-only", "stableReleaseApproved": False}
+        native = {"approved": True, "binaries": [{"sourceComplianceApproved": True}]}
+        module.validate_public_test(approval, "1.2.3-beta.1", native)
+        for change in [{"approved": False}, {"version": "1.2.3"}, {"stableReleaseApproved": True}]:
+            with self.assertRaises(ValueError):
+                module.validate_public_test({**approval, **change}, "1.2.3-beta.1", native)
+        with self.assertRaises(ValueError):
+            module.validate_public_test(approval, "1.2.3-beta.1", {**native, "approved": False})
+
     def source(self, directory, names):
         source = Path(directory) / "sources.zip"
         with zipfile.ZipFile(source, "w") as archive:

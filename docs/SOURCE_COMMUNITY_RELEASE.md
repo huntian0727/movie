@@ -1,6 +1,6 @@
 # 源码可追溯社区版的更新与发布
 
-当前版本：0.1.15。当前路线：同一生产批次的共享 FFmpeg/FFprobe 与共享 libmpv 运行库，两个 variant 均为 `source-candidate`。这是绿色 ZIP 路线；`unsigned-community-qa` 文件名和窗口明确标记验收、未发布，使用正式社区版的资料库身份。
+当前版本：0.1.15-beta.1。当前路线：同一生产批次的共享 FFmpeg/FFprobe 与共享 libmpv 运行库，两个 variant 均为 `source-candidate`。这是绿色 ZIP 路线；`unsigned-community-qa` 文件名和窗口明确标记验收、未发布，使用正式社区版的资料库身份。
 
 ## 普通应用更新
 
@@ -10,7 +10,9 @@
 4. 从验证资料与加密交付中取得具体 ZIP，进行本次改动相关的 Windows 验收。私钥只在维护者本机；GitHub 仅配置 RSA 公钥。
 5. 对这个具体版本完成必要证据与最终公开授权后，才创建精确版本 tag、选择 `unsigned-public-release` 构建正式包，并发布程序、校验和、Release Notes、对应源码与适用许可材料。
 
-工程流程已支持前四步的准备。当前所有真实发布批准仍为 false，尚未公开产品 Release；正式发布动作仍须遵循 `docs/legal/PERSONAL_RELEASE_FINAL_DECISIONS.md` 的最后确认。
+2026-10-13 维护者选择先发布公开测试版。`build/public-test-approval.json` 单独批准精确 `-beta.N` 版本与已有沙盒覆盖，稳定版批准仍为 false；不能用测试版批准生成稳定版或安装器。公开测试构建使用精确版本 tag、`unsigned-public-release`、配对源码运行库，需 `RELEASE_PUBLIC_TEST_ACKNOWLEDGED=true`，并通过许可/原生批准与精确 commit 主 CI；公开时必须附对应源码、校验和和范围说明，GitHub 标记 prerelease、不标 latest。程序仍由工作流加密交付，维护者本机解密并核验后发布，同一私有输入 draft 保持私有。
+
+后续普通应用更新复用原生哈希对应的源码/许可审阅与音频验收，更新版本批准中的依赖、QA/决策哈希并运行应用 CI、打包 smoke 和变更相关验收即可。无需每次重新获取或重编整套 FFmpeg/mpv；原生组件或 NativeHost 有变更时才补相关验证。测试版发布流程不能自动提升稳定系统覆盖。
 
 2026-10-12：用户指定本机沙盒，已完成云端工作流 `38237353737` 的具体社区 QA ZIP 功能与人耳声音验收（代码 `41b44c7`、SHA-256 `3a6e456e54aa332387cc228ad9041e7ce6066f45941b9437e4ffa961696e7b07`）。五类画面/声音、扫描/封面、播放控制、移动与删除绿色程序后的资料库保留均已记录。环境实际为 Insider Preview 26100.9606，未扩张成稳定普通用户系统结论。详见 `QA/2026-10-12-source-community-sandbox-evidence.json`；文档提交不会改变已验收的包，也不会自动打开正式发布批准。
 

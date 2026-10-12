@@ -14,6 +14,7 @@ export const COMMUNITY_APP_ID = "com.local.video.manager.community";
 export const COMMUNITY_NSIS_GUID = "b73f7252-798d-48d9-b877-19fb6d355f83";
 export const TEST_NSIS_GUID = "ec02b3c5-6e7a-4e3d-9f2a-1c6854cc8072";
 export const PRODUCT_NAME = "拉面影视";
+export const isPublicTestVersion = version => /^\d+\.\d+\.\d+-beta\.\d+$/.test(version);
 export function zipArtifactName(flavor) {
   if (!flavor.artifactName?.endsWith("-Setup.exe")) throw new Error("Invalid installer artifact name.");
   return flavor.artifactName.replace(/-Setup\.exe$/, "-Portable.zip");
@@ -41,12 +42,18 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
   const signed = releaseClass === "signed-release";
   const communityQa = releaseClass === "unsigned-community-qa";
   const community = releaseClass === "unsigned-public-release" || communityQa;
+  const publicTest = releaseClass === "unsigned-public-release" && isPublicTestVersion(manifest.version);
   const certificate = Boolean(env.CSC_LINK || env.WIN_CSC_LINK || env.CSC_KEY_PASSWORD);
   if (formal) {
     if (env.GITHUB_ACTIONS !== "true") throw new Error("Formal builds require GitHub Actions.");
     if (env.RELEASE_LICENSE_APPROVED !== "true" || env.RELEASE_BINARY_COMPLIANCE_APPROVED !== "true") throw new Error("Formal builds require explicit license and binary-compliance approval.");
     if (!manifest.license || manifest.license === "UNLICENSED") throw new Error("The owner must select and declare the application license before formal distribution.");
-    if (env.RELEASE_MANUAL_QA_APPROVED !== "true") throw new Error("Formal builds require approved clean-Windows QA evidence.");
+    if (publicTest) {
+      if (env.RELEASE_PUBLIC_TEST_ACKNOWLEDGED !== "true" || mediaVariant(env) !== "source-candidate" || env.MOVIE_PLAYER_VARIANT !== "source-candidate") throw new Error("Public beta requires explicit scoped acknowledgement and the reviewed source pair.");
+    } else {
+      if (env.RELEASE_PUBLIC_TEST_ACKNOWLEDGED === "true") throw new Error("Public test approval cannot promote a stable or signed release.");
+      if (env.RELEASE_MANUAL_QA_APPROVED !== "true") throw new Error("Formal builds require approved clean-Windows QA evidence.");
+    }
     if (!tagged || env.GITHUB_REF !== `refs/tags/v${manifest.version}`) throw new Error("Release tag must match package version.");
     if (signed && (signingCredentialsRequired && (!env.CSC_LINK || !env.CSC_KEY_PASSWORD))) throw new Error("Formal signed builds require GitHub Actions signing secrets.");
     if (signed && !env.WINDOWS_EXPECTED_PUBLISHER?.trim()) throw new Error("Formal signed builds require expected publisher identity.");
@@ -56,6 +63,7 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
   } else if (certificate) throw new Error("Signing credentials must not be supplied to unsigned test builds.");
   return {
     schemaVersion: 1, releaseClass, version: manifest.version, arch: "x64", mediaVariant: mediaVariant(env), outputDirectory: releaseOutputDirectory(env), complianceApprovalSha256: null,
+    ...(publicTest ? { publicTestRelease: true } : {}),
     appId: community ? COMMUNITY_APP_ID : signed ? PRODUCTION_APP_ID : TEST_APP_ID,
     nsisGuid: community ? COMMUNITY_NSIS_GUID : signed ? null : TEST_NSIS_GUID,
     packageName: community ? "local-video-manager-community" : signed ? "local-video-manager" : "local-video-manager-unsigned-test",
@@ -125,6 +133,28 @@ export async function verifyFormalApproval(root, flavor) {
   const approvalPath = path.join(root, "build", "release-approval.json");
   const approval = await readJson(approvalPath);
   const manifest = await readJson(path.join(root, "package.json"));
+  const publicTest = flavor.releaseClass === "unsigned-public-release" && isPublicTestVersion(flavor.version);
+  if (publicTest) {
+    if (manifest.version !== flavor.version || flavor.publicTestRelease !== true || !sourcePair ||
+        approval.ownersConfirmed !== true || approval.applicationLicense !== manifest.license || manifest.license !== "MIT" ||
+        flavor.appId !== COMMUNITY_APP_ID || flavor.nsisGuid !== COMMUNITY_NSIS_GUID) throw new Error("Public test identity/owner approval differs.");
+    const testPath = path.join(root, "build/public-test-approval.json"), test = await readJson(testPath);
+    if (test.schemaVersion !== 1 || test.approved !== true || test.scope !== "public-prerelease-portable-only" ||
+        test.version !== manifest.version || test.stableReleaseApproved !== false || test.stableWindowsCoverage !== false ||
+        test.standardUserCoverage !== false || test.unsignedAcknowledged !== true || test.nativeLicenseElection !== "LGPL-3.0-or-later") throw new Error("Scoped public test approval is missing or differs.");
+    if (await hashFile(path.join(root, "LICENSE")) !== approval.licenseSha256 ||
+        await hashFile(path.join(root, "package-lock.json")) !== test.packageLockSha256 ||
+        await hashFile(path.join(root, "build/native-source-approval.json")) !== test.nativeSourceApprovalSha256) throw new Error("Public test dependency/license/source approval hashes differ.");
+    await verifyEvidence(root, test.decisionEvidence, test.decisionEvidenceSha256);
+    if (test.sandboxEvidence !== "docs/QA/2026-10-12-source-community-sandbox-evidence.json" ||
+        await hashFile(path.join(root, test.sandboxEvidence)) !== test.sandboxEvidenceSha256) throw new Error("Public test sandbox evidence differs.");
+    const sandbox = await readJson(path.join(root, test.sandboxEvidence));
+    if (sandbox.status !== "PASS_SCOPED_SANDBOX_ACCEPTANCE" || sandbox.environment?.stableWindowsCoverage !== false ||
+        sandbox.environment?.standardUserCoverage !== false) throw new Error("Public test must disclose actual preview Sandbox coverage.");
+    const sourceApproval = await verifySourceReleaseApproval(root, flavor, verifyEvidence);
+    return createHash("sha256").update(await hashFile(approvalPath) + ":" + await hashFile(testPath) + ":" + sourceApproval).digest("hex");
+  }
+  if (flavor.publicTestRelease === true) throw new Error("Public test approval cannot promote a stable release.");
   if (approval.schemaVersion !== 1 || approval.approved !== true || approval.ownersConfirmed !== true ||
       approval.applicationLicense !== manifest.license || approval.manualQaApproved !== true ||
       (flavor.releaseClass === "signed-release" && approval.legacyUpgradeApproved !== true)) {

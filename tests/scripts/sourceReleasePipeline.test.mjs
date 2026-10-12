@@ -68,6 +68,54 @@ async function sourceFixture() {
   return { root, approval, flavor, mainApproval, evidence, media, player };
 }
 
+async function betaFixture() {
+  const f = await sourceFixture(), version = "1.2.3-beta.1";
+  await json(f.root, "package.json", { ...manifest, version });
+  f.mainApproval.approved = false; f.mainApproval.manualQaApproved = false;
+  await json(f.root, "build/release-approval.json", f.mainApproval);
+  await mkdir(path.join(f.root, "docs/QA"), { recursive: true });
+  const sandboxEvidence = "docs/QA/2026-10-12-source-community-sandbox-evidence.json";
+  const sandboxEvidenceSha256 = await json(f.root, sandboxEvidence, { status: "PASS_SCOPED_SANDBOX_ACCEPTANCE", environment: { stableWindowsCoverage: false, standardUserCoverage: false } });
+  const test = { schemaVersion: 1, approved: true, scope: "public-prerelease-portable-only", version,
+    stableReleaseApproved: false, stableWindowsCoverage: false, standardUserCoverage: false, unsignedAcknowledged: true,
+    nativeLicenseElection: "LGPL-3.0-or-later", packageLockSha256: f.mainApproval.packageLockSha256,
+    nativeSourceApprovalSha256: await hashFile(path.join(f.root, "build/native-source-approval.json")),
+    decisionEvidence: f.evidence, decisionEvidenceSha256: f.approval.reviewEvidenceSha256, sandboxEvidence, sandboxEvidenceSha256 };
+  await json(f.root, "build/public-test-approval.json", test);
+  const beta = createBuildFlavor({ ...manifest, version }, { ...publicEnv, GITHUB_REF: "refs/tags/v" + version, RELEASE_MANUAL_QA_APPROVED: "false", RELEASE_PUBLIC_TEST_ACKNOWLEDGED: "true" });
+  f.flavor = { ...f.flavor, ...beta }; return { ...f, test };
+}
+
+describe("public beta authorization is separate from stable Windows acceptance", () => {
+  it("allows only the explicitly acknowledged paired-source beta tag", () => {
+    const beta = { ...manifest, version: "1.2.3-beta.1" };
+    const env = { ...publicEnv, GITHUB_REF: "refs/tags/v1.2.3-beta.1", RELEASE_PUBLIC_TEST_ACKNOWLEDGED: "true", RELEASE_MANUAL_QA_APPROVED: "false" };
+    expect(createBuildFlavor(beta, env).publicTestRelease).toBe(true);
+    expect(() => createBuildFlavor(beta, { ...env, RELEASE_PUBLIC_TEST_ACKNOWLEDGED: "" })).toThrow();
+    expect(() => createBuildFlavor(manifest, { ...publicEnv, RELEASE_PUBLIC_TEST_ACKNOWLEDGED: "true" })).toThrow(/cannot promote/);
+    expect(() => createBuildFlavor(beta, { ...env, MOVIE_MEDIA_VARIANT: "lite-candidate" })).toThrow();
+  });
+  it("binds exact beta approvals while stable approval remains false", async () => {
+    const f = await betaFixture();
+    expect(await verifyFormalApproval(f.root, f.flavor)).toMatch(/^[a-f0-9]{64}$/);
+    await expect(verifyFormalApproval(f.root, { ...f.flavor, version: manifest.version })).rejects.toThrow();
+  });
+  it.each(["approval", "version", "scope", "stable", "lock", "native", "qa", "decision", "owner"])("rejects changed %s beta evidence", async kind => {
+    const f = await betaFixture();
+    if (kind === "approval") f.test.approved = false;
+    if (kind === "version") f.test.version = "1.2.3-beta.2";
+    if (kind === "scope") f.test.scope = "stable";
+    if (kind === "stable") f.test.stableWindowsCoverage = true;
+    if (kind === "lock") f.test.packageLockSha256 = "b".repeat(64);
+    if (kind === "native") f.test.nativeSourceApprovalSha256 = "b".repeat(64);
+    if (kind === "qa") await writeFile(path.join(f.root, f.test.sandboxEvidence), "tampered");
+    if (kind === "decision") f.test.decisionEvidenceSha256 = "b".repeat(64);
+    if (kind === "owner") { f.mainApproval.ownersConfirmed = false; await json(f.root, "build/release-approval.json", f.mainApproval); }
+    await json(f.root, "build/public-test-approval.json", f.test);
+    await expect(verifyFormalApproval(f.root, f.flavor)).rejects.toThrow();
+  });
+});
+
 describe("private community QA and exact source release approval", () => {
   it("uses the community profile before public approval, with visibly private artifact identity", async () => {
     const qa = createBuildFlavor(manifest, { MOVIE_RELEASE_CLASS: "unsigned-community-qa", MOVIE_MEDIA_VARIANT: "source-candidate" });
@@ -79,12 +127,14 @@ describe("private community QA and exact source release approval", () => {
     expect(() => createBuildFlavor(manifest, { MOVIE_RELEASE_CLASS: "unsigned-community-qa", CSC_LINK: "synthetic" })).toThrow();
     expect(() => createBuildFlavor(manifest, { ...publicEnv, MOVIE_PLAYER_VARIANT: "legacy-candidate" })).toThrow();
   });
-  it("covers all 39 real PE paths independently, retaining false approval", async () => {
+  it("covers all 39 reviewed real PE paths while stable Windows approval stays closed", async () => {
     const media = JSON.parse(await readFile("scripts/native-source-media.lock.json", "utf8"));
     const player = JSON.parse(await readFile("scripts/native-source-player-runtime.lock.json", "utf8"));
     const approval = JSON.parse(await readFile("build/native-source-approval.json", "utf8"));
-    expect(approval.approved).toBe(false); expect(approval.binaries).toHaveLength(39);
-    expect(approval.binaries.every(item => item.sourceComplianceApproved === false)).toBe(true);
+    expect(approval.approved).toBe(true); expect(approval.binaries).toHaveLength(39);
+    expect(approval.binaries.every(item => item.sourceComplianceApproved === true)).toBe(true);
+    const stable = JSON.parse(await readFile("build/release-approval.json", "utf8"));
+    expect(stable.approved).toBe(false); expect(stable.manualQaApproved).toBe(false);
     const host = approval.binaries.find(item => item.path === "native-player/NativeHost.exe");
     expect(approval.binaries.map(({ path, sha256 }) => ({ path, sha256 }))).toEqual(sourceBinaryRecords(media, player, host.sha256));
     expect(approval.mediaRuntimeLockSha256).toBe(await hashFile("scripts/native-source-media.lock.json"));

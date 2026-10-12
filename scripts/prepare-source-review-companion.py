@@ -36,7 +36,14 @@ def verify_source_zip(source):
         if archive.testzip() is not None:
             raise ValueError("Source ZIP CRC failure")
 
-def prepare(source, output):
+def validate_public_test(approval, version, native_approval):
+    import re
+    if not re.fullmatch(r"\d+\.\d+\.\d+-beta\.\d+", version) or approval.get("version") != version or approval.get("approved") is not True or approval.get("scope") != "public-prerelease-portable-only" or approval.get("stableReleaseApproved") is not False:
+        raise ValueError("Public source companion requires exact approved beta scope")
+    if native_approval.get("approved") is not True or not native_approval.get("binaries") or any(item.get("sourceComplianceApproved") is not True for item in native_approval["binaries"]):
+        raise ValueError("Public source companion lacks native distribution approval")
+
+def prepare(source, output, public_test=False):
     source, output = Path(source).resolve(), Path(output).resolve()
     if output == ROOT or ROOT in output.parents or output.exists() or not output.parent.is_dir():
         raise ValueError("Output must be a NEW external staging directory with existing parent")
@@ -64,31 +71,43 @@ def prepare(source, output):
     if subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT):
         raise ValueError("Commit reviewed files before companion staging")
     version = json.loads((ROOT / "package.json").read_text())["version"]
+    if public_test:
+        validate_public_test(json.loads((ROOT / "build/public-test-approval.json").read_text()), version, approvals[1])
     if not all(c.isalnum() or c in ".-" for c in version):
         raise ValueError("Unsafe package version")
     output.mkdir()
     application_sources = output / ("Movie-" + version + "-Application-Sources.zip")
     subprocess.run(["git", "archive", "--format=zip", "--output=" + str(application_sources), commit], cwd=ROOT, check=True)
-    bundle = output / ("Movie-" + version + "-Native-Source-Review.zip")
-    assets = [{"path": file, "sha256": digest(ROOT / file)} for file in ASSETS]
+    bundle = output / ("Movie-" + version + ("-Corresponding-Native-Sources.zip" if public_test else "-Native-Source-Review.zip"))
+    release_assets = ASSETS + (["build/public-test-approval.json", "build/native-source-approval.json", "docs/legal/PUBLIC_TEST_RELEASE_DECISION.md",
+        "THIRD_PARTY_LICENSES.md", "docs/legal/THIRD_PARTY_RELEASE_NOTICES.md", "docs/legal/FFMPEG_BUILD_INFO.md",
+        "docs/legal/FFMPEG_SOURCE_NOTICE.md", "docs/legal/NATIVE_COMPONENTS.md", "docs/legal/MPV_SOURCE_NOTICE.md"] if public_test else [])
+    assets = [{"path": file, "sha256": digest(ROOT / file)} for file in release_assets]
     status = {"schemaVersion": 1, "status": "PRIVATE_REVIEW_NOT_PUBLIC_RELEASE", "approved": False,
               "programIncluded": False, "sourceComplianceApproved": False, "version": version, "commit": commit,
               "inputApprovalStates": [a["approved"] for a in approvals], "nativeRuntimeInputSha256": NATIVE_SHA256,
               "nativeSourceInputSha256": SOURCE_SHA256, "nativeSourceInputBytes": SOURCE_BYTES,
               "applicationSourcesSha256": digest(application_sources), "assets": assets}
+    if public_test:
+        status.update(status="PUBLIC_PRERELEASE_CORRESPONDING_SOURCES", approved=True, sourceComplianceApproved=True,
+                      stableReleaseApproved=False, nativeLicenseElection="LGPL-3.0-or-later")
     with zipfile.ZipFile(bundle, "w") as archive:
         archive.write(source, "retained-native-sources.zip", compress_type=zipfile.ZIP_STORED)
-        for file in ASSETS:
+        for file in release_assets:
             archive.write(ROOT / file, "review/" + file, compress_type=zipfile.ZIP_DEFLATED)
         archive.writestr("REVIEW-STATUS.json", json.dumps(status, indent=2), compress_type=zipfile.ZIP_DEFLATED)
-        archive.writestr("README.txt", "Private review companion, not a release or legal approval.\n"
+        archive.writestr("README.txt", ("Corresponding sources for the approved public beta; not stable-system certification.\n"
+            "LGPL later-version components are distributed under LGPLv3 compliance conditions.\n"
+            "You may replace compatible shared DLLs and reverse engineer the application to debug modified libraries.\n"
+            if public_test else "Private review companion, not a release or legal approval.\n") +
             "No application/native executable is included. Original source inputs keep their own licenses.\n"
             "Extract retained-native-sources.zip, then use review/scripts/restore-native-source-inputs.py\n"
             "with its native-source-candidate/evidence directory and a NEW disposable Linux directory.\n"
             "Install the retained toolchain/build versions before rebuilding; bit-identical output is not certified.\n"
             "NativeHost source and pinned build/compiler metadata are in review/native and review/scripts.\n"
             "The application source ZIP alongside this archive binds the exact repository commit.\n"
-            "Follow the component distribution review for notices, shared-library replacement and eventual public source access.\n")
+            "Follow the component distribution review for notices and shared-library replacement.\n"
+            "Public beta program and both matching source archives are downloadable together, without charge, from the same GitHub Release.\n")
     with zipfile.ZipFile(bundle) as archive:
         if archive.testzip() is not None:
             raise ValueError("Companion ZIP CRC failure")
@@ -97,12 +116,13 @@ def prepare(source, output):
     status["companionSha256"] = digest(bundle)
     status["companionBytes"] = bundle.stat().st_size
     (output / "REVIEW-STATUS.json").write_text(json.dumps(status, indent=2) + "\n", encoding="utf8")
-    print(json.dumps({"output": str(output), "commit": commit, "bytes": status["companionBytes"], "sha256": status["companionSha256"], "approved": False}))
+    print(json.dumps({"output": str(output), "commit": commit, "bytes": status["companionBytes"], "sha256": status["companionSha256"], "approved": status["approved"]}))
     return status
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-zip", required=True)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--public-test", action="store_true")
     args = parser.parse_args()
-    prepare(args.source_zip, args.output_dir)
+    prepare(args.source_zip, args.output_dir, args.public_test)

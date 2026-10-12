@@ -39,7 +39,7 @@
 
 ## 拟采用的共享库发行条件
 
-mpv、FFmpeg、libplacebo、FriBidi 的上游授权包含 later-version 选择。本路线拟对这些 LGPL 部分按 LGPLv3 条件履约，以保留与 Apache-2.0 相关依赖的兼容路径；应用自身 MIT 不因此改为 GPL。上游原有 2.1/or-later 声明保持不动，新增 `GNU-LGPLv3.txt` 与 `GNU-GPLv3.txt` 从固定 FFmpeg 源码归档逐字复制，未改写正文。[mpv 同 revision Copyright](https://github.com/mpv-player/mpv/blob/d94d09581474d6e91d7a0e544b07de4eb8b07a9f/Copyright)、[LGPLv3 条款](https://spdx.org/licenses/LGPL-3.0-or-later.html)、[Apache 的兼容性说明](https://www.apache.org/licenses/GPL-compatibility.html)。
+mpv、FFmpeg、libplacebo、FriBidi 的上游授权包含 later-version 选择。本次公开测试版对这些 LGPL 部分按 LGPLv3 条件履约，以保留与 Apache-2.0 相关依赖的兼容路径；应用自身 MIT 不因此改为 GPL。上游原有 2.1/or-later 声明保持不动，新增 `GNU-LGPLv3.txt` 与 `GNU-GPLv3.txt` 从固定 FFmpeg 源码归档逐字复制，未改写正文。[mpv 同 revision Copyright](https://github.com/mpv-player/mpv/blob/d94d09581474d6e91d7a0e544b07de4eb8b07a9f/Copyright)、[LGPLv3 条款](https://spdx.org/licenses/LGPL-3.0-or-later.html)、[Apache 的兼容性说明](https://www.apache.org/licenses/GPL-compatibility.html)。
 
 工程实现按共享库机制提供可替换的 DLL：NativeHost 使用 DLL 名称调用 mpv 接口；应用启动检查文件是否存在，没有对使用者替换的 libmpv 做 SHA/签名白名单拦截。发布前打包校验固定官方文件，与用户运行时修改库的权利区分。兼容的修改版应保持 mpv 接口及其依赖兼容；应用退出后可替换 `resources/native-player/` 对应 DLL，媒体工具的动态库另在 `resources/media-tools/`。不限制为调试这类修改所需的逆向工程。当前只有实际代码检查和既有共享库运行证据，不声称已修改 LGPL 源码并完成冷重编译。
 
@@ -47,15 +47,14 @@ mpv、FFmpeg、libplacebo、FriBidi 的上游授权包含 later-version 选择�
 
 ## 本次核验范围与最后动作
 
-这次完成固定组件的条款清单、缺少的 mpv 文件级声明补齐和源码/编译对象对应证据。所有分发批准仍关闭，未把 notices 收集本身当作全项目许可证自动批准。未来正式包必须通过新增声明的逐字节检查，并同时提供对应源码与清楚的授权/替换说明；私有 QA 包的旧哈希不能冒充新增声明已存在。
+这次完成固定组件的条款清单、缺少的 mpv 文件级声明补齐和源码/编译对象对应证据。2026-10-13 维护者已选择公开测试版；本批固定 39 个 PE 按本表条款与 LGPLv3 later-version 条件批准配对源码发行，批准记录仍绑定所有二进制、源码输入、材料和审阅文件哈希。最终包必须通过新增声明的逐字节检查，并同时提供对应源码与清楚的授权/替换说明；私有 QA 包的旧哈希不能冒充新增声明已存在。稳定 Windows QA 的正式版批准另行保留关闭。
 
-源代码 ZIP 与最终应用 ZIP 尚未公开。稳定 Windows 11 标准用户覆盖仍未取得；已有本机沙盒是 Insider Preview，其五类声音/画面和绿色数据保留验收记录单独保存。最终维护者确认、审批记录与精确版本发布动作仍须在这些材料和实际测试范围都可审阅后进行。
+源代码 ZIP 与最终应用 ZIP 必须在同一公开测试版同时提供。稳定 Windows 11 标准用户覆盖仍未取得；已有本机沙盒是 Insider Preview，其五类声音/画面和绿色数据保留验收记录单独保存。维护者最新公开测试版授权与准确范围见 `PUBLIC_TEST_RELEASE_DECISION.md`，不是稳定系统的验收结论。
 
 ## Reviewed material byte hashes
 
-复制的上游 TXT 保留原始字节；自有文本/代码仅统一 CRLF/LF 后计算材料摘要。实际安装包与其构建源码之间仍采用原始 SHA-256 逐字节比较。正式 source 包还会核对以下固定材料与本记录一致，防止仅保留审阅表哈希却替换许可证正文。
+Owned text/code hashes canonicalize CRLF to LF; upstream TXT bytes remain exact.
 
-```text
 material-sha256 67a5adfb62bada52970413032afa8c5dce450e09c32d5abe99b472c16f2d4e72 LICENSE
 material-sha256 6b3589755c6e11d4699763fd57923b86b1a25dd2260181a7a18992d95817496c THIRD_PARTY_LICENSES.md
 material-sha256 7c46c0d0fe254c71a48e435554c7cb0444dad540719fcf0be407f065d893f7cf docs/legal/THIRD_PARTY_RELEASE_NOTICES.md
@@ -76,4 +75,3 @@ material-sha256 db5e94ee76f1b5fa3015e4f935d9fcad0c981eb8b9fb429322cdcf55696b5376
 material-sha256 0ecf25f02be8f93810ab2e4ef34edc4a4406a1ed93cf4e2e6bbe50b6462f27f8 scripts/build-native-player.mjs
 material-sha256 fd71a9a4fb90fa06ec62ff1e8aba276e25929db9326da6735c2406da59cf1f09 scripts/native-player-toolchain.mjs
 material-sha256 dbc59c9a468f0671b6f422a02da1d1fa46acd17acfd6123f309c926f8a8b73b8 scripts/native-player-toolchain.lock.json
-```

@@ -35,6 +35,7 @@ if (await hashFile(path.join(mediaSource, "LICENSE.txt")) !== expectedLicense) {
   throw new Error("Native media license evidence has changed.");
 }
 const flavor = createBuildFlavor(await readJson(path.join(root, "package.json")));
+if (flavor.publicTestRelease && mode !== "--win-zip") throw new Error("Public beta approval covers a portable ZIP only.");
 if (flavor.releaseClass === "unsigned-community-qa" && mode === "--win-nsis") throw new Error("Private community QA is a portable ZIP only; installer approval is separate.");
 if (sourceMedia) flavor.mediaRuntimeLockSha256 = await hashFile(mediaLockPath(root, selectedVariant));
 if (playerRuntimeVariant() === "source-candidate") {

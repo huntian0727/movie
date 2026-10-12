@@ -9,6 +9,11 @@ import { sha256 } from "../../scripts/native-player-toolchain.mjs";
 import { assertTestFlavor, createBuildFlavor, verifyFormalApproval } from "../../scripts/release-engineering.mjs";
 
 describe("source-built shared media closure", () => {
+  it("permits beta source staging only with explicit scope and the exact tag shape", () => {
+    const env = { MOVIE_RELEASE_CLASS: "unsigned-public-release", MOVIE_MEDIA_VARIANT: "source-candidate", MOVIE_PLAYER_VARIANT: "source-candidate", GITHUB_ACTIONS: "true", GITHUB_REF: "refs/tags/v1.2.3-beta.1", RELEASE_LICENSE_APPROVED: "true", RELEASE_BINARY_COMPLIANCE_APPROVED: "true", RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED: "true", RELEASE_PUBLIC_TEST_ACKNOWLEDGED: "true" };
+    expect(() => assertPrivateSourceMedia(env)).not.toThrow();
+    for (const change of [{ GITHUB_REF: "refs/tags/v1.2.3" }, { GITHUB_REF: "refs/heads/main" }, { RELEASE_PUBLIC_TEST_ACKNOWLEDGED: "" }, { RELEASE_BINARY_COMPLIANCE_APPROVED: "" }, { MOVIE_PLAYER_VARIANT: "legacy-candidate" }]) expect(() => assertPrivateSourceMedia({ ...env, ...change })).toThrow();
+  });
   it("keeps private identity and blocks formal approval without reading a manifest", async () => {
     const env = { MOVIE_MEDIA_VARIANT: "source-candidate" };
     expect(mediaVariant(env)).toBe("source-candidate");

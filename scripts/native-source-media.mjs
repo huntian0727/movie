@@ -17,8 +17,9 @@ export function assertSourceMediaLock(lock) {
 }
 
 export function assertPrivateSourceMedia(env = process.env) {
+  const publicTestStaging = env.RELEASE_PUBLIC_TEST_ACKNOWLEDGED === "true" && /^refs\/tags\/v\d+\.\d+\.\d+-beta\.\d+$/.test(env.GITHUB_REF ?? "");
   const formalStaging = env.MOVIE_RELEASE_CLASS === "unsigned-public-release" && env.MOVIE_MEDIA_VARIANT === "source-candidate" && env.MOVIE_PLAYER_VARIANT === "source-candidate" &&
-    env.GITHUB_ACTIONS === "true" && env.RELEASE_LICENSE_APPROVED === "true" && env.RELEASE_BINARY_COMPLIANCE_APPROVED === "true" && env.RELEASE_MANUAL_QA_APPROVED === "true" && env.RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED === "true";
+    env.GITHUB_ACTIONS === "true" && env.RELEASE_LICENSE_APPROVED === "true" && env.RELEASE_BINARY_COMPLIANCE_APPROVED === "true" && (env.RELEASE_MANUAL_QA_APPROVED === "true" || publicTestStaging) && env.RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED === "true";
   if (env.MOVIE_RELEASE_CLASS && !["unsigned-test-build", "unsigned-community-qa"].includes(env.MOVIE_RELEASE_CLASS) && !formalStaging) {
     throw new Error("Source media candidate requires private QA; formal distribution remains blocked.");
   }

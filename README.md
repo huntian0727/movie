@@ -2,6 +2,8 @@
 
 Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理索引、封面、收藏、播放记录和视频目录；视频保留在原位置。
 
+**公开测试版：** [0.1.15-beta.1 绿色版下载与对应源码](https://github.com/huntian0727/movie/releases/tag/v0.1.15-beta.1)。完整解压后双击 EXE，无需安装 Node.js 或 FFmpeg。实际验证环境为 Windows 11 Insider Preview 26100.9606 沙盒；稳定系统与标准用户权限尚未认证。[验证范围与发行说明](docs/releases/0.1.15-beta.1.md)。稳定安装版仍未发布。
+
 需要解压即用的程序包？当前支持 [Windows ZIP 免安装版](docs/portable.md)，开发者使用 `npm run dist:zip`；候选 ZIP 与安装器受到相同的公开发行门槛保护。
 
 **第一次接触？** 阅读 [快速开始](docs/QUICK_START.md)、[Windows 安装与文件校验](docs/windows-installation.md)、[第三方组件说明](THIRD_PARTY_LICENSES.md)。**个人免费分享的维护者只需先看 [最简发布指南](docs/OPEN_SOURCE_RELEASE_SIMPLE.md)**，历史详细审计文档不必逐篇阅读。当前安装包尚未批准公开发行；[v0.1.15 发行说明草稿](docs/release-notes-v0.1.15-draft.md) 不是可下载版本。
@@ -16,7 +18,7 @@ Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理
 - 支持嵌套来源和目录浏览、图片缩略图及大图浏览；移除来源只移除索引，不删除源视频。
 - 可配置 CloudDrive2 API 扫描、挂载目录及远端重复候选清理；HTTP 仅允许严格回环地址，其他连接必须 HTTPS。
 - 封面和时间轴预览采用可重建的独立缓存，默认上限 10 GiB；清理缓存不删除源视频。
-- 独立播放窗口，Chromium 能播放的格式可直接播放；当前隔离候选包将内嵌 mpv 的固定运行库一起打包，无需用户单独配置 DLL，运行库公开发行许可仍待审查。
+- 独立播放窗口，Chromium 能播放的格式可直接播放；公开测试绿色包包含内嵌 mpv 固定运行库，无需用户单独配置 DLL，配套提供准确对应源码和组件许可证。
 - 可选在线字幕搜索/下载与本地字幕；搜索可能向提供方发送文件名、关键词和语言等信息。
 - 移动、重命名和永久删除；永久删除不进入 Windows 回收站，删除后不能依靠 SQLite 恢复视频。
 

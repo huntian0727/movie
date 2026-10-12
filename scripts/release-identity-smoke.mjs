@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { createBuildFlavor } from "./release-engineering.mjs";
+import { createBuildFlavor, isPublicTestVersion } from "./release-engineering.mjs";
 
 // Synthetic producer metadata only. This never calls a builder, changes release
 // approval or produces a public artifact. All databases and credentials are QA data.
@@ -26,7 +26,10 @@ export async function runReleaseIdentitySmoke(root, app) {
   try {
     for (const [index, item] of cases.entries()) {
       const flavor = createBuildFlavor(manifest, item.releaseClass === "unsigned-test-build" ? {} : {
-        ...syntheticFormalEnvironment, MOVIE_RELEASE_CLASS: item.releaseClass
+        ...syntheticFormalEnvironment, MOVIE_RELEASE_CLASS: item.releaseClass,
+        ...(item.releaseClass === "unsigned-public-release" && isPublicTestVersion(manifest.version) ? {
+          MOVIE_MEDIA_VARIANT: "source-candidate", MOVIE_PLAYER_VARIANT: "source-candidate", RELEASE_PUBLIC_TEST_ACKNOWLEDGED: "true"
+        } : {})
       }, { signingCredentialsRequired: false });
       // Moving/updating the program folder must reopen the same identity's data.
       for (const programDirectory of ["original-program", "updated-program"]) {
