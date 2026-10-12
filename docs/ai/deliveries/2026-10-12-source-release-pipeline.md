@@ -22,7 +22,8 @@ Pre-change snapshot: `2026-10-11_16-39-14-561_source-release-pipeline`; checkpoi
 - Actual Electron SQLite/DPAPI smoke PASS: four build classes, three profiles, moved-folder reopen, QA-to-community persistence and no cross-profile overwrite.
 - Media candidate contract: 65 PASS; native source-build Python tests: 12 PASS. Linux cold compilation / bit-identical rebuild were NOT RUN. No E2E script is declared (not applicable).
 - `git diff --check` PASS (ordinary autocrlf notices only).
-- Fresh clean community QA ZIP, portable metadata and GitHub workflow-token input retrieval: pending at the initial code checkpoint; update this section with actual results before delivery.
+- Fresh `dist:zip`, `verify:zip`, and `release:metadata -- --portable` PASS from clean code checkpoint `c67a5c3`. The private ZIP is `release/unsigned-community-qa/拉面影视-0.1.15-x64-community-qa-Portable.zip`; app ASAR SHA-256 `cb4dceb5693700f001e6a1bd7edaee0703f91f27594ab94e3cd98b10b627ef80`. Windows app/NativeHost are explicitly NotSigned; public approval is false. Extracted files match unpacked inputs and actual packaged database/scan/renderer/thumbnail/cache/reopen smoke passed.
+- GitHub workflow-token input retrieval is pending an actual workflow run. The native ZIP upload completed with GitHub's SHA-256 digest matching the pin; the source-material upload is still in progress at this record update. Cloud input reuse is not yet claimed complete.
 
 ## Risks and follow-up
 
