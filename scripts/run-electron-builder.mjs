@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { createBuildFlavor, hashFile, readJson, verifyFormalApproval, writeJson, zipArtifactName } from "./release-engineering.mjs";
+import { createBuildFlavor, hashFile, readJson, verifyFormalApproval, windowsFileVersion, writeJson, zipArtifactName } from "./release-engineering.mjs";
 import { candidateDirectory, liteFiles, mediaLockPath, mediaVariant } from "./media-variant.mjs";
 import { assertPrivateSourceMedia, verifySourceMedia } from "./native-source-media.mjs";
 import { playerRuntimeDirectory, playerRuntimeLockPath, playerRuntimeVariant, verifyPlayerRuntime } from "./native-player-runtime.mjs";
@@ -64,7 +64,7 @@ const configuration = {
   ...(offlineElectronZip ? { electronDist: path.resolve(offlineElectronZip) } : {}),
   extends: path.join(root, "electron-builder.yml"), appId: flavor.appId,
   // Keep Windows resources tied to package.json rather than ambient CI counters.
-  buildVersion: flavor.version, buildNumber: "0",
+  buildVersion: windowsFileVersion(flavor), buildNumber: "0",
   directories: { output: flavor.outputDirectory },
   win: { executableName: flavor.executableName, artifactName: mode === "--win-zip" ? zipArtifactName(flavor) : flavor.artifactName, target: [{ target: mode === "--win-zip" ? "zip" : "nsis", arch: ["x64"] }] },
   extraResources: [

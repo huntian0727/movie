@@ -2,7 +2,7 @@
 
 Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理索引、封面、收藏、播放记录和视频目录；视频保留在原位置。
 
-**公开测试版：** [0.1.15-beta.1 绿色版下载与对应源码](https://github.com/huntian0727/movie/releases/tag/v0.1.15-beta.1)。完整解压后双击 EXE，无需安装 Node.js 或 FFmpeg。实际验证环境为 Windows 11 Insider Preview 26100.9606 沙盒；稳定系统与标准用户权限尚未认证。[验证范围与发行说明](docs/releases/0.1.15-beta.1.md)。稳定安装版仍未发布。
+**公开测试版：** [0.1.15-beta.2 绿色版下载与对应源码](https://github.com/huntian0727/movie/releases/tag/v0.1.15-beta.2)。完整解压后双击 EXE，无需安装 Node.js 或 FFmpeg。实际验证环境为 Windows 11 Insider Preview 26100.9606 沙盒；稳定系统与标准用户权限尚未认证。[验证范围与发行说明](docs/releases/0.1.15-beta.2.md)。稳定安装版仍未发布。
 
 需要解压即用的程序包？当前支持 [Windows ZIP 免安装版](docs/portable.md)，开发者使用 `npm run dist:zip`；候选 ZIP 与安装器受到相同的公开发行门槛保护。
 

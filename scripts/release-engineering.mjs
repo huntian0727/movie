@@ -15,6 +15,9 @@ export const COMMUNITY_NSIS_GUID = "b73f7252-798d-48d9-b877-19fb6d355f83";
 export const TEST_NSIS_GUID = "ec02b3c5-6e7a-4e3d-9f2a-1c6854cc8072";
 export const PRODUCT_NAME = "拉面影视";
 export const isPublicTestVersion = version => /^\d+\.\d+\.\d+-beta\.\d+$/.test(version);
+// The PE editor parses numeric FileVersion components literally: "15-beta"
+// becomes zero. Keep prerelease identity in package/flavor and use valid PE numbers.
+export const windowsFileVersion = flavor => flavor.version.includes("-") ? flavor.version.split("-")[0] + ".0" : flavor.version;
 export function zipArtifactName(flavor) {
   if (!flavor.artifactName?.endsWith("-Setup.exe")) throw new Error("Invalid installer artifact name.");
   return flavor.artifactName.replace(/-Setup\.exe$/, "-Portable.zip");
@@ -232,7 +235,7 @@ export async function verifyApplicationVersion(filePath, flavor) {
   // electron-builder writes the fixed Windows ProductVersion as four numbers,
   // while preserving the package's semantic version in the FileVersion string.
   const expectedProductVersion = `${expectedNumbers.join(".")}.0`;
-  if (version.productName !== expectedProduct || version.productVersion !== expectedProductVersion || version.fileVersion !== flavor.version ||
+  if (version.productName !== expectedProduct || version.productVersion !== expectedProductVersion || version.fileVersion !== windowsFileVersion(flavor) ||
       [version.major, version.minor, version.patch].some((part, index) => part !== expectedNumbers[index])) {
     throw new Error("Windows application product/version resources do not match the candidate identity.");
   }

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { assertSignature, assertTestFlavor, createBuildFlavor, hashFile, packagedFileManifest, renderRemovalManifest, releaseOutputDirectory, TEST_APP_ID, validateRelativeFile, verifyFormalApproval, zipArtifactName } from "../../scripts/release-engineering.mjs";
+import { assertSignature, assertTestFlavor, createBuildFlavor, hashFile, packagedFileManifest, renderRemovalManifest, releaseOutputDirectory, TEST_APP_ID, validateRelativeFile, verifyFormalApproval, windowsFileVersion, zipArtifactName } from "../../scripts/release-engineering.mjs";
 
 const roots = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); });
@@ -20,6 +20,12 @@ const publicEnvironment = {
 };
 
 describe("release engineering trust boundaries", () => {
+  it("keeps valid numeric Windows PE versions without changing semantic beta identity", () => {
+    const flavor = createBuildFlavor({ ...manifest, version: "1.2.15-beta.2" }, {});
+    expect(windowsFileVersion(flavor)).toBe("1.2.15.0");
+    expect(flavor.version).toBe("1.2.15-beta.2");
+    expect(windowsFileVersion({ version: "1.2.15" })).toBe("1.2.15");
+  });
   it("declares MIT for project-owned source while keeping binary distribution unapproved", async () => {
     const pkg = JSON.parse(await readFile(path.resolve("package.json"), "utf8"));
     const lock = JSON.parse(await readFile(path.resolve("package-lock.json"), "utf8"));

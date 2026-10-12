@@ -1,6 +1,6 @@
 # 源码可追溯社区版的更新与发布
 
-当前版本：0.1.15-beta.1。当前路线：同一生产批次的共享 FFmpeg/FFprobe 与共享 libmpv 运行库，两个 variant 均为 `source-candidate`。这是绿色 ZIP 路线；`unsigned-community-qa` 文件名和窗口明确标记验收、未发布，使用正式社区版的资料库身份。
+当前版本：0.1.15-beta.2。当前路线：同一生产批次的共享 FFmpeg/FFprobe 与共享 libmpv 运行库，两个 variant 均为 `source-candidate`。这是绿色 ZIP 路线；`unsigned-community-qa` 文件名和窗口明确标记验收、未发布，使用正式社区版的资料库身份。
 
 ## 普通应用更新
 

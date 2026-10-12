@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "approved": true,
   "scope": "public-prerelease-portable-only",
-  "version": "0.1.15-beta.1",
+  "version": "0.1.15-beta.2",
   "decisionDate": "2026-10-13",
   "timezone": "Asia/Shanghai",
   "stableReleaseApproved": false,
@@ -10,10 +10,10 @@
   "standardUserCoverage": false,
   "unsignedAcknowledged": true,
   "nativeLicenseElection": "LGPL-3.0-or-later",
-  "packageLockSha256": "0183be3aa7c84e646a99e7a48266878c884610793f0ce20328f0eadba99577b2",
+  "packageLockSha256": "4048acdb00c986762e96730d72e08488ddfc6ea363610bc8ea7bdc285945f2f0",
   "nativeSourceApprovalSha256": "f8e30e3aa1bee0aa47b3a5c28c7b7f76db7fa8e1f2b99648573f8ee67ec46311",
   "decisionEvidence": "docs/legal/PUBLIC_TEST_RELEASE_DECISION.md",
-  "decisionEvidenceSha256": "05b96edc180ce1d11b29601f1a0d62a1abf4c69c26eeeae0f49ee3cdf0b625b6",
+  "decisionEvidenceSha256": "710e7a5726275eb2e7a94ecd9b20dc8eece353ff55cd3ad5cef385396e99f823",
   "sandboxEvidence": "docs/QA/2026-10-12-source-community-sandbox-evidence.json",
   "sandboxEvidenceSha256": "a57cf17884b7c9b2d200f1cacb56698ad3a6fc690624511164b154a893fceb55"
 }
