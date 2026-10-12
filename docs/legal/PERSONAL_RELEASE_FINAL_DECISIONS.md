@@ -2,7 +2,13 @@
 
 核验日期：2026-10-10。项目：映匣（Windows 程序名“拉面影视”），版本 0.1.15。
 
-## 1. 已核实的 FFmpeg 技术事实
+## 2026-10-12 路线更新
+
+当前验收路线已改为同批源码构建的共享 FFmpeg/FFprobe 与共享 libmpv（两个 variant 都是 `source-candidate`）。运行库 ZIP SHA256 为 `3b4b4d22a3cf303b05898dedd470a6f05b0bfaa532c4ca9ab481167cd8f21b99`，对应源码 ZIP SHA256 为 `3e242199da78c68939ebcbc8bb70bae4c2e57102b7aadc5ceb6b54317880e70a`。来源、原始 CI FAIL/closure-false 与后续实际核验分别保留，详见 `NATIVE-SOURCE-CANDIDATE.md`。
+
+新私有社区绿色验收包使用最终社区资料库身份。实际批准状态仍为 false；最终公开授权程序和稳定 Windows 11 验收要求不变。下节的 Lite 静态路线是 10 月 10 日的历史候选记录，不是当前源代码路线需要反复重做的工作。普通更新复用原生包的方法见 `../SOURCE_COMMUNITY_RELEASE.md`。
+
+## 1. 2026-10-10 的 Lite 候选事实（历史路线）
 
 - 当前个人分享版选择 FFmpeg / FFprobe **8.1.2** 的固定 Windows x64 Lite 构建，而非仓库中历史 GPL/旧 FFprobe 候选。发行方：serversideup/ffmpeg-lgpl-builds v8.1.2-27。
 - 家用 B5 从**实际暂存二进制**验证：FFmpeg SHA256 `dd2ae91c672ecc7d9233a7ed075dc9437aa817cfb68dce66b172bd61e25cbbe4`；FFprobe SHA256 `57dec3db58729d5f00794bf65d76f15f9278c457989e4a649a02063abdd19bc8`；FFmpeg `-L` 报告 GNU LGPL 2.1 或后续版本。

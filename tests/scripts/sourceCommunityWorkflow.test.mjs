@@ -16,6 +16,10 @@ describe("source community workflow delivery boundaries", () => {
     expect(workflow).toContain("createBuildFlavor");
     expect(workflow).toContain("prepare-source-release-inputs.mjs");
     expect(workflow).toContain("npm run test:release-gate");
+    const quality = workflow.slice(workflow.indexOf("- name: Full quality checks"), workflow.indexOf("- run: npm run dist:zip"));
+    expect(quality).toContain("TEMP: \u0024{{ runner.temp }}");
+    expect(quality).toContain("TMP: \u0024{{ runner.temp }}");
+    expect(workflow).not.toMatch(/--testTimeout|--retry|--exclude|--passWithNoTests/);
     expect(workflow).toContain("npm run verify:zip");
     expect(workflow).toContain("npm run release:metadata -- --portable");
     expect(workflow).toContain('seal $qa.archive "$directory/private-community.zip.enc"');

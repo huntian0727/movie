@@ -52,6 +52,9 @@ jobs:
       - run: npm audit
       - name: Full quality checks with independent release-test fixtures
         env:
+          # Same scratch volume as the existing Windows CI large SQLite gate.
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
           MOVIE_RELEASE_CLASS: ''
           MOVIE_MEDIA_VARIANT: ''
           MOVIE_PLAYER_VARIANT: ''
