@@ -15,5 +15,6 @@
   "decisionEvidence": "docs/legal/PUBLIC_TEST_RELEASE_DECISION.md",
   "decisionEvidenceSha256": "710e7a5726275eb2e7a94ecd9b20dc8eece353ff55cd3ad5cef385396e99f823",
   "sandboxEvidence": "docs/QA/2026-10-12-source-community-sandbox-evidence.json",
-  "sandboxEvidenceSha256": "a57cf17884b7c9b2d200f1cacb56698ad3a6fc690624511164b154a893fceb55"
+  "sandboxEvidenceSha256": "a57cf17884b7c9b2d200f1cacb56698ad3a6fc690624511164b154a893fceb55",
+  "correspondingNativeSourcesSha256": "d7f286b7af10be3f07ca7e13ca7514c24ec15b0d742a673e3f1935e421c3fd75"
 }

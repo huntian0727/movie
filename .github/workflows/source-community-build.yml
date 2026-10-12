@@ -20,7 +20,8 @@ jobs:
     if: github.repository == 'huntian0727/movie'
     # Private draft GET requires push-level Contents permission (actual read
     # probe returned 403). GH_TOKEN is exposed only to CI/input read steps.
-    # No release/tag mutation or plaintext-program upload is present here.
+    # Public beta ZIPs may stage in a prepared private product draft only;
+    # publication and tag mutation are never performed by this workflow.
     permissions:
       contents: write
       actions: read
@@ -61,6 +62,11 @@ jobs:
       - run: npm run test:renderer-security-smoke
       - run: npm run verify:zip
       - run: npm run release:metadata -- --portable
+      - name: Stage approved public beta ZIP in its prepared private product draft
+        if: inputs.release_class == 'unsigned-public-release' && contains(github.ref, '-beta.')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/stage-public-test-draft.mjs
       - name: Encrypt the verified ZIP for private delivery
         if: vars.PRIVATE_QA_RECIPIENT_PUBLIC_KEY != ''
         env:

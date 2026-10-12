@@ -24,6 +24,8 @@ beta.1 的准确 commit `ff4c378` 主 Windows CI `38286116962`、安全检查 `3
 
 beta.1 tag 保留为失败尝试记录，不改写已有 tag；最终使用 beta.2 tag。已上传的 257 MB 原生对应源码归档可按相同 39 个运行库哈希复用，内部原生批准记录与当前完全一致；归档来自 ff4c378 审阅基线，不伪称其应用代码是 beta.2。同时提供 beta.2 精确应用源代码、基线应用源码和明确 source-pair 映射，产品草稿可改关联新 tag，保留既有源码资产而不重复上传相同运行库资料。
 
+实际重新打包已确认：beta.2 Windows FileVersion 为 0.1.15.0、FileBuildPart=15；package/flavor 仍为 0.1.15-beta.2。新增云端仅草稿暂存步骤，要求精确 beta tag/批准/ZIP smoke、已上传的当前应用源码与固定原生源码 digest、source-pair 的 commit 和原生批准哈希；拒绝公开 Release、稳定版、缺少/变更源码及覆盖不同程序。Actions 仍只暴露元数据/加密包，脚本没有发布或 tag 修改调用。4 文件 / 79 项受影响测试已通过。
+
 ## Risks and follow-up
 
 稳定 Windows、标准用户权限、4K/HDR、NSIS、SmartScreen 和签名升级尚未认证。社区数据目录独立于旧日常版。最终 GitHub 产品发行必须 prerelease=true、不标 latest，并附匹配源码与 SHA256SUMS；私有输入 draft 不得公开。
