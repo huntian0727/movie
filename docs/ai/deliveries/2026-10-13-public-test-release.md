@@ -18,6 +18,8 @@
 
 云端最终包、对应源码及 GitHub 公开状态将在发行后补充准确运行号和哈希；本记录当前不把尚未完成的发行检查计为通过。
 
+提交核对发现新 `build/public-test-approval.json` 被既有目录忽略规则排除；补充精确文件的版本控制例外和真实批准文件哈希测试，防止云端缺失该记录。
+
 ## Risks and follow-up
 
 稳定 Windows、标准用户权限、4K/HDR、NSIS、SmartScreen 和签名升级尚未认证。社区数据目录独立于旧日常版。最终 GitHub 产品发行必须 prerelease=true、不标 latest，并附匹配源码与 SHA256SUMS；私有输入 draft 不得公开。

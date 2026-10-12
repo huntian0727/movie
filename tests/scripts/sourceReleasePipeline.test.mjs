@@ -87,6 +87,15 @@ async function betaFixture() {
 }
 
 describe("public beta authorization is separate from stable Windows acceptance", () => {
+  it("retains the real beta approval and its exact version/dependency/native evidence pins", async () => {
+    const approval = JSON.parse(await readFile("build/public-test-approval.json", "utf8"));
+    const pkg = JSON.parse(await readFile("package.json", "utf8"));
+    expect(approval).toMatchObject({ approved: true, version: pkg.version, scope: "public-prerelease-portable-only", stableReleaseApproved: false });
+    expect(approval.packageLockSha256).toBe(await hashFile("package-lock.json"));
+    expect(approval.nativeSourceApprovalSha256).toBe(await hashFile("build/native-source-approval.json"));
+    expect(approval.decisionEvidenceSha256).toBe(await hashFile(approval.decisionEvidence));
+    expect(approval.sandboxEvidenceSha256).toBe(await hashFile(approval.sandboxEvidence));
+  });
   it("allows only the explicitly acknowledged paired-source beta tag", () => {
     const beta = { ...manifest, version: "1.2.3-beta.1" };
     const env = { ...publicEnv, GITHUB_REF: "refs/tags/v1.2.3-beta.1", RELEASE_PUBLIC_TEST_ACKNOWLEDGED: "true", RELEASE_MANUAL_QA_APPROVED: "false" };

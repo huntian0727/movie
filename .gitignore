@@ -12,6 +12,7 @@ build/*
 !build/installer.nsh
 !build/release-approval.json
 !build/native-source-approval.json
+!build/public-test-approval.json
 out/
 .electron/
 
