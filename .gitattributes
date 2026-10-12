@@ -13,3 +13,8 @@ docs/legal/FFMPEG-SOURCE-CANDIDATE-LICENSE.txt -text -whitespace
 
 scripts/native-source-inputs.lock.json text eol=lf
 build/native-source-approval.json text eol=lf
+docs/legal/NATIVE-SOURCE-COMPILED-NOTICES.txt -text -whitespace
+docs/legal/NATIVE-SOURCE-COMPILE-REVIEW.json text eol=lf
+docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md text eol=lf
+docs/legal/GNU-GPLv3.txt -text -whitespace
+docs/legal/GNU-LGPLv3.txt -text -whitespace

@@ -75,3 +75,20 @@ All current real approval records remain false. Signed source distribution and
 mixed source/legacy formal variants remain unsupported. The original producer
 FAIL and closure-false evidence below remain unchanged.
 
+## File-level notices and distribution review (2026-10-13)
+
+The component/obligation table is now in `NATIVE-SOURCE-DISTRIBUTION-REVIEW.md`.
+`NATIVE-SOURCE-COMPILE-REVIEW.json` binds the actual producer compilation log to
+244 libmpv C sources and 298 shaderc library-build sources. The supplemental
+`NATIVE-SOURCE-COMPILED-NOTICES.txt` includes the missing Chromium BSD/mpv ISC
+file notices and conservatively retains other source-tree credits. Its source-only
+records do not assign unlinked test/GPL terms to the runtime. The previous 95
+complete notice records and original source hashes remain unchanged.
+
+The LGPL later-version distribution plan and complete GPLv3/LGPLv3 texts are
+recorded separately; original upstream grants are not rewritten. A private source
+review companion can be generated with `scripts/prepare-source-review-companion.py`.
+It contains source inputs, reviewed notices, NativeHost source/build pins and a
+separate exact-commit application source archive. It does not include a program
+candidate or publish anything. Public/source approval remains a separate action.
+

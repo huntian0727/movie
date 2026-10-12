@@ -6,6 +6,21 @@ import { verifyPlayerRuntime } from "./native-player-runtime.mjs";
 
 export const isPrivateRelease = flavor => ["unsigned-test-build", "unsigned-community-qa"].includes(flavor.releaseClass);
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
+export const sourceReviewMaterialPaths = Object.freeze([
+  "LICENSE", "THIRD_PARTY_LICENSES.md", "docs/legal/THIRD_PARTY_RELEASE_NOTICES.md",
+  "docs/legal/FFMPEG_BUILD_INFO.md", "docs/legal/FFMPEG_SOURCE_NOTICE.md", "docs/legal/NATIVE_COMPONENTS.md",
+  "docs/legal/FFMPEG-LITE-SBOM.spdx.json", "docs/legal/MPV_SOURCE_NOTICE.md", "docs/legal/NATIVE-SOURCE-CANDIDATE.md",
+  "docs/legal/NATIVE-SOURCE-CANDIDATE-NOTICES.txt", "docs/legal/NATIVE-SOURCE-CANDIDATE-REVIEW-INDEX.json",
+  "docs/legal/FFMPEG-SOURCE-CANDIDATE-LICENSE.txt", "docs/legal/NATIVE-SOURCE-COMPILED-NOTICES.txt",
+  "docs/legal/NATIVE-SOURCE-COMPILE-REVIEW.json", "docs/legal/GNU-GPLv3.txt", "docs/legal/GNU-LGPLv3.txt",
+  "native/embedded-mpv/NativeHost.cs", "scripts/build-native-player.mjs", "scripts/native-player-toolchain.mjs",
+  "scripts/native-player-toolchain.lock.json"
+]);
+// Preserve upstream TXT bytes exactly; canonicalize only line endings in our
+// owned text/code so reviewed material pins survive Windows Git checkout policy.
+export function sourceReviewMaterialHash(relative, bytes) {
+  return hash(relative.endsWith(".txt") ? bytes : new TextEncoder().encode(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes).replaceAll("\r\n", "\n")));
+}
 async function file(root, relative) {
   if (!/^[a-zA-Z0-9_. /-]+$/.test(relative) || relative.split("/").some(p => !p || p === "." || p === "..")) throw new Error("Unsafe source approval path.");
   const target = path.join(root, relative);
@@ -62,5 +77,12 @@ export async function verifySourceReleaseApproval(root, flavor, verifyEvidence) 
     await verifyEvidence(root, item.sourceEvidence, item.sourceEvidenceSha256);
   }
   await verifyEvidence(root, approval.reviewEvidence, approval.reviewEvidenceSha256);
+  const review = (await file(root, approval.reviewEvidence)).toString("utf8");
+  const materials = [...review.matchAll(/^material-sha256 ([a-f0-9]{64}) ([a-zA-Z0-9_./-]+)$/gm)];
+  if (materials.length !== sourceReviewMaterialPaths.length || new Set(materials.map(row => row[2])).size !== materials.length ||
+      materials.some(row => !sourceReviewMaterialPaths.includes(row[2]))) throw new Error("Source review must bind the exact reviewed material set.");
+  for (const [, expectedHash, relative] of materials) {
+    if (sourceReviewMaterialHash(relative, await file(root, relative)) !== expectedHash) throw new Error("Reviewed source/license material differs: " + relative);
+  }
   return hash(approvalBytes);
 }

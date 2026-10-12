@@ -4,7 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { createBuildFlavor, hashFile, verifyFormalApproval } from "../../scripts/release-engineering.mjs";
-import { sourceBinaryRecords, verifySourceReleaseApproval } from "../../scripts/source-release-approval.mjs";
+import { sourceBinaryRecords, sourceReviewMaterialPaths, sourceReviewMaterialHash, verifySourceReleaseApproval } from "../../scripts/source-release-approval.mjs";
 import { assertInputLock, downloadAsset, prepareSourceReleaseInputs } from "../../scripts/prepare-source-release-inputs.mjs";
 import { sha256 } from "../../scripts/native-player-toolchain.mjs";
 
@@ -40,7 +40,14 @@ async function sourceFixture() {
   await mkdir(path.join(root, ".tmp/native-source-inputs")); await writeFile(path.join(root, ".tmp/native-source-inputs/source-evidence.zip"), source);
   await mkdir(path.join(root, "docs/legal"), { recursive: true });
   const evidence = "docs/legal/synthetic-approval.md";
-  await writeFile(path.join(root, evidence), "Synthetic unit fixture only. No real distribution approval.");
+  const materialRows = [];
+  for (const relative of sourceReviewMaterialPaths) {
+    const bytes = Buffer.from(relative === "LICENSE" ? "MIT License\nPermission is hereby granted by this synthetic test fixture." : "Synthetic reviewed material: " + relative);
+    await mkdir(path.dirname(path.join(root, relative)), { recursive: true });
+    await writeFile(path.join(root, relative), bytes);
+    materialRows.push("material-sha256 " + sourceReviewMaterialHash(relative, bytes) + " " + relative);
+  }
+  await writeFile(path.join(root, evidence), "Synthetic unit fixture only. No real distribution approval.\n" + materialRows.join("\n"));
   const evidenceHash = await hashFile(path.join(root, evidence));
   const approval = { schemaVersion: 1, approved: true,
     mediaRuntimeLockSha256: await json(root, "scripts/native-source-media.lock.json", media),
@@ -87,12 +94,12 @@ describe("private community QA and exact source release approval", () => {
     const { root, flavor, approval } = await sourceFixture();
     const first = await verifyFormalApproval(root, flavor); expect(first).toMatch(/^[a-f0-9]{64}$/);
     approval.reviewEvidence = "docs/legal/second-synthetic.md";
-    await writeFile(path.join(root, approval.reviewEvidence), "Second synthetic review");
+    await writeFile(path.join(root, approval.reviewEvidence), await readFile(path.join(root, "docs/legal/synthetic-approval.md"), "utf8") + "\nSecond synthetic review");
     approval.reviewEvidenceSha256 = await hashFile(path.join(root, approval.reviewEvidence));
     await json(root, "build/native-source-approval.json", approval);
     expect(await verifyFormalApproval(root, flavor)).not.toBe(first);
   });
-  it.each(["false", "missing", "extra", "duplicate", "wrong-hash", "record-false", "lock", "source", "dll", "extra-dll", "host", "evidence", "windows-false"])("rejects %s without granting distribution", async kind => {
+  it.each(["false", "missing", "extra", "duplicate", "wrong-hash", "record-false", "lock", "source", "dll", "extra-dll", "host", "evidence", "material", "windows-false"])("rejects %s without granting distribution", async kind => {
     const f = await sourceFixture();
     if (kind === "false") f.approval.approved = false;
     if (kind === "missing") f.approval.binaries.pop();
@@ -106,6 +113,7 @@ describe("private community QA and exact source release approval", () => {
     if (kind === "extra-dll") await writeFile(path.join(f.root, ".tmp/native-source-player-runtime/injected.dll"), "extra");
     if (kind === "host") await writeFile(path.join(f.root, "native-bin/NativeHost.exe"), "changed host");
     if (kind === "evidence") await writeFile(path.join(f.root, f.evidence), "changed review");
+    if (kind === "material") await writeFile(path.join(f.root, "docs/legal/GNU-LGPLv3.txt"), "changed reviewed license");
     if (kind === "windows-false") { f.mainApproval.manualQaApproved = false; await json(f.root, "build/release-approval.json", f.mainApproval); }
     await json(f.root, "build/native-source-approval.json", f.approval);
     await expect(verifyFormalApproval(f.root, f.flavor)).rejects.toThrow();
@@ -115,6 +123,20 @@ describe("private community QA and exact source release approval", () => {
     for (const change of [{ playerRuntimeVariant: "legacy-candidate" }, { mediaVariant: "lite-candidate" }, { releaseClass: "signed-release" }]) {
       await expect(verifySourceReleaseApproval(root, { ...flavor, ...change }, () => {})).rejects.toThrow(/not approved/);
     }
+  });
+  it("preserves upstream TXT bytes while accepting owned-text checkout line endings", () => {
+    expect(sourceReviewMaterialHash("docs/legal/own.md", Buffer.from("a\r\nb\r\n"))).toBe(sourceReviewMaterialHash("docs/legal/own.md", Buffer.from("a\nb\n")));
+    expect(sourceReviewMaterialHash("docs/legal/upstream.txt", Buffer.from("a\r\n"))).not.toBe(sourceReviewMaterialHash("docs/legal/upstream.txt", Buffer.from("a\n")));
+  });
+  it.each(["missing", "duplicate"])("rejects a %s reviewed material row even if the review itself is rehashed", async kind => {
+    const f = await sourceFixture();
+    const lines = (await readFile(path.join(f.root, f.evidence), "utf8")).split("\n");
+    if (kind === "missing") lines.pop(); else lines[lines.length - 1] = lines[1];
+    await writeFile(path.join(f.root, f.evidence), lines.join("\n"));
+    f.approval.reviewEvidenceSha256 = await hashFile(path.join(f.root, f.evidence));
+    for (const binary of f.approval.binaries) binary.sourceEvidenceSha256 = f.approval.reviewEvidenceSha256;
+    await json(f.root, "build/native-source-approval.json", f.approval);
+    await expect(verifyFormalApproval(f.root, f.flavor)).rejects.toThrow(/exact reviewed material set/);
   });
 });
 

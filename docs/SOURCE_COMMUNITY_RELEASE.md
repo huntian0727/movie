@@ -33,3 +33,5 @@
 - `npm run verify:zip`：逐文件比对解压结果并实际运行 packaged smoke。
 - `npm run release:metadata -- --portable`：基于已验证 ZIP 生成校验和与版本资料。
 - `docs/ai/deliveries/2026-10-12-source-release-pipeline.md`：本轮实际检查、包与 CI 结果。
+- `docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md`：同批原生组件的适用条款、文件级声明及拟采用的共享库发行条件。
+- `scripts/prepare-source-review-companion.py`：从固定源码 ZIP、当前已提交代码和审阅文件生成新的私有源码审阅资料；校验归档并拒绝覆盖旧目录，不包含程序、不上传、不修改批准。
