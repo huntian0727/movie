@@ -8,6 +8,7 @@ import { hashFile, isPublicTestVersion, readJson, verifyFormalApproval, zipArtif
 export function assertPublicTestDraft(release, flavor, pair, approval) {
   if (flavor.releaseClass !== "unsigned-public-release" || flavor.publicTestRelease !== true || !isPublicTestVersion(flavor.version) ||
       release.draft !== true || release.prerelease !== true || release.tag_name !== "v" + flavor.version ||
+      release.id !== approval.productDraftReleaseId ||
       pair.version !== flavor.version || pair.application.commit !== flavor.commit ||
       pair.native.approvalSha256 !== approval.nativeSourceApprovalSha256 ||
       pair.native.archiveSha256 !== approval.correspondingNativeSourcesSha256) throw new Error("Only the exact approved public beta draft may receive a program.");
@@ -27,7 +28,9 @@ async function main() {
   const archive = path.join(output, zipArtifactName(flavor));
   if (qa.commit !== flavor.commit || qa.sha256 !== await hashFile(archive) || qa.approvalSha256 !== flavor.complianceApprovalSha256 || qa.filesVerified <= 0) throw new Error("Verified beta ZIP differs.");
   const repository = "huntian0727/movie", tag = "v" + flavor.version;
-  const release = JSON.parse(execFileSync("gh", ["api", `repos/${repository}/releases/tags/${tag}`], { encoding: "utf8", windowsHide: true }));
+  if (!Number.isSafeInteger(approval.productDraftReleaseId) || approval.productDraftReleaseId <= 0) throw new Error("Explicit product draft ID required.");
+  // GitHub's tag endpoint returns published releases only (drafts return 404).
+  const release = JSON.parse(execFileSync("gh", ["api", `repos/${repository}/releases/${approval.productDraftReleaseId}`], { encoding: "utf8", windowsHide: true }));
   const pairAsset = release.assets.find(a => a.name === "SOURCE-PAIR.json");
   if (!pairAsset || pairAsset.state !== "uploaded" || !/^sha256:[a-f0-9]{64}$/.test(pairAsset.digest ?? "") || pairAsset.size > 100_000) throw new Error("Source pairing evidence missing.");
   const pair = JSON.parse(await downloadAsset(`https://api.github.com/repos/${repository}/releases/assets/${pairAsset.id}`, process.env.GH_TOKEN, { bytes: pairAsset.size, sha256: pairAsset.digest.slice(7) }));

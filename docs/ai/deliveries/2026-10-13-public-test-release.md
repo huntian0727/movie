@@ -2,7 +2,7 @@
 
 ## Context
 
-2026-10-13（北京时间），维护者明确选择“先发布公开测试版，标注验证范围”。首个可用版本目标为 `0.1.15-beta.2` 绿色 ZIP 及对应源码，不提升为稳定版。
+2026-10-13（北京时间），维护者明确选择“先发布公开测试版，标注验证范围”。首个可用版本目标为 `0.1.15-beta.3` 绿色 ZIP 及对应源码，不提升为稳定版。
 
 ## Changes
 
@@ -27,6 +27,8 @@ beta.1 tag 保留为失败尝试记录，不改写已有 tag；最终使用 beta
 实际重新打包已确认：beta.2 Windows FileVersion 为 0.1.15.0、FileBuildPart=15；package/flavor 仍为 0.1.15-beta.2。新增云端仅草稿暂存步骤，要求精确 beta tag/批准/ZIP smoke、已上传的当前应用源码与固定原生源码 digest、source-pair 的 commit 和原生批准哈希；拒绝公开 Release、稳定版、缺少/变更源码及覆盖不同程序。Actions 仍只暴露元数据/加密包，脚本没有发布或 tag 修改调用。4 文件 / 79 项受影响测试已通过。
 
 ## Risks and follow-up
+
+上传预检实际确认 GitHub REST 的 release-by-tag 对私人草稿返回 404，而 GET `/releases/410861902` 成功且 tag/draft/prerelease 精确匹配。新增明确产品草稿 ID 绑定与拒绝错误 ID 测试；4 文件 / 80 项测试通过。beta.2 未公开，保留 tag，改用 beta.3 发布。原生源码许可/运行库不变，复用已上传固定来源归档；最终准确应用源码将对应 beta.3 tag。
 
 稳定 Windows、标准用户权限、4K/HDR、NSIS、SmartScreen 和签名升级尚未认证。社区数据目录独立于旧日常版。最终 GitHub 产品发行必须 prerelease=true、不标 latest，并附匹配源码与 SHA256SUMS；私有输入 draft 不得公开。
 
