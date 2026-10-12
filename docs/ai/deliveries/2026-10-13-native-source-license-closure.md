@@ -31,6 +31,10 @@ status: partial
 - 本轮锁定 Node 22.23.1/npm 10.9.8：lint、typecheck、build、Electron smoke PASS；Vitest 138 文件 / 1250 测试 PASS，媒体合同 65 PASS，Python 原生源码/审阅测试 27 PASS。正式资料变更、审阅行缺失/重复、正文篡改和上游 TXT 换行变化均有拒绝验证。
 - 实际新包与独立源码资料需在这次提交成为干净 checkpoint 后生成；结果追加在本记录，不套用上一轮包的材料校验。自动交付仅在以上七项完整检查本轮通过后使用 SkipChecks，避免重复跑相同检查。
 - 关于页调整后再次完整执行七项检查：PASS，仍为 138 / 1250、65、27；渲染构建包含新署名。除关于页署名外，播放、扫描、资料库逻辑和 NativeHost.cs 不变；没有重编 FFmpeg/libmpv，没有声称冷重编译/逐字节重现通过。E2E 脚本不适用。
+- 干净代码 checkpoint `39571beaf47b25b72acac5fcc9962b933bc10318` 的实际 dist:zip、verify:zip、portable metadata：PASS。新私有绿色包 SHA-256 `a0f87eef5e9698351297506d68f0bdb5c6ef37d6fab0f20fd2758f08f5e27460`，228 个解压文件逐一匹配，ASAR `dfc9c582520a5fda2426b61b3594051533737b78b23dd48bfb6f43a2c52fca2b`。17 份声明原始字节匹配；程序/NativeHost NotSigned，publicReleaseApproved=false。
+- 新包的全部 39 个 PE 路径与已验收的固定哈希相同：PASS。正常退出旧沙盒程序后，从新独立只读目录启动新包；GUI 保留 10 个视频、2 个目录、1 个收藏、7 条历史，实际打开关于页看到 libmpv/FreeType 新署名：PASS。沙盒未重启，未动真实视频或清空资料库。五类声音确认仍对应未变的原生运行库，不声称本轮重听了五类声音。
+- 独立源码资料实际生成及 CRC/逐文件哈希：PASS。原生审阅 ZIP 为 257306641 字节，SHA-256 `6d742e544045e4c9f1e64912394250654860daaa766f550dc16eaf01ba42d0d4`；对应 checkpoint 的应用源码 ZIP SHA-256 `f1fc5bbc2955696907b3960e8af68989374ef81726f380146cc719f346d58c9e`。包含固定原始源码 ZIP、审阅文件及 NativeHost 构建资料，不包含程序或私钥，不上传公开资源。材料生成器确认输入源 ZIP、两个运行库 lock 与 NativeHost 的哈希一致。
+- 工程提交 `e8189f5` 的 GitHub Windows CI `38280756258` 与安全审计 `38280756274`：PASS。关于页提交 `39571be` 的本地七项检查已通过；该提交的远程 CI 另查状态，不能借用 e8189f5 的结果。
 
 ## Risks and follow-up
 
