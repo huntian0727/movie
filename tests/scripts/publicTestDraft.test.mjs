@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { assertPublicTestDraft } from "../../scripts/stage-public-test-draft.mjs";
+import { assertPublicTestDraft, publicTestAssetName } from "../../scripts/stage-public-test-draft.mjs";
 const flavor = { releaseClass: "unsigned-public-release", publicTestRelease: true, version: "1.2.3-beta.2", commit: "a".repeat(40) };
 function fixture() {
   const approval = { productDraftReleaseId: 1, nativeSourceApprovalSha256: "c".repeat(64), correspondingNativeSourcesSha256: "d".repeat(64) };
@@ -9,6 +9,10 @@ function fixture() {
   return { approval, pair, release };
 }
 describe("public beta staging never publishes or accepts missing matching sources", () => {
+  it("uses an ASCII transport filename while preserving the beta version", () => {
+    expect(publicTestAssetName(flavor)).toBe("Movie-1.2.3-beta.2-Windows-x64-Portable.zip");
+    expect(() => publicTestAssetName({ version: "1.2.3" })).toThrow();
+  });
   it("allows a prepared private beta draft with both exact source assets", () => { const f = fixture(); expect(() => assertPublicTestDraft(f.release, flavor, f.pair, f.approval)).not.toThrow(); });
   it.each(["published", "stable", "tag", "commit", "missing", "digest", "size", "native-approval", "release-id"])("rejects %s staging", kind => {
     const f = fixture();

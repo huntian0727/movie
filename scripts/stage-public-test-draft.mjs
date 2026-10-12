@@ -1,9 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { copyFile, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { downloadAsset } from "./prepare-source-release-inputs.mjs";
 import { hashFile, isPublicTestVersion, readJson, verifyFormalApproval, zipArtifactName } from "./release-engineering.mjs";
+
+export function publicTestAssetName(flavor) {
+  if (!isPublicTestVersion(flavor.version)) throw new Error("Beta version required for public transport name.");
+  return `Movie-${flavor.version}-Windows-x64-Portable.zip`;
+}
 
 export function assertPublicTestDraft(release, flavor, pair, approval) {
   if (flavor.releaseClass !== "unsigned-public-release" || flavor.publicTestRelease !== true || !isPublicTestVersion(flavor.version) ||
@@ -36,11 +42,15 @@ async function main() {
   const pair = JSON.parse(await downloadAsset(`https://api.github.com/repos/${repository}/releases/assets/${pairAsset.id}`, process.env.GH_TOKEN, { bytes: pairAsset.size, sha256: pairAsset.digest.slice(7) }));
   assertPublicTestDraft(release, flavor, pair, approval);
   // Upload only to the prepared private draft. This script has no publish call.
-  const existing = release.assets.find(a => a.name === path.basename(archive));
+  const assetName = publicTestAssetName(flavor);
+  const uploadArchive = path.join(root, ".tmp/source-release-ci", assetName);
+  try { await copyFile(archive, uploadArchive, constants.COPYFILE_EXCL); }
+  catch (error) { if (error.code !== "EEXIST" || await hashFile(uploadArchive) !== qa.sha256) throw error; }
+  const existing = release.assets.find(a => a.name === assetName);
   if (existing) {
     if (existing.state !== "uploaded" || existing.digest !== "sha256:" + qa.sha256) throw new Error("Existing draft program differs; never overwrite it.");
-  } else execFileSync("gh", ["release", "upload", tag, archive, "--repo", repository], { stdio: "inherit", windowsHide: true });
-  await writeFile(path.join(root, ".tmp/source-release-ci/draft-staged.json"), JSON.stringify({ releaseId: release.id, tag, sha256: qa.sha256, commit: flavor.commit, published: false }) + "\n");
+  } else execFileSync("gh", ["release", "upload", tag, uploadArchive, "--repo", repository], { stdio: "inherit", windowsHide: true });
+  await writeFile(path.join(root, ".tmp/source-release-ci/draft-staged.json"), JSON.stringify({ releaseId: release.id, tag, assetName, sha256: qa.sha256, commit: flavor.commit, published: false }) + "\n");
   console.log("Verified public beta ZIP staged in the private product draft; publication remains a separate action.");
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

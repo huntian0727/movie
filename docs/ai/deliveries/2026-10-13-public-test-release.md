@@ -28,6 +28,27 @@ beta.1 tag 保留为失败尝试记录，不改写已有 tag；最终使用 beta
 
 ## Risks and follow-up
 
+稳定系统、标准用户权限、安装器与签名升级仍未认证。当前公开测试绿色版可下载，旧日常快捷方式保留；不会把此次结果提升为稳定正式版。
+
+## Published result（2026-10-13 02:49:14，北京时间）
+
+已公开 [v0.1.15-beta.3](https://github.com/huntian0727/movie/releases/tag/v0.1.15-beta.3)，Release ID 410861902；`draft=false`、`prerelease=true`、不标 latest。远程 tag 精确指向 `ada4b0bf26d599560add3707a4db0032ec73908a`，8 个资产全部核对 GitHub digest/大小与本机文件；私有原生输入 draft 409795833 继续私有。
+
+- 程序：`Movie-0.1.15-beta.3-Windows-x64-Portable.zip`，214738287 字节，SHA256 `4a5dc896f2bde2563bb7db2ed541c2adc1f07c272c76f790d415b48d53757f25`。
+- 准确应用源码：`Movie-0.1.15-beta.3-Application-Sources.zip`，SHA256 `c88762a41e4afbdf55c4be873e4cfa038b4aaa8aa325b7a62e246afe3bce67f0`。
+- 不变原生对应源码：`Movie-Native-Runtime-38134981406-Corresponding-Sources.zip`，SHA256 `d7f286b7af10be3f07ca7e13ca7514c24ec15b0d742a673e3f1935e421c3fd75`；旧 beta.1 应用源码仅作为该原生审阅基线，另附 SOURCE-PAIR.json 区分。
+- 另外提供 SHA256SUMS.txt、build-metadata.json、RELEASE-VERIFICATION.json；精确来源/范围在公开发行说明中。
+
+最终 tag 的 [Windows CI 38289790024](https://github.com/huntian0727/movie/actions/runs/38289790024)、[安全检查 38289790147](https://github.com/huntian0727/movie/actions/runs/38289790147)、[绿色包工作流 38289848015](https://github.com/huntian0727/movie/actions/runs/38289848015) 全部成功。完整 Vitest 为 139 文件 / 1274 项，通过 65 项媒体契约、28 项 Python 测试及 Electron/Renderer 安全 smoke。该主 CI 的 NSIS 任务为 SKIPPED，不计作新安装器验收。
+
+本机下载同一 ZIP：解压 237 文件、17 份许可原文字节核对、39 个原生 PE 与此前听测包一致、Windows 文件/产品版本资源 0.1.15.0（patch=15）、应用与 NativeHost 均 NotSigned、create/reopen 实际 packaged smoke 均通过。最终包整目录复制到已有沙盒映射，237 文件全部再次核对。沙盒实际启动保留 10 视频/2 来源/1 收藏/7 历史，真实 2560×1440 H.265 原生画面显示，继续播放从 06:56 至 06:59 并观察运动，随后在 07:30 暂停。没有重启沙盒或改动源视频；声音证据只复用不变的 39 个原生哈希，没有声称本轮重新完成整套人耳验收。
+
+匿名公共页面 200、程序/两份准确源码下载 HEAD 成功、公开 SHA256SUMS 原文字节一致。共享出口的匿名 API 曾触发 403 配额，改用匿名网页/资产实测与已认证 API 核验状态；私有输入 draft 页面及资产匿名 404，稳定 latest API 已认证查询 404。
+
+GitHub 上传移除了中文资产前缀，最终下载文件改为 ASCII Movie 名称，同一 ZIP SHA 未变；包内中文 EXE/社区资料库身份保留。后续暂存工具采用 ASCII transport 名称，并拒绝覆盖不同文件；修正后的 4 文件 / 81 项受影响测试通过，未改当前发行 tag 或软件字节。
+
+本地交付资料目录：`D:\CodexReleaseAudit\movie-public-test-0.1.15-beta.3`。本机旧日常快捷方式未切换；**桌面版本尚未交付**。此次成果是已公开的绿色测试发行及沙盒验收，稳定系统/标准用户/安装器/签名升级/4K/HDR 仍未认证。
+
 上传预检实际确认 GitHub REST 的 release-by-tag 对私人草稿返回 404，而 GET `/releases/410861902` 成功且 tag/draft/prerelease 精确匹配。新增明确产品草稿 ID 绑定与拒绝错误 ID 测试；4 文件 / 80 项测试通过。beta.2 未公开，保留 tag，改用 beta.3 发布。原生源码许可/运行库不变，复用已上传固定来源归档；最终准确应用源码将对应 beta.3 tag。
 
 稳定 Windows、标准用户权限、4K/HDR、NSIS、SmartScreen 和签名升级尚未认证。社区数据目录独立于旧日常版。最终 GitHub 产品发行必须 prerelease=true、不标 latest，并附匹配源码与 SHA256SUMS；私有输入 draft 不得公开。
