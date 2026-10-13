@@ -28,6 +28,9 @@ describe("source community workflow delivery boundaries", () => {
     expect(workflow).not.toMatch(/--testTimeout|--retry|--exclude|--passWithNoTests/);
     expect(workflow).toContain("npm run verify:zip");
     expect(workflow).toContain("npm run release:metadata -- --portable");
+    const builder = await readFile("scripts/run-electron-builder.mjs", "utf8");
+    expect(builder).toContain('args.push("--publish", "never")');
+    expect(builder.indexOf('args.push("--publish", "never")')).toBeLessThan(builder.indexOf('spawn(process.execPath'));
     expect(workflow).toContain('seal $qa.archive "$directory/private-community.zip.enc"');
     expect(workflow).not.toMatch(/path:.*\.zip\s*$/m);
     expect(workflow).not.toContain("candidate-private.pem");

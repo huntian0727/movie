@@ -99,6 +99,10 @@ if (isPrivateRelease(flavor) || flavor.releaseClass === "unsigned-public-release
 await writeJson(path.join(buildDirectory, "builder-config.json"), configuration);
 const electronBuilderCli = path.join(root, "node_modules", "electron-builder", "cli.js");
 const args = mode === "--dir" ? ["--dir", "--x64"] : ["--win", mode === "--win-zip" ? "zip" : "nsis", "--x64"];
+// A stable CI tag otherwise implicitly activates electron-builder's publisher.
+// Builds and publication are separate: only the verified draft/release steps
+// may upload or publish assets, including isolated NSIS QA.
+args.push("--publish", "never");
 
 await new Promise((resolve, reject) => {
   const child = spawn(process.execPath, [electronBuilderCli, ...args, "--config", path.join(buildDirectory, "builder-config.json")], {
