@@ -67,6 +67,8 @@ status: completed
 
 ## Risks and follow-up
 
+补充（2026-10-14）：后续已在本机隔离资料库完成 CloudDrive API 验收，见 [本机 API 验收记录](2026-10-14-115-api-local-qa.md)。以下 NOT RUN 描述保留本次只读沙盒验收当时的范围，未将后续本机结果归入沙盒跨设备 API 测试。
+
 - 本次通过的范围是本机已挂载目录通过只读映射供沙盒中的 Movie 使用。CloudDrive API Token 配置、API 目录选择、API 扫描及文件系统/API 自动绑定真实端到端测试：NOT RUN。
 - 沙盒内独立安装 CloudDrive 的两次尝试发生系统异常退出。主机 WER 记录的 bugcheck 为 `0x3B`，异常为 `0xC0000005`；第二次用户报告已绑定、尚未挂载。没有可读的转储用于定位具体驱动，不作 CloudDrive、WinFsp 或 Windows 版本导致崩溃的归因。
 - 当前通过的映射方案未在验收期间复现系统退出；不代表已经解决独立安装方案的系统异常。
