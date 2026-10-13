@@ -1,3 +1,5 @@
+**正式绿色版 [0.1.15](https://github.com/huntian0727/movie/releases/tag/v0.1.15)**：Windows x64，解压后运行“拉面影视-免费分享版.exe”。无需 Node.js 或单独安装 FFmpeg。当前 Windows 沙盒已按维护者选择作为正式验收环境；测试范围和未签名说明见 [发行说明](docs/releases/0.1.15.md)。
+
 # 映匣（当前 Windows 程序名：拉面影视）
 
 Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理索引、封面、收藏、播放记录和视频目录；视频保留在原位置。

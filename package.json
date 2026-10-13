@@ -1,6 +1,6 @@
 {
   "name": "local-video-manager",
-  "version": "0.1.15-beta.3",
+  "version": "0.1.15",
   "private": true,
   "license": "MIT",
   "main": "dist-main/main/index.js",

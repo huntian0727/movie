@@ -21,3 +21,6 @@ build/public-test-approval.json text eol=lf
 docs/QA/2026-10-12-source-community-sandbox-evidence.json text eol=lf
 docs/legal/GNU-GPLv3.txt -text -whitespace
 docs/legal/GNU-LGPLv3.txt -text -whitespace
+
+docs/legal/STABLE_PORTABLE_RELEASE_DECISION.md text eol=lf
+docs/legal/STABLE_PORTABLE_WINDOWS_QA.json text eol=lf

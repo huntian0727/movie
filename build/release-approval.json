@@ -1,20 +1,54 @@
 {
   "schemaVersion": 1,
-  "approved": false,
+  "approved": true,
   "ownersConfirmed": true,
   "applicationLicense": "MIT",
   "licenseSha256": "67a5adfb62bada52970413032afa8c5dce450e09c32d5abe99b472c16f2d4e72",
-  "packageLockSha256": null,
-  "manualQaApproved": false,
+  "packageLockSha256": "7d1bdecc332cb95c412787953d0cd80b682a14aa1d3109459dc4865a78ba3e0c",
+  "manualQaApproved": true,
   "legacyUpgradeApproved": false,
-  "cleanWindows11Evidence": null,
-  "cleanWindows11EvidenceSha256": null,
+  "cleanWindows11Evidence": "docs/legal/STABLE_PORTABLE_WINDOWS_QA.json",
+  "cleanWindows11EvidenceSha256": "7fe96727de37377d3b6eb562c3dc5882796c6839068ab9c1133ba47f8c59e3bf",
   "previousSignedUpgradeEvidence": null,
   "previousSignedUpgradeEvidenceSha256": null,
   "binaries": [
-    { "name": "ffmpeg.exe", "sha256": null, "sourceComplianceApproved": false, "sourceEvidence": null, "sourceEvidenceSha256": null },
-    { "name": "ffprobe.exe", "sha256": null, "sourceComplianceApproved": false, "sourceEvidence": null, "sourceEvidenceSha256": null },
-    { "name": "NativeHost.exe", "sha256": null, "sourceComplianceApproved": false, "sourceEvidence": null, "sourceEvidenceSha256": null },
-    { "name": "libmpv-2.dll", "sha256": null, "sourceComplianceApproved": false, "sourceEvidence": null, "sourceEvidenceSha256": null }
-  ]
+    {
+      "name": "ffmpeg.exe",
+      "sha256": null,
+      "sourceComplianceApproved": false,
+      "sourceEvidence": null,
+      "sourceEvidenceSha256": null
+    },
+    {
+      "name": "ffprobe.exe",
+      "sha256": null,
+      "sourceComplianceApproved": false,
+      "sourceEvidence": null,
+      "sourceEvidenceSha256": null
+    },
+    {
+      "name": "NativeHost.exe",
+      "sha256": null,
+      "sourceComplianceApproved": false,
+      "sourceEvidence": null,
+      "sourceEvidenceSha256": null
+    },
+    {
+      "name": "libmpv-2.dll",
+      "sha256": null,
+      "sourceComplianceApproved": false,
+      "sourceEvidence": null,
+      "sourceEvidenceSha256": null
+    }
+  ],
+  "scope": "stable-portable-only",
+  "version": "0.1.15",
+  "unsignedAcknowledged": true,
+  "stableWindowsCoverage": false,
+  "standardUserCoverage": false,
+  "nativeSourceApprovalSha256": "f8e30e3aa1bee0aa47b3a5c28c7b7f76db7fa8e1f2b99648573f8ee67ec46311",
+  "decisionEvidence": "docs/legal/STABLE_PORTABLE_RELEASE_DECISION.md",
+  "decisionEvidenceSha256": "55fff72a6943cfd6c4cb954063710f612ed3203eb20451bff925318fc1537c8a",
+  "correspondingNativeSourcesSha256": "d7f286b7af10be3f07ca7e13ca7514c24ec15b0d742a673e3f1935e421c3fd75",
+  "productDraftReleaseId": 411319692
 }

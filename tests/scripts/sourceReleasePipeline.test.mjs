@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { createBuildFlavor, hashFile, verifyFormalApproval } from "../../scripts/release-engineering.mjs";
+import { assertReleasePackagingMode, createBuildFlavor, hashFile, verifyFormalApproval } from "../../scripts/release-engineering.mjs";
 import { sourceBinaryRecords, sourceReviewMaterialPaths, sourceReviewMaterialHash, verifySourceReleaseApproval } from "../../scripts/source-release-approval.mjs";
 import { assertInputLock, downloadAsset, prepareSourceReleaseInputs } from "../../scripts/prepare-source-release-inputs.mjs";
 import { sha256 } from "../../scripts/native-player-toolchain.mjs";
@@ -90,8 +90,9 @@ describe("public beta authorization is separate from stable Windows acceptance",
   it("retains the real beta approval and its exact version/dependency/native evidence pins", async () => {
     const approval = JSON.parse(await readFile("build/public-test-approval.json", "utf8"));
     const pkg = JSON.parse(await readFile("package.json", "utf8"));
-    expect(approval).toMatchObject({ approved: true, version: pkg.version, scope: "public-prerelease-portable-only", stableReleaseApproved: false });
-    expect(approval.packageLockSha256).toBe(await hashFile("package-lock.json"));
+    expect(approval).toMatchObject({ approved: true, version: "0.1.15-beta.3", scope: "public-prerelease-portable-only", stableReleaseApproved: false });
+    expect(pkg.version).toBe("0.1.15");
+    expect(approval.packageLockSha256).toBe("e45ecc4bdd40b0a90f72727cf1becdab349dc65fc84b2474cdceb968aae0addb");
     expect(approval.nativeSourceApprovalSha256).toBe(await hashFile("build/native-source-approval.json"));
     expect(approval.decisionEvidenceSha256).toBe(await hashFile(approval.decisionEvidence));
     expect(approval.sandboxEvidenceSha256).toBe(await hashFile(approval.sandboxEvidence));
@@ -143,7 +144,7 @@ describe("private community QA and exact source release approval", () => {
     expect(approval.approved).toBe(true); expect(approval.binaries).toHaveLength(39);
     expect(approval.binaries.every(item => item.sourceComplianceApproved === true)).toBe(true);
     const stable = JSON.parse(await readFile("build/release-approval.json", "utf8"));
-    expect(stable.approved).toBe(false); expect(stable.manualQaApproved).toBe(false);
+    expect(stable).toMatchObject({ approved: true, manualQaApproved: true, scope: "stable-portable-only", version: "0.1.15", stableWindowsCoverage: false, standardUserCoverage: false, legacyUpgradeApproved: false });
     const host = approval.binaries.find(item => item.path === "native-player/NativeHost.exe");
     expect(approval.binaries.map(({ path, sha256 }) => ({ path, sha256 }))).toEqual(sourceBinaryRecords(media, player, host.sha256));
     expect(approval.mediaRuntimeLockSha256).toBe(await hashFile("scripts/native-source-media.lock.json"));
@@ -196,6 +197,33 @@ describe("private community QA and exact source release approval", () => {
     for (const binary of f.approval.binaries) binary.sourceEvidenceSha256 = f.approval.reviewEvidenceSha256;
     await json(f.root, "build/native-source-approval.json", f.approval);
     await expect(verifyFormalApproval(f.root, f.flavor)).rejects.toThrow(/exact reviewed material set/);
+  });
+});
+
+describe("owner-selected Windows scope for stable portable release", () => {
+  it("binds actual current decision, dependency and Sandbox evidence without claiming stable OS coverage", async () => {
+    const a = JSON.parse(await readFile("build/release-approval.json", "utf8"));
+    expect(a.packageLockSha256).toBe(await hashFile("package-lock.json"));
+    for (const [file, pin] of [[a.decisionEvidence, a.decisionEvidenceSha256], [a.cleanWindows11Evidence, a.cleanWindows11EvidenceSha256]]) expect(await hashFile(file)).toBe(pin);
+    const qa = JSON.parse(await readFile(a.cleanWindows11Evidence, "utf8"));
+    expect(qa).toMatchObject({ ownerAcceptedEnvironment: true, status: "PASS_OWNER_ACCEPTED_SANDBOX_SCOPE", version: "0.1.15", environment: {stableWindowsCoverage:false, standardUserCoverage:false} });
+    expect(await hashFile(qa.previousSandboxEvidence)).toBe(qa.previousSandboxEvidenceSha256);
+  });
+  it("does not permit installer or directory mode from a ZIP approval", () => {
+    const approval = { scope: "stable-portable-only" };
+    const flavor = { releaseClass: "unsigned-public-release" };
+    expect(() => assertReleasePackagingMode(flavor, approval, "--win-zip")).not.toThrow();
+    for (const mode of ["--win-nsis", "--dir"]) expect(() => assertReleasePackagingMode(flavor, approval, mode)).toThrow(/ZIP only/);
+    expect(() => assertReleasePackagingMode({releaseClass:"unsigned-community-qa"}, approval, "--dir")).not.toThrow();
+  });
+  it.each(["version", "signed", "claimed-stable-os", "missing-qa"])("rejects changed %s scope before native distribution", async kind => {
+    const f = await sourceFixture();
+    Object.assign(f.mainApproval, {scope:"stable-portable-only", version:manifest.version, unsignedAcknowledged:true, stableWindowsCoverage:false, standardUserCoverage:false, decisionEvidence:f.evidence, decisionEvidenceSha256:f.approval.reviewEvidenceSha256});
+    if (kind === "version") f.mainApproval.version="9.0.0";
+    if (kind === "signed") f.flavor.releaseClass="signed-release";
+    if (kind === "claimed-stable-os") f.mainApproval.stableWindowsCoverage=true;
+    await json(f.root,"build/release-approval.json",f.mainApproval);
+    await expect(verifyFormalApproval(f.root,f.flavor)).rejects.toThrow();
   });
 });
 

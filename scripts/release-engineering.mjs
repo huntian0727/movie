@@ -23,6 +23,12 @@ export function zipArtifactName(flavor) {
   return flavor.artifactName.replace(/-Setup\.exe$/, "-Portable.zip");
 }
 
+export function assertReleasePackagingMode(flavor, approval, mode) {
+  if ((flavor.publicTestRelease || (flavor.releaseClass === "unsigned-public-release" && approval.scope === "stable-portable-only")) && mode !== "--win-zip") {
+    throw new Error("Scoped approval covers a portable ZIP only.");
+  }
+}
+
 export function releaseClassFor(env = process.env) {
   const requested = env.MOVIE_RELEASE_CLASS;
   if (requested && !["signed-release","unsigned-public-release","unsigned-test-build","unsigned-community-qa"].includes(requested)) {
@@ -55,7 +61,7 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
       if (env.RELEASE_PUBLIC_TEST_ACKNOWLEDGED !== "true" || mediaVariant(env) !== "source-candidate" || env.MOVIE_PLAYER_VARIANT !== "source-candidate") throw new Error("Public beta requires explicit scoped acknowledgement and the reviewed source pair.");
     } else {
       if (env.RELEASE_PUBLIC_TEST_ACKNOWLEDGED === "true") throw new Error("Public test approval cannot promote a stable or signed release.");
-      if (env.RELEASE_MANUAL_QA_APPROVED !== "true") throw new Error("Formal builds require approved clean-Windows QA evidence.");
+      if (env.RELEASE_MANUAL_QA_APPROVED !== "true") throw new Error("Formal builds require approved Windows QA evidence.");
     }
     if (!tagged || env.GITHUB_REF !== `refs/tags/v${manifest.version}`) throw new Error("Release tag must match package version.");
     if (signed && (signingCredentialsRequired && (!env.CSC_LINK || !env.CSC_KEY_PASSWORD))) throw new Error("Formal signed builds require GitHub Actions signing secrets.");
@@ -158,6 +164,18 @@ export async function verifyFormalApproval(root, flavor) {
     return createHash("sha256").update(await hashFile(approvalPath) + ":" + await hashFile(testPath) + ":" + sourceApproval).digest("hex");
   }
   if (flavor.publicTestRelease === true) throw new Error("Public test approval cannot promote a stable release.");
+  if (approval.scope === "stable-portable-only") {
+    if (flavor.releaseClass !== "unsigned-public-release" || !sourcePair || !/^\d+\.\d+\.\d+$/.test(flavor.version) ||
+        approval.version !== flavor.version || manifest.version !== flavor.version || approval.unsignedAcknowledged !== true ||
+        approval.stableWindowsCoverage !== false || approval.standardUserCoverage !== false) throw new Error("Stable portable approval identity or declared coverage differs.");
+    await verifyEvidence(root, approval.decisionEvidence, approval.decisionEvidenceSha256);
+    await verifyEvidence(root, approval.cleanWindows11Evidence, approval.cleanWindows11EvidenceSha256);
+    const qa = await readJson(path.join(root, approval.cleanWindows11Evidence));
+    if (qa.status !== "PASS_OWNER_ACCEPTED_SANDBOX_SCOPE" || qa.version !== flavor.version || qa.environment?.stableWindowsCoverage !== false ||
+        qa.environment?.standardUserCoverage !== false || qa.ownerAcceptedEnvironment !== true || qa.packaging !== "portable-zip") throw new Error("Actual owner-accepted Sandbox scope is required.");
+    if (await hashFile(path.join(root, qa.previousSandboxEvidence)) !== qa.previousSandboxEvidenceSha256 ||
+        await hashFile(path.join(root, "build/native-source-approval.json")) !== approval.nativeSourceApprovalSha256) throw new Error("Stable acceptance/source evidence differs.");
+  }
   if (approval.schemaVersion !== 1 || approval.approved !== true || approval.ownersConfirmed !== true ||
       approval.applicationLicense !== manifest.license || approval.manualQaApproved !== true ||
       (flavor.releaseClass === "signed-release" && approval.legacyUpgradeApproved !== true)) {

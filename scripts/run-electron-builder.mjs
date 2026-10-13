@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { createBuildFlavor, hashFile, readJson, verifyFormalApproval, windowsFileVersion, writeJson, zipArtifactName } from "./release-engineering.mjs";
+import { assertReleasePackagingMode, createBuildFlavor, hashFile, readJson, verifyFormalApproval, windowsFileVersion, writeJson, zipArtifactName } from "./release-engineering.mjs";
 import { candidateDirectory, liteFiles, mediaLockPath, mediaVariant } from "./media-variant.mjs";
 import { assertPrivateSourceMedia, verifySourceMedia } from "./native-source-media.mjs";
 import { playerRuntimeDirectory, playerRuntimeLockPath, playerRuntimeVariant, verifyPlayerRuntime } from "./native-player-runtime.mjs";
@@ -35,7 +35,7 @@ if (await hashFile(path.join(mediaSource, "LICENSE.txt")) !== expectedLicense) {
   throw new Error("Native media license evidence has changed.");
 }
 const flavor = createBuildFlavor(await readJson(path.join(root, "package.json")));
-if (flavor.publicTestRelease && mode !== "--win-zip") throw new Error("Public beta approval covers a portable ZIP only.");
+assertReleasePackagingMode(flavor, await readJson(path.join(root, "build/release-approval.json")), mode);
 if (flavor.releaseClass === "unsigned-community-qa" && mode === "--win-nsis") throw new Error("Private community QA is a portable ZIP only; installer approval is separate.");
 if (sourceMedia) flavor.mediaRuntimeLockSha256 = await hashFile(mediaLockPath(root, selectedVariant));
 if (playerRuntimeVariant() === "source-candidate") {

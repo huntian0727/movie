@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS_OWNER_ACCEPTED_SANDBOX_SCOPE",
+  "version": "0.1.15",
+  "packaging": "portable-zip",
+  "ownerAcceptedEnvironment": true,
+  "decisionDate": "2026-10-13",
+  "timezone": "Asia/Shanghai",
+  "environment": {
+    "implementation": "Windows Sandbox",
+    "guiEdition": "Windows 11 Enterprise Insider Preview",
+    "build": "26100.9606",
+    "architecture": "AMD64",
+    "displayVersion": "24H2",
+    "accountScope": "Default Sandbox account; standard-user rights not certified",
+    "stableWindowsCoverage": false,
+    "standardUserCoverage": false,
+    "externalCommandsBefore": {
+      "node": [],
+      "npm": [],
+      "ffmpeg": [],
+      "ffprobe": [],
+      "git": [],
+      "python": []
+    },
+    "profileExistedBefore": false,
+    "existingSandboxAtStart": false
+  },
+  "previousSandboxEvidence": "docs/QA/2026-10-12-source-community-sandbox-evidence.json",
+  "previousSandboxEvidenceSha256": "a57cf17884b7c9b2d200f1cacb56698ad3a6fc690624511164b154a893fceb55",
+  "acceptedTests": [
+    "startup",
+    "scan",
+    "thumbnails",
+    "H264/AAC",
+    "HEVC/AAC",
+    "HEVC/DTS",
+    "VP9/Opus",
+    "real 1440p HEVC/PCM A-law",
+    "pause/seek/resume",
+    "reopen persisted community data",
+    "move/remove portable program preserves data"
+  ],
+  "finalArtifactVerification": "Required separately before publication; release asset RELEASE-VERIFICATION.json binds final commit and ZIP",
+  "stableSystemCertification": false,
+  "installerApproved": false,
+  "signedUpgradeApproved": false
+}

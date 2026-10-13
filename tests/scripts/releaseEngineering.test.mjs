@@ -26,7 +26,7 @@ describe("release engineering trust boundaries", () => {
     expect(flavor.version).toBe("1.2.15-beta.2");
     expect(windowsFileVersion({ version: "1.2.15" })).toBe("1.2.15");
   });
-  it("declares MIT for project-owned source while keeping binary distribution unapproved", async () => {
+  it("declares MIT and approves only the owner-selected stable portable source pair", async () => {
     const pkg = JSON.parse(await readFile(path.resolve("package.json"), "utf8"));
     const lock = JSON.parse(await readFile(path.resolve("package-lock.json"), "utf8"));
     const license = await readFile(path.resolve("LICENSE"), "utf8");
@@ -38,9 +38,9 @@ describe("release engineering trust boundaries", () => {
     expect(license).toContain("Permission is hereby granted");
     expect(approval.applicationLicense).toBe("MIT");
     expect(approval.licenseSha256).toBe(await hashFile(path.resolve("LICENSE")));
-    expect(approval.approved).toBe(false);
+    expect(approval).toMatchObject({approved:true,scope:"stable-portable-only",version:pkg.version,legacyUpgradeApproved:false});
     expect(approval.ownersConfirmed).toBe(true);
-    expect(approval.manualQaApproved).toBe(false);
+    expect(approval.manualQaApproved).toBe(true);
     expect(approval.binaries.every((binary) => binary.sourceComplianceApproved === false)).toBe(true);
   });
   it("gives unsigned builds separate file, app, GUID, package and data identities", () => {
@@ -178,7 +178,7 @@ describe("release engineering trust boundaries", () => {
     expect(await readFile(path.resolve(".gitattributes"),"utf8")).toContain("docs/legal/GCC-RUNTIME-LIBRARY-EXCEPTION.txt -text");
     expect(await readFile(notice, "utf8")).toContain("GCC RUNTIME LIBRARY EXCEPTION");
     const approval = JSON.parse(await readFile(path.resolve("build/release-approval.json"), "utf8"));
-    expect(approval.approved).toBe(false);
+    expect(approval.scope).toBe("stable-portable-only");
     expect(approval.binaries.every((binary) => binary.sourceComplianceApproved === false)).toBe(true);
   });
   it("hooks explicitly block legacy removal/data deletion and preserve unknown files", async () => {
