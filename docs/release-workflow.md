@@ -1,5 +1,7 @@
 # Windows CI 与发布工作流
 
+> **历史工程说明：**本页主体记录 2026-10-08 的签名/NSIS 路线，不能据此认定当前尚未正式发布。0.1.15 已发布绿色 ZIP；后续以 [源码绿色版流程](SOURCE_COMMUNITY_RELEASE.md)、[开发和教程同步约定](DEVELOPMENT_AND_RELEASE.md) 及 [发布清单](RELEASE_CHECKLIST.md) 为当前入口。原有质量与安装器专项测试仍按实际变更保留。
+
 本页反映 2026-10-08 的实际工程，具体实测结果见 [发布审计](public-release-audit.md)。历史测试数字不能作为当前版本验收。
 
 PR 的 Windows CI 包含完整 Node release gate、独立 Electron native/security smoke、依赖审计和依赖上述检查的 unsigned x64 NSIS 安装 QA。独立安全工作流以非浅历史、固定版本 Gitleaks、全部 npm 依赖审计扫描 main/PR。Action 固定完整 commit SHA；checkout 不保留推送凭据。

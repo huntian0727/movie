@@ -1,104 +1,68 @@
-**正式绿色版 [0.1.15](https://github.com/huntian0727/movie/releases/tag/v0.1.15)**：Windows x64，解压后运行“拉面影视-免费分享版.exe”。无需 Node.js 或单独安装 FFmpeg。当前 Windows 沙盒已按维护者选择作为正式验收环境；测试范围和未签名说明见 [发行说明](docs/releases/0.1.15.md)。
+# 拉面影视 · Movie
 
-# 映匣（当前 Windows 程序名：拉面影视）
+免费的 Windows 本地视频管理工具：把硬盘、NAS 和挂载网盘里的视频整理成可搜索、可预览、可播放的资料库，视频保留在原位置。项目早期名称为“映匣”。
 
-Windows x64 的本地视频资料库。使用 Electron、React 和 SQLite 管理索引、封面、收藏、播放记录和视频目录；视频保留在原位置。
+**[下载正式绿色版 0.1.15](https://github.com/huntian0727/movie/releases/tag/v0.1.15)** · **[完整使用教程](docs/user-guide/0.1.15.md)** · [快速开始](docs/QUICK_START.md) · [更新记录](CHANGELOG.md) · [问题反馈](https://github.com/huntian0727/movie/issues)
 
-**公开测试版：** [0.1.15-beta.3 绿色版下载与对应源码](https://github.com/huntian0727/movie/releases/tag/v0.1.15-beta.3)。完整解压后双击 EXE，无需安装 Node.js 或 FFmpeg。实际验证环境为 Windows 11 Insider Preview 26100.9606 沙盒；稳定系统与标准用户权限尚未认证。[验证范围与发行说明](docs/releases/0.1.15-beta.3.md)。稳定安装版仍未发布。
+## 下载与第一次使用
 
-需要解压即用的程序包？当前支持 [Windows ZIP 免安装版](docs/portable.md)，开发者使用 `npm run dist:zip`；候选 ZIP 与安装器受到相同的公开发行门槛保护。
+1. 在 [Release 下载页](https://github.com/huntian0727/movie/releases/tag/v0.1.15) 选择 **`Movie-0.1.15-Windows-x64-Portable.zip`**，同时下载 `SHA256SUMS.txt`。
+2. [核对文件](docs/windows-installation.md)后，把 ZIP **完整解压**到自己的程序文件夹。
+3. 双击 **`拉面影视-免费分享版.exe`**。无需安装 Node.js、npm 或单独安装 FFmpeg；播放器运行库已随包提供。
+4. 点击右上角 **添加资料库 → 添加本地或挂载目录**，先选择一个小视频文件夹。
+5. 扫描后进入 **视频浏览**，点击封面播放；试一下搜索、收藏，退出后再打开确认记录保留。
 
-**第一次接触？** 阅读 [快速开始](docs/QUICK_START.md)、[Windows 安装与文件校验](docs/windows-installation.md)、[第三方组件说明](THIRD_PARTY_LICENSES.md)。**个人免费分享的维护者只需先看 [最简发布指南](docs/OPEN_SOURCE_RELEASE_SIMPLE.md)**，历史详细审计文档不必逐篇阅读。当前安装包尚未批准公开发行；[v0.1.15 发行说明草稿](docs/release-notes-v0.1.15-draft.md) 不是可下载版本。
+当前公开下载为 Windows x64 **免安装 ZIP**，没有本轮正式安装器。不要下载 `Source code` ZIP 当作程序，也不要直接在压缩软件里运行 EXE。程序未做代码签名，系统可能提示未知发布者；来源或校验不符时停止使用，不需要关闭系统防护。
 
-**免费分享项目 · MIT 开源。** 维护者已选择将有权授权的项目自有代码和文档以 [MIT License](LICENSE) 公开提供；任何人均可免费使用、复制、修改和再分发，须保留版权及 MIT 许可声明。作者不计划商业化，但 MIT 本身不禁止他人商业使用。
+目标平台是 Windows 11 x64。本次正式验收使用维护者选择的 Windows 11 Insider Preview 沙盒；其他硬件、系统、普通标准用户、4K/HDR 和长时间压力等覆盖情况见 [发行说明](docs/releases/0.1.15.md)。
 
-**Windows 安装包尚未正式发布。** 目前的 `unsigned-test-build` 仅用于隔离测试，**不能作为可公开分发的正式安装包**。第三方 FFmpeg/FFprobe、Electron、NativeHost 引用的第三方代码或其他依赖，分别遵守各自许可，不因项目采用 MIT 而变成 MIT。可先使用公开源码；可下载的正式安装包需完成原生依赖分发材料与安全测试后再上架。详见 [发布审计](docs/public-release-audit.md) 和 [第三方授权](docs/legal/RELEASE-COMPLIANCE.md)。
+## 可以做什么
 
-## 实际功能
+| 场景 | 功能 |
+| --- | --- |
+| 整理视频 | 添加目录、递归扫描、文件名搜索、网格/列表、排序和分页 |
+| 浏览目录 | 来源总览、目录树、子目录浏览、图片缩略图和大图查看 |
+| 日常观看 | 独立播放窗口、进度跳转、音量、收藏、最近播放和字幕搜索 |
+| 挂载网盘 | 把 CloudDrive 等挂载盘作为普通目录添加 |
+| CloudDrive API | 选择远端目录、保存远端身份、元数据扫描；预览和播放仍需挂载路径 |
+| 检查资料库 | 扫描异常、缺失文件、元数据状态、视频数据查询和选中记录 CSV 导出 |
+| 清理重复 | 查看候选，完整 SHA-256 验证后再明确确认永久删除 |
 
-- 添加本地来源目录，递归扫描视频和读取 FFprobe 元数据；网格/表格、搜索、收藏、播放历史、分页、缺失文件与异常复查。
-- 支持嵌套来源和目录浏览、图片缩略图及大图浏览；移除来源只移除索引，不删除源视频。
-- 可配置 CloudDrive2 API 扫描、挂载目录及远端重复候选清理；HTTP 仅允许严格回环地址，其他连接必须 HTTPS。
-- 封面和时间轴预览采用可重建的独立缓存，默认上限 10 GiB；清理缓存不删除源视频。
-- 独立播放窗口，Chromium 能播放的格式可直接播放；公开测试绿色包包含内嵌 mpv 固定运行库，无需用户单独配置 DLL，配套提供准确对应源码和组件许可证。
-- 可选在线字幕搜索/下载与本地字幕；搜索可能向提供方发送文件名、关键词和语言等信息。
-- 移动、重命名和永久删除；永久删除不进入 Windows 回收站，删除后不能依靠 SQLite 恢复视频。
+截图来自合成视频与隔离资料库，界面细节以对应版本为准：
 
-重复候选来自大小、时长等元数据，**不等于内容完全相同**。当前工作分支已关闭无哈希验证的快速删除入口：必须先读取内容计算完整 SHA-256，确认完全相同后，才允许在任务中心输入 `DELETE` 明确确认永久删除。无法完整验证、任务过期或身份变化时均拒绝删除。此功能可能永久删除原视频，使用前请自行备份。旧已安装版本可能仍有之前的危险入口，务必以版本为准。
+![合成视频资料库浏览](docs/screenshots/public-release-library.jpg)
 
-## 安装与系统要求
+## 按需求阅读
 
-目标系统：Windows 11 x64；当前实机是 Windows 11 Insider，干净稳定版 Windows 11 验收仍需完成。
-普通用户运行安装包不需要安装 Node.js、npm 或开发工具。
-首版计划使用独立身份的**无签名免费分享版**，只应从维护者批准的 GitHub Release 获取；当前没有本轮正式发行。
+- [0.1.15 完整教程](docs/user-guide/0.1.15.md)：添加方式比较、115 / API 配置、播放、字幕、快捷键、备份、升级和常见问题。
+- [最新开发状态教程](docs/USER_GUIDE.md)：包含尚未进入公开下载包的功能标记；`main` 的代码更新不等于已经发布新程序。
+- [免安装版与数据目录](docs/portable.md)：程序目录与资料库的区别、移动程序及升级。
+- [CloudDrive 配置与排错](docs/clouddrive2-acceleration.md)：同机 API、HTTPS、挂载路径和“待分析”。
 
-测试包拥有独立 appId、安装名和 `%APPDATA%\local-video-manager-unsigned-test` 数据目录，不能当作现有正式版的升级包。
-完整下载、SHA-256、签名核对、安装、迁移和卸载步骤见 [普通用户安装教程](docs/windows-installation.md)。
-遇到 SmartScreen 或发布者不符应停止并核实来源；不要为了安装测试包关闭系统防护。
+## 数据与文件操作
 
-截图来自实际 unsigned-test-build，仅使用合成蓝色视频及临时资料库；旧交付记录里的真实资料库截图不作为公众素材。
+公开免费分享版的数据目录为 **`%APPDATA%\local-video-manager-community`**，包含 `library.sqlite`、设置、日志及缓存；程序文件夹不包含全部个人数据。开发版和隔离测试版使用不同数据目录，详见 [身份对照表](docs/portable.md)。
 
-![合成资料库浏览](docs/screenshots/public-release-library.jpg)
+- 添加目录建立索引；“从资料库移除”移除索引；清理缓存删除可重建预览。这些操作不会因此删除源视频。
+- 应用内的移动、重命名和**永久删除**会实际操作源文件；永久删除不进入 Windows 回收站。重复候选的大小、时长相同不等于内容相同，须按界面完整哈希验证和 `DELETE` 二次确认。
+- 退出后备份整个对应数据目录，原视频另做备份。不同身份不自动合并；换电脑或 Windows 用户后，受保护凭据可能需要重新输入。
 
-![永久删除确认，验收时选择取消](docs/screenshots/public-release-delete-warning.jpg)
+CloudDrive 与在线字幕是可选联网功能。字幕查询可能发送文件名、关键词或语言等信息；不要公开 Token，诊断资料分享前先审阅。
 
-## 隐私与数据位置
+## 更新与反馈
 
-正式身份保持 appId `com.local.video.manager`、产品名“拉面影视”、版本 0.1.15；正式资料路径为
-`%APPDATA%\local-video-manager`。库文件是 `library.sqlite`；设置、脱敏日志、字幕、封面/时间轴缓存也位于专属数据目录。
-卸载保留应用数据和源视频。SQLite 备份不能替代原始视频备份。
+退出旧程序，将同一发行身份的新版完整解压到新文件夹，核对数据后再移除旧程序目录。当前没有承诺应用内自动更新。[详细升级步骤](docs/portable.md)。
 
-CloudDrive Token 仅在主进程使用 Windows DPAPI 密文存储；Renderer 不读取 Token。
-更换 Windows 用户/电脑后可能需要重新配置凭据。凭据损坏会停用该连接并提示重新输入，不静默切换到环境变量里的其他账户。
-存在可重试清理任务时，必须先审查/清除其任务记录才能修改连接；旧未绑定任务需重新创建。
+普通问题请附应用版本、Windows 版本、来源类型、复现步骤与脱敏错误信息，提交到 [GitHub Issues](https://github.com/huntian0727/movie/issues)。不要上传 Token、整份数据库或私人视频；安全漏洞按 [SECURITY.md](SECURITY.md) 私人报告。
 
-应用不上传整个资料库作为核心工作流程。CloudDrive 和字幕功能会按配置/用户操作连接外部服务，网络提供方有自己的隐私政策。
-诊断包仅包含白名单环境信息和脱敏日志，但导出后仍应先审阅再分享。
+## 开发与发布
 
-## 开发和验证
+维护流程为：**日常开发版持续使用 → 维护者要求发版 → 隔离绿色候选包 → 本机与沙盒验收 → GitHub Release**。源码同步与公开下载包发布分开执行。[开发、测试和文档更新约定](docs/DEVELOPMENT_AND_RELEASE.md)。
 
-工具链固定 Node.js 22.23.1 / npm 10.9.8。本轮升级到 Electron 44.7.0、better-sqlite3 13.0.3、Vite 8.3.3、Vitest 5.0.3。npm 10 的 N-API 安装缺陷及 `install:locked` 入口见 [原生模块工作流](docs/native-abi-workflow.md)。
-Electron 官方只支持最新三个稳定主版本；版本升级须重跑原生 ABI、三窗口 IPC/CSP、媒体、迁移、删除、打包和安装测试。
-参见 [官方支持政策](https://www.electronjs.org/docs/latest/tutorial/electron-timelines)。
+工具链固定 Node.js 22.23.1 / npm 10.9.8，使用 Electron、React、TypeScript、Vite 和 SQLite。[开发接手入口](docs/ai/START_HERE.md) · [原生模块工作流](docs/native-abi-workflow.md) · [源码绿色版发布流程](docs/SOURCE_COMMUNITY_RELEASE.md) · [发布清单](docs/RELEASE_CHECKLIST.md)。
 
-Node 测试 checkout：
+## 许可
 
-~~~powershell
-npm run install:locked
-npm run test:release-gate
-npm audit
-~~~
+项目自有代码与文档使用 [MIT License](LICENSE)，免费开源。Electron、FFmpeg、libmpv 等组件保留各自适用许可；同一 Release 提供对应源码及来源说明，包内声明位于 `resources/legal`。[第三方声明](THIRD_PARTY_LICENSES.md) · [验证范围](docs/releases/0.1.15.md)。
 
-独立 Electron 打包 checkout：
-
-~~~powershell
-npm run install:locked
-npm run package:dir
-npm run test:electron-smoke
-npm run test:renderer-security-smoke
-npm run verify:artifact
-npm run test:packaged-smoke
-npm run dist:win
-npm run release:metadata
-npm run test:installer-smoke
-~~~
-
-SQLite13 官方 N-API 文件已在 Node 与 Electron 中分别实测验证；旧版11 ABI文件不能复用，详见 [原生模块工作流](docs/native-abi-workflow.md)。
-隔离测试包输出在 `release/unsigned-test-build`；拟采用的免费社区版使用单独的 `release/unsigned-public-release` 身份和目录，绝不重命名测试包。旧的 `release/signed-release` 是未选择的付费签名通道，**首版社区版不需要购买证书**。真实发布前仍须满足对应源码/许可及安装安全核对；现有工程门禁在证据不齐时继续拒绝发行，参见 [最简指南](docs/OPEN_SOURCE_RELEASE_SIMPLE.md) 和 [技术工作流](docs/release-workflow.md)。
-
-## 已知限制与维护
-
-- npm audit不覆盖原生EXE。现有媒体二进制落后于官方后续安全修复，确切补丁适用性及替换方案未闭环，见 [二进制安全审查](docs/legal/native-binary-security.md)。
-- **默认 BtbN 候选**仍属于历史来源的未批准媒体工具；拟公开的社区版明确选择 [FFmpeg Lite 8.1.2](docs/legal/FFMPEG_BUILD_INFO.md) 与七个已锁定原生二进制，不混用两个候选的许可证和源码证据。Lite 的静态链接 LGPL 最终要求仍需处理，因此**当前安装包不对公众分发**。
-- 维护者选择个人免费分享，**首个公开版计划不购买代码签名证书**；Windows 可能提示未知发布者。干净无 Node 的 Windows 11 与旧版升级等安全验收仍需完成，不能将内部测试包当成正式版。
-- 旧 NSIS 卸载器可能递归删除安装目录，新包拒绝未经审查的旧版升级；不要把用户文件放入应用安装目录。
-- 当前候选包附带固定 libmpv，系统默认播放器由用户另行安装；编解码兼容性仍需实际格式验证。libmpv 完整对应源码和许可审查尚未完成。
-- 当前使用 Electron 默认图标，尚未核准独立品牌图标。
-
-贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md)；私人安全报告：[SECURITY.md](SECURITY.md)；
-授权材料：[第三方合规](docs/legal/RELEASE-COMPLIANCE.md)；历史文档：[公开卫生说明](docs/PUBLICATION-HYGIENE.md)。
-历史设计和 AI 交付是溯源资料，不能替代当前代码与本轮实测结果。
-
-## FFmpeg Lite 内部验收候选
-
-维护者正在将 43 个第三方库的 FFmpeg 构建收敛为体积更小的 [8.1.2 Lite 隔离候选](docs/legal/FFMPEG-LITE-QA.md)。在 Windows 11 Insider 家用机的合成 MP4/MKV、封面和时间轴，以及真实 NSIS 安装/修复/卸载测试中已通过；它只可用于隔离测试，不是普通用户升级包。默认工具不变，只有显式设置 `MOVIE_MEDIA_VARIANT=lite-candidate` 才进入 Lite QA 构建。完整第三方对应源码和运行库授权、干净正式 Win11 测试仍未完成；不会以“免费分享”为由省略适用的开源许可义务。
+早期静态 Lite、安装器和首次发布审计资料保留用于溯源，不代表当前公开 ZIP 未发布或已覆盖所有环境；历史批准不能自动批准新版本。

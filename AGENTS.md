@@ -51,6 +51,15 @@ powershell -ExecutionPolicy Bypass -File scripts/finish-and-push.ps1 -Message "<
 
 最终回复只包含：当前分支、Commit、Push 结果、修改摘要、测试结果和阻塞项。不要重新复述整份需求或输出冗长开发过程。
 
+## 日常开发与发版文档（用户约定，2026-10-14）
+
+- 默认把已检查、已交付的新功能更新到维护者正在使用的日常开发版；维护者明确要求“准备发版”后，再构建隔离绿色候选包、做相关测试并发布。源码推送不等于公开下载包发布；不自动发布 Release。
+- 不同发行身份不自动合并资料库。候选测试使用独立数据目录，升级验证使用正常关闭后的备份副本；不得直接共用正在写入的真实库。单机本机隔离库与 Windows 沙盒可按实际场景完成测试，记录覆盖范围，不新增“必须另一台电脑”的普遍门槛。
+- 每次用户可感知的功能/行为修复，必须在 `CHANGELOG.md` 的 `[Unreleased]` 中记录，并更新 `docs/USER_GUIDE.md` 相关章节，标注尚未公开的差异；内部维护无用户行为变化时，在交付记录说明教程无需变化的原因。
+- 发版前同步 README、快速开始、Changelog、`docs/releases/<版本>.md` 与 `docs/user-guide/<版本>.md` 完整教程快照；文件名、版本、配置入口和已测范围须与具体候选一致。未进入候选的功能不得归入已发布记录。
+- Release 正文必须链接本版本教程。旧版只补文档时标明修订日期，不替换二进制、挪动旧 tag 或修改既有校验附件。
+- 完整执行顺序见 [开发、测试和文档约定](docs/DEVELOPMENT_AND_RELEASE.md)，不降低已有质量检查、备份或发行批准条件。
+
 ## CloudDrive2 Phase 1 约束
 
 CloudDrive2 开发还必须遵守相邻交接包 `movie-clouddrive-ai-developer-handoff/` 中的任务书和 API 指南。当前只实施 Phase 1；验证完成后停止，不得自动进入 MediaSourceProvider、原生播放、增量同步或原生文件操作等后续阶段。

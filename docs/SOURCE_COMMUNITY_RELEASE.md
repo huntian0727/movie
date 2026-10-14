@@ -1,5 +1,7 @@
 ## 当前正式绿色版：0.1.15
 
+日常开发、候选验收与教程同步遵循 [2026-10-14 维护约定](DEVELOPMENT_AND_RELEASE.md)。普通用户阅读 [0.1.15 教程](user-guide/0.1.15.md)。下方 beta、旧批准状态和历史日期按各自记录保留，当前正式版本以本节和对应 Release 为准。
+
 [正式版下载](https://github.com/huntian0727/movie/releases/tag/v0.1.15)。维护者选择当前 Windows 沙盒完成本次正式验收，不再以操作系统版本阻塞；实际覆盖范围见 docs/releases/0.1.15.md。
 
 后续普通更新：修改和针对性验证 → 常规 CI/安全检查 → 更新实际版本与对应审批哈希 → 精确版本 tag → source-community-build 云端绿色包与私有草稿 → 成品与相关功能验收 → 发布。固定的 39 个原生文件不变时复用原生源码/许可审阅和已有声音确认；原生库变更时重新核对相关证据。正式版草稿由 stage-stable-portable-draft.mjs 暂存，核对版本、源码资产、commit、哈希；此步骤不自动公开。签名/安装器仍为独立范围。
