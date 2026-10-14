@@ -549,6 +549,12 @@ button { color: inherit; }
 .clouddrive-folder-dialog { width: min(620px, 100%); padding: 0; overflow: hidden; }
 .clouddrive-folder-dialog > header { padding: 19px 20px 14px; display: flex; align-items: flex-start; gap: 11px; }
 .clouddrive-folder-dialog > header p { margin-bottom: 0; }
+.clouddrive-folder-config { padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; border-top: 1px solid var(--border-color); }
+.clouddrive-folder-config > span { color: #a5aea4; font-size: 12px; }
+.clouddrive-folder-config > button { min-height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 1px solid #444642; border-radius: 5px; color: #c4c6c1; background: #282a27; font-size: 12px; cursor: pointer; }
+.clouddrive-folder-config > button:hover:not(:disabled) { color: #fff; background: #323431; }
+.clouddrive-folder-config > button:disabled { opacity: .55; cursor: default; }
+.clouddrive-folder-config > button:focus-visible { outline: 2px solid var(--workflow-accent-strong); outline-offset: 2px; }
 .clouddrive-folder-mark { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 7px; display: grid; place-items: center; color: #a9d5ff; background: #203344; }
 .clouddrive-folder-location { height: 42px; padding: 0 14px; border-top: 1px solid #343633; border-bottom: 1px solid #343633; display: flex; align-items: center; gap: 8px; color: #b9bcb6; background: #171817; }
 .clouddrive-folder-location button { width: 28px; height: 28px; padding: 0; border: 1px solid #3b3e39; border-radius: 5px; display: grid; place-items: center; color: #b8bbb5; background: #232522; cursor: pointer; }

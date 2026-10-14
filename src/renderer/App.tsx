@@ -107,6 +107,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const [playbackQueue, setPlaybackQueue] = useState<string[]>([]);
   const [directoryPlaybackQueue, setDirectoryPlaybackQueue] = useState<VideoRecord[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<"clouddrive" | undefined>();
   const [cloudDriveFolderOpen, setCloudDriveFolderOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [cacheLocation, setCacheLocation] = useState("");
@@ -426,6 +427,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   if (settingsOpen) {
     return (
       <SettingsPage
+        initialSection={settingsSection}
+        backLabel={cloudDriveFolderOpen ? "返回添加网盘目录" : undefined}
         subtitleApi={api}
         settings={settings}
         cacheLocation={cacheLocation}
@@ -626,13 +629,20 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
         setPlayHistory(await api.listPlayHistory());
       }}
       getCoverUrl={getCoverUrl}
-      onOpenSettings={() => setSettingsOpen(true)}
+      onOpenSettings={() => {
+        setSettingsSection(undefined);
+        setSettingsOpen(true);
+      }}
     />
     {cloudDriveFolderOpen && <CloudDriveFolderDialog
       listRoots={api.listCloudDriveFolderRoots}
       browse={api.browseCloudDriveFolder}
       add={api.addCloudDriveFolder}
       onClose={() => setCloudDriveFolderOpen(false)}
+      onConfigure={() => {
+        setSettingsSection("clouddrive");
+        setSettingsOpen(true);
+      }}
       onAdded={async (folder) => {
         await reload();
         void api.scanFolder(folder.id).then(() => reload()).catch((cause) => setError(toMessage(cause)));

@@ -1,4 +1,4 @@
-import { ArrowLeft, Cloud, Folder, LoaderCircle } from "lucide-react";
+import { ArrowLeft, Cloud, Folder, LoaderCircle, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import type {
   CloudDriveBrowseDirectory,
@@ -9,6 +9,7 @@ import type {
 
 interface CloudDriveFolderDialogProps {
   onClose(): void;
+  onConfigure(): void;
   listRoots(): Promise<CloudDriveBrowseRoot[]>;
   browse(selection: CloudDriveSourceSelection): Promise<CloudDriveBrowseDirectory>;
   add(selection: CloudDriveSourceSelection): Promise<SourceFolder>;
@@ -82,6 +83,11 @@ export function CloudDriveFolderDialog(props: CloudDriveFolderDialogProps) {
             <p>只读取目录和文件元数据，扫描结果会保存到本地资料库。</p>
           </div>
         </header>
+
+        <div className="clouddrive-folder-config">
+          <span>配置 API 地址和 Token 后，即可选择网盘目录。</span>
+          <button type="button" onClick={props.onConfigure} disabled={adding}><Settings size={15} />配置 API</button>
+        </div>
 
         <div className="clouddrive-folder-location">
           {current && <button type="button" aria-label="返回上一级" onClick={goBack} disabled={loading}><ArrowLeft size={16} /></button>}

@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { SubtitleSettings } from "./SubtitleSettings";
 import type { SubtitleApi } from "../../shared/subtitles";
 import { ArrowLeft, Cloud, Database, FileDown, FolderSearch, Info, Keyboard, RotateCcw } from "lucide-react";
@@ -22,6 +22,8 @@ import {
 } from "../../shared/shortcuts";
 
 interface SettingsPageProps {
+  initialSection?: "clouddrive";
+  backLabel?: string;
   subtitleApi?: Pick<SubtitleApi, "openSubtitleWebsite" | "getSubtitleConfig" | "saveSubtitleConfig">;
   settings: AppSettings;
   cacheLocation: string;
@@ -35,6 +37,8 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  initialSection,
+  backLabel = "返回视频库",
   subtitleApi,
   settings,
   cacheLocation,
@@ -46,6 +50,12 @@ export function SettingsPage({
   onPreviewDiagnostics,
   onExportDiagnostics
 }: SettingsPageProps) {
+  const cloudDriveSection = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (initialSection !== "clouddrive") return;
+    cloudDriveSection.current?.scrollIntoView({ block: "start" });
+    cloudDriveSection.current?.focus({ preventScroll: true });
+  }, [initialSection]);
   const [confirmClear, setConfirmClear] = useState(false);
   const [cacheMessage, setCacheMessage] = useState<string | null>(null);
   const [includeFullPaths, setIncludeFullPaths] = useState(false);
@@ -161,7 +171,7 @@ export function SettingsPage({
 
   return (
     <section className="settings-page">
-      <header className="settings-topbar"><button aria-label="返回视频库" onClick={onBack}><ArrowLeft size={20} /></button><div><h1>设置</h1><p>资料库、播放、快捷键和本地缓存</p></div></header>
+      <header className="settings-topbar"><button aria-label={backLabel} title={backLabel} onClick={onBack}><ArrowLeft size={20} /></button><div><h1>设置</h1><p>资料库、播放、快捷键和本地缓存</p></div></header>
       <div className="settings-layout">
         <nav className="settings-category-nav" aria-label="设置分类">
           <a href="#settings-library">资料库</a>
@@ -179,7 +189,7 @@ export function SettingsPage({
           <label className="setting-row"><div><strong>启动时自动同步</strong><span>打开应用后检查已添加的文件夹</span></div><input aria-label="启动时自动同步" type="checkbox" checked={settings.startupSync} onChange={(event) => update({ startupSync: event.target.checked })} /></label>
         </section>
 
-        <section id="settings-clouddrive" className="settings-section">
+        <section id="settings-clouddrive" className="settings-section" ref={cloudDriveSection} tabIndex={-1} aria-label="CloudDrive API 配置">
           <div className="section-title"><Cloud size={20} /><div><h2>CloudDrive API</h2><p>用于低带宽扫描、旧资料库绑定和批量远端删除</p></div></div>
           <div className="clouddrive-settings-grid">
             <label>

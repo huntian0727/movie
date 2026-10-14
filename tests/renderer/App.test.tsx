@@ -32,6 +32,47 @@ afterEach(() => {
 });
 
 describe("desktop-only renderer runtime", () => {
+  it("opens API settings from a failed folder import and refreshes folders after saving and returning", async () => {
+    const api = createDesktopApi();
+    const listRoots = vi.fn()
+      .mockRejectedValueOnce(new Error("请先配置 CloudDrive API"))
+      .mockResolvedValue([{ mountPoint: "Y:", remotePath: "/aliyun", name: "阿里云", readOnly: false },
+        { mountPoint: "Z:", remotePath: "/115", name: "115 网盘", readOnly: false }]);
+    const setSettings = vi.fn(async () => ({ ...settings, cloudDrive: { ...settings.cloudDrive, configured: true } }));
+    const add = vi.fn();
+    Object.assign(api, { listCloudDriveFolderRoots: listRoots, setSettings, addCloudDriveFolder: add });
+    const previousScroll = HTMLElement.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const view = render(<DesktopApp api={api} />);
+    try {
+      await screen.findByRole("heading", { name: "视频浏览" });
+      fireEvent.click(screen.getByText("添加资料库"));
+      fireEvent.click(screen.getByRole("button", { name: "通过 CloudDrive API 添加" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("请先配置 CloudDrive API");
+      fireEvent.click(screen.getByRole("button", { name: "配置 API" }));
+      const section = screen.getByRole("region", { name: "CloudDrive API 配置" });
+      expect(section).toHaveFocus();
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+      await waitFor(() => expect(setSettings).toHaveBeenCalledOnce());
+      fireEvent.click(screen.getByRole("button", { name: "返回添加网盘目录" }));
+      expect(await screen.findByRole("button", { name: /115 网盘/ })).toBeInTheDocument();
+      expect(listRoots).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(add).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "取消" }));
+      fireEvent.click(screen.getByRole("button", { name: "设置" }));
+      expect(screen.getByRole("button", { name: "返回视频库" })).toBeInTheDocument();
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    } finally {
+      view.unmount();
+      if (previousScroll) HTMLElement.prototype.scrollIntoView = previousScroll;
+      else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+    }
+  });
+
   it("selects beyond item 300 with a bounded queue and does not replay the last item on ended", async () => {
     const api = createDesktopApi();
     const rows = Array.from({ length: 400 }, (_, i) => ({ id: `v-${i}`, filename: `sample-${i}.mp4`, path: `F:/sample-${i}.mp4`, directory: "F:/", extension: ".mp4", sizeBytes: 1024, durationMs: 90000, metadataStatus: "ready", codecProbeStatus: "unprobed", updatedAt: "2026-10-04" } as VideoRecord));

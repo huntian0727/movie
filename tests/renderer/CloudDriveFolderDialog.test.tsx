@@ -35,6 +35,7 @@ describe("CloudDriveFolderDialog", () => {
       add={add}
       onAdded={onAdded}
       onClose={vi.fn()}
+      onConfigure={vi.fn()}
     />);
 
     fireEvent.click(await screen.findByRole("button", { name: /115 网盘/ }));
@@ -47,15 +48,21 @@ describe("CloudDriveFolderDialog", () => {
   });
 
   it("shows API connection failures without creating a source", async () => {
+    const onConfigure = vi.fn();
+    const add = vi.fn();
     render(<CloudDriveFolderDialog
       listRoots={async () => { throw new Error("CloudDrive API unavailable"); }}
       browse={vi.fn()}
-      add={vi.fn()}
+      add={add}
       onAdded={vi.fn()}
       onClose={vi.fn()}
+      onConfigure={onConfigure}
     />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("CloudDrive API unavailable");
     expect(screen.getByRole("button", { name: "添加并扫描此目录" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "配置 API" }));
+    expect(onConfigure).toHaveBeenCalledOnce();
+    expect(add).not.toHaveBeenCalled();
   });
 });
