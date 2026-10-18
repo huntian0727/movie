@@ -1,4 +1,5 @@
 import type { SubtitleApi } from "./subtitles.js";
+import type { DataStorageApi } from "./dataStorage.js";
 import type { ImageViewingApi } from "./imageViewing.js";
 export const VIDEO_EXTENSIONS = [".mp4", ".mkv", ".avi", ".mov", ".flv", ".webm", ".wmv", ".m4v", ".ts"] as const;
 
@@ -1110,11 +1111,15 @@ export const IPC_CHANNELS = {
   diagnosticsPreview: "diagnostics:preview",
   diagnosticsExport: "diagnostics:export",
   cacheClear: "cache:clear",
+  storageGet: "storage:get",
+  storageOpen: "storage:open",
+  storageChoose: "storage:choose",
+  storageMigrate: "storage:migrate",
   settingsGet: "settings:get",
   settingsSet: "settings:set"
 } as const;
 
-export interface VideoManagerApi extends SubtitleApi {
+export interface VideoManagerApi extends SubtitleApi, DataStorageApi {
   listVideos(query: LibraryQuery): Promise<VideoRecord[]>;
   listVideoPage(query: LibraryPageQuery, purpose?: string): Promise<LibraryPage>;
   listDirectoryBrowser(query: DirectoryBrowserQuery, purpose?: string): Promise<DirectoryBrowserResult>;

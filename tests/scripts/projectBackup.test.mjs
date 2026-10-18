@@ -59,6 +59,17 @@ function git(cwd, ...arguments_) {
 }
 
 describe("project backup and rollback", () => {
+  it("backs up and restores the selected data directory through its fixed locator", () => {
+    const { userDataPath, backupRoot } = fixture();
+    const locatorRoot = path.join(path.dirname(userDataPath), "fixed-profile"); mkdirSync(locatorRoot);
+    writeFileSync(path.join(locatorRoot, "data-location.json"), JSON.stringify({ version: 1, current: userDataPath }));
+    const saved = runBackup("--action=create", `--backup-root=${backupRoot}`, `--user-data=${locatorRoot}`);
+    executeSql(path.join(userDataPath, "library.sqlite"), "INSERT INTO videos VALUES ('v2')");
+    runBackup("--action=restore", `--backup-root=${backupRoot}`, `--user-data=${locatorRoot}`, `--snapshot=${saved.manifest.id}`, "--confirm-application-closed");
+    expect(queryScalar(path.join(userDataPath, "library.sqlite"), "SELECT COUNT(*) FROM videos")).toBe(1);
+    writeFileSync(path.join(locatorRoot, "data-location.json"), JSON.stringify({ version: 1, current: userDataPath, pending: {} }));
+    expect(invokeBackup(["--action=create", `--backup-root=${backupRoot}`, `--user-data=${locatorRoot}`]).status).not.toBe(0);
+  });
   it("creates an integrity-checked snapshot without copying cache or media", () => {
     const { userDataPath, backupRoot } = fixture();
     const sourceBundlePath = path.join(userDataPath, "source.bundle");

@@ -39,6 +39,8 @@ import { createSettingsStore } from "./settings/settingsStore.js";
 import { configureCloudDriveRuntime } from "./clouddrive/mountedScanner.js";
 import { showMainWindowMaximized } from "./windowPresentation.js";
 import { readReleaseFlavor, releaseUserDataPath } from "./releaseFlavor.js";
+import { createDataStorageApi, initializeDataStorage, prepareDataStorage } from "./storage/electronDataStorage.js";
+import type { DataDirectoryManager } from "./storage/dataDirectory.js";
 
 // Renderer/webviews run without hardware acceleration so the app starts on
 // machines without a usable GPU (remote desktops, VMs, older GPUs). Without
@@ -56,11 +58,24 @@ if (packagedSmokeUserData) {
 } else {
   app.setPath("userData", releaseUserDataPath(app.getPath("appData"), releaseFlavor));
 }
-const startupUserDataPath = app.getPath("userData");
-const databasePath = path.join(startupUserDataPath, "library.sqlite");
-const uncleanShutdownMarkerPath = path.join(startupUserDataPath, "database-unclean-shutdown.marker");
-const logger = new StructuredLogger(path.join(startupUserDataPath, "logs"));
-configureSecurityLogger(logger);
+const defaultUserDataPath = app.getPath("userData");
+// Acquire the application lock under the stable release identity, before applying
+// a custom userData path. Old/new program folders share this one instance key.
+if (!app.requestSingleInstanceLock()) app.exit(0);
+app.on("second-instance", () => {
+  const window = BrowserWindow.getAllWindows()[0];
+  if (window?.isMinimized()) window.restore();
+  window?.show(); window?.focus();
+});
+app.setPath("sessionData", defaultUserDataPath);
+protocol.registerSchemesAsPrivileged([
+  { scheme: RENDERER_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
+]);
+let dataDirectory: DataDirectoryManager | undefined;
+let databasePath = path.join(defaultUserDataPath, "library.sqlite");
+let uncleanShutdownMarkerPath = path.join(defaultUserDataPath, "database-unclean-shutdown.marker");
+let logger: StructuredLogger;
 let database: DatabaseConnection | undefined;
 let metadataQueue: MetadataQueue | undefined;
 let mediaCacheManager: MediaCacheManager | undefined;
@@ -73,14 +88,10 @@ let videoDataQueries: VideoDataService | undefined;
 let libraryPageQueries: LibraryPageQueryService | undefined;
 let sourceFolderRemoval: SourceFolderRemovalService | undefined;
 let databaseOpened = false;
-
-protocol.registerSchemesAsPrivileged([
-  { scheme: RENDERER_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
-  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
-]);
+let startupInProgress = true;
 
 process.on("uncaughtException", (error) => {
-  logger.error({
+  logger?.error({
     module: "process",
     event: "uncaught_exception",
     message: "The main process encountered an uncaught exception",
@@ -93,7 +104,7 @@ process.on("uncaughtException", (error) => {
 });
 
 process.on("unhandledRejection", (reason) => {
-  logger.error({
+  logger?.error({
     module: "process",
     event: "unhandled_rejection",
     message: "The main process encountered an unhandled promise rejection",
@@ -141,6 +152,17 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  // Electron's ESM entry module must finish evaluation before ready is emitted.
+  // Keep asynchronous startup inside this callback, never top-level await ready.
+  const storage = await initializeDataStorage(defaultUserDataPath);
+  dataDirectory = storage;
+  await prepareDataStorage(storage);
+  const startupUserDataPath = storage.getStatus().currentDirectory;
+  app.setPath("userData", startupUserDataPath);
+  databasePath = path.join(startupUserDataPath, "library.sqlite");
+  uncleanShutdownMarkerPath = path.join(startupUserDataPath, "database-unclean-shutdown.marker");
+  logger = new StructuredLogger(path.join(startupUserDataPath, "logs"));
+  configureSecurityLogger(logger);
   const startupOperationId = logger.createOperationId();
   const startupStartedAt = Date.now();
   logger.info({
@@ -229,6 +251,7 @@ app.whenReady().then(async () => {
     ...embeddedPlayerRuntime(app.isPackaged, process.resourcesPath, path.resolve(currentDir, "../.."))
   }, playbackStartup, logger, videoId => subtitles.getPlaybackSubtitle(videoId));
   registerIpcHandlers(repo, {
+    dataStorage: createDataStorageApi(storage),
     database,
     assetCenterQueries,
     playbackDiagnosticQueries,
@@ -284,6 +307,10 @@ app.whenReady().then(async () => {
     return;
   }
   await createWindow();
+  startupInProgress = false;
+  void storage.finishStartup().catch(() => {
+    logger.warn({ module: "storage", event: "original_data_cleanup_deferred", message: "原目录清理未完成，原文件已保留。" });
+  });
   mediaCacheManager.scheduleStartupMaintenance();
   logger.info({
     module: "application",
@@ -319,7 +346,7 @@ app.whenReady().then(async () => {
     }
   });
 }).catch((error: unknown) => {
-  logger.error({
+  logger?.error({
     module: "application",
     event: "startup_failed",
     message: "Failed to start video manager",
@@ -391,7 +418,8 @@ app.on("before-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin" && !process.env.VIDEO_MANAGER_PACKAGED_SMOKE_PHASE) {
+  if (!startupInProgress && process.platform !== "darwin" && !process.env.VIDEO_MANAGER_PACKAGED_SMOKE_PHASE) {
     app.quit();
   }
 });
+app.on("will-quit", () => { void dataDirectory?.dispose(); });

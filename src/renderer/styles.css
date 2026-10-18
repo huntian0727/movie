@@ -1198,6 +1198,7 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
 .subtitle-quick-panel .subtitle-dialog h2 { font-size: 16px; }
 .subtitle-quick-panel .subtitle-body { padding: 12px 14px; }
 .subtitle-quick-panel .subtitle-result { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px; }
+.storage-path { overflow-wrap: anywhere; }
 .subtitle-quick-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .subtitle-quick-controls { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: 30px; font-size: 11px; }
 .subtitle-quick-controls > span { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #adb6ac; }

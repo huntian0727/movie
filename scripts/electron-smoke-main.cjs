@@ -62,19 +62,23 @@ app.whenReady().then(async () => {
             const result = await window.webContents.executeJavaScript(`(async () => {
               const snapshot = await window.videoManager.getSettings();
               return { snapshot, hasTokenReader: Object.keys(window.videoManager).some(key => /token|secret|credential|invoke/i.test(key)),
-                canWriteSettings: typeof window.videoManager.setSettings === "function", nodeExposed: typeof require !== "undefined" };
+                canWriteSettings: typeof window.videoManager.setSettings === "function",
+                canMigrateData: typeof window.videoManager.migrateDataDirectory === "function", nodeExposed: typeof require !== "undefined" };
             })()`);
             assert.equal(JSON.stringify(result).includes("electron-replacement-test-value"), false);
             assert.equal(JSON.stringify(result.snapshot).includes("apiToken"), false);
             assert.equal(result.snapshot.settings.cloudDrive.configured, true);
             assert.equal(result.hasTokenReader, false);
             assert.equal(result.canWriteSettings, role === "main");
+            assert.equal(result.canMigrateData, role === "main");
             assert.equal(result.nodeExposed, false);
             console.log(`CloudDrive sandboxed ${role} preload smoke OK.`);
           } finally { window.destroy(); }
         }
       } finally { ipcMain.removeHandler("settings:get"); }
       console.log("CloudDrive OS-backed safeStorage smoke OK: migration, replacement, reopen and public non-disclosure.");
+      const { runDataDirectorySmoke } = await import("./data-directory-smoke.mjs");
+      await runDataDirectorySmoke(root, app, safeStorage);
       writeFileSync(path.join(root, "smoke-completed"), "all assertions passed");
     } finally { app.setPath("userData", previousUserData); }
   }

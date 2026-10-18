@@ -109,6 +109,10 @@ describe("IPC_CHANNELS", () => {
       diagnosticsPreview: "diagnostics:preview",
       diagnosticsExport: "diagnostics:export",
       cacheClear: "cache:clear",
+      storageGet: "storage:get",
+      storageOpen: "storage:open",
+      storageChoose: "storage:choose",
+      storageMigrate: "storage:migrate",
       settingsGet: "settings:get",
       settingsSet: "settings:set"
     });

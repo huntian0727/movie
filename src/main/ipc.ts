@@ -60,6 +60,7 @@ import { wrapTrustedIpcHandler } from "./security.js";
 import type { SettingsStore } from "./settings/settingsStore.js";
 import { toPublicSettings } from "./settings/settingsStore.js";
 import { isValidCloudDriveEndpoint } from "../shared/cloudDriveEndpoint.js";
+import type { DataStorageApi } from "../shared/dataStorage.js";
 
 type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => unknown;
 
@@ -357,6 +358,7 @@ const scanFailureReviewQuerySchema = z.object({
 
 
 interface IpcDependencies {
+  dataStorage?: DataStorageApi;
   database: DatabaseConnection;
   assetCenterQueries: AssetCenterReadService;
   playbackDiagnosticQueries: PlaybackDiagnosticReadService;
@@ -1144,6 +1146,11 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     await writeFile(result.filePath, JSON.stringify(buildDiagnosticPackage(preview, dependencies.logger), null, 2), "utf8");
     return { exported: true, filePath: result.filePath };
   });
+
+  ipcMain.handle(IPC_CHANNELS.storageGet, () => dependencies.dataStorage?.getDataStorage());
+  ipcMain.handle(IPC_CHANNELS.storageOpen, () => dependencies.dataStorage?.openDataDirectory());
+  ipcMain.handle(IPC_CHANNELS.storageChoose, () => dependencies.dataStorage?.chooseDataDirectory());
+  ipcMain.handle(IPC_CHANNELS.storageMigrate, (_event, token) => dependencies.dataStorage?.migrateDataDirectory(z.string().uuid().parse(token)));
 
   ipcMain.handle(IPC_CHANNELS.settingsGet, () => ({
     settings: toPublicSettings(dependencies.settings.get()),

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { SubtitleSettings } from "./SubtitleSettings";
+import { DataStorageSettings } from "./DataStorageSettings";
+import type { DataStorageApi } from "../../shared/dataStorage";
 import type { SubtitleApi } from "../../shared/subtitles";
 import { ArrowLeft, Cloud, Database, FileDown, FolderSearch, Info, Keyboard, RotateCcw } from "lucide-react";
 import type {
@@ -22,6 +24,7 @@ import {
 } from "../../shared/shortcuts";
 
 interface SettingsPageProps {
+  dataStorageApi?: DataStorageApi;
   initialSection?: "clouddrive";
   backLabel?: string;
   subtitleApi?: Pick<SubtitleApi, "openSubtitleWebsite" | "getSubtitleConfig" | "saveSubtitleConfig">;
@@ -37,6 +40,7 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  dataStorageApi,
   initialSection,
   backLabel = "返回视频库",
   subtitleApi,
@@ -175,6 +179,7 @@ export function SettingsPage({
       <div className="settings-layout">
         <nav className="settings-category-nav" aria-label="设置分类">
           <a href="#settings-library">资料库</a>
+          {dataStorageApi && <a href="#settings-storage">数据存储位置</a>}
           <a href="#settings-clouddrive">CloudDrive API</a>
           <a href="#settings-playback">播放</a>
           {subtitleApi && <a href="#settings-subtitles">在线字幕</a>}
@@ -189,6 +194,7 @@ export function SettingsPage({
           <label className="setting-row"><div><strong>启动时自动同步</strong><span>打开应用后检查已添加的文件夹</span></div><input aria-label="启动时自动同步" type="checkbox" checked={settings.startupSync} onChange={(event) => update({ startupSync: event.target.checked })} /></label>
         </section>
 
+        {dataStorageApi && <DataStorageSettings api={dataStorageApi} />}
         <section id="settings-clouddrive" className="settings-section" ref={cloudDriveSection} tabIndex={-1} aria-label="CloudDrive API 配置">
           <div className="section-title"><Cloud size={20} /><div><h2>CloudDrive API</h2><p>用于低带宽扫描、旧资料库绑定和批量远端删除</p></div></div>
           <div className="clouddrive-settings-grid">

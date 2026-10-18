@@ -427,6 +427,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   if (settingsOpen) {
     return (
       <SettingsPage
+        dataStorageApi={api}
         initialSection={settingsSection}
         backLabel={cloudDriveFolderOpen ? "返回添加网盘目录" : undefined}
         subtitleApi={api}

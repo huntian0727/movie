@@ -22,10 +22,22 @@ const DATABASE_FILE = "library.sqlite";
 const SETTINGS_FILE = "settings.json";
 const CLOUDDRIVE_CREDENTIAL_FILE = "clouddrive-credentials.bin";
 
+export async function resolveDataDirectory(directory) {
+  const original = path.resolve(directory);
+  let location;
+  try { location = JSON.parse(await readFile(path.join(original, "data-location.json"), "utf8")); }
+  catch (error) { if (error.code === "ENOENT") return original; throw new Error("Data locator is unreadable; no backup or restore was started."); }
+  if (location.version !== 1 || typeof location.current !== "string" || !path.isAbsolute(location.current) || location.pending) {
+    throw new Error("Invalid data locator or pending migration; finish migration before backup/restore.");
+  }
+  await access(path.join(location.current, DATABASE_FILE));
+  return path.resolve(location.current);
+}
+
 export async function createSnapshot(options) {
   const createdAt = options.now?.toISOString() ?? new Date().toISOString();
   const backupRoot = path.resolve(options.backupRoot);
-  const userDataPath = path.resolve(options.userDataPath);
+  const userDataPath = await resolveDataDirectory(options.userDataPath);
   const sourceDatabasePath = path.join(userDataPath, DATABASE_FILE);
   await access(sourceDatabasePath);
   await mkdir(backupRoot, { recursive: true });
@@ -161,7 +173,7 @@ export async function restoreSnapshot(options) {
     sourceBundlePath: undefined
   });
 
-  const userDataPath = path.resolve(options.userDataPath);
+  const userDataPath = await resolveDataDirectory(options.userDataPath);
   await mkdir(userDataPath, { recursive: true });
   const transactionDirectory = path.join(userDataPath, `.restore-${Date.now()}-${process.pid}`);
   const originalDirectory = path.join(transactionDirectory, "original");

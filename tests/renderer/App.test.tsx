@@ -249,6 +249,10 @@ function createDesktopApi(): DesktopVideoManagerApi {
     listFolders: vi.fn(async () => []),
     getSubtitleState: vi.fn(async (videoId: string) => ({ videoId, items: [], selectedId: null, offsetSeconds: 0, nativeVtt: null })),
     getSubtitleConfig: vi.fn(async () => ({ assrtConfigured: false, openSubtitlesConfigured: false, openSubtitlesAccountConfigured: false, storageAvailable: true })),
+    getDataStorage: vi.fn(async () => ({ currentDirectory: "C:\\Data", defaultDirectory: "C:\\Data", message: null })),
+    openDataDirectory: vi.fn(async () => undefined),
+    chooseDataDirectory: vi.fn(async () => null),
+    migrateDataDirectory: vi.fn(async () => ({ restarting: true })),
     getSettings: vi.fn(async () => ({ settings, cacheLocation: "C:\\Cache", cacheStatus })),
     listPlayHistory: vi.fn(async () => []),
     getLibraryNavigation: vi.fn(async () => ({

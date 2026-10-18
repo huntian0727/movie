@@ -106,11 +106,19 @@ const channels: typeof SharedIpcChannels = {
   subtitleSearch: "subtitles:search",
   subtitleState: "subtitles:state",
   subtitleAction: "subtitles:action",
+  storageGet: "storage:get",
+  storageOpen: "storage:open",
+  storageChoose: "storage:choose",
+  storageMigrate: "storage:migrate",
   settingsGet: "settings:get",
   settingsSet: "settings:set"
 };
 
 const mainApi: VideoManagerApi = {
+  getDataStorage: () => ipcRenderer.invoke(channels.storageGet),
+  openDataDirectory: () => ipcRenderer.invoke(channels.storageOpen),
+  chooseDataDirectory: () => ipcRenderer.invoke(channels.storageChoose),
+  migrateDataDirectory: token => ipcRenderer.invoke(channels.storageMigrate, token),
   openSubtitleWebsite: provider => ipcRenderer.invoke(channels.subtitleWebsite, provider),
   getSubtitleConfig: () => ipcRenderer.invoke(channels.subtitleConfigGet),
   saveSubtitleConfig: input => ipcRenderer.invoke(channels.subtitleConfigSave, input),

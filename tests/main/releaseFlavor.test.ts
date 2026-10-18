@@ -15,6 +15,11 @@ function fixture(changes: Record<string, unknown> = {}) {
 }
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 describe("packaged identity before opening user data", () => {
+  it("keeps the local daily development package on the legacy profile without claiming a signed release", () => {
+    const flavor = readReleaseFlavor(fixture({ releaseClass: "local-development", appId: "com.local.video.manager.development", userDataDirectoryName: "local-video-manager" }), "0.1.15");
+    expect(flavor.releaseClass).toBe("local-development");
+    expect(releaseUserDataPath("C:\\QA", flavor)).toBe(path.join("C:\\QA", "local-video-manager"));
+  });
   it("isolates a valid unsigned build", () => expect(readReleaseFlavor(fixture(), "0.1.15"))
     .toEqual({ releaseClass: "unsigned-test-build", userDataDirectoryName: "local-video-manager-unsigned-test" }));
   it("retains the legacy profile only for a consistent formal identity", () => expect(readReleaseFlavor(fixture({
