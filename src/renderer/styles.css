@@ -1199,6 +1199,31 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
 .subtitle-quick-panel .subtitle-body { padding: 12px 14px; }
 .subtitle-quick-panel .subtitle-result { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px; }
 .storage-path { overflow-wrap: anywhere; }
+.storage-help-toggle { display: inline-flex; align-items: center; gap: 7px; }
+.storage-help { margin-top: 16px; padding: 20px; border: 1px solid #343633; border-radius: 7px; background: #171817; color: #b9bdb6; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.storage-help h3 { margin: 0; color: #eceeeb; font-size: 15px; }
+.storage-help header > p { margin: 4px 0 0; color: #969b92; }
+.storage-help section { margin-top: 24px; }
+.storage-help h4 { margin: 0 0 8px; color: #e1e4dc; font-size: 13px; }
+.storage-help p { margin: 8px 0; }
+.storage-help strong { color: #dce0d6; }
+.storage-help code { color: #c9d2be; font-size: 11px; overflow-wrap: anywhere; }
+.storage-help-paths { margin: 10px 0; }
+.storage-help-paths > div { margin: 8px 0; }
+.storage-help-paths dt { color: #8e9687; font-size: 11px; }
+.storage-help-paths dd { margin: 2px 0 0; color: #dce0d6; user-select: text; }
+.storage-help-table { width: 100%; min-width: 0; overflow-x: auto; }
+.storage-help table { width: 100%; border-collapse: collapse; table-layout: fixed; text-align: left; }
+.storage-help caption { padding: 0 0 8px; color: #969b92; font-size: 11px; text-align: left; }
+.storage-help th, .storage-help td { padding: 12px 10px; border: 1px solid #343633; vertical-align: top; }
+.storage-help thead th { color: #dce0d6; background: #222520; }
+.storage-help th:first-child { width: 34%; }
+.storage-help tbody th { font-weight: 400; }
+.storage-help td p { margin: 3px 0 0; }
+.storage-help ul, .storage-help ol { padding-left: 22px; margin: 8px 0; }
+.storage-help li + li { margin-top: 8px; }
+.storage-help .storage-help-note { margin: 20px 0 0; padding-top: 12px; border-top: 1px solid #343633; color: #969b92; font-size: 11px; }
+@media (max-width: 600px) { .storage-help { padding: 14px; }.storage-help th, .storage-help td { padding: 9px 7px; }.storage-help th:first-child { width: 38%; } }
 .subtitle-quick-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .subtitle-quick-controls { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: 30px; font-size: 11px; }
 .subtitle-quick-controls > span { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #adb6ac; }

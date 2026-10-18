@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DataStorageSettings } from "../../src/renderer/components/DataStorageSettings";
 import type { DataStorageApi } from "../../src/shared/dataStorage";
@@ -12,6 +12,40 @@ function api(): DataStorageApi {
   };
 }
 describe("data storage settings", () => {
+  it("opens and collapses built-in user help without opening files or scheduling migration", async () => {
+    const storage = api();
+    vi.mocked(storage.getDataStorage).mockResolvedValue({ currentDirectory: "D:\\资料库", defaultDirectory: "C:\\默认位置", message: null });
+    render(<DataStorageSettings api={storage} />);
+    await screen.findByText("D:\\资料库");
+    const opener = screen.getByRole("button", { name: "查看目录说明" });
+    expect(opener).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(opener);
+    const help = screen.getByRole("article", { name: "数据目录使用说明" });
+    expect(opener).toHaveAttribute("aria-expanded", "true");
+    expect(within(help).getByText("D:\\资料库")).toBeInTheDocument();
+    expect(within(help).getByText("C:\\默认位置")).toBeInTheDocument();
+    expect(within(help).getByRole("table", { name: "当前数据目录中的常见内容" })).toBeInTheDocument();
+    expect(within(help).getByText("subtitles/")).toBeInTheDocument();
+    expect(within(help).getByRole("heading", { name: "怎样备份和清理？" })).toBeInTheDocument();
+    expect(storage.openDataDirectory).not.toHaveBeenCalled();
+    expect(storage.chooseDataDirectory).not.toHaveBeenCalled();
+    expect(storage.migrateDataDirectory).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "收起目录说明" }));
+    expect(screen.queryByRole("article")).not.toBeInTheDocument();
+    expect(opener).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("keeps the user explanation available when directory status cannot be read", async () => {
+    const storage = api(); vi.mocked(storage.getDataStorage).mockRejectedValue(new Error("unavailable"));
+    render(<DataStorageSettings api={storage} />);
+    await screen.findByText("数据目录信息暂不可用，请重新打开设置。");
+    expect(screen.getByRole("button", { name: "更改位置" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "查看目录说明" }));
+    expect(screen.getByRole("article", { name: "数据目录使用说明" })).toHaveTextContent("重新定位已有资料库");
+    expect(storage.chooseDataDirectory).not.toHaveBeenCalled();
+    expect(storage.migrateDataDirectory).not.toHaveBeenCalled();
+  });
+
   it("previews source, target and size, and starts only after explicit confirmation", async () => {
     const storage = api(); render(<DataStorageSettings api={storage} />);
     await screen.findByText("C:\\old");

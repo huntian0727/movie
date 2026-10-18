@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { FolderOpen } from "lucide-react";
+import { BookOpen, FolderOpen } from "lucide-react";
 import type { DataStorageApi, DataStoragePreview, DataStorageStatus } from "../../shared/dataStorage";
+import { DataStorageHelp } from "./DataStorageHelp";
 
 export function DataStorageSettings({ api }: { api: DataStorageApi }) {
   const [status, setStatus] = useState<DataStorageStatus | null>(null);
   const [preview, setPreview] = useState<DataStoragePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
   useEffect(() => {
     let active = true;
     void api.getDataStorage().then(value => { if (active) setStatus(value); })
@@ -37,7 +39,9 @@ export function DataStorageSettings({ api }: { api: DataStorageApi }) {
     <div className="diagnostics-actions">
       <button className="secondary-button" disabled={busy || !status} onClick={() => void api.openDataDirectory().catch(() => setMessage("无法打开数据目录，请检查磁盘连接。"))}>打开数据目录</button>
       <button className="secondary-button" disabled={busy || !status} onClick={() => void choose()}>{busy ? "处理中…" : "更改位置"}</button>
+      <button type="button" className="secondary-button storage-help-toggle" aria-expanded={helpOpen} aria-controls="storage-help-panel" onClick={() => setHelpOpen(value => !value)}><BookOpen size={15} aria-hidden="true" />{helpOpen ? "收起目录说明" : "查看目录说明"}</button>
     </div>
+    <div id="storage-help-panel" hidden={!helpOpen}>{helpOpen && <DataStorageHelp status={status} />}</div>
     {status?.message && <p className="settings-hint" role="status">{status.message}</p>}
     {message && <p className="settings-warning" role="status">{message}</p>}
     {preview && <div className="dialog-backdrop" role="presentation"><section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="storage-migration-title">
