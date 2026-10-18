@@ -15,8 +15,8 @@ status: completed
 
 - Task ID / 目标与验收：data-directory-migration；可选择目录、迁移、重启恢复，失败不丢失原数据。
 - 当前负责人 / AI 程序与会话标识：Codex / 本会话。
-- 状态：completed（最终自动门禁失败时须回写实际状态）。
-- 最后更新时间：2026-10-18T18:52:00+08:00。
+- 状态：completed。
+- 最后更新时间：2026-10-18T19:00:00+08:00。
 - 工作目录 / 分支：movie / ai/data-directory-migration。
 - 基准 Commit / 最近已确认 HEAD：f2632198c7f45ec3074b11b080d8cc31b0945587。
 - 开发前快照：2026-10-18_10-17-06-800_data-directory-migration；checkpoint-20261018-181702-f263219-data-directory-migration（已推送）；完整快照成功，SQLite quick_check ok，363528 条视频。维护脚本校验后保留最近三份，删除 1 份旧快照，Errors 0。
@@ -27,6 +27,14 @@ status: completed
 - 公开下载状态：既有版本未变化；本次不公开发布。
 
 ## Handoff history
+
+### 2026-10-18T19:00:00+08:00 · Codex · 完成自动交付
+
+- 最终自动脚本 PASS：lint、typecheck、test（142 文件 / 1316 项，247.87 秒）、build、test:electron-smoke。代码包含 Windows 大小写目录识别及复制文件/资料库落盘同步。
+- 功能 Commit 952f3d8 已推送 origin/ai/data-directory-migration 与 origin/main；更新前 main 备份标签 backup-main-20261018-185953-f263219 已推送。
+- 本条仅补充实际验证和交付结果，不修改功能；按同轮等价检查使用 -SkipChecks 提交记录更新。最终文档提交可从 Git 查询，不回填自身哈希。
+- 桌面源码相同，按最终提交重新生成 release/win-unpacked，并从原快捷方式复核；本机证据文件记录最终 Commit、app.asar 时间/哈希及实际入口。
+- 无运行中的测试或迁移任务；日常资料库保持默认位置。后续用户自行更改位置时才迁移真实资料库。
 
 ### 2026-10-18T18:54:00+08:00 · Codex · 完成验收，进入自动交付
 
