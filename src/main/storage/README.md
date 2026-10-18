@@ -1,5 +1,7 @@
 # 应用数据目录
 
+各数据文件、字幕/缓存子目录、默认位置中的 Electron 运行环境、备份和清理边界见 [数据目录说明与维护手册](../../../docs/DATA_DIRECTORY_GUIDE.md)。新增持久文件时同步维护说明、迁移与备份覆盖范围。
+
 `dataDirectory.ts` 负责固定默认目录的 `data-location.json`、专用目标目录、独占使用、复制校验、缓存路径重定位和原文件清理。`electronDataStorage.ts` 提供目录选择、迁移进度、恢复提示与重启；只由主窗口调用 storage IPC，renderer 不能直接提交路径。
 
 默认目录仍按 `releaseFlavor.ts` 解析。Electron sessionData 显式保留在该默认目录，用户资料库、设置、字幕、媒体缓存和日志则跟随 userData。程序更新及程序文件夹位置不影响定位。`.data-directory-owner.json` 标记数据所属发行 profile，禁止跨身份接管。
