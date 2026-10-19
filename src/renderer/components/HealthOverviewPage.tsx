@@ -14,6 +14,15 @@ interface HealthOverviewPageProps {
   onOpenAssetCenter(): void;
 }
 
+function describeSourceError(error: string | null): string {
+  const message = error?.trim() ?? "";
+  const unresolved = /^(\d+)\s+unresolved scan issue\(s\)(?::.*)?$/i.exec(message);
+  if (unresolved) {
+    return `该来源有 ${Number(unresolved[1]).toLocaleString("zh-CN")} 条未解决的扫描记录，建议先按来源排查，不必逐条处理`;
+  }
+  return message || "该来源存在需要检查的问题";
+}
+
 export function HealthOverviewPage({
   folders,
   navigation,
@@ -64,9 +73,13 @@ export function HealthOverviewPage({
   const missingCount = summary?.missingVideoCount ?? null;
   const metadataFailedCount = summary?.metadataFailedCount ?? null;
   const pendingMetadataCount = summary?.metadataPendingCount ?? navigation?.pendingMetadataVideos ?? null;
-  const sourceIssueCount = summary
-    ? summary.offlineSourceCount + summary.checkFailedSourceCount
-    : sourceAlerts.length;
+  // Recent access-check counts and recorded source errors can overlap, but the
+  // summary does not expose source IDs. Their maximum is a safe lower bound,
+  // not an exact distinct-source total.
+  const sourceIssueCount = Math.max(
+    sourceAlerts.length,
+    (summary?.offlineSourceCount ?? 0) + (summary?.checkFailedSourceCount ?? 0)
+  );
   const healthIssueCount = navigation?.healthIssueCount
     ?? ((scanFailureCount ?? 0) + (missingCount ?? 0) + (metadataFailedCount ?? 0) + sourceAlerts.length);
 
@@ -93,14 +106,14 @@ export function HealthOverviewPage({
       )}
       <div className="health-overview-kpis" aria-label="异常中心摘要" aria-busy={loading}>
         <article className="health-overview-kpi health-overview-kpi-primary">
-          <span>需要处理的问题</span>
+          <span>需要核查的记录</span>
           <strong>{healthIssueCount.toLocaleString("zh-CN")}</strong>
-          <small>按独立问题统计；同一来源造成的重复影响会尽量合并</small>
+          <small>同一来源的多条记录不代表多个独立故障原因；请先按来源检查</small>
         </article>
         <article className="health-overview-kpi">
-          <span>来源可访问性问题</span>
-          <strong>{sourceIssueCount.toLocaleString("zh-CN")}</strong>
-          <small>{summary ? `离线 ${summary.offlineSourceCount.toLocaleString("zh-CN")} · 检查失败 ${summary.checkFailedSourceCount.toLocaleString("zh-CN")}` : "按已记录的来源错误汇总"}</small>
+          <span>可能需要检查的来源</span>
+          <strong>至少 {sourceIssueCount.toLocaleString("zh-CN")}</strong>
+          <small>{summary ? `记录错误 ${sourceAlerts.length.toLocaleString("zh-CN")} · 最近离线 ${summary.offlineSourceCount.toLocaleString("zh-CN")} · 检查失败 ${summary.checkFailedSourceCount.toLocaleString("zh-CN")}（来源可能重叠）` : "已记录来源错误；具体原因请看下方来源明细"}</small>
         </article>
         <article className="health-overview-kpi">
           <span>扫描失败记录</span>
@@ -112,15 +125,15 @@ export function HealthOverviewPage({
       <section className="health-overview-section" aria-labelledby="health-overview-issues-title">
         <header>
           <div><h2 id="health-overview-issues-title">需要你处理</h2><p>按影响范围与建议处理顺序排列。</p></div>
-          <span>{loading ? "正在更新" : healthIssueCount === 0 ? "当前没有已统计的问题" : "优先处理来源级问题"}</span>
+          <span>{loading ? "正在更新" : healthIssueCount === 0 && sourceIssueCount === 0 ? "当前没有已统计的问题" : "优先处理来源级问题"}</span>
         </header>
         <div className="health-overview-issue-grid">
           <article className="health-overview-issue health-overview-issue-source">
             <div className="health-overview-issue-icon"><Cloud size={20} /></div>
             <div className="health-overview-issue-copy">
-              <h3>资料库来源不可访问</h3>
-              <strong>{sourceIssueCount.toLocaleString("zh-CN")} 个来源</strong>
-              <p>先检查网盘连接、挂载路径或目录权限。修复来源后，再统一复查受影响的文件。</p>
+              <h3>资料库来源需要检查</h3>
+              <strong>至少 {sourceIssueCount.toLocaleString("zh-CN")} 个来源</strong>
+              <p>先排查来源的连接、路径、权限或扫描错误，再统一复查受影响的文件；扫描异常不等于来源已离线。</p>
             </div>
             <button type="button" onClick={onOpenAssetCenter}>检查来源状态 <ChevronRight size={16} /></button>
           </article>
@@ -166,7 +179,7 @@ export function HealthOverviewPage({
                 <FolderOpen size={18} />
                 <div>
                   <strong title={source.path}>{source.path}</strong>
-                  <small>{source.scanError}</small>
+                  <small title={source.scanError ?? undefined}>{describeSourceError(source.scanError)}</small>
                 </div>
                 <button type="button" onClick={() => onOpenScanFailures(source.id)}>查看此来源 <ChevronRight size={15} /></button>
               </article>
