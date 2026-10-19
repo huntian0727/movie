@@ -212,6 +212,47 @@ describe("desktop-only renderer runtime", () => {
     expect(api.getLibraryNavigation).toHaveBeenCalledTimes(initialNavigationCalls);
   });
 
+  it("switches an already-open player window to a video opened from the library", async () => {
+    let listener: ((event: DomainEvent) => void) | undefined;
+    const api = createDesktopApi();
+    Object.assign(api, { windowMode: "player" as const });
+    const videoA = {
+      id: "player-video-a", filename: "sample-a.mp4", basename: "sample-a", path: "F:\\sample-a.mp4", directory: "F:\\",
+      extension: ".mp4", sizeBytes: 1024, durationMs: 1_000, width: 320, height: 240,
+      metadataStatus: "ready", codecProbeStatus: "unprobed", thumbnailStatus: "pending", updatedAt: "2026-09-01", isMissing: false
+    } as VideoRecord;
+    const videoB = { ...videoA, id: "player-video-b", filename: "sample-b.mp4", basename: "sample-b", path: "F:\\sample-b.mp4" } as VideoRecord;
+    vi.mocked(api.getWindowSyncSnapshot)
+      .mockResolvedValueOnce({
+        sequence: 0,
+        playerSession: { sequence: 0, selectedVideoId: videoA.id, queueIds: [videoA.id], videos: [videoA] }
+      })
+      .mockResolvedValueOnce({
+        sequence: 1,
+        playerSession: {
+          sequence: 1, selectedVideoId: videoB.id, queueIds: [videoB.id], videos: [videoB],
+          startPositionMs: 250, startRequestId: "request-video-b"
+        }
+      });
+    vi.mocked(api.subscribeDomainEvents).mockImplementation((nextListener) => {
+      listener = nextListener;
+      return () => undefined;
+    });
+
+    render(<DesktopApp api={api} />);
+    await waitFor(() => expect(document.querySelector("video")).toHaveAttribute("src", "local-video://media/player-video-a"));
+    expect(screen.getByText("sample-a.mp4")).toBeInTheDocument();
+
+    await act(async () => listener?.({ sequence: 1, type: "playback:changed", videoIds: [videoB.id] }));
+
+    await waitFor(() => expect(document.querySelector("video")).toHaveAttribute("src", "local-video://media/player-video-b"));
+    expect(screen.getByText("sample-b.mp4")).toBeInTheDocument();
+    expect(api.getWindowSyncSnapshot).toHaveBeenCalledTimes(2);
+    expect(api.listPlayHistory).toHaveBeenCalled();
+    expect(api.listFolders).not.toHaveBeenCalled();
+    expect(api.getLibraryNavigation).not.toHaveBeenCalled();
+  });
+
   it("does not load library navigation or source-folder statistics in a player window", async () => {
     let listener: ((event: DomainEvent) => void) | undefined;
     const api = createDesktopApi();
