@@ -16,6 +16,7 @@ import { OperationFeedback, operationErrorMessage } from "./OperationFeedback";
 interface MetadataIssuesPageProps {
   folders: SourceFolder[];
   initialSourceFolderId?: string;
+  initialStatus?: MetadataIssueStatusFilter;
   refreshSequence: number;
   loadPage(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
   onRetry(video: VideoRecord): void | Promise<void>;
@@ -33,10 +34,10 @@ const EMPTY_PAGE: MetadataIssuePage = {
 const BACKGROUND_REFRESH_DEBOUNCE_MS = 1_200;
 
 export function MetadataIssuesPage({
-  folders, initialSourceFolderId, refreshSequence, loadPage, onRetry, onRefreshSizes, onOpenLocation, onTotalCount
+  folders, initialSourceFolderId, initialStatus = "all", refreshSequence, loadPage, onRetry, onRefreshSizes, onOpenLocation, onTotalCount
 }: MetadataIssuesPageProps) {
   const [sourceFolderId, setSourceFolderId] = useState(initialSourceFolderId ?? "");
-  const [status, setStatus] = useState<MetadataIssueStatusFilter>("all");
+  const [status, setStatus] = useState<MetadataIssueStatusFilter>(initialStatus);
   const [zeroBytesOnly, setZeroBytesOnly] = useState(false);
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
@@ -171,13 +172,13 @@ export function MetadataIssuesPage({
   return (
     <section className="missing-video-page metadata-issues-page" aria-label="元数据异常明细">
       <div className="missing-video-intro metadata-issue-intro">
-        <div><CircleGauge size={22} /><span><strong>按真实处理状态查看元数据任务</strong><small>待自动分析会分批入队；暂缓分析尚未排队；0B 文件必须先重新读取远端大小。</small></span></div>
+        <div><CircleGauge size={22} /><span><strong>{status === "failed" ? "需要核查：元数据分析失败" : "后台任务：正常等待与暂缓"}</strong><small>{status === "failed" ? "这些才是需要检查原因的分析失败记录；失败并不等于视频损坏。" : "CloudDrive 的部分文件为避免大量远端读取而暂缓分析，属于正常策略，不必逐条重新分析。"}</small></span></div>
         <div className="metadata-issue-counts">
           <span>全局正在分析 <b>{result.activeCount.toLocaleString("zh-CN")}</b></span>
           <span>全局已入队 <b>{result.queuedCount.toLocaleString("zh-CN")}</b></span>
-          <span>待自动分析 <b>{result.automaticCount.toLocaleString("zh-CN")}</b></span>
-          <span>暂缓分析 <b>{result.deferredCount.toLocaleString("zh-CN")}</b></span>
-          <span>分析失败 <b>{result.failedCount.toLocaleString("zh-CN")}</b></span>
+          {status !== "failed" && <span>待自动分析 <b>{result.automaticCount.toLocaleString("zh-CN")}</b></span>}
+          {status !== "failed" && <span>暂缓分析 <b>{result.deferredCount.toLocaleString("zh-CN")}</b></span>}
+          {status === "failed" && <span>分析失败 <b>{result.failedCount.toLocaleString("zh-CN")}</b></span>}
         </div>
       </div>
 
@@ -190,7 +191,7 @@ export function MetadataIssuesPage({
         </label>
         <label>分析状态
           <select value={status} onChange={(event) => setStatus(event.target.value as MetadataIssueStatusFilter)}>
-            <option value="all">全部任务</option><option value="automatic">待自动分析</option><option value="deferred">暂缓分析</option><option value="failed">分析失败</option>
+            <option value="all">全部状态（含失败）</option><option value="automatic">待自动分析</option><option value="deferred">暂缓分析</option><option value="failed">分析失败</option>
           </select>
         </label>
         <label className="missing-video-search">搜索

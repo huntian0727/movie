@@ -276,6 +276,7 @@ interface LibraryNavigationRow {
   pending_delete_videos: number;
   pending_delete_bytes: number;
   pending_metadata_videos: number;
+  failed_metadata_videos: number;
   scan_failure_count: number;
   health_issue_count: number;
 }
@@ -1496,7 +1497,7 @@ export class VideoRepository {
            SELECT 'video:' || videos.id AS issue_key
            FROM videos
            WHERE videos.is_missing = 1
-              OR (videos.is_missing = 0 AND videos.metadata_status IN ('pending', 'failed'))
+              OR (videos.is_missing = 0 AND videos.metadata_status = 'failed')
            UNION
            SELECT CASE
              WHEN latest.status = 'offline' THEN 'source:' || failures.source_folder_id
@@ -1518,6 +1519,7 @@ export class VideoRepository {
            COALESCE(SUM(CASE WHEN is_pending_delete = 1 THEN 1 ELSE 0 END), 0) AS pending_delete_videos,
            COALESCE(SUM(CASE WHEN is_pending_delete = 1 THEN size_bytes ELSE 0 END), 0) AS pending_delete_bytes,
            COALESCE(SUM(CASE WHEN metadata_status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_metadata_videos,
+           COALESCE(SUM(CASE WHEN metadata_status = 'failed' THEN 1 ELSE 0 END), 0) AS failed_metadata_videos,
            (SELECT COUNT(*) FROM scan_failures failures JOIN source_folders sources ON sources.id = failures.source_folder_id WHERE failures.status != 'resolved' AND sources.enabled = 1) AS scan_failure_count,
            (SELECT COUNT(*) FROM health_objects) AS health_issue_count
          FROM videos
@@ -1534,6 +1536,7 @@ export class VideoRepository {
       pendingDeleteVideos: counts.pending_delete_videos,
       pendingDeleteBytes: counts.pending_delete_bytes,
       pendingMetadataVideos: counts.pending_metadata_videos,
+      failedMetadataVideos: counts.failed_metadata_videos,
       scanFailureCount: counts.scan_failure_count,
       healthIssueCount: counts.health_issue_count,
       directoryPaths

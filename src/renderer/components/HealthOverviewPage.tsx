@@ -10,7 +10,7 @@ interface HealthOverviewPageProps {
   loadSummary?(): Promise<AssetCenterSummary>;
   onOpenScanFailures(sourceFolderId?: string): void;
   onOpenMissingVideos(): void;
-  onOpenMetadataIssues(status: "all" | "failed"): void;
+  onOpenMetadataIssues(status: "deferred" | "failed"): void;
   onOpenAssetCenter(): void;
 }
 
@@ -190,7 +190,7 @@ export function HealthOverviewPage({
       <section className="health-overview-section health-overview-background-section" aria-labelledby="health-overview-background-title">
         <header>
           <div>
-            <h2 id="health-overview-background-title">后台任务（不一定是异常）</h2>
+            <h2 id="health-overview-background-title">正常后台任务（无需逐条处理）</h2>
             <p>待分析或暂缓分析属于处理状态，不应与真正失败的问题混为一谈。</p>
           </div>
           <span>不会自动修改视频文件</span>
@@ -198,11 +198,11 @@ export function HealthOverviewPage({
         <article className="health-overview-background-card">
           <div className="health-overview-issue-icon"><LoaderCircle size={20} /></div>
           <div className="health-overview-issue-copy">
-            <h3>待分析 / 暂缓分析</h3>
+            <h3>等待分析 / 暂缓分析</h3>
             <strong>{pendingMetadataCount === null ? "—" : pendingMetadataCount.toLocaleString("zh-CN")} 条任务</strong>
             <p>只有分析失败需要优先排查；等待中的任务可以按需查看，不必逐条处理。</p>
           </div>
-          <button type="button" onClick={() => onOpenMetadataIssues("all")}>查看全部任务 <ChevronRight size={16} /></button>
+          <button type="button" onClick={() => onOpenMetadataIssues("deferred")}>查看暂缓任务 <ChevronRight size={16} /></button>
         </article>
       </section>
       <footer className="health-overview-footer">

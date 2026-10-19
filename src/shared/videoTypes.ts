@@ -758,8 +758,10 @@ export interface LibraryNavigationSnapshot {
   pendingDeleteVideos: number;
   pendingDeleteBytes: number;
   pendingMetadataVideos: number;
+  /** Failed metadata analyses; unlike pending/deferred tasks these need attention. */
+  failedMetadataVideos?: number;
   scanFailureCount: number;
-  /** Unique active health incidents after collapsing repeated stages and offline sources. */
+  /** Unique actionable incidents. Normal waiting/deferred metadata tasks are excluded. */
   healthIssueCount: number;
   directoryPaths: string[];
 }

@@ -342,6 +342,24 @@ describe("LibraryShell", () => {
     expect(healthTabs).toHaveClass("health-center-tabs-overview");
   });
 
+  it("separates the incident badge from deferred background metadata tasks", () => {
+    render(<LibraryShell videos={[video]} folders={[folder]} navigation={{
+      totalVideos: 1, favoriteVideos: 0, pendingDeleteVideos: 0, pendingDeleteBytes: 0,
+      pendingMetadataVideos: 304080, failedMetadataVideos: 832,
+      scanFailureCount: 2008, healthIssueCount: 3620, directoryPaths: []
+    }} />);
+    expect(screen.getByRole("button", { name: "查看异常中心" })).toHaveTextContent("3620");
+    expect(screen.getByRole("button", { name: "查看后台元数据任务" })).toHaveTextContent("304080");
+    fireEvent.click(screen.getByRole("button", { name: "查看后台元数据任务" }));
+    const tabs = screen.getByRole("navigation", { name: "异常类型" });
+    expect(within(tabs).getByRole("button", { name: /后台元数据任务/ })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).getByRole("button", { name: /分析失败/ })).not.toHaveAttribute("aria-current");
+    fireEvent.click(within(tabs).getByRole("button", { name: /分析失败/ }));
+    expect(within(tabs).getByRole("button", { name: /分析失败/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "查看异常中心" })).toHaveClass("active");
+    expect(screen.getByRole("button", { name: "查看后台元数据任务" })).not.toHaveClass("active");
+  });
+
   it("shows a clear placeholder while background metadata analysis is pending", () => {
     render(<LibraryShell videos={[{ ...video, durationMs: null, width: null, height: null, metadataStatus: "pending" }]} />);
 

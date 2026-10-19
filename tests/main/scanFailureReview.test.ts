@@ -41,6 +41,25 @@ function record(repo: VideoRepository, sourceFolderId: string, objectPath: strin
 }
 
 describe("scan failure review", () => {
+  it("counts failed metadata as incidents but keeps pending metadata as background work", () => {
+    const { repo, source, sourcePath } = setup();
+    const filePath = path.join(sourcePath, "metadata-pending.mp4");
+    const modifiedAt = new Date(0).toISOString();
+    const video = repo.upsertVideo({
+      sourceFolderId: source.id, path: filePath, directory: sourcePath,
+      filename: "metadata-pending.mp4", basename: "metadata-pending", extension: ".mp4",
+      sizeBytes: 1024, durationMs: null, width: null, height: null,
+      format: null, modifiedAt, metadataStatus: "pending"
+    });
+    expect(repo.getLibraryNavigation()).toMatchObject({
+      pendingMetadataVideos: 1, failedMetadataVideos: 0, healthIssueCount: 0
+    });
+    expect(repo.markMetadataFailed(video.id, video.path, video.sizeBytes, video.modifiedAt)).toBe(true);
+    expect(repo.getLibraryNavigation()).toMatchObject({
+      pendingMetadataVideos: 0, failedMetadataVideos: 1, healthIssueCount: 1
+    });
+  });
+
   it("classifies, filters and paginates unresolved failures while exposing a global count", () => {
     const { repo, source, sourcePath } = setup();
     const videoPath = path.join(sourcePath, "indexed.mp4");

@@ -50,6 +50,25 @@ const refreshed: MetadataSizeRefreshResult = {
 };
 
 describe("MetadataIssuesPage", () => {
+  it("opens failed analyses separately from normal deferred background work", async () => {
+    const loadFailed = vi.fn().mockResolvedValue(page);
+    const { unmount } = render(<MetadataIssuesPage folders={[folder]} initialStatus="failed"
+      refreshSequence={0} loadPage={loadFailed} onRetry={vi.fn()}
+      onRefreshSizes={vi.fn().mockResolvedValue(refreshed)} />);
+    await waitFor(() => expect(loadFailed).toHaveBeenCalledWith(expect.objectContaining({ status: "failed" })));
+    expect(screen.getByText("需要核查：元数据分析失败")).toBeInTheDocument();
+    expect(screen.queryByText("后台任务：正常等待与暂缓")).not.toBeInTheDocument();
+    unmount();
+    const loadDeferred = vi.fn().mockResolvedValue(page);
+    render(<MetadataIssuesPage folders={[folder]} initialStatus="deferred"
+      refreshSequence={0} loadPage={loadDeferred} onRetry={vi.fn()}
+      onRefreshSizes={vi.fn().mockResolvedValue(refreshed)} />);
+    await waitFor(() => expect(loadDeferred).toHaveBeenCalledWith(expect.objectContaining({ status: "deferred" })));
+    expect(screen.getByText("后台任务：正常等待与暂缓")).toBeInTheDocument();
+    expect(screen.getByText(/属于正常策略/)).toBeInTheDocument();
+  });
+
+
   it("shows honest deferred, failed, and zero-byte states", async () => {
     render(<MetadataIssuesPage folders={[folder]} initialSourceFolderId={folder.id} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onRefreshSizes={vi.fn().mockResolvedValue(refreshed)} />);
 

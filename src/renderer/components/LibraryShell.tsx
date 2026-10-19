@@ -439,10 +439,12 @@ export function LibraryShell({
   }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
 
   const isHealthView = view === "healthOverview" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
+  const isBackgroundMetadataView = view === "metadataIssues" && metadataIssueInitialStatus !== "failed";
+  const isIssueCenterView = isHealthView && !isBackgroundMetadataView;
   const healthIssueCount = navigation?.healthIssueCount
     ?? ((navigation?.scanFailureCount ?? 0) + missingVideoCount);
-  const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : isHealthView ? "异常中心" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复文件" : "视频浏览";
-  const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : view === "missingVideos" ? missingVideoCount : view === "metadataIssues" ? metadataIssueCount : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
+  const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : isBackgroundMetadataView ? "后台任务" : isHealthView ? "异常中心" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复文件" : "视频浏览";
+  const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : view === "missingVideos" ? missingVideoCount : view === "metadataIssues" ? (metadataIssueInitialStatus === "failed" ? navigation?.failedMetadataVideos ?? metadataIssueCount : navigation?.pendingMetadataVideos ?? metadataIssueCount) : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
   const totalPages = onLoadVideoPage ? videoPage.totalPages : Math.max(1, Math.ceil(visibleVideos.length / pageSize));
   const currentPage = onLoadVideoPage ? videoPage.page : Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * pageSize;
@@ -712,8 +714,11 @@ export function LibraryShell({
           <button aria-label="查看重复项" className={view === "duplicates" ? "active" : undefined} onClick={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}>
             <CopyMinus size={18} /><span>重复文件</span><em>{duplicatePage.overallTotalGroups}</em>
           </button>
-          <button aria-label="查看异常中心" className={isHealthView ? "active" : undefined} onClick={() => { setView("healthOverview"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); }}>
-            <AlertTriangle size={18} /><span>异常中心</span><em>{healthIssueCount}</em>
+          <button aria-label="查看异常中心" className={isIssueCenterView ? "active" : undefined} onClick={() => { setView("healthOverview"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); }}>
+            <AlertTriangle size={18} /><span>需要处理</span><em>{healthIssueCount}</em>
+          </button>
+          <button aria-label="查看后台元数据任务" className={isBackgroundMetadataView ? "active" : undefined} onClick={() => { setMetadataIssueInitialStatus("deferred"); setMetadataIssueSourceFolderId(undefined); setView("metadataIssues"); setSelectedFolderPath(null); }}>
+            <Database size={18} /><span>后台任务</span><em>{navigation?.pendingMetadataVideos ?? 0}</em>
           </button>
           <button aria-label="查看待删除视频" className={view === "pendingDelete" ? "active" : undefined} onClick={() => { setView("pendingDelete"); setSelectedFolderPath(null); }}>
             <BookmarkX size={18} /><span>待删除</span><em>{pendingDeleteCount}</em>
@@ -828,7 +833,7 @@ export function LibraryShell({
         {isHealthView && (
           <nav className={`health-center-tabs${view === "healthOverview" ? " health-center-tabs-overview" : ""}`} aria-label="异常类型">
             <button type="button" aria-current={view === "healthOverview" ? "page" : undefined} onClick={() => { setView("healthOverview"); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); }}>
-              <AlertTriangle size={16} /><span>总览</span><em>{healthIssueCount}</em>
+              <AlertTriangle size={16} /><span>问题总览</span><em>{healthIssueCount}</em>
             </button>
             <button type="button" aria-current={view === "scanFailures" ? "page" : undefined} onClick={() => { setView("scanFailures"); setScanFailureSourceFolderId(undefined); }}>
               <AlertTriangle size={16} /><span>扫描失败</span><em>{navigation?.scanFailureCount ?? 0}</em>
@@ -836,8 +841,11 @@ export function LibraryShell({
             <button type="button" aria-current={view === "missingVideos" ? "page" : undefined} onClick={() => { setView("missingVideos"); setMissingVideoSourceFolderId(undefined); }}>
               <FileQuestion size={16} /><span>文件缺失</span>{missingVideoCount > 0 && <em>{missingVideoCount}</em>}
             </button>
-            <button type="button" aria-current={view === "metadataIssues" ? "page" : undefined} onClick={() => { setView("metadataIssues"); setMetadataIssueSourceFolderId(undefined); }}>
-              <Database size={16} /><span>元数据任务</span><em>{navigation?.pendingMetadataVideos ?? metadataIssueCount}</em>
+            <button type="button" aria-current={view === "metadataIssues" && metadataIssueInitialStatus === "failed" ? "page" : undefined} onClick={() => { setMetadataIssueInitialStatus("failed"); setMetadataIssueSourceFolderId(undefined); setView("metadataIssues"); }}>
+              <AlertTriangle size={16} /><span>分析失败</span><em>{navigation?.failedMetadataVideos ?? 0}</em>
+            </button>
+            <button type="button" className="health-center-tab-tasks" aria-current={isBackgroundMetadataView ? "page" : undefined} onClick={() => { setMetadataIssueInitialStatus("deferred"); setMetadataIssueSourceFolderId(undefined); setView("metadataIssues"); }}>
+              <Database size={16} /><span>后台元数据任务</span><em>{navigation?.pendingMetadataVideos ?? 0}</em>
             </button>
           </nav>
         )}
@@ -951,6 +959,7 @@ export function LibraryShell({
                   setSelectedFolderPath(null);
                   if (nextView === "scanFailures") setScanFailureSourceFolderId(undefined);
                   if (nextView === "duplicates") setDuplicatePageNumber(1);
+
                   setView(nextView === "all" ? "videoData" : nextView);
                 }}
                 onOpenMissing={(sourceFolderId) => {
@@ -961,6 +970,7 @@ export function LibraryShell({
                 onOpenMetadata={(sourceFolderId) => {
                   setSelectedFolderPath(null);
                   setMetadataIssueSourceFolderId(sourceFolderId);
+                  setMetadataIssueInitialStatus("deferred");
                   setView("metadataIssues");
                 }}
                 onSelectSource={(sourcePath) => selectDirectory(sourcePath)}
@@ -1001,7 +1011,9 @@ export function LibraryShell({
           onLoadMetadataIssuePage && onRetryMetadata && onRefreshMetadataFileSizes
             ? <MetadataIssuesPage
                 folders={folders}
+                key={`${metadataIssueSourceFolderId ?? "all"}:${metadataIssueInitialStatus}`}
                 initialSourceFolderId={metadataIssueSourceFolderId}
+                initialStatus={metadataIssueInitialStatus}
                 refreshSequence={refreshSequence}
                 loadPage={onLoadMetadataIssuePage}
                 onRetry={onRetryMetadata}
