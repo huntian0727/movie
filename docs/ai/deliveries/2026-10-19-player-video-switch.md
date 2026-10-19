@@ -2,7 +2,7 @@
 
 Date: 2026-10-19
 Branch: `ai/player-video-switch`
-Status: Source fix and regression test implemented locally. No GitHub push, tag, public release, or version bump.
+Status: Source fix, regression test, local package rebuild, desktop-shortcut launch, and manual video-switch check all passed. No GitHub push, tag push, public release, or version bump.
 
 ## Problem
 When a video was already playing and the user clicked a different video in the main library, the existing player window was brought to the foreground but kept playing the previous video.
@@ -22,8 +22,10 @@ The main-process player coordinator updated its session and published `playback:
 - `npm exec -- vitest run tests/renderer/App.test.tsx tests/renderer/playerWindowFullscreen.test.tsx`: PASS, 2 files / 13 tests.
 - `npm run typecheck`: PASS.
 - `git diff --check`: PASS.
-- `npm run package:development`: BLOCKED. Renderer build, native player build and Electron ABI smoke steps passed, but electron-builder could not replace `release/win-unpacked` because the running desktop app had the executable open (`EBUSY`).
-- Confirmed the main desktop and Start Menu shortcuts target `release/win-unpacked/拉面影视.exe`. The running app was not force-terminated. A successful package rebuild and actual shortcut launch validation are still outstanding.
+- `npm run package:development`: PASS. The local development package was rebuilt at `release/win-unpacked`; this script runs electron-builder with `--publish never` and does not create a distributable installer or ZIP.
+- Normal desktop launch verified through `C:\Users\test\Desktop\拉面影视.lnk`. The shortcut target matches the rebuilt `release/win-unpacked/拉面影视.exe`; the new process started at 2026-10-19 23:15:35 (local time).
+- Manual GUI regression verified: the already-open player first showed `(2).mp4`; clicking `(1).mp4` in the main library brought the same player window forward and changed its displayed filename/media to `(1).mp4`. The player window no longer stayed on the previous selection.
+- The earlier `EBUSY` attempt was resolved by closing the app normally and rerunning the local package script. No process was force-terminated.
 
 ## Backup
 - Pre-change checkpoint: `checkpoint-20261019-224458-023fbb1-player-video-switch` (local-only).
@@ -34,4 +36,4 @@ The main-process player coordinator updated its session and published `playback:
 ## Release / handoff
 - User explicitly requested local repair only and prohibited GitHub publishing unless asked. Do not push this branch, push tags, update GitHub, create a public release, or publish artifacts.
 - Public release remains paused. Version 0.1.15 remains untouched.
-- Next step: after the owner closes the currently running local desktop app (or otherwise frees `release/win-unpacked`), rerun `npm run package:development`, verify the executable and shortcut timestamps/targets, launch via the actual desktop shortcut, and manually confirm opening video B while video A is playing switches playback to B. Do not claim desktop delivery until this succeeds.
+- Local repair and manual playback-switch validation are complete. Keep the public release paused; do not push this branch or tags, update GitHub, create a public release, or publish artifacts unless the owner explicitly asks.
