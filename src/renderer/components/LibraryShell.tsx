@@ -19,6 +19,7 @@ import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 import { VideoGrid } from "./VideoGrid";
 import { VideoTable } from "./VideoTable";
+import { PageMetadataAutoAnalysis } from "./PageMetadataAutoAnalysis";
 import { formatBytes } from "./formatters";
 
 const PAGE_SIZE_OPTIONS = [30, 50, 100, 200, 300] as const;
@@ -850,6 +851,12 @@ export function LibraryShell({
           </nav>
         )}
 
+        <PageMetadataAutoAnalysis
+          active={isVideoBrowseView}
+          pageLoading={loading || videoPageLoading}
+          videos={renderedVideos}
+          scopeKey={`${view}:${page}:${pageSize}:${selectedFolderPath ?? ""}:${folderScope}:${querySearch}:${sortField}:${sortDirection}`}
+        />
         {isVideoBrowseView && (
           <div className="batch-toolbar">
             {!selectionMode ? <>
