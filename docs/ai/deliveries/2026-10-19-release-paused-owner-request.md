@@ -22,3 +22,11 @@ Current observations (2026-10-19):
 - Prior 0.1.15 release/docs remain current public release material.
 
 Next step: wait for the owner to finish the additional changes. Do not continue release execution unless specifically asked to resume.
+
+## Additional change requested by owner — player does not switch videos (2026-10-19)
+
+- Reproduction reported: start playing one video; click another video from the library; the existing player window appears/focuses, but continues showing the previous video.
+- Initial code-level diagnosis: `PlayerWindowCoordinator.open()` updates the main-process session and reuses/focuses the existing window. The IPC handler publishes `playback:changed`, but `DesktopApp.handleDomainEvent()` currently handles that event by refreshing only play history and returning before the `isPlayerWindow` event path. The existing player renderer therefore never refreshes its `playerSession` after an external request changes the active video.
+- Planned fix when the owner resumes the combined change set: synchronize the player renderer with the latest `getWindowSyncSnapshot()` on externally initiated playback-session changes, while preserving the player's own next/previous/playlist behavior and preventing stale asynchronous snapshots from replacing newer sessions.
+- Planned regression tests: existing-player-window opens video A then B; verify selected video/start request changes in the renderer; verify play history still refreshes; verify next/previous and playlist selection remain correct; verify close/reopen behavior.
+- Status: recorded only; no player code changed, no new version published. Keep 0.1.16 public release paused until the owner confirms all pending modifications are ready.
