@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type FormEvent, type PointerEvent as ReactPointerEvent, type SetStateAction } from "react";
 import { AlertTriangle, BookmarkX, CircleGauge, Clock3, Cloud, CopyMinus, Database, FileQuestion, FolderInput, FolderPlus, FolderSearch, HardDrive, Heart, Library, ListChecks, LoaderCircle, MoreHorizontal, Pause, PieChart, Play, PlaySquare, RotateCw, Server, Settings, Trash2 } from "lucide-react";
-import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, PlaybackPreference, ScanFailure, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, MetadataIssueStatusFilter, PlaybackPreference, ScanFailure, ScanFailureBatchJob, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { AssetCenterPage } from "./AssetCenterPage";
@@ -9,6 +9,7 @@ import { PlaybackDiagnosticPage } from "./PlaybackDiagnosticPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
 import { MissingVideosPage } from "./MissingVideosPage";
 import { MetadataIssuesPage } from "./MetadataIssuesPage";
+import { HealthOverviewPage } from "./HealthOverviewPage";
 import { DirectoryBrowserPage } from "./DirectoryBrowserPage";
 import { DirectoryFilterTree } from "./DirectoryFilterTree";
 import { LibraryDirectoryOverview } from "./LibraryDirectoryOverview";
@@ -68,6 +69,7 @@ interface LibraryShellProps {
   onSubmitScanFailureBatch?: VideoManagerApi["submitScanFailureBatch"];
   onGetScanFailureBatch?: VideoManagerApi["getScanFailureBatch"];
   onCancelScanFailureBatch?: VideoManagerApi["cancelScanFailureBatch"];
+  onListScanFailureBatches?: VideoManagerApi["listScanFailureBatches"];
   onOpenScanFailureLocation?(failureId: string): Promise<unknown>;
   onRefresh?(): void | Promise<void>;
   onOpen?(video: VideoRecord, queue: VideoRecord[], startPositionMs?: number): void | Promise<void>;
@@ -140,6 +142,7 @@ export function LibraryShell({
   onSubmitScanFailureBatch,
   onGetScanFailureBatch,
   onCancelScanFailureBatch,
+  onListScanFailureBatches,
   onOpenScanFailureLocation,
   onRefresh,
   onOpen,
@@ -186,6 +189,7 @@ export function LibraryShell({
   const [missingVideoCount, setMissingVideoCount] = useState(0);
   const [metadataIssueSourceFolderId, setMetadataIssueSourceFolderId] = useState<string | undefined>();
   const [metadataIssueCount, setMetadataIssueCount] = useState(0);
+  const [metadataIssueInitialStatus, setMetadataIssueInitialStatus] = useState<MetadataIssueStatusFilter>("all");
   const [folderScope, setFolderScope] = useState<"recursive" | "exact">("exact");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [search, setSearch] = useState("");
@@ -268,9 +272,9 @@ export function LibraryShell({
   const favoriteCount = useMemo(() => navigation?.favoriteVideos ?? videos.reduce((count, video) => count + (video.isFavorite ? 1 : 0), 0), [navigation?.favoriteVideos, videos]);
   const pendingDeleteCount = navigation?.pendingDeleteVideos ?? videos.reduce((count, video) => count + (video.isPendingDelete ? 1 : 0), 0);
   const pendingDeleteBytes = navigation?.pendingDeleteBytes ?? videos.reduce((total, video) => total + (video.isPendingDelete ? video.sizeBytes : 0), 0);
-  const isStandaloneView = view === "videoData" || view === "assetCenter" || view === "playbackDiagnostic" || view === "directoryBrowser" || view === "libraryDirectories" || view === "duplicates" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
+  const isStandaloneView = view === "videoData" || view === "assetCenter" || view === "healthOverview" || view === "playbackDiagnostic" || view === "directoryBrowser" || view === "libraryDirectories" || view === "duplicates" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const isVideoBrowseView = !isStandaloneView;
-  const usesCommonToolbar = view !== "videoData" && view !== "assetCenter" && view !== "playbackDiagnostic" && view !== "directoryBrowser" && view !== "libraryDirectories";
+  const usesCommonToolbar = view !== "videoData" && view !== "assetCenter" && view !== "healthOverview" && view !== "playbackDiagnostic" && view !== "directoryBrowser" && view !== "libraryDirectories";
 
   useEffect(() => {
     setPage(1);
@@ -434,9 +438,9 @@ export function LibraryShell({
     return () => { disposed = true; };
   }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
 
-  const isHealthView = view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
+  const isHealthView = view === "healthOverview" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const healthIssueCount = navigation?.healthIssueCount
-    ?? ((navigation?.scanFailureCount ?? 0) + missingVideoCount + (navigation?.pendingMetadataVideos ?? metadataIssueCount));
+    ?? ((navigation?.scanFailureCount ?? 0) + missingVideoCount);
   const title = view === "favorites" ? "收藏" : view === "pendingDelete" ? "待删除" : view === "recent" ? "最近播放" : isHealthView ? "异常中心" : view === "folder" ? `${folderScope === "exact" ? "同目录 · " : ""}${folderName(selectedFolderPath ?? "文件夹")}` : view === "duplicates" ? "重复文件" : "视频浏览";
   const toolbarCount = view === "duplicates" ? duplicatePage.overallTotalGroups : view === "scanFailures" ? navigation?.scanFailureCount ?? 0 : view === "missingVideos" ? missingVideoCount : view === "metadataIssues" ? metadataIssueCount : onLoadVideoPage ? videoPage.totalCount : visibleVideos.length;
   const totalPages = onLoadVideoPage ? videoPage.totalPages : Math.max(1, Math.ceil(visibleVideos.length / pageSize));
@@ -708,7 +712,7 @@ export function LibraryShell({
           <button aria-label="查看重复项" className={view === "duplicates" ? "active" : undefined} onClick={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}>
             <CopyMinus size={18} /><span>重复文件</span><em>{duplicatePage.overallTotalGroups}</em>
           </button>
-          <button aria-label="查看异常中心" className={isHealthView ? "active" : undefined} onClick={() => { setView("scanFailures"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); }}>
+          <button aria-label="查看异常中心" className={isHealthView ? "active" : undefined} onClick={() => { setView("healthOverview"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); }}>
             <AlertTriangle size={18} /><span>异常中心</span><em>{healthIssueCount}</em>
           </button>
           <button aria-label="查看待删除视频" className={view === "pendingDelete" ? "active" : undefined} onClick={() => { setView("pendingDelete"); setSelectedFolderPath(null); }}>
@@ -799,7 +803,7 @@ export function LibraryShell({
         {usesCommonToolbar && <Toolbar
           title={title}
           count={toolbarCount}
-          countLabel={view === "duplicates" ? "组重复" : isHealthView ? "项待处理" : "部视频"}
+          countLabel={view === "duplicates" ? "组重复" : view === "metadataIssues" ? "条任务" : isHealthView ? "项问题" : "部视频"}
           search={search}
           sortField={sortField}
           sortDirection={sortDirection}
@@ -809,7 +813,7 @@ export function LibraryShell({
           loading={loading}
           showBrowseControls={view !== "duplicates" && view !== "scanFailures" && view !== "missingVideos" && view !== "metadataIssues"}
           backLabel={view === "folder" ? "返回资料库目录" : undefined}
-          onBack={view === "folder" ? openDirectoryOverview : isHealthView ? () => { setView("assetCenter"); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); } : undefined}
+          onBack={view === "folder" ? openDirectoryOverview : isHealthView ? () => { setView("healthOverview"); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); setMetadataIssueInitialStatus("all"); } : undefined}
           onSearch={setSearch}
           onSortField={setSortField}
           onToggleDirection={() => setSortDirection((current) => (current === "asc" ? "desc" : "asc"))}
@@ -823,6 +827,9 @@ export function LibraryShell({
 
         {isHealthView && (
           <nav className="health-center-tabs" aria-label="异常类型">
+            <button type="button" aria-current={view === "healthOverview" ? "page" : undefined} onClick={() => { setView("healthOverview"); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); }}>
+              <AlertTriangle size={16} /><span>总览</span><em>{healthIssueCount}</em>
+            </button>
             <button type="button" aria-current={view === "scanFailures" ? "page" : undefined} onClick={() => { setView("scanFailures"); setScanFailureSourceFolderId(undefined); }}>
               <AlertTriangle size={16} /><span>扫描失败</span><em>{navigation?.scanFailureCount ?? 0}</em>
             </button>
@@ -912,6 +919,27 @@ export function LibraryShell({
             : <div className="empty-state"><h3>目录浏览服务未连接</h3></div>
         ) : view === "videoData" ? (
           videoDataApi ? <VideoDataPage load={videoDataApi.listVideoData} exportCsv={videoDataApi.exportVideoData} deleteSelection={videoDataApi.deleteVideoData} folders={folders} initialDirectory={selectedFolderPath ?? ""} onPlay={video => openVideo(video, [video])} onDetails={setDetailsTarget} onDiagnostic={video => { setDiagnosticVideoId(video.id); setDiagnosticInitialVideo(video); setView("playbackDiagnostic"); }} /> : <div className="empty-state">视频数据表服务未连接</div>
+        ) : view === "healthOverview" ? (
+          <HealthOverviewPage
+            folders={folders}
+            navigation={navigation}
+            refreshSequence={refreshSequence}
+            loadSummary={onLoadAssetCenterSummary}
+            onOpenScanFailures={(sourceFolderId) => {
+              setScanFailureSourceFolderId(sourceFolderId);
+              setView("scanFailures");
+            }}
+            onOpenMissingVideos={() => {
+              setMissingVideoSourceFolderId(undefined);
+              setView("missingVideos");
+            }}
+            onOpenMetadataIssues={(status) => {
+              setMetadataIssueSourceFolderId(undefined);
+              setMetadataIssueInitialStatus(status);
+              setView("metadataIssues");
+            }}
+            onOpenAssetCenter={() => setView("assetCenter")}
+          />
         ) : view === "assetCenter" ? (
           onLoadAssetCenterSummary && onLoadAssetCenterSources
             ? <AssetCenterPage
@@ -1008,6 +1036,7 @@ export function LibraryShell({
                 onSubmitBatch={onSubmitScanFailureBatch}
                 onGetBatch={onGetScanFailureBatch}
                 onCancelBatch={onCancelScanFailureBatch}
+                onListBatchHistory={onListScanFailureBatches}
                 onOpenLocation={onOpenScanFailureLocation}
                 onOpenVideo={(video) => openVideo(video, [video])}
                 onShowDetails={viewVideoDetails}

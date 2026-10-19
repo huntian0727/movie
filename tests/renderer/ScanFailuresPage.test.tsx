@@ -27,10 +27,25 @@ const page: ScanFailureReviewPage = {
   counts: { all: 3, video: 1, unindexedFile: 1, directory: 1 }
 };
 
-const queuedJob: ScanFailureBatchJob = { id: "batch-1", operation: "analyze-metadata", status: "queued", totalCount: 3, processedCount: 0, successCount: 0, failureCount: 0, skippedCount: 0, currentPath: null, message: null, createdAt: "2026-10-05", completedAt: null };
+const queuedJob: ScanFailureBatchJob = { id: "batch-1", operation: "analyze-metadata", status: "queued", scopeSummary: "手动选择 3 项", errorSummary: null, totalCount: 3, processedCount: 0, successCount: 0, failureCount: 0, skippedCount: 0, currentPath: null, message: null, createdAt: "2026-10-05", completedAt: null };
 afterEach(() => vi.useRealTimers());
 
 describe("ScanFailuresPage", () => {
+  it("shows persistent batch history and failure summaries", async () => {
+    const history: ScanFailureBatchJob = {
+      id: "history-1", operation: "permanent-delete", status: "completed-with-errors", scopeSummary: "手动选择 4 项",
+      errorSummary: "远端验证未能确认文件缺失；相关记录未清理", totalCount: 4, processedCount: 4,
+      successCount: 2, skippedCount: 1, failureCount: 1, currentPath: null,
+      message: "已处理 4 项：成功 2，跳过 1，失败 1", createdAt: "2026-10-19T00:00:00.000Z", completedAt: "2026-10-19T00:00:02.000Z"
+    };
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(page)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} onListBatchHistory={vi.fn().mockResolvedValue([history])} />);
+    expect(await screen.findByText("处理历史")).toBeInTheDocument();
+    expect(await screen.findByText("永久删除已确认损坏的视频")).toBeInTheDocument();
+    expect(screen.getByText("手动选择 4 项")).toBeInTheDocument();
+    expect(screen.getByText(/已处理 4\/4 · 成功 2 · 跳过 1 · 失败 1/)).toBeInTheDocument();
+    expect(screen.getByText(/失败摘要：远端验证未能确认文件缺失/)).toBeInTheDocument();
+  });
+
   it("does not present a failed query as an empty result and retry only reads the list", async () => {
     const loadPage = vi.fn().mockRejectedValueOnce(new Error("database locked")).mockResolvedValue(page);
     const onRetry = vi.fn(); const onDeleteFile = vi.fn();
@@ -49,7 +64,10 @@ describe("ScanFailuresPage", () => {
     await screen.findByText("clip.mp4");
     fireEvent.click(screen.getByRole("button", { name: "全选全部筛选结果" }));
     const start = screen.getByRole("button", { name: "分析元数据" });
-    fireEvent.click(start); fireEvent.click(start);
+    fireEvent.click(start);
+    expect(screen.getByRole("dialog", { name: "确认批量分析元数据" })).toBeInTheDocument();
+    const confirm = screen.getByRole("button", { name: "确认开始任务" });
+    fireEvent.click(confirm); fireEvent.click(confirm);
     expect(onSubmitBatch).toHaveBeenCalledOnce(); expect(start).toBeDisabled();
     await act(async () => resolveJob(queuedJob));
     expect(screen.getByText("等待执行")).toBeInTheDocument();
@@ -66,6 +84,7 @@ describe("ScanFailuresPage", () => {
     vi.useFakeTimers();
     fireEvent.click(screen.getByRole("button", { name: "全选全部筛选结果" }));
     fireEvent.click(screen.getByRole("button", { name: "分析元数据" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认开始任务" }));
     await act(async () => { await Promise.resolve(); });
     await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
     expect(onGetBatch).toHaveBeenCalledOnce();
@@ -124,6 +143,8 @@ describe("ScanFailuresPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "全选当前页可清理项" }));
     expect(screen.getByText("已选 2 个可处理项")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /永久删除损坏项/ }));
+    expect(screen.getByRole("dialog", { name: "确认永久删除" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认永久删除" }));
     await waitFor(() => expect(onCleanup).toHaveBeenCalledWith(["failure-video"], "permanent-delete"));
     expect(await screen.findByText(/永久删除完成/)).toBeInTheDocument();
   });
@@ -134,6 +155,8 @@ describe("ScanFailuresPage", () => {
     render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={loadPage} onRetry={vi.fn()} onDeleteFile={onDeleteFile} onOpenLocation={vi.fn()} />);
     await screen.findByText("clip.mp4");
     fireEvent.click(screen.getAllByTitle("永久删除文件")[0]);
+    expect(screen.getByRole("dialog", { name: "确认永久删除" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认永久删除" }));
     await waitFor(() => expect(onDeleteFile).toHaveBeenCalledWith("failure-video"));
     await waitFor(() => expect(loadPage.mock.calls.length).toBeGreaterThan(1));
   });
@@ -157,13 +180,15 @@ describe("ScanFailuresPage", () => {
     render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(missingPage)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onCleanup={onCleanup} onOpenLocation={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "清理失效记录" }));
+    expect(screen.getByRole("dialog", { name: "确认清理失效记录" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认清理记录" }));
     await waitFor(() => expect(onCleanup).toHaveBeenCalledWith([missing.failure.id], "remove-missing-record"));
     expect(screen.queryByTitle("永久删除文件")).not.toBeInTheDocument();
   });
 
   it("submits all filtered results as a backend batch instead of only visible ids", async () => {
     const onSubmitBatch = vi.fn().mockResolvedValue({
-      id: "job-1", operation: "analyze-metadata", status: "completed", totalCount: 250,
+      id: "job-1", operation: "analyze-metadata", status: "completed", scopeSummary: "当前筛选结果", errorSummary: null, totalCount: 250,
       processedCount: 250, successCount: 250, skippedCount: 0, failureCount: 0,
       currentPath: null, message: "done", createdAt: "2026-01-01", completedAt: "2026-01-01"
     });
@@ -173,6 +198,8 @@ describe("ScanFailuresPage", () => {
     expect(screen.getByText("已选择全部筛选结果（不限当前页）")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "分析元数据" }));
 
+    expect(screen.getByRole("dialog", { name: "确认批量分析元数据" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认开始任务" }));
     await waitFor(() => expect(onSubmitBatch).toHaveBeenCalledWith({
       operation: "analyze-metadata",
       scope: { mode: "filtered", query: { kind: "all", cleanupCategory: "all" } }

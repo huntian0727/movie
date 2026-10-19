@@ -595,6 +595,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       onSubmitScanFailureBatch={(request) => api.submitScanFailureBatch(request)}
       onGetScanFailureBatch={(jobId) => api.getScanFailureBatch(jobId)}
       onCancelScanFailureBatch={(jobId) => api.cancelScanFailureBatch(jobId)}
+      onListScanFailureBatches={() => api.listScanFailureBatches()}
       onOpenScanFailureLocation={(failureId) => api.openScanFailureLocation(failureId)}
       onRefresh={refresh}
       onToggleFavorite={toggleFavorite}

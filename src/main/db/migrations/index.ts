@@ -13,6 +13,7 @@ import { libraryQueryPerformanceMigration } from "./012-library-query-performanc
 import { metadataIssuePerformanceMigration } from "./013-metadata-issue-performance.js";
 import { queryCacheRevisionsMigration } from "./014-query-cache-revisions.js";
 import { cloudDriveCleanupBindingMigration } from "./015-clouddrive-cleanup-binding.js";
+import { scanFailureBatchHistoryMigration } from "./016-scan-failure-batch-history.js";
 
 export const migrations = [
   coreLibraryMigration,
@@ -29,7 +30,8 @@ export const migrations = [
   libraryQueryPerformanceMigration,
   metadataIssuePerformanceMigration,
   queryCacheRevisionsMigration,
-  cloudDriveCleanupBindingMigration
+  cloudDriveCleanupBindingMigration,
+  scanFailureBatchHistoryMigration
 ] as const;
 
-export const LATEST_SCHEMA_VERSION = 15;
+export const LATEST_SCHEMA_VERSION = 16;

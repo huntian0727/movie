@@ -9,7 +9,7 @@ export const DUPLICATE_PAGE_SIZES = [10, 20, 50, 100, 200, 300, 500] as const;
 export type SortField = (typeof SORT_FIELDS)[number];
 export type DuplicatePageSize = (typeof DUPLICATE_PAGE_SIZES)[number];
 export type SortDirection = "asc" | "desc";
-export type LibraryView = "videoData" | "assetCenter" | "playbackDiagnostic" | "directoryBrowser" | "libraryDirectories" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "missingVideos" | "metadataIssues" | "duplicates";
+export type LibraryView = "videoData" | "assetCenter" | "healthOverview" | "playbackDiagnostic" | "directoryBrowser" | "libraryDirectories" | "all" | "favorites" | "pendingDelete" | "folder" | "recent" | "scanFailures" | "missingVideos" | "metadataIssues" | "duplicates";
 export type ViewMode = "grid" | "table";
 export type MetadataStatus = "pending" | "ready" | "failed";
 export type CodecProbeStatus = "unprobed" | "ready" | "failed";
@@ -280,7 +280,7 @@ export interface MetadataSizeRefreshResult {
 }
 
 export type ScanFailureBatchOperation = "recheck-accessibility" | "analyze-metadata" | "permanent-delete" | "remove-missing-record";
-export type ScanFailureBatchJobStatus = "queued" | "running" | "cancelling" | "cancelled" | "completed" | "completed-with-errors";
+export type ScanFailureBatchJobStatus = "queued" | "running" | "cancelling" | "cancelled" | "completed" | "completed-with-errors" | "interrupted";
 
 export type ScanFailureBatchScope =
   | { mode: "selected"; failureIds: string[] }
@@ -302,6 +302,8 @@ export interface ScanFailureBatchJob {
   id: string;
   operation: ScanFailureBatchOperation;
   status: ScanFailureBatchJobStatus;
+  scopeSummary: string;
+  errorSummary: string | null;
   totalCount: number;
   processedCount: number;
   successCount: number;
@@ -1051,6 +1053,7 @@ export const IPC_CHANNELS = {
   scanFailureBatchSubmit: "scan-failure-batch:submit",
   scanFailureBatchGet: "scan-failure-batch:get",
   scanFailureBatchCancel: "scan-failure-batch:cancel",
+  scanFailureBatchList: "scan-failure-batch:list",
   scanFailureReviewOpen: "scan-failure-review:open",
   folderRemove: "folder:remove",
   folderRemovePreview: "folder:remove-preview",
@@ -1179,6 +1182,7 @@ export interface VideoManagerApi extends SubtitleApi, DataStorageApi {
   submitScanFailureBatch(request: ScanFailureBatchSubmitRequest): Promise<ScanFailureBatchJob>;
   getScanFailureBatch(jobId: string): Promise<ScanFailureBatchJob>;
   cancelScanFailureBatch(jobId: string): Promise<ScanFailureBatchJob>;
+  listScanFailureBatches(): Promise<ScanFailureBatchJob[]>;
   openScanFailureLocation(failureId: string): Promise<boolean>;
   removeFolder(folderId: string): Promise<SourceFolderRemovalResult>;
   previewRemoveFolder(folderId: string): Promise<SourceFolderRemovalPreview>;

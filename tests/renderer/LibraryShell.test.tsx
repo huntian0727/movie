@@ -331,7 +331,9 @@ describe("LibraryShell", () => {
 
     expect(screen.getByRole("heading", { name: "异常中心" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "异常类型" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /扫描失败/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: /总览/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("heading", { name: "需要你处理" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /查看并处理/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /文件缺失/ }));
     expect(screen.getByRole("button", { name: /文件缺失/ })).toHaveAttribute("aria-current", "page");
   });

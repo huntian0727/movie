@@ -92,7 +92,7 @@ describe("versioned database migrations", () => {
         "video_codec", "video_profile", "pixel_format", "audio_codec", "codec_probe_status"
       ]));
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").pluck().all()).toEqual(expect.arrayContaining([
-        "directory_snapshots", "scan_failures", "scan_tasks"
+        "directory_snapshots", "scan_failures", "scan_tasks", "scan_failure_batch_jobs"
       ]));
       expect(db.pragma("foreign_key_check")).toEqual([]);
       expect(listColumns(db, "duplicate_cleanup_jobs")).toContain("cloud_connection_binding");
@@ -144,7 +144,7 @@ describe("versioned database migrations", () => {
     }
   });
 
-  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) {
     it(`upgrades schema version ${version} to the latest version`, () => {
       const dbPath = createTempDatabasePath();
       createVersionFixture(dbPath, version).close();

@@ -27,6 +27,7 @@ import type {
   PlayHistoryEntry,
   ScanCounters,
   ScanFailure,
+  ScanFailureBatchJob,
   ScanFailureReviewPage,
   ScanFailureReviewQuery,
   ScanFailureObjectType,
@@ -1161,6 +1162,59 @@ export class VideoRepository {
     this.db.prepare(`
       UPDATE scan_tasks SET status = ?, completed_at = ?, counters_json = ?, error_summary = ? WHERE id = ?
     `).run(status, new Date().toISOString(), JSON.stringify(counters), errorSummary, id);
+  }
+
+  upsertScanFailureBatchJob(job: ScanFailureBatchJob): void {
+    const updatedAt = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO scan_failure_batch_jobs (
+        id, operation, status, scope_summary, total_count, processed_count, success_count,
+        skipped_count, failure_count, current_path, message, error_summary, created_at, updated_at, completed_at
+      ) VALUES (
+        @id, @operation, @status, @scopeSummary, @totalCount, @processedCount, @successCount,
+        @skippedCount, @failureCount, @currentPath, @message, @errorSummary, @createdAt, @updatedAt, @completedAt
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        status = excluded.status,
+        scope_summary = excluded.scope_summary,
+        total_count = excluded.total_count,
+        processed_count = excluded.processed_count,
+        success_count = excluded.success_count,
+        skipped_count = excluded.skipped_count,
+        failure_count = excluded.failure_count,
+        current_path = excluded.current_path,
+        message = excluded.message,
+        error_summary = excluded.error_summary,
+        updated_at = excluded.updated_at,
+        completed_at = excluded.completed_at
+    `).run({ ...job, updatedAt });
+  }
+
+  listScanFailureBatchJobs(limit = 50): ScanFailureBatchJob[] {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit) || 50));
+    return this.db.prepare(`
+      SELECT id, operation, status, scope_summary AS scopeSummary, total_count AS totalCount,
+             processed_count AS processedCount, success_count AS successCount,
+             skipped_count AS skippedCount, failure_count AS failureCount,
+             current_path AS currentPath, message, error_summary AS errorSummary,
+             created_at AS createdAt, completed_at AS completedAt
+      FROM scan_failure_batch_jobs
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `).all(safeLimit) as ScanFailureBatchJob[];
+  }
+
+  interruptActiveScanFailureBatchJobs(): number {
+    const now = new Date().toISOString();
+    const result = this.db.prepare(`
+      UPDATE scan_failure_batch_jobs
+      SET status = 'interrupted', completed_at = ?, updated_at = ?,
+          current_path = NULL,
+          message = '程序上次退出时任务未完成；未完成项不会自动重试',
+          error_summary = COALESCE(error_summary, '任务中断；未完成项未自动重试')
+      WHERE status IN ('queued', 'running', 'cancelling')
+    `).run(now, now);
+    return Number(result.changes ?? 0);
   }
 
   upsertVideo(input: UpsertVideoInput): VideoRecord {

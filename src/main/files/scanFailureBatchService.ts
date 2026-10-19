@@ -28,19 +28,22 @@ interface MutableJob extends ScanFailureBatchJob {
 export class ScanFailureBatchService {
   private readonly jobs = new Map<string, MutableJob>();
 
-  constructor(private readonly repo: VideoRepository, private readonly dependencies: ScanFailureBatchDependencies) {}
+  constructor(private readonly repo: VideoRepository, private readonly dependencies: ScanFailureBatchDependencies) {
+    this.repo.interruptActiveScanFailureBatchJobs();
+  }
 
   submit(request: ScanFailureBatchSubmitRequest): ScanFailureBatchJob {
     const failureIds = this.resolveFailureIds(request);
     const now = new Date().toISOString();
     const job: MutableJob = {
-      id: crypto.randomUUID(), operation: request.operation, status: "queued", totalCount: failureIds.length,
-      processedCount: 0, successCount: 0, skippedCount: 0, failureCount: 0,
+      id: crypto.randomUUID(), operation: request.operation, status: "queued", scopeSummary: summarizeScope(request),
+      errorSummary: null, totalCount: failureIds.length, processedCount: 0, successCount: 0, skippedCount: 0, failureCount: 0,
       currentPath: null, message: failureIds.length === 0 ? "当前筛选没有可处理项" : null,
       createdAt: now, completedAt: failureIds.length === 0 ? now : null, cancelRequested: false
     };
     if (failureIds.length === 0) job.status = "completed";
     this.jobs.set(job.id, job);
+    this.persist(job);
     if (failureIds.length > 0) void this.run(job, failureIds);
     return snapshot(job);
   }
@@ -58,6 +61,7 @@ export class ScanFailureBatchService {
       job.cancelRequested = true;
       job.status = "cancelling";
       job.message = "正在取消；当前文件处理结束后停止";
+      this.persist(job);
     }
     return snapshot(job);
   }
@@ -75,8 +79,13 @@ export class ScanFailureBatchService {
     }).map((failure) => failure.id);
   }
 
+  private persist(job: MutableJob): void {
+    this.repo.upsertScanFailureBatchJob(snapshot(job));
+  }
+
   private async run(job: MutableJob, failureIds: string[]): Promise<void> {
     job.status = "running";
+    this.persist(job);
     if (job.operation === "remove-missing-record") {
       await this.removeMissingRecords(job, failureIds);
       return;
@@ -114,8 +123,10 @@ export class ScanFailureBatchService {
         if (job.cancelRequested && getErrorCode(error) === "ABORT_ERR") break;
         job.failureCount += 1;
         job.message = error instanceof Error ? error.message : String(error);
+        job.errorSummary = appendErrorSummary(job.errorSummary, job.message);
       } finally {
         job.processedCount += 1;
+        this.persist(job);
       }
     }
     this.finish(job, removedVideoIds);
@@ -146,6 +157,7 @@ export class ScanFailureBatchService {
 
     job.currentPath = candidates[0]?.objectPath ?? null;
     job.message = `正在按远端目录合并验证 ${candidates.length} 项；验证完成前不会清理记录`;
+    this.persist(job);
     let confirmations: Map<string, CloudDriveMissingConfirmation>;
     try {
       confirmations = await this.dependencies.confirmRemoteMissingBatch(
@@ -157,6 +169,7 @@ export class ScanFailureBatchService {
         job.failureCount += candidates.length;
         job.processedCount += candidates.length;
         job.message = error instanceof Error ? error.message : String(error);
+        job.errorSummary = appendErrorSummary(job.errorSummary, job.message);
       }
       this.finish(job, []);
       return;
@@ -171,7 +184,10 @@ export class ScanFailureBatchService {
     for (const failure of candidates) {
       const confirmation = confirmations.get(failure.objectPath);
       if (confirmation === "missing") confirmedMissingIds.push(failure.id);
-      else job.failureCount += 1;
+      else {
+        job.failureCount += 1;
+        job.errorSummary = appendErrorSummary(job.errorSummary, "远端验证未能确认文件缺失；相关记录未清理");
+      }
     }
 
     const cleaned = this.repo.resolveConfirmedMissingScanFailures(confirmedMissingIds);
@@ -206,6 +222,7 @@ export class ScanFailureBatchService {
 
     job.currentPath = candidates[0]?.objectPath ?? null;
     job.message = `正在按目录合并复查 ${candidates.length} 项；完成前不会写入复查结果`;
+    this.persist(job);
     let confirmations: Map<string, CloudDriveMissingConfirmation>;
     try {
       confirmations = await this.dependencies.confirmRemoteMissingBatch(
@@ -217,6 +234,7 @@ export class ScanFailureBatchService {
         job.failureCount += candidates.length;
         job.processedCount += candidates.length;
         job.message = error instanceof Error ? error.message : String(error);
+        job.errorSummary = appendErrorSummary(job.errorSummary, job.message);
       }
       this.finish(job, []);
       return;
@@ -255,7 +273,10 @@ export class ScanFailureBatchService {
         const localResult = localResultsById.get(failure.id);
         if (!localResult || localResult.error) {
           job.failureCount += 1;
-          if (localResult?.error) job.message = localResult.error instanceof Error ? localResult.error.message : String(localResult.error);
+          if (localResult?.error) {
+            job.message = localResult.error instanceof Error ? localResult.error.message : String(localResult.error);
+            job.errorSummary = appendErrorSummary(job.errorSummary, job.message);
+          }
         } else {
           updates.push({
             failureId: failure.id,
@@ -265,6 +286,7 @@ export class ScanFailureBatchService {
         }
       } else {
         job.failureCount += 1;
+        job.errorSummary = appendErrorSummary(job.errorSummary, "远端可访问性复查未返回可确认的结果；相关记录未更新");
       }
     }
 
@@ -284,10 +306,35 @@ export class ScanFailureBatchService {
     } else {
       job.status = job.failureCount > 0 ? "completed-with-errors" : "completed";
       job.message = `已处理 ${job.processedCount} 项：成功 ${job.successCount}，跳过 ${job.skippedCount}，失败 ${job.failureCount}`;
+      if (job.failureCount > 0 && !job.errorSummary) {
+        job.errorSummary = "部分项目未通过安全校验或无法确认处理结果；请查看明细后再决定是否重试";
+      }
     }
+    this.persist(job);
     this.dependencies.onLibraryChanged(removedVideoIds);
   }
 
+}
+
+function summarizeScope(request: ScanFailureBatchSubmitRequest): string {
+  if (request.scope.mode === "selected") return `手动选择 ${new Set(request.scope.failureIds).size} 项`;
+  const query = request.scope.query;
+  const parts = ["当前筛选结果"];
+  if (query.sourceFolderId) parts.push("指定来源");
+  if (query.kind !== "all") parts.push(query.kind === "video" ? "视频" : query.kind === "directory" ? "目录" : "未入库文件");
+  if (query.cleanupCategory !== "all") {
+    const categories: Record<typeof query.cleanupCategory, string> = {
+      "confirmed-corrupt": "复核确认损坏", missing: "文件缺失", transient: "临时异常", "manual-review": "需要人工复核"
+    };
+    parts.push(categories[query.cleanupCategory]);
+  }
+  return parts.join(" · ");
+}
+
+function appendErrorSummary(current: string | null, next: string): string {
+  const messages = (current ? current.split("；") : []).filter(Boolean);
+  if (!messages.includes(next)) messages.push(next);
+  return messages.slice(-5).join("；");
 }
 
 function reviewKind(repo: VideoRepository, failure: ScanFailure): ScanFailureReviewKind {

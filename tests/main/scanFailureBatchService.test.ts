@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type DatabaseConnection } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
 import { ScanFailureBatchService } from "../../src/main/files/scanFailureBatchService";
+import type { ScanFailureBatchJob } from "../../src/shared/videoTypes";
 
 let database: DatabaseConnection | undefined;
 let temporaryDirectory = "";
@@ -34,6 +35,27 @@ describe("ScanFailureBatchService", () => {
 
     expect(completed).toMatchObject({ status: "completed", totalCount: 135, processedCount: 135, successCount: 135 });
     expect(analyzeFailure).toHaveBeenCalledTimes(135);
+    expect(repo.listScanFailureBatchJobs()).toMatchObject([{
+      operation: "analyze-metadata", status: "completed", scopeSummary: "当前筛选结果 · 复核确认损坏",
+      totalCount: 135, processedCount: 135, successCount: 135, skippedCount: 0, failureCount: 0
+    }]);
+  });
+
+  it("persists history and marks unfinished work as interrupted after restart", () => {
+    const { repo } = setup();
+    const job: ScanFailureBatchJob = {
+      id: "unfinished-job", operation: "analyze-metadata", status: "running", scopeSummary: "手动选择 2 项",
+      errorSummary: null, totalCount: 2, processedCount: 1, successCount: 1, skippedCount: 0, failureCount: 0,
+      currentPath: "D:\\\\Videos\\\\unfinished.mp4", message: "批处理中",
+      createdAt: "2026-10-19T00:00:00.000Z", completedAt: null
+    };
+    repo.upsertScanFailureBatchJob(job);
+    createService(repo);
+    expect(repo.listScanFailureBatchJobs()).toMatchObject([{
+      id: "unfinished-job", status: "interrupted", processedCount: 1,
+      message: "程序上次退出时任务未完成；未完成项不会自动重试",
+      errorSummary: "任务中断；未完成项未自动重试"
+    }]);
   });
 
   it("rechecks accessibility without invoking metadata analysis", async () => {

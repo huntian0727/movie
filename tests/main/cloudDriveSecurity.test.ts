@@ -35,7 +35,7 @@ function setup() {
   const logger = { createOperationId: () => "test-operation", info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const publish = vi.fn();
   const connectionGuard = vi.fn();
-  registerIpcHandlers({} as never, {
+  registerIpcHandlers({ interruptActiveScanFailureBatchJobs: vi.fn() } as never, {
     settings, logger, cacheRoot: "test-cache", cacheManager: { getStatus: () => ({ totalBytes: 0 }) },
     domainEvents: { publish }, metadataQueue: {}, duplicateCleanupJobs: { assertCloudDriveConnectionChangeAllowed: connectionGuard }, duplicateCleanup: {}, scanManager: {}
   } as never);

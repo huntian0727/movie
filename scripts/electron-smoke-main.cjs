@@ -37,7 +37,7 @@ app.whenReady().then(async () => {
       const { pathToFileURL } = require("node:url");
       const { configureWindowSecurity } = await import("../dist-main/main/security.js");
       const { registerIpcHandlers } = await import("../dist-main/main/ipc.js");
-      registerIpcHandlers({}, { settings: reopened, cacheRoot: root,
+      registerIpcHandlers({ interruptActiveScanFailureBatchJobs() {} }, { settings: reopened, cacheRoot: root,
         cacheManager: { getStatus: () => ({ totalBytes: 0 }) }, domainEvents: { publish() {} },
         metadataQueue: {}, duplicateCleanup: {}, duplicateCleanupJobs: {}, scanManager: {} });
       const entry = path.join(root, "renderer.html");

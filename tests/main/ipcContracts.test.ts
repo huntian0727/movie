@@ -54,6 +54,7 @@ describe("IPC_CHANNELS", () => {
       scanFailureBatchSubmit: "scan-failure-batch:submit",
       scanFailureBatchGet: "scan-failure-batch:get",
       scanFailureBatchCancel: "scan-failure-batch:cancel",
+      scanFailureBatchList: "scan-failure-batch:list",
       scanFailureReviewOpen: "scan-failure-review:open",
       duplicateList: "duplicate:list",
       duplicatePreviewResolve: "duplicate:preview-resolve",

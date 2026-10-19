@@ -17,6 +17,7 @@ interface ScanFailuresPageProps {
   onSubmitBatch?(request: ScanFailureBatchSubmitRequest): Promise<ScanFailureBatchJob>;
   onGetBatch?(jobId: string): Promise<ScanFailureBatchJob>;
   onCancelBatch?(jobId: string): Promise<ScanFailureBatchJob>;
+  onListBatchHistory?(): Promise<ScanFailureBatchJob[]>;
   onOpenLocation(failureId: string): Promise<unknown>;
   onOpenVideo?(video: VideoRecord): void;
   onShowDetails?(video: VideoRecord): void;
@@ -30,7 +31,7 @@ const EMPTY_PAGE: ScanFailureReviewPage = {
 };
 
 export function ScanFailuresPage({
-  folders, initialSourceFolderId, refreshSequence, loadPage, onRetry, onDeleteFile, onCleanup, onSubmitBatch, onGetBatch, onCancelBatch,
+  folders, initialSourceFolderId, refreshSequence, loadPage, onRetry, onDeleteFile, onCleanup, onSubmitBatch, onGetBatch, onCancelBatch, onListBatchHistory,
   onOpenLocation, onOpenVideo, onShowDetails, onTogglePendingDelete, getCoverUrl
 }: ScanFailuresPageProps) {
   const [sourceFolderId, setSourceFolderId] = useState(initialSourceFolderId ?? "");
@@ -49,9 +50,16 @@ export function ScanFailuresPage({
   const [allFilteredSelected, setAllFilteredSelected] = useState(false);
   const [cleanupFilter, setCleanupFilter] = useState<"all" | "confirmed-corrupt" | "missing">("all");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [pendingCleanupAction, setPendingCleanupAction] = useState<ScanFailureCleanupAction | null>(null);
+  const [pendingBatchOperation, setPendingBatchOperation] = useState<ScanFailureBatchOperation | null>(null);
+  const [pendingSingleDeleteId, setPendingSingleDeleteId] = useState<string | null>(null);
+  const [pendingSingleMissingId, setPendingSingleMissingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [batchJob, setBatchJob] = useState<ScanFailureBatchJob | null>(null);
+  const [batchHistory, setBatchHistory] = useState<ScanFailureBatchJob[]>([]);
+  const [batchHistoryError, setBatchHistoryError] = useState<string | null>(null);
+  const listBatchHistoryRef = useRef(onListBatchHistory);
   const loadPageRef = useRef(loadPage);
   const previousQueryKeyRef = useRef<string | null>(null);
   const previousRefreshVersionRef = useRef(refreshVersion);
@@ -60,6 +68,35 @@ export function ScanFailuresPage({
   useEffect(() => {
     loadPageRef.current = loadPage;
   }, [loadPage]);
+
+  useEffect(() => {
+    listBatchHistoryRef.current = onListBatchHistory;
+  }, [onListBatchHistory]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loader = listBatchHistoryRef.current;
+    if (!loader) return;
+    void loader().then((jobs) => {
+      if (!cancelled) { setBatchHistory(jobs); setBatchHistoryError(null); }
+    }).catch((cause) => {
+      if (!cancelled) setBatchHistoryError(toMessage(cause));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!batchJob || ["queued", "running", "cancelling"].includes(batchJob.status)) return;
+    let cancelled = false;
+    const loader = listBatchHistoryRef.current;
+    if (!loader) return;
+    void loader().then((jobs) => {
+      if (!cancelled) { setBatchHistory(jobs); setBatchHistoryError(null); }
+    }).catch((cause) => {
+      if (!cancelled) setBatchHistoryError(toMessage(cause));
+    });
+    return () => { cancelled = true; };
+  }, [batchJob?.id, batchJob?.status]);
 
   useEffect(() => {
     setSourceFolderId(initialSourceFolderId ?? "");
@@ -238,23 +275,82 @@ export function ScanFailuresPage({
         <strong>{allFilteredSelected ? "已选择全部筛选结果（不限当前页）" : `已选 ${selectedFailureIds.size} 个可处理项`}</strong>
         <button disabled={rowsUnavailable || selectableIds.length === 0 || bulkBusy || batchActive} onClick={() => { setAllFilteredSelected(false); setSelectedFailureIds(new Set(selectableIds)); }}>全选当前页可清理项</button>
         <button disabled={rowsUnavailable || result.totalCount === 0 || !onSubmitBatch || batchActive} onClick={() => { setAllFilteredSelected(true); setSelectedFailureIds(new Set()); }}>全选全部筛选结果</button>
-        <button disabled={(!allFilteredSelected && selectedCorruptCount === 0) || bulkBusy || batchActive || (!allFilteredSelected && !onCleanup) || (allFilteredSelected && !onSubmitBatch)} onClick={() => void (allFilteredSelected ? startBatch("permanent-delete") : runBulkCleanup("permanent-delete"))}>{bulkBusy || batchActive ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}永久删除损坏项</button>
-        <button disabled={(!allFilteredSelected && selectedMissingCount === 0) || bulkBusy || batchActive || (!allFilteredSelected && !onCleanup) || (allFilteredSelected && !onSubmitBatch)} onClick={() => void (allFilteredSelected ? startBatch("remove-missing-record") : runBulkCleanup("remove-missing-record"))}>清理网盘失效记录</button>
-        <button disabled={(!allFilteredSelected && selectedFailureIds.size === 0) || !onSubmitBatch || batchActive} onClick={() => void startBatch("recheck-accessibility")}>复查可访问性</button>
-        <button disabled={(!allFilteredSelected && selectedFailureIds.size === 0) || !onSubmitBatch || batchActive} onClick={() => void startBatch("analyze-metadata")}>分析元数据</button>
+        <button disabled={(!allFilteredSelected && selectedCorruptCount === 0) || bulkBusy || batchActive || (!allFilteredSelected && !onCleanup) || (allFilteredSelected && !onSubmitBatch)} onClick={() => setPendingCleanupAction("permanent-delete")}>{bulkBusy || batchActive ? <LoaderCircle className="spin" size={16} /> : <Trash2 size={16} />}永久删除损坏项</button>
+        <button disabled={(!allFilteredSelected && selectedMissingCount === 0) || bulkBusy || batchActive || (!allFilteredSelected && !onCleanup) || (allFilteredSelected && !onSubmitBatch)} onClick={() => setPendingCleanupAction("remove-missing-record")}>清理网盘失效记录</button>
+        <button disabled={(!allFilteredSelected && selectedFailureIds.size === 0) || !onSubmitBatch || batchActive} onClick={() => setPendingBatchOperation("recheck-accessibility")}>复查可访问性</button>
+        <button disabled={(!allFilteredSelected && selectedFailureIds.size === 0) || !onSubmitBatch || batchActive} onClick={() => setPendingBatchOperation("analyze-metadata")}>分析元数据</button>
         {(selectedFailureIds.size > 0 || allFilteredSelected) && <button disabled={bulkBusy || batchActive} onClick={() => { setAllFilteredSelected(false); setSelectedFailureIds(new Set()); }}>取消选择</button>}
         <span>只有独立复核明确确认损坏的项目才允许永久删除；普通 FFprobe 解析失败、格式不匹配、超时、断线和权限异常均不会删除。网盘已删除项只清理本地记录，并在操作时在线强制刷新确认。</span>
       </div>
 
+      {(pendingCleanupAction || pendingBatchOperation || pendingSingleDeleteId || pendingSingleMissingId) && <div className="scan-failure-confirm-backdrop">
+        <section className="scan-failure-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="scan-failure-confirm-title">
+          <h2 id="scan-failure-confirm-title">{pendingSingleDeleteId || pendingCleanupAction === "permanent-delete" ? "确认永久删除" : pendingSingleMissingId || pendingCleanupAction === "remove-missing-record" ? "确认清理失效记录" : pendingBatchOperation === "analyze-metadata" ? "确认批量分析元数据" : "确认批量复查可访问性"}</h2>
+          <p>{pendingSingleMissingId
+            ? `即将清理失效记录：${result.items.find((item) => item.failure.id === pendingSingleMissingId)?.failure.objectPath ?? "所选文件"}。此操作只移除本地记录，不会删除磁盘或网盘文件。`
+            : pendingSingleDeleteId
+            ? `即将永久删除：${result.items.find((item) => item.failure.id === pendingSingleDeleteId)?.failure.objectPath ?? "所选视频"}。此操作不可撤销。`
+            : pendingCleanupAction === "permanent-delete"
+              ? `处理范围：${allFilteredSelected ? "当前筛选条件下的全部结果（跨页）" : `已选择的 ${selectedFailureIds.size} 项`}。系统只会处理经过独立复核确认损坏的视频，并在执行时再次校验。`
+              : pendingBatchOperation
+                ? `将${pendingBatchOperation === "analyze-metadata" ? "重新分析元数据" : "复查文件可访问性"}，处理范围：${allFilteredSelected ? "当前筛选条件下的全部结果（跨页）" : `已选择的 ${selectedFailureIds.size} 项`}。执行前会重新验证处理资格，不符合条件或无法确认的项目将跳过。`
+                : `处理范围：${allFilteredSelected ? "当前筛选条件下的全部结果（跨页）" : `已选择的 ${selectedMissingCount} 项`}。系统会在线重新确认远端文件确实不存在，只清理本地记录，不会删除网盘文件。`}</p>
+          <p className="scan-failure-confirm-note">执行结果会显示成功、跳过和失败数量。无法再次确认的项目将被跳过，不会强行处理。</p>
+          <div className="scan-failure-confirm-actions">
+            <button type="button" onClick={() => { setPendingCleanupAction(null); setPendingBatchOperation(null); setPendingSingleDeleteId(null); setPendingSingleMissingId(null); }}>取消操作</button>
+            <button type="button" className="danger-button" onClick={() => {
+              const singleId = pendingSingleDeleteId;
+              const missingId = pendingSingleMissingId;
+              const action = pendingCleanupAction;
+              const batchOperation = pendingBatchOperation;
+              setPendingCleanupAction(null);
+              setPendingBatchOperation(null);
+              setPendingSingleDeleteId(null);
+              setPendingSingleMissingId(null);
+              if (singleId) void runAction(singleId, () => onDeleteFile(singleId));
+              else if (missingId && onCleanup) void runAction(missingId, async () => {
+                const cleanupResult = await onCleanup([missingId], "remove-missing-record");
+                const failedItem = cleanupResult.items.find((item) => item.status === "failed");
+                if (failedItem) throw new Error(failedItem.message);
+                setNotice("远端已确认不存在，本地记录已清理。");
+              });
+              else if (action && allFilteredSelected) void startBatch(action === "permanent-delete" ? "permanent-delete" : "remove-missing-record");
+              else if (action) void runBulkCleanup(action);
+              else if (batchOperation) void startBatch(batchOperation);
+            }}>{pendingSingleDeleteId || pendingCleanupAction === "permanent-delete" ? "确认永久删除" : pendingSingleMissingId || pendingCleanupAction === "remove-missing-record" ? "确认清理记录" : "确认开始任务"}</button>
+          </div>
+        </section>
+      </div>}
+
       {batchSubmitting && <OperationFeedback message="正在提交批处理，请勿重复点击。" tone="info" />}
       {batchJob && <div className="scan-failure-batch-status" role="status">
-        <strong>{batchError ? "任务状态暂时未知" : batchJob.status === "queued" ? "等待执行" : batchJob.status === "running" ? "批处理中" : batchJob.status === "cancelling" ? "正在取消" : batchJob.status === "cancelled" ? "已取消" : batchJob.status === "completed-with-errors" ? "批处理完成（有失败）" : "批处理完成"}</strong>
+        <strong>{batchError ? "任务状态暂时未知" : batchJob.status === "queued" ? "等待执行" : batchJob.status === "running" ? "批处理中" : batchJob.status === "cancelling" ? "正在取消" : batchJob.status === "cancelled" ? "已取消" : batchJob.status === "interrupted" ? "任务中断" : batchJob.status === "completed-with-errors" ? "批处理完成（有失败）" : "批处理完成"}</strong>
         <span>{batchJob.processedCount} / {batchJob.totalCount} · 成功 {batchJob.successCount} · 跳过 {batchJob.skippedCount} · 失败 {batchJob.failureCount}</span>
         {batchJob.currentPath && <code title={batchJob.currentPath}>{batchJob.currentPath}</code>}
         {batchJob.message && <span>{batchJob.message}</span>}
         {batchActive && <button disabled={!onCancelBatch || batchJob.status === "cancelling"} onClick={() => void onCancelBatch?.(batchJob.id).then(setBatchJob).catch((cause) => setError(toMessage(cause)))}>取消批处理</button>}
         {!batchActive && <button type="button" onClick={() => { setBatchJob(null); setNotice(null); }}>收起结果</button>}
       </div>}
+
+      {onListBatchHistory && <section className="scan-failure-history" aria-labelledby="scan-failure-history-title">
+        <header><div><h2 id="scan-failure-history-title">处理历史</h2><p>记录最近的批量处理结果；程序退出后，未完成任务会标记为中断，不会自动重试。</p></div>
+          <button type="button" onClick={() => {
+            setBatchHistoryError(null);
+            void listBatchHistoryRef.current?.().then(setBatchHistory).catch((cause) => setBatchHistoryError(toMessage(cause)));
+          }}>刷新历史</button>
+        </header>
+        {batchHistoryError && <p className="scan-failure-history-error" role="alert">历史记录读取失败：{batchHistoryError}</p>}
+        {batchHistory.length === 0 ? <p className="scan-failure-history-empty">暂无批量处理记录。</p> : <div className="scan-failure-history-list">
+          {batchHistory.map((job) => <article key={job.id}>
+            <div className="scan-failure-history-title-row"><strong>{batchOperationLabel(job.operation)}</strong><span className={`scan-failure-history-status ${job.status}`}>{batchStatusLabel(job.status)}</span></div>
+            <p>{job.scopeSummary}</p>
+            <small>开始：{formatDate(job.createdAt)}{job.completedAt ? ` · 结束：${formatDate(job.completedAt)}` : " · 尚未结束"}</small>
+            <div className="scan-failure-history-counts">已处理 {job.processedCount}/{job.totalCount} · 成功 {job.successCount} · 跳过 {job.skippedCount} · 失败 {job.failureCount}</div>
+            {job.message && <small>{job.message}</small>}
+            {job.errorSummary && <p className="scan-failure-history-error">失败摘要：{job.errorSummary}</p>}
+          </article>)}
+        </div>}
+      </section>}
 
       {selectedFolder && <p className="scan-failure-scope">当前仅查看：{selectedFolder.path}</p>}
       <OperationFeedback message={loadError ? `列表读取失败：${loadError}` : null} tone="error" onRetry={() => setRefreshVersion((current) => current + 1)} />
@@ -297,13 +393,8 @@ export function ScanFailuresPage({
               <button title="打开所在位置" disabled={busy} onClick={() => void runAction(failure.id, () => onOpenLocation(failure.id))}><ExternalLink size={17} />打开位置</button>
               <button title="仅重试此项" disabled={busy} onClick={() => void runAction(failure.id, () => onRetry(failure.id))}>{busy ? <LoaderCircle className="spin" size={17} /> : <RotateCw size={17} />}重试</button>
               {video && <button title={video.isPendingDelete ? "取消待删除" : "标记待删除"} disabled={busy} onClick={() => void runAction(failure.id, async () => onTogglePendingDelete?.(video))}><Trash2 size={17} />{video.isPendingDelete ? "取消标记" : "待删除"}</button>}
-              {classification.category === "confirmed-corrupt" && video && <button className="danger-button" title="永久删除文件" disabled={busy} onClick={() => void runAction(failure.id, () => onDeleteFile(failure.id))}><Trash2 size={17} />永久删除</button>}
-              {classification.category === "missing" && <button title="在线确认远端已删除后，仅清理本地记录" disabled={busy || !onCleanup} onClick={() => void runAction(failure.id, async () => {
-                const cleanupResult = await onCleanup!([failure.id], "remove-missing-record");
-                const failedItem = cleanupResult.items.find((item) => item.status === "failed");
-                if (failedItem) throw new Error(failedItem.message);
-                setNotice("远端已确认不存在，本地记录已清理。");
-              })}><Trash2 size={17} />清理失效记录</button>}
+              {classification.category === "confirmed-corrupt" && video && <button className="danger-button" title="永久删除文件" disabled={busy} onClick={() => setPendingSingleDeleteId(failure.id)}><Trash2 size={17} />永久删除</button>}
+              {classification.category === "missing" && <button title="在线确认远端已删除后，仅清理本地记录" disabled={busy || !onCleanup} onClick={() => setPendingSingleMissingId(failure.id)}><Trash2 size={17} />清理失效记录</button>}
             </div>
           </article>;
         })}
@@ -317,6 +408,24 @@ export function ScanFailuresPage({
 
     </section>
   );
+}
+
+function batchOperationLabel(operation: ScanFailureBatchJob["operation"]): string {
+  const labels: Record<ScanFailureBatchJob["operation"], string> = {
+    "recheck-accessibility": "复查文件可访问性",
+    "analyze-metadata": "重新分析元数据",
+    "permanent-delete": "永久删除已确认损坏的视频",
+    "remove-missing-record": "清理已确认缺失的本地记录"
+  };
+  return labels[operation];
+}
+
+function batchStatusLabel(status: ScanFailureBatchJob["status"]): string {
+  const labels: Record<ScanFailureBatchJob["status"], string> = {
+    queued: "等待执行", running: "执行中", cancelling: "正在取消", cancelled: "已取消",
+    completed: "已完成", "completed-with-errors": "完成但有失败", interrupted: "意外中断"
+  };
+  return labels[status];
 }
 
 function fileName(targetPath: string): string {

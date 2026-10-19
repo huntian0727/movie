@@ -866,6 +866,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.scanFailureBatchSubmit, (_event, payload) => scanFailureBatches.submit(scanFailureBatchSubmitSchema.parse(payload)));
   ipcMain.handle(IPC_CHANNELS.scanFailureBatchGet, (_event, payload) => scanFailureBatches.get(z.object({ jobId: z.string().min(1) }).strict().parse(payload).jobId));
   ipcMain.handle(IPC_CHANNELS.scanFailureBatchCancel, (_event, payload) => scanFailureBatches.cancel(z.object({ jobId: z.string().min(1) }).strict().parse(payload).jobId));
+  ipcMain.handle(IPC_CHANNELS.scanFailureBatchList, () => repo.listScanFailureBatchJobs());
   ipcMain.handle(IPC_CHANNELS.scanFailureReviewOpen, async (_event, payload) => {
     const { failureId } = scanFailureIdSchema.parse(payload);
     const failure = repo.getScanFailure(failureId);

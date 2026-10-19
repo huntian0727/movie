@@ -37,7 +37,7 @@ async function fixture() {
   const original = await stat(filePath);
   const record = { id: "fixture-video", sourceFolderId: "fixture-folder", path: filePath,
     sizeBytes: original.size, modifiedAt: original.mtime.toISOString(), filename: "fixture.mp4" };
-  const repo = { getVideo: vi.fn(() => record), removeVideo: vi.fn(),
+  const repo = { interruptActiveScanFailureBatchJobs: vi.fn(), getVideo: vi.fn(() => record), removeVideo: vi.fn(),
     listSourceFolders: () => [{ id: "fixture-folder", path: managed, enabled: true }],
     getVideoByPath: () => record, getScanFailure: () => ({ id: "fixture-failure", status: "unresolved", objectType: "file",
       objectPath: filePath, sourceFolderId: record.sourceFolderId, errorCode: "CONFIRMED_CORRUPT", errorSummary: "fixture independent confirmation" }),
