@@ -438,6 +438,8 @@ button { color: inherit; }
 .global-add-source > div button { width: 100%; height: 34px; justify-content: flex-start; color: #c8cbc5; }
 .global-add-source > div button:hover { color: #fff; background: #30332f; }
 .health-center-tabs { position: sticky; top: calc(var(--global-menu-height) + 88px); z-index: 4; min-height: 48px; padding: 7px 26px 0; border-bottom: 1px solid #292b28; display: flex; align-items: end; gap: 4px; background: rgba(17, 18, 18, .97); }
+/* The overview has no 88px common toolbar. Its tabs must sit directly below the global menu. */
+.health-center-tabs-overview { top: var(--global-menu-height); }
 .health-center-tabs button { height: 40px; padding: 0 13px; border: 0; border-bottom: 2px solid transparent; display: inline-flex; align-items: center; gap: 7px; color: #8f938c; background: transparent; cursor: pointer; }
 .health-center-tabs button:hover { color: #e5e7e3; background: #1a1c1a; }
 .health-center-tabs button[aria-current="page"] { border-bottom-color: #e2634b; color: #fff; }

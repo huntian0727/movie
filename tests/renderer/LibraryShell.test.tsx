@@ -330,12 +330,16 @@ describe("LibraryShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "查看异常中心" }));
 
     expect(screen.getByRole("heading", { name: "异常中心" })).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "异常类型" })).toBeInTheDocument();
+    const healthTabs = screen.getByRole("navigation", { name: "异常类型" });
+    expect(healthTabs).toHaveClass("health-center-tabs-overview");
     expect(screen.getByRole("button", { name: /总览/ })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "需要你处理" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /查看并处理/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /文件缺失/ }));
+    expect(healthTabs).not.toHaveClass("health-center-tabs-overview");
     expect(screen.getByRole("button", { name: /文件缺失/ })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("button", { name: /总览/ }));
+    expect(healthTabs).toHaveClass("health-center-tabs-overview");
   });
 
   it("shows a clear placeholder while background metadata analysis is pending", () => {

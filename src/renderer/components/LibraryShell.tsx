@@ -826,7 +826,7 @@ export function LibraryShell({
         />}
 
         {isHealthView && (
-          <nav className="health-center-tabs" aria-label="异常类型">
+          <nav className={`health-center-tabs${view === "healthOverview" ? " health-center-tabs-overview" : ""}`} aria-label="异常类型">
             <button type="button" aria-current={view === "healthOverview" ? "page" : undefined} onClick={() => { setView("healthOverview"); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); }}>
               <AlertTriangle size={16} /><span>总览</span><em>{healthIssueCount}</em>
             </button>
