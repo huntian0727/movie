@@ -42,5 +42,7 @@ status: local-qa
 - `npm run test:node` 实际完整跑毕，144 个测试文件中 142 通过、2 个发行证据相关失败；共 1338 项中 1335 通过、3 项失败。失败均为既有发行审批证据固定版本/依赖哈希与当前版本不一致：`tests/scripts/releaseEngineering.test.mjs` 1 项、`tests/scripts/sourceReleasePipeline.test.mjs` 2 项。未修改任何发行批准材料以伪造通过。
 - `tests/renderer/DuplicateGroupsPage.test.tsx` 全部 46 项通过；`tests/main/duplicateCleanupJobs.test.ts` 全部 32 项通过（均包含在全套 1335 个通过项中）。
 - `npm run typecheck`：PASS；`npm run lint`：PASS（当前 lint 脚本实际执行 typecheck）。
-- 最终本地 Windows 日常桌面打包及快捷方式启动验收待补记实际结果。
+- `npm run package:development`：PASS。Vite、原生 NativeHost x64、Electron ABI 149、SQLite Electron native smoke、Windows x64 日常开发版打包全部成功。
+- 已在用户明确允许后关闭原正在运行的 4 个日常应用进程，备份原 exe / `resources/app.asar` / `resources/build-flavor.json` 至 `.tmp/daily-rollback-duplicate-ux-20261021-035823/`，随后重新打包并从实际用户桌面快捷方式启动。快捷方式 `拉面影视.lnk` 的目标与新版 `release/win-unpacked/拉面影视.exe` 完全一致，启动 5 秒后观察到 4 个本地日常应用进程。
+- 新版 Windows exe 时间 `2026-10-21T03:58:52`，`app.asar` 时间 `03:58:51`，构建标记 commit `5357aef0e3f1724cbd2b0dd153c39333067cd76f`，`workspaceDirty=false`。仅验证真实快捷方式启动和编译后的组件功能测试，未宣称人工点击真实媒体删除入口。
 - 真实 CloudDrive API / 挂载删除：NOT RUN（未经用户授权，不动其实际影片）。
