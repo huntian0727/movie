@@ -347,13 +347,41 @@ export function DuplicateGroupsPage({
     setManualKeepByGroup((current) => ({ ...current, [groupId]: videoId }));
   }, []);
 
-  const handleDeleteCandidate = useCallback((group: DuplicateGroup, selectedKeep: string, videoId: string) => {
-    const keepVideoId = selectedKeep === videoId
-      ? group.items.find((item) => item.video.id !== videoId)?.video.id
-      : selectedKeep;
-    if (!keepVideoId) return;
-    void handleAutoDelete({ groups: [{ groupKey: group.groupKey, keepVideoId, deleteVideoIds: [videoId] }] }, "单项清理");
-  }, [handleAutoDelete]);
+  const handleDeleteCandidate = useCallback(async (group: DuplicateGroup, selectedKeep: string, videoId: string) => {
+    if (!onSubmitCleanup || submitGuardRef.current || actionPending || loading || loadError || directoryPending) return;
+    const candidate = group.items.find((item) => item.video.id === videoId);
+    if (!candidate || candidate.canAutoDelete === false) {
+      setActionError("该文件缺少可验证的 CloudDrive 远端身份，无法创建单文件清理任务。");
+      return;
+    }
+    const keepVideoId = selectedKeep !== videoId && group.items.some((item) => item.video.id === selectedKeep)
+      ? selectedKeep
+      : group.items.find((item) => item.video.id !== videoId)?.video.id;
+    if (!keepVideoId) {
+      setActionError("当前候选组没有可用于保留的其他文件，无法创建单文件清理任务。");
+      return;
+    }
+
+    submitGuardRef.current = true;
+    setActionPending(true);
+    setActionError(null);
+    try {
+      const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+      const accepted = await onSubmitCleanup(requestId, {
+        groups: [{ groupKey: group.groupKey, keepVideoId, deleteVideoIds: [videoId] }]
+      });
+      setMissingCheckMessage(`已创建单文件核对任务（${candidate.video.filename}）。当前只核对大小与时长，不会立即删除；请在“后台任务”检查结果并单独确认永久删除。任务 ${accepted.jobId.slice(0, 8)}`);
+      setSubmittedCleanupJobId(accepted.jobId);
+      setActiveTaskCount((current) => current + 1);
+      setTaskCenterOpen(true);
+      onRefresh?.();
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+    } finally {
+      submitGuardRef.current = false;
+      setActionPending(false);
+    }
+  }, [onSubmitCleanup, actionPending, loading, loadError, directoryPending, onRefresh]);
 
   const handleFilteredAutoDelete = async () => {
     if (!onAutoDeleteFiltered || actionPending || loading || loadError || directoryPending) return;
@@ -697,13 +725,13 @@ export function DuplicateGroupsPage({
             page={page}
             pageSize={pageSize}
             keepVideoId={manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId}
-            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending || !onAutoDelete}
+            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending || !onSubmitCleanup}
             onSetKeep={handleSetKeep}
             onPreferDirectory={changePreferredDirectory}
             onOpen={onOpen}
             onViewDetails={onViewDetails}
             onRevealInFolder={revealVideo}
-            onDeleteCandidate={onAutoDelete ? handleDeleteCandidate : undefined}
+            onDeleteCandidate={onSubmitCleanup ? handleDeleteCandidate : undefined}
           />
         )} />}
 
@@ -864,7 +892,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
                 <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
                 <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
                 <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
-                {onDeleteCandidate && <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} disabled={cleanupDisabled || item.canAutoDelete === false} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>}
+                {onDeleteCandidate && <button type="button" className="danger" aria-label={`核对后删除 ${item.video.filename}`} title="创建单文件核对任务；核对完成后必须在后台任务中单独确认，才会永久删除" disabled={cleanupDisabled || item.canAutoDelete === false} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>}
               </div>
             </article>
           );

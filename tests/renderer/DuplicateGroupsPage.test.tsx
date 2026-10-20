@@ -81,10 +81,10 @@ describe("DuplicateGroupsPage staged safety flow", () => {
 
   it("prevents cleanup of stale displayed groups while a new query is loading", () => {
     const onAutoDelete = vi.fn(); const onAutoDeleteFiltered = vi.fn();
-    render(<DuplicateGroupsPage {...baseProps()} loading onAutoDelete={onAutoDelete} onAutoDeleteFiltered={onAutoDeleteFiltered} />);
+    render(<DuplicateGroupsPage {...baseProps()} loading onAutoDelete={onAutoDelete} onAutoDeleteFiltered={onAutoDeleteFiltered} onSubmitCleanup={vi.fn()} />);
     expect(screen.getByRole("button", { name: /批量删除当前页/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /批量删除全部筛选结果/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "验证并永久删除 clip-copy.mp4" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "核对后删除 clip-copy.mp4" })).toBeDisabled();
   });
 
   it("reads the submitted job by identity even when it leaves the first task page", async () => {
@@ -310,11 +310,25 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
   });
 
-  it("submits one candidate for verified automatic deletion", async () => {
-    const onAutoDelete = vi.fn().mockResolvedValue({ jobId: "job-2", requestId: "request-2", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
-    render(<DuplicateGroupsPage {...baseProps()} onAutoDelete={onAutoDelete} />);
-    fireEvent.click(screen.getByRole("button", { name: "验证并永久删除 clip-copy.mp4" }));
-    await waitFor(() => expect(onAutoDelete).toHaveBeenCalledWith({ groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }] }));
+  it("submits a single-file size-duration review task and does not delete before separate confirmation", async () => {
+    const onSubmitCleanup = vi.fn().mockResolvedValue({ jobId: "job-single", requestId: "request-single", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
+    render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
+    fireEvent.click(screen.getByRole("button", { name: "核对后删除 clip-copy.mp4" }));
+
+    await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
+    expect(onSubmitCleanup.mock.calls[0][0]).toBeTruthy();
+    expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }] });
+    expect(screen.getByText(/已创建单文件核对任务（clip-copy.mp4）/)).toBeInTheDocument();
+    expect(screen.getByText(/不会立即删除/)).toBeInTheDocument();
+  });
+
+  it("allows manual deletion of the currently selected keep file by preserving another group member", async () => {
+    const onSubmitCleanup = vi.fn().mockResolvedValue({ jobId: "job-keep", requestId: "request-keep", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 1024 });
+    render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
+    fireEvent.click(screen.getByRole("button", { name: "核对后删除 clip.mp4" }));
+
+    await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
+    expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
   });
 
   it("does not expose the retired direct resolve fallback", () => {
