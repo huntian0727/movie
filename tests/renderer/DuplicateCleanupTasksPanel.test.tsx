@@ -33,14 +33,14 @@ function renderPanel(overrides: Partial<Parameters<typeof DuplicateCleanupTasksP
   return { props, rendered: render(<DuplicateCleanupTasksPanel {...props} />) };
 }
 
-describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
+describe("DuplicateCleanupTasksPanel size-duration review UI", () => {
   it("retains confirmation and its error if permanent deletion was not accepted", async () => {
     const onConfirm = vi.fn().mockRejectedValue(new Error("verification revision expired"));
     renderPanel({ onConfirm });
     await selectTask(/等待第二次确认/);
     fireEvent.click(screen.getByRole("button", { name: "第二次确认永久删除" }));
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "DELETE" } });
-    fireEvent.click(screen.getByRole("button", { name: "永久删除已验证相同项" }));
+    fireEvent.click(screen.getByRole("button", { name: "永久删除大小与时长相同项" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("verification revision expired");
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("DELETE");
@@ -62,7 +62,7 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     const first = new Promise<DuplicateCleanupItemPage>((resolve) => { resolveFirst = resolve; });
     const loadItems = vi.fn((id: string) => id === "first" ? first : Promise.resolve(itemPage()));
     renderPanel({ loadJobs: vi.fn().mockResolvedValue(jobPage([job({ id: "first", phase: "verification", status: "running" }), job({ id: "second", phase: "finished", status: "completed" })])), loadItems });
-    await selectTask(/正在完整验证/);
+    await selectTask(/正在核对大小与时长/);
     await selectTask(/已完成/);
     await act(async () => resolveFirst(itemPage([{ id: "stale", filename: "stale.mp4" } as DuplicateCleanupItemPage["items"][number]])));
     expect(screen.queryByText("stale.mp4")).not.toBeInTheDocument();
@@ -75,7 +75,7 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
   it("shows the three verification outcomes and keeps non-identical results out of deletion", async () => {
     renderPanel();
     await selectTask(/等待第二次确认/);
-    expect(screen.getByText(/相同 1 · 不同 1 · 无法验证 0/)).toBeInTheDocument();
+    expect(screen.getByText(/大小\/时长一致 1 · 不一致 1 · 无法核对 0/)).toBeInTheDocument();
     expect(screen.getByText(/其他结果不会删除/)).toBeInTheDocument();
   });
 
@@ -85,7 +85,7 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     fireEvent.click(await screen.findByRole("button", { name: /等待第二次确认/ }));
     fireEvent.click(screen.getByRole("button", { name: "第二次确认永久删除" }));
     const input = screen.getByRole("textbox");
-    const submit = screen.getByRole("button", { name: "永久删除已验证相同项" });
+    const submit = screen.getByRole("button", { name: "永久删除大小与时长相同项" });
     for (const invalid of ["delete", " DELETE", "DELETE "]) {
       fireEvent.change(input, { target: { value: invalid } });
       expect(submit).toBeDisabled();
@@ -118,20 +118,20 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
       job({ id: "d", phase: "deletion", status: "running", processedItems: 1 })
     ]));
     renderPanel({ loadJobs });
-    await selectTask(/正在完整验证/);
-    expect(screen.getByRole("button", { name: /取消验证/ })).toBeInTheDocument();
-    expect(screen.getByText(/取消验证会等待当前读取安全停止；验证阶段不会删除任何文件/)).toBeInTheDocument();
+    await selectTask(/正在核对大小与时长/);
+    expect(screen.getByRole("button", { name: /取消核对/ })).toBeInTheDocument();
+    expect(screen.getByText(/取消核对会等待当前文件状态检查结束；核对阶段不会删除任何文件/)).toBeInTheDocument();
     await selectTask(/正在永久删除已授权项/);
     expect(screen.getByRole("button", { name: /停止剩余删除/ })).toBeInTheDocument();
     expect(screen.getByText(/已经完成的永久删除无法撤销/)).toBeInTheDocument();
     expect(screen.getByText(/只阻止尚未开始的项目/)).toBeInTheDocument();
   });
 
-  it("labels resume and retry as a new full verification", async () => {
+  it("labels resume and retry as a new size-duration review", async () => {
     renderPanel({ loadJobs: vi.fn().mockResolvedValue(jobPage([job({ phase: "deletion", status: "interrupted" })])) });
     await selectTask(/正在永久删除已授权项/);
-    expect(screen.getByRole("button", { name: "重新完整验证" })).toBeInTheDocument();
-    expect(screen.getByText(/任务已中断/)).toHaveTextContent(/原删除授权已失效.*重新完整验证.*单独确认/);
+    expect(screen.getByRole("button", { name: "重新核对大小与时长" })).toBeInTheDocument();
+    expect(screen.getByText(/任务已中断/)).toHaveTextContent(/原删除授权已失效.*重新核对大小与时长.*单独确认/);
   });
 
   it("renders per-item tri-state evidence", async () => {
@@ -143,7 +143,7 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     }]));
     renderPanel({ loadItems });
     fireEvent.click(await screen.findByRole("button", { name: /等待第二次确认/ }));
-    expect(await screen.findByText("内容不同（不删除）")).toBeInTheDocument();
+    expect(await screen.findByText("大小/时长不一致（不删除）")).toBeInTheDocument();
   });
 
   it("does not offer permanent deletion for a task without an awaiting-confirmation authorization", async () => {
@@ -179,10 +179,10 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
   it("surfaces action errors while keeping the selected task mounted", async () => {
     const onCancel = vi.fn().mockRejectedValue(new Error("cancel failed safely"));
     renderPanel({ loadJobs: vi.fn().mockResolvedValue(jobPage([job({ phase: "verification", status: "running" })])), onCancel });
-    fireEvent.click(await screen.findByRole("button", { name: /正在完整验证/ }));
-    fireEvent.click(screen.getByRole("button", { name: /取消验证/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /正在核对大小与时长/ }));
+    fireEvent.click(screen.getByRole("button", { name: /取消核对/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("cancel failed safely");
-    expect(screen.getByRole("button", { name: /取消验证/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /取消核对/ })).toBeInTheDocument();
   });
 
   it("clears a terminal task and deselects its detail", async () => {
@@ -225,10 +225,10 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     renderPanel({ loadJobs: vi.fn().mockResolvedValue(jobPage([job({ phase: "finished", status: "completed_with_errors" })])), loadItems });
     await selectTask(/完成但有异常/);
 
-    expect(await screen.findByText(/未永久删除。文件版本或身份已变化，删除授权已失效。请重新完整验证/)).toBeInTheDocument();
+    expect(await screen.findByText(/未永久删除。文件版本或身份已变化，删除授权已失效。请重新核对大小与时长/)).toBeInTheDocument();
     expect(screen.getByText(/隔离恢复未完成；此项未永久删除。删除授权已失效/)).toHaveTextContent(/\.recovery\.movie-delete-id/);
     expect(screen.queryByText(/raw internal mismatch|raw recovery error/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/完整哈希相同 ·/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/大小与时长一致 ·/)).not.toBeInTheDocument();
   });
 
   it("maps isolation failure and restored or pending stop outcomes without raw messages or verified-identical prefixes", async () => {
@@ -270,15 +270,15 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     const deleteError = screen.getByText("delete-error.mp4").closest("article");
     const deleted = screen.getByText("deleted.mp4").closest("article");
     expect(isolation).toHaveTextContent("安全隔离失败；未永久删除。删除授权已失效");
-    expect(isolation).toHaveTextContent("解决文件占用、权限或存储连接问题后重新完整验证");
+    expect(isolation).toHaveTextContent("解决文件占用、权限或存储连接问题后重新核对大小与时长");
     expect(stopRestored).toHaveTextContent("停止请求已生效；此项未永久删除。删除授权已失效");
-    expect(stopRestored).toHaveTextContent("以后如需清理，请重新完整验证");
-    expect(stopRecovery).toHaveTextContent("请先恢复隔离文件，再重新完整验证");
+    expect(stopRestored).toHaveTextContent("以后如需清理，请重新核对大小与时长");
+    expect(stopRecovery).toHaveTextContent("请先恢复隔离文件，再重新核对大小与时长");
     expect(stopRecovery).toHaveTextContent(".stop-recovery.movie-delete-id");
-    expect(deleteError).toHaveTextContent("此项未永久删除。删除授权已失效。请检查文件状态后重新完整验证");
+    expect(deleteError).toHaveTextContent("此项未永久删除。删除授权已失效。请检查文件状态后重新核对大小与时长");
     expect(deleted).toHaveTextContent("已永久删除");
     for (const row of [isolation, stopRestored, stopRecovery, deleteError]) {
-      expect(row).not.toHaveTextContent("完整哈希相同");
+      expect(row).not.toHaveTextContent("大小与时长一致");
     }
     expect(screen.queryByText(/Could not isolate|Remaining deletion|Isolated file retained|resource busy/)).not.toBeInTheDocument();
   });
@@ -287,8 +287,8 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     renderPanel({ loadJobs: vi.fn().mockResolvedValue(jobPage([
       job({ phase: "verification", status: "running", verificationProcessedItems: 1, totalItems: 2 })
     ])) });
-    await selectTask(/正在完整验证/);
-    expect(screen.getByRole("progressbar", { name: "正在完整验证进度" })).toHaveAttribute("value", "1");
+    await selectTask(/正在核对大小与时长/);
+    expect(screen.getByRole("progressbar", { name: "正在核对大小与时长进度" })).toHaveAttribute("value", "1");
     const live = screen.getByRole("status");
     expect(live).toHaveAttribute("aria-live", "polite");
     await waitFor(() => expect(live).toHaveTextContent("已处理 1 / 2 项"), { timeout: 1200 });
@@ -302,10 +302,10 @@ describe("DuplicateCleanupTasksPanel SHA-256 safety UI", () => {
     fireEvent.click(reviewTrigger);
     const dialog = screen.getByRole("alertdialog");
     expect(dialog).toHaveTextContent(/2 个候选组/);
-    expect(dialog).toHaveTextContent(/3 个经完整 SHA-256 验证相同的候选移除项/);
+    expect(dialog).toHaveTextContent(/3 个按文件大小与时长判定重复的候选项/);
     expect(dialog).toHaveTextContent(/候选可释放空间上限为 4 KB/);
-    expect(dialog).toHaveTextContent(/再次完整核验哈希、强文件身份、大小和修改时间/);
-    expect(screen.getByRole("button", { name: "永久删除已验证相同项" })).toHaveClass("danger");
+    expect(dialog).toHaveTextContent(/再次核对文件大小、时长、路径、修改时间与文件身份/);
+    expect(screen.getByRole("button", { name: "永久删除大小与时长相同项" })).toHaveClass("danger");
   });
 });
 

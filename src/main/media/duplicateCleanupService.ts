@@ -13,7 +13,6 @@ import type { VideoRepository } from "../db/videoRepository.js";
 import { isManagedPathWithin } from "../files/pathNormalization.js";
 import { permanentlyDeleteFile } from "../files/fileOperations.js";
 import { assertManagedOrdinaryFile } from "../files/safePermanentDelete.js";
-import { buildFullContentHash } from "./contentFingerprint.js";
 import type { MediaCacheManager } from "./cacheManager.js";
 import type { MetadataQueue } from "./metadataQueue.js";
 import type { DomainEventBus } from "../playerWindow.js";
@@ -30,6 +29,7 @@ interface DuplicateCleanupServiceOptions {
   getCloudConnectionBinding?: () => string | null;
   databasePath?: string;
   deleteFile?: (filePath: string) => Promise<void>;
+  /** Legacy test seam only. Duplicate identification intentionally never reads or hashes video content. */
   hashFile?: (filePath: string, signal?: AbortSignal) => Promise<string>;
   renameFile?: (source: string, destination: string) => Promise<void>;
   deleteCloudFiles?: (
@@ -40,7 +40,7 @@ interface DuplicateCleanupServiceOptions {
 }
 
 interface FileIdentityEvidence { stable: string; version: string }
-interface HashAttempt { hash: string | null; identity: string | null; error: string | null }
+interface MetadataAttempt { status: "matched" | "different" | "unverifiable"; identity: string | null; error: string | null }
 
 export class DuplicateCleanupService {
   private readonly pendingJobs: string[] = [];
@@ -50,7 +50,6 @@ export class DuplicateCleanupService {
   private currentVerificationAbort: AbortController | null = null;
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly deleteFile: (filePath: string) => Promise<void>;
-  private readonly hashFile: (filePath: string, signal?: AbortSignal) => Promise<string>;
   private readonly renameFile: (source: string, destination: string) => Promise<void>;
   private readonly deleteCloudFiles: NonNullable<DuplicateCleanupServiceOptions["deleteCloudFiles"]>;
   private readonly getCloudConnectionBinding: () => string | null;
@@ -69,7 +68,6 @@ export class DuplicateCleanupService {
   ) {
     this.preparationDatabasePath = options.databasePath;
     this.deleteFile = options.deleteFile ?? permanentlyDeleteFile;
-    this.hashFile = options.hashFile ?? buildFullContentHash;
     this.renameFile = options.renameFile ?? rename;
     this.deleteCloudFiles = options.deleteCloudFiles ?? ((remotePaths, permanently, isCancelled) =>
       deleteCloudDriveFiles(remotePaths, permanently, process.env, isCancelled));
@@ -87,12 +85,12 @@ export class DuplicateCleanupService {
     // Public-release default: old autoDeleteAfterVerification=true was overloaded
     // to mean unverified CloudDrive API deletion. Reject even on replay/idempotency.
     if (request.autoDeleteAfterVerification === true) {
-      throw new Error("旧自动清理参数已禁用。请重新创建完整 SHA-256 验证任务，验证完成后人工确认。");
+      throw new Error("旧自动清理参数已禁用。请重新创建大小/时长核对任务，核对完成后人工确认。");
     }
     const existing = this.jobs.findAcceptedRequest(request.requestId);
     if (existing) {
       if (this.jobs.getJob(existing.jobId).workflowVersion === 3) {
-        throw new Error("未验证的旧快速永久删除任务已暂停，请取消并清除后重新完整验证。");
+        throw new Error("未经大小/时长核对的旧快速永久删除任务已暂停，请取消并清除后重新核对。");
       }
       return existing;
     }
@@ -105,7 +103,7 @@ export class DuplicateCleanupService {
     // A metadata-only filtered plan cannot prove that any two files have equal content.
     // Explicit opt-in is intentionally unavailable until a separately reviewed protocol
     // has a strong per-task confirmation and audited deletion authorization.
-    throw new Error("全部筛选结果的快速永久删除已默认关闭；请在当前页使用完整 SHA-256 验证和二次确认。");
+    throw new Error("全部筛选结果的快速永久删除已默认关闭；请在当前页按大小与时长核对候选，并在后台任务中二次确认。");
   }
 
   private async disabledLegacyFilteredPreparation(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted> {
@@ -172,7 +170,7 @@ export class DuplicateCleanupService {
 
   resume(jobId: string): DuplicateCleanupJob {
     if (this.jobs.getJob(jobId).workflowVersion === 3) {
-      throw new Error("旧快速清理任务不能继续；请取消并清除后使用完整 SHA-256 验证。");
+      throw new Error("旧快速清理任务不能继续；请取消并清除后重新核对大小与时长。");
     }
     this.assertFastConnection(jobId);
     const job = this.jobs.resume(jobId);
@@ -183,7 +181,7 @@ export class DuplicateCleanupService {
 
   retry(jobId: string): DuplicateCleanupJob {
     if (this.jobs.getJob(jobId).workflowVersion === 3) {
-      throw new Error("旧快速清理任务不能重试；请清除后使用完整 SHA-256 验证。");
+      throw new Error("旧快速清理任务不能重试；请清除后重新核对大小与时长。");
     }
     this.assertFastConnection(jobId);
     const job = this.jobs.retry(jobId);
@@ -294,7 +292,7 @@ export class DuplicateCleanupService {
         this.jobs.markVerificationGroupRunning(jobId, groupKey, revision);
         const result = await this.verifyGroup(group, controller.signal);
         if (this.stopped || this.jobs.isCancelling(jobId)) throw abortError();
-        this.jobs.recordVerificationGroup(jobId, groupKey, revision, result.status, result.keepHash, result.deleteHashes,
+        this.jobs.recordVerificationGroup(jobId, groupKey, revision, result.status,
           result.keepIdentity, result.deleteIdentities, result.error);
         this.publish(jobId);
       }
@@ -319,57 +317,86 @@ export class DuplicateCleanupService {
 
   private async verifyGroup(group: DuplicateCleanupWorkItem[], signal: AbortSignal): Promise<{
     status: Extract<DuplicateVerificationStatus, "verified-identical" | "content-different" | "unverifiable">;
-    keepHash: string | null; deleteHashes: Map<string, string>;
     keepIdentity: string | null; deleteIdentities: Map<string, string>; error: string | null;
   }> {
     const keep = group[0];
-    const keepAttempt = await this.hashExpected(
-      keep.keep_video_id, keep.keep_path, keep.expected_keep_size_bytes, keep.expected_keep_modified_at, signal
-    );
-    const deleteHashes = new Map<string, string>();
+    const expected = parseDuplicateIdentity(keep.group_key);
     const deleteIdentities = new Map<string, string>();
-    const errors: string[] = keepAttempt.error ? [`keep: ${keepAttempt.error}`] : [];
+    if (!expected) {
+      return { status: "unverifiable", keepIdentity: null, deleteIdentities,
+        error: "重复候选的大小/时长记录无效，请重新扫描候选。" };
+    }
+
+    const keepAttempt = await this.verifyExpectedMetadata(
+      keep.keep_video_id, keep.keep_path, keep.expected_keep_size_bytes, keep.expected_keep_modified_at, expected
+    );
+    if (keepAttempt.status !== "matched") {
+      return { status: keepAttempt.status === "different" ? "content-different" : "unverifiable",
+        keepIdentity: keepAttempt.identity, deleteIdentities, error: keepAttempt.error };
+    }
+
+    const errors: string[] = [];
+    const keepIdentity = keepAttempt.identity;
+    let hasDifferentMetadata = false;
     for (const item of group) {
       if (signal.aborted) throw abortError();
-      const attempt = await this.hashExpected(
-        item.delete_video_id, item.delete_path, item.expected_delete_size_bytes, item.expected_delete_modified_at, signal
+      const attempt = await this.verifyExpectedMetadata(
+        item.delete_video_id, item.delete_path, item.expected_delete_size_bytes, item.expected_delete_modified_at, expected
       );
-      if (attempt.hash) deleteHashes.set(item.id, attempt.hash);
       if (attempt.identity) deleteIdentities.set(item.id, attempt.identity);
-      if (attempt.error) errors.push(`${item.filename}: ${attempt.error}`);
+      if (attempt.status === "different") hasDifferentMetadata = true;
+      else if (attempt.status === "unverifiable") errors.push(`${item.filename}: ${attempt.error ?? "无法核对文件元数据。"}`);
     }
-    if (errors.length > 0 || !keepAttempt.hash || deleteHashes.size !== group.length) {
-      return { status: "unverifiable", keepHash: keepAttempt.hash, deleteHashes,
-        keepIdentity: keepAttempt.identity, deleteIdentities,
-        error: errors.join("; ") || "Full SHA-256 verification was incomplete." };
+    if (hasDifferentMetadata) {
+      return { status: "content-different", keepIdentity, deleteIdentities,
+        error: "一个或多个候选文件的大小或时长已变化，不再符合重复条件。" };
     }
-    const different = [...deleteHashes.values()].some((hash) => hash !== keepAttempt.hash);
-    return { status: different ? "content-different" : "verified-identical", keepHash: keepAttempt.hash, deleteHashes,
-      keepIdentity: keepAttempt.identity, deleteIdentities, error: null };
+    if (errors.length > 0 || deleteIdentities.size !== group.length) {
+      return { status: "unverifiable", keepIdentity, deleteIdentities,
+        error: errors.join("; ") || "无法完成文件大小、时长和文件身份核对。" };
+    }
+    return { status: "verified-identical", keepIdentity, deleteIdentities, error: null };
   }
 
-  private async hashExpected(videoId: string, filePath: string, size: number, modifiedAt: string, signal: AbortSignal): Promise<HashAttempt> {
-    const before = await this.inspect(filePath, size, modifiedAt);
+  private async verifyExpectedMetadata(
+    videoId: string, filePath: string, expectedSize: number, expectedModifiedAt: string,
+    expected: { sizeBytes: number; durationSeconds: number }
+  ): Promise<MetadataAttempt> {
+    let video;
+    try { video = this.videos.getVideo(videoId); }
+    catch (error: unknown) {
+      return { status: "unverifiable", identity: null, error: `无法读取视频元数据：${toMessage(error)}` };
+    }
+    if (video.isMissing || video.metadataStatus !== "ready" || video.durationMs === null || video.durationMs <= 0) {
+      return { status: "unverifiable", identity: null, error: "视频缺失或时长元数据尚未就绪。" };
+    }
+    const durationSeconds = Math.floor((video.durationMs + 500) / 1000);
+    if (video.sizeBytes !== expected.sizeBytes || durationSeconds !== expected.durationSeconds) {
+      return { status: "different", identity: null, error: "文件大小或时长与重复候选不一致。" };
+    }
+    if (video.path !== filePath || video.sizeBytes !== expectedSize || video.modifiedAt !== expectedModifiedAt) {
+      return { status: "unverifiable", identity: null, error: "文件路径、大小或修改时间已变化，请重新扫描。" };
+    }
+
+    const before = await this.inspect(filePath, expectedSize, expectedModifiedAt);
     if (before.status !== "current") {
-      await this.refreshChangedVideo(videoId, filePath, size, modifiedAt, before);
-      return { hash: null, identity: null, error: before.message };
+      await this.refreshChangedVideo(videoId, filePath, expectedSize, expectedModifiedAt, before);
+      return { status: "unverifiable", identity: null, error: before.message };
     }
     try {
       const identityBefore = await this.readFileIdentity(filePath);
-      const hash = await this.hashFile(filePath, signal);
-      const after = await this.inspect(filePath, size, modifiedAt);
+      const after = await this.inspect(filePath, expectedSize, expectedModifiedAt);
       if (after.status !== "current") {
-        await this.refreshChangedVideo(videoId, filePath, size, modifiedAt, after);
-        return { hash: null, identity: null, error: `File changed during verification: ${after.message}` };
+        await this.refreshChangedVideo(videoId, filePath, expectedSize, expectedModifiedAt, after);
+        return { status: "unverifiable", identity: null, error: `核对期间文件状态发生变化：${after.message}` };
       }
       const identityAfter = await this.readFileIdentity(filePath);
       if (identityBefore.version !== identityAfter.version) {
-        return { hash: null, identity: null, error: "File identity or content version changed during verification." };
+        return { status: "unverifiable", identity: null, error: "文件身份或版本在核对期间发生变化。" };
       }
-      return { hash, identity: JSON.stringify(identityAfter), error: null };
+      return { status: "matched", identity: JSON.stringify(identityAfter), error: null };
     } catch (error: unknown) {
-      if (signal.aborted || isAbortError(error)) throw error;
-      return { hash: null, identity: null, error: toMessage(error) };
+      return { status: "unverifiable", identity: null, error: toMessage(error) };
     }
   }
 
@@ -483,72 +510,68 @@ export class DuplicateCleanupService {
   }
 
   private async processAuthorizedDelete(jobId: string, item: DuplicateCleanupWorkItem): Promise<void> {
-    const keepCheck = await this.rehashAuthorizedFile(item.keep_path, item.expected_keep_size_bytes,
-      item.expected_keep_modified_at, item.keep_sha256, item.keep_file_identity);
+    const keepCheck = await this.revalidateAuthorizedFile(item.keep_video_id, item.keep_path, item.expected_keep_size_bytes,
+      item.expected_keep_modified_at, item.group_key, item.keep_file_identity);
     if (!keepCheck.ok) {
       this.jobs.updateItem(item.id, "skipped", "final-keep-integrity-changed", keepCheck.message);
       return;
     }
-    const deleteCheck = await this.rehashAuthorizedFile(item.delete_path, item.expected_delete_size_bytes,
-      item.expected_delete_modified_at, item.delete_sha256, item.delete_file_identity);
+    const deleteCheck = await this.revalidateAuthorizedFile(item.delete_video_id, item.delete_path, item.expected_delete_size_bytes,
+      item.expected_delete_modified_at, item.group_key, item.delete_file_identity);
     if (!deleteCheck.ok) {
       this.jobs.updateItem(item.id, "skipped", "final-delete-integrity-changed", deleteCheck.message);
       return;
     }
 
-    // Isolate the exact target with an atomic same-directory rename before the irreversible call. A swap
-    // between the path check and rename is detected by hashing the isolated object and comparing its stable identity.
+    // Preserve the no-overwrite isolation step and explicit second confirmation.
+    // Duplicate identity itself is determined by the agreed size + duration rule;
+    // filesystem identity/version checks only guard against a path swap or changed file.
     const stagedPath = path.join(path.dirname(item.delete_path), `.${path.basename(item.delete_path)}.movie-delete-${crypto.randomUUID()}`);
     if (!this.jobs.prepareIsolation(jobId, item.id, stagedPath)) {
-      this.jobs.updateItem(item.id, "failed", "authorization-rejected", "Fresh authorization was lost before target isolation.");
+      this.jobs.updateItem(item.id, "failed", "authorization-rejected", "重复候选授权在隔离文件前已失效。");
       return;
     }
     try {
       await this.renameFile(item.delete_path, stagedPath);
     } catch (error: unknown) {
       this.jobs.clearIsolation(item.id);
-      this.jobs.updateItem(item.id, "failed", "isolation-failed", `Could not isolate the authorized target: ${toMessage(error)}`);
+      this.jobs.updateItem(item.id, "failed", "isolation-failed", `无法安全隔离待删除文件：${toMessage(error)}`);
       return;
     }
 
-    const isolatedCheck = await this.rehashIsolatedFile(stagedPath, item.expected_delete_size_bytes,
-      item.delete_sha256, deleteCheck.identity?.stable ?? null);
+    const isolatedCheck = await this.verifyIsolatedFileMetadata(stagedPath, item.expected_delete_size_bytes,
+      item.expected_delete_modified_at, deleteCheck.identity?.stable ?? null);
     if (!isolatedCheck.ok) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, restored ? "skipped" : "failed", "isolated-target-mismatch",
-        `${isolatedCheck.message}${restored ? "" : ` Isolated file retained at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
+        `${isolatedCheck.message}${restored ? "" : ` 隔离文件保留在 ${stagedPath}；自动恢复失败，需要人工恢复。`}`);
       return;
     }
     if (this.stopped || this.jobs.isCancelling(jobId)) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, restored ? "cancelled" : "failed", "delete-stop-requested",
-        `Remaining deletion was stopped.${restored ? "" : ` Isolated file retained at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
+        `已停止剩余删除。${restored ? "" : ` 隔离文件保留在 ${stagedPath}；自动恢复失败，需要人工恢复。`}`);
       return;
     }
 
-    // The keep file is rehashed after target isolation, so a concurrent change invalidates the delete while
-    // the target can still be restored. This is stronger than size/mtime and closes the path-swap race.
-    const finalKeep = await this.rehashAuthorizedFile(item.keep_path, item.expected_keep_size_bytes,
-      item.expected_keep_modified_at, item.keep_sha256, item.keep_file_identity);
+    const finalKeep = await this.revalidateAuthorizedFile(item.keep_video_id, item.keep_path, item.expected_keep_size_bytes,
+      item.expected_keep_modified_at, item.group_key, item.keep_file_identity);
     if (!finalKeep.ok) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, restored ? "skipped" : "failed", "final-keep-integrity-changed",
-        `${finalKeep.message}${restored ? "" : ` Isolated file retained at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
+        `${finalKeep.message}${restored ? "" : ` 隔离文件保留在 ${stagedPath}；自动恢复失败，需要人工恢复。`}`);
       return;
     }
     if (!this.jobs.claimDeletionItem(jobId, item.id)) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, "failed", "authorization-rejected",
-        `Fresh full SHA-256 authorization is missing or stale.${restored ? "" : ` Isolated file retained at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
+        `重复候选授权已失效。${restored ? "" : ` 隔离文件保留在 ${stagedPath}；自动恢复失败，需要人工恢复。`}`);
       return;
     }
     try {
-      // The retained-file SHA can take minutes. Revalidate the isolated object
-      // after that await, immediately before the irreversible call, against the
-      // identity/version captured by its own successful full hash.
       const finalIsolatedIdentity = await this.readFileIdentity(stagedPath);
       if (!isolatedCheck.identity || finalIsolatedIdentity.version !== isolatedCheck.identity.version) {
-        throw Object.assign(new Error("The isolated target changed before final deletion; media was retained for recovery."),
+        throw Object.assign(new Error("隔离后的文件状态发生变化，已停止删除并保留文件。"),
           { code: "final-isolated-target-changed" });
       }
       await this.deleteFile(stagedPath);
@@ -559,52 +582,61 @@ export class DuplicateCleanupService {
     } catch (error: unknown) {
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, "failed", getErrorCode(error),
-        `${toMessage(error)}${restored ? "" : ` Isolated file may remain at ${stagedPath}; automatic no-overwrite recovery failed and manual recovery is required.`}`);
+        `${toMessage(error)}${restored ? "" : ` 隔离文件可能仍保留在 ${stagedPath}；自动恢复失败，需要人工恢复。`}`);
     }
   }
 
-  private async rehashAuthorizedFile(
-    filePath: string, expectedSize: number, expectedModifiedAt: string,
-    expectedHash: string | null, persistedIdentity: string | null
+  private async revalidateAuthorizedFile(
+    videoId: string, filePath: string, expectedSize: number, expectedModifiedAt: string,
+    groupKey: string, persistedIdentity: string | null
   ): Promise<{ ok: boolean; message: string; identity: FileIdentityEvidence | null }> {
-    if (!expectedHash || !/^[a-f\d]{64}$/i.test(expectedHash) || !persistedIdentity) {
-      return { ok: false, message: "Persisted full SHA-256 or file identity evidence is missing.", identity: null };
+    const expectedGroup = parseDuplicateIdentity(groupKey);
+    const expectedIdentity = persistedIdentity ? parseIdentity(persistedIdentity) : null;
+    if (!expectedGroup || !expectedIdentity) {
+      return { ok: false, message: "缺少有效的大小/时长核对记录或文件身份记录。", identity: null };
     }
-    const expectedIdentity = parseIdentity(persistedIdentity);
-    if (!expectedIdentity) return { ok: false, message: "Persisted file identity evidence is invalid.", identity: null };
-    const inspection = await this.inspect(filePath, expectedSize, expectedModifiedAt);
-    if (inspection.status !== "current") return { ok: false, message: inspection.message, identity: null };
     try {
+      const video = this.videos.getVideo(videoId);
+      if (video.isMissing || video.metadataStatus !== "ready" || video.durationMs === null ||
+          video.sizeBytes !== expectedGroup.sizeBytes || video.sizeBytes !== expectedSize ||
+          Math.floor((video.durationMs + 500) / 1000) !== expectedGroup.durationSeconds ||
+          video.path !== filePath || video.modifiedAt !== expectedModifiedAt) {
+        return { ok: false, message: "文件大小、时长、路径或修改时间已变化，已停止删除。", identity: null };
+      }
+      const beforeInspection = await this.inspect(filePath, expectedSize, expectedModifiedAt);
+      if (beforeInspection.status !== "current") {
+        return { ok: false, message: beforeInspection.message, identity: null };
+      }
       const before = await this.readFileIdentity(filePath);
-      const actualHash = await this.hashFile(filePath);
+      const afterInspection = await this.inspect(filePath, expectedSize, expectedModifiedAt);
+      if (afterInspection.status !== "current") {
+        return { ok: false, message: afterInspection.message, identity: null };
+      }
       const after = await this.readFileIdentity(filePath);
-      const unchangedDuringHash = before.version === after.version;
-      const sameVerifiedIdentity = after.version === expectedIdentity.version;
-      const sameVerifiedHash = actualHash === expectedHash;
-      if (!unchangedDuringHash || !sameVerifiedIdentity || !sameVerifiedHash) {
-        return { ok: false, message: "Full SHA-256 or strong file identity changed after verification.", identity: after };
+      if (before.version !== after.version || after.version !== expectedIdentity.version) {
+        return { ok: false, message: "文件身份或版本在核对后发生变化，已停止删除。", identity: after };
       }
       return { ok: true, message: "", identity: after };
     } catch (error: unknown) {
-      return { ok: false, message: `Could not revalidate full SHA-256: ${toMessage(error)}`, identity: null };
+      return { ok: false, message: `无法核对文件大小、时长或身份：${toMessage(error)}`, identity: null };
     }
   }
 
-  private async rehashIsolatedFile(
-    filePath: string, expectedSize: number, expectedHash: string | null, expectedStableIdentity: string | null
+  private async verifyIsolatedFileMetadata(
+    filePath: string, expectedSize: number, expectedModifiedAt: string, expectedStableIdentity: string | null
   ): Promise<{ ok: boolean; message: string; identity: FileIdentityEvidence | null }> {
-    if (!expectedHash || !expectedStableIdentity) return { ok: false, message: "Isolated target authorization is incomplete.", identity: null };
+    if (!expectedStableIdentity) return { ok: false, message: "隔离目标缺少有效的文件身份记录。", identity: null };
     try {
       const before = await this.readFileIdentity(filePath);
-      const actualHash = await this.hashFile(filePath);
+      const info = await stat(filePath);
       const after = await this.readFileIdentity(filePath);
-      if (Number((await stat(filePath)).size) !== expectedSize || before.stable !== expectedStableIdentity ||
-          after.stable !== expectedStableIdentity || before.version !== after.version || actualHash !== expectedHash) {
-        return { ok: false, message: "The isolated target does not match the persistently authorized full SHA-256 and file identity.", identity: null };
+      if (!info.isFile() || info.size !== expectedSize || info.mtime.toISOString() !== expectedModifiedAt ||
+          before.stable !== expectedStableIdentity || after.stable !== expectedStableIdentity || before.version !== after.version) {
+        return { ok: false, message: "隔离后的文件大小、修改时间或身份不符合已核对记录。", identity: null };
       }
       return { ok: true, message: "", identity: after };
     } catch (error: unknown) {
-      return { ok: false, message: `Could not verify the isolated target: ${toMessage(error)}`, identity: null };
+      return { ok: false, message: `无法核对隔离文件：${toMessage(error)}`, identity: null };
     }
   }
 
@@ -748,6 +780,14 @@ function abortError(): Error {
 }
 
 function isAbortError(error: unknown): boolean { return error instanceof Error && error.name === "AbortError"; }
+function parseDuplicateIdentity(groupKey: string): { sizeBytes: number; durationSeconds: number } | null {
+  const match = /^size-duration:(\d+):(\d+)$/.exec(groupKey);
+  if (!match) return null;
+  const sizeBytes = Number(match[1]);
+  const durationMs = Number(match[2]);
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0 || !Number.isSafeInteger(durationMs) || durationMs <= 0) return null;
+  return { sizeBytes, durationSeconds: Math.floor((durationMs + 500) / 1000) };
+}
 function parseIdentity(value: string): FileIdentityEvidence | null {
   try {
     const parsed = JSON.parse(value) as Partial<FileIdentityEvidence>;

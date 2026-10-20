@@ -163,11 +163,11 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "从排行优先保留 D:\\Ranked" }));
     expect(onPreferredDirectoryPathChange).toHaveBeenCalledWith("D:\\Ranked");
   });
-  it("keeps candidate browsing metadata-only and explains verified one-click deletion", () => {
+  it("keeps candidate browsing metadata-only and explains size-duration review with confirmation", () => {
     const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
     expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument();
-    expect(screen.getByText(/候选发现只使用精确文件大小/)).toHaveTextContent(/快速永久删除默认关闭/);
+    expect(screen.getByText(/候选发现按文件大小与整秒时长识别重复项/)).toHaveTextContent(/不读取整个视频计算哈希/);
     expect(container).toHaveTextContent(/计划保留/);
     expect(container).toHaveTextContent(/共 2 份 · 计划保留 1 份 · 可删除 1 份/);
     expect(container).toHaveTextContent(/可释放/);
@@ -269,20 +269,20 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("task creation failed");
   });
 
-  it("starts only full verification after an explicit preflight and does not claim deletion", async () => {
+  it("starts only size-duration review after an explicit preflight and does not claim deletion", async () => {
     const onSubmitCleanup = vi.fn().mockResolvedValue({ jobId: "j", requestId: "r", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
     render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
     const opener = screen.getByRole("button", { name: "验证当前页" });
     expect(opener).not.toHaveClass("danger");
     fireEvent.click(opener);
-    const dialog = screen.getByRole("dialog", { name: "开始完整内容验证？" });
-    expect(dialog).toHaveTextContent(/完整读取每个计划保留文件和候选移除文件/);
+    const dialog = screen.getByRole("dialog", { name: "开始核对大小与时长？" });
+    expect(dialog).toHaveTextContent(/只核对数据库元数据及文件系统的大小、修改时间、路径和身份/);
     expect(dialog).not.toHaveTextContent(/待删文件|待删除|拟删除/);
-    expect(dialog).toHaveTextContent(/仍需单独的第二次永久删除确认/);
-    fireEvent.click(screen.getByRole("button", { name: "开始完整验证" }));
+    expect(dialog).toHaveTextContent(/单独进行第二次永久删除确认/);
+    fireEvent.click(screen.getByRole("button", { name: "开始核对" }));
     await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
     const status = await screen.findByRole("status");
-    expect(status).toHaveTextContent(/验证阶段不会删除文件/);
+    expect(status).toHaveTextContent(/核对阶段.*不会删除文件/);
     expect(status).toHaveTextContent(/候选移除文件/);
     expect(status).not.toHaveTextContent(/待删文件|待删除|拟删除/);
   });
@@ -292,10 +292,10 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
     const opener = screen.getByRole("button", { name: "验证当前页" });
     fireEvent.click(opener);
-    const dialog = screen.getByRole("dialog", { name: "开始完整内容验证？" });
+    const dialog = screen.getByRole("dialog", { name: "开始核对大小与时长？" });
     expect(screen.getByRole("button", { name: "取消" })).toHaveFocus();
     fireEvent.keyDown(dialog, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "开始完整内容验证？" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "开始核对大小与时长？" })).not.toBeInTheDocument());
     expect(opener).toHaveFocus();
     expect(onSubmitCleanup).not.toHaveBeenCalled();
   });
@@ -305,7 +305,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
     fireEvent.click(screen.getAllByRole("button", { name: "设为计划保留" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "验证当前页" }));
-    fireEvent.click(screen.getByRole("button", { name: "开始完整验证" }));
+    fireEvent.click(screen.getByRole("button", { name: "开始核对" }));
     await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
     expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
   });
@@ -409,7 +409,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
 
     rerender(<DuplicateGroupsPage {...baseProps()} groups={[{ ...groups[0], recommendedKeepVideoId: "delete", items: [...groups[0].items] }]} preferredDirectories={[{ ...preferredDirectory, path: "D:\\Backup" }]} onSubmitCleanup={onSubmitCleanup} />);
     fireEvent.click(screen.getByRole("button", { name: "验证当前页" }));
-    fireEvent.click(screen.getByRole("button", { name: "开始完整验证" }));
+    fireEvent.click(screen.getByRole("button", { name: "开始核对" }));
 
     await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
     expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }] });

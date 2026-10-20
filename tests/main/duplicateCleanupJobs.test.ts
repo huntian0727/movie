@@ -10,10 +10,9 @@ import { createDatabase } from "../../src/main/db/database";
 import { DuplicateCleanupRepository } from "../../src/main/db/duplicateCleanupRepository";
 import { VideoRepository } from "../../src/main/db/videoRepository";
 import { DuplicateCleanupService } from "../../src/main/media/duplicateCleanupService";
-import { buildFullContentHash } from "../../src/main/media/contentFingerprint";
 import type { DuplicateResolvePlan, VideoRecord } from "../../src/shared/videoTypes";
 
-describe("full SHA-256 duplicate cleanup authorization", () => {
+describe("size-duration duplicate cleanup authorization", () => {
   let tempDir = "";
   let db: DatabaseConnection | undefined;
   afterEach(async () => { db?.close(); db = undefined; if (tempDir) await rm(tempDir, { recursive: true, force: true }); });
@@ -204,58 +203,78 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     service.stop();
   });
 
-  it("classifies same-metadata different content and gives it zero deletion authorization", async () => {
+  it("uses only size and duration to classify duplicate files, without hashing content", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, false);
     const jobs = new DuplicateCleanupRepository(db, repo);
     const deleteFile = vi.fn(async (filePath: string) => rm(filePath, { force: true }));
-    const service = createService(jobs, repo, { deleteFile });
+    const hashFile = vi.fn(async () => { throw new Error("content hash must never run"); });
+    const service = createService(jobs, repo, { deleteFile, hashFile });
 
-    const accepted = service.submit({ requestId: "different", plan });
-    const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+    const accepted = service.submit({ requestId: "size-duration-only", plan });
+    const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
 
-    expect(finished).toMatchObject({ identicalItems: 0, differentItems: 1, unverifiableItems: 0, status: "completed_with_errors" });
+    expect(verified).toMatchObject({ identicalItems: 1, differentItems: 0, unverifiableItems: 0, status: "completed" });
+    expect(hashFile).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
     expect((await stat(deleteVideo.path)).isFile()).toBe(true);
-    expect(() => jobs.authorizeDeletion({ jobId: accepted.jobId, verificationRevision: finished.verificationRevision!, confirmation: "DELETE" })).toThrow();
+
+    service.confirm({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
+    expect(await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished")).toMatchObject({ status: "completed", successItems: 1 });
+    await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
     service.stop();
   });
 
-  it("classifies read failures as unverifiable and deletes nothing", async () => {
+  it("does not let a failing hash implementation block size-duration verification", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
     const deleteFile = vi.fn(async (filePath: string) => rm(filePath, { force: true }));
-    const service = createService(jobs, repo, { deleteFile, hashFile: vi.fn().mockRejectedValue(Object.assign(new Error("offline"), { code: "EIO" })) });
+    const hashFile = vi.fn().mockRejectedValue(Object.assign(new Error("offline"), { code: "EIO" }));
+    const service = createService(jobs, repo, { deleteFile, hashFile });
 
-    const accepted = service.submit({ requestId: "unverifiable", plan });
-    const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+    const accepted = service.submit({ requestId: "no-hash-required", plan });
+    const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
 
-    expect(finished).toMatchObject({ identicalItems: 0, unverifiableItems: 1 });
+    expect(verified).toMatchObject({ identicalItems: 1, differentItems: 0, unverifiableItems: 0 });
+    expect(hashFile).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
     expect((await stat(deleteVideo.path)).isFile()).toBe(true);
     service.stop();
   });
 
-  it("aborts in-flight verification separately and guarantees zero deletion", async () => {
+  it("rejects a candidate when its recorded duration changes before verification", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
-    let hashingStarted = false;
-    const hashFile = vi.fn((_filePath: string, signal?: AbortSignal) => new Promise<string>((_resolve, reject) => {
-      hashingStarted = true;
-      signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })), { once: true });
-    }));
+    const hashFile = vi.fn();
+    const deleteFile = vi.fn();
+    const service = createService(jobs, repo, { hashFile, deleteFile });
+
+    const accepted = service.submit({ requestId: "duration-changed", plan });
+    db!.prepare("UPDATE videos SET duration_ms = 6000 WHERE id = ?").run(deleteVideo.id);
+    const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+
+    expect(finished).toMatchObject({ identicalItems: 0, differentItems: 1, unverifiableItems: 0, status: "completed_with_errors" });
+    expect(hashFile).not.toHaveBeenCalled();
+    expect(deleteFile).not.toHaveBeenCalled();
+    expect((await stat(deleteVideo.path)).isFile()).toBe(true);
+    service.stop();
+  });
+
+  it("cancels a queued size-duration verification without deleting any file", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const hashFile = vi.fn();
     const deleteFile = vi.fn();
     const service = createService(jobs, repo, { hashFile, deleteFile });
 
     const accepted = service.submit({ requestId: "cancel-verification", plan });
-    await waitUntil(() => hashingStarted);
-    service.cancel(accepted.jobId);
-    const cancelled = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+    const cancelled = service.cancel(accepted.jobId);
 
-    expect(cancelled.status).toBe("cancelled");
-    expect(jobs.listItems(accepted.jobId, 1, 20).items[0]).toMatchObject({ verificationStatus: "cancelled" });
+    expect(cancelled).toMatchObject({ status: "cancelled", phase: "finished" });
+    expect(hashFile).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
     expect((await stat(deleteVideo.path)).isFile()).toBe(true);
     service.stop();
@@ -329,53 +348,58 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     service.stop();
   });
 
-  it("detects a target path swap in the check-to-delete window after the pre-delete hash", async () => {
+  it("detects a target path replacement during isolation using file identity without hashing", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
     const deleteFile = vi.fn();
     const renameFile = vi.fn(async (source: string, destination: string) => {
-      await writeFile(source, Buffer.alloc(64, 8));
-      await utimes(source, new Date(deleteVideo.modifiedAt), new Date(deleteVideo.modifiedAt));
+      const replacement = `${source}.replacement`;
+      await writeFile(replacement, Buffer.alloc(64, 8));
+      await utimes(replacement, new Date(deleteVideo.modifiedAt), new Date(deleteVideo.modifiedAt));
+      await rm(source, { force: true });
+      await rename(replacement, source);
       await rename(source, destination);
     });
-    const service = createService(jobs, repo, { deleteFile, renameFile });
+    const hashFile = vi.fn();
+    const service = createService(jobs, repo, { deleteFile, renameFile, hashFile });
     const accepted = service.submit({ requestId: "path-swap-window", plan });
     const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
     service.confirm({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
     const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+    const item = jobs.listItems(accepted.jobId, 1, 20).items[0];
 
-    expect(finished).toMatchObject({ successItems: 0, skippedItems: 1, status: "completed_with_errors" });
-    // Only isolation may rename; rollback uses an atomic no-overwrite hard link.
+    expect(finished).toMatchObject({ successItems: 0, failedItems: 1, status: "completed_with_errors" });
     expect(renameFile).toHaveBeenCalledTimes(1);
+    expect(hashFile).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
-    expect((await stat(deleteVideo.path)).isFile()).toBe(true);
-    expect(await readFile(deleteVideo.path)).toEqual(Buffer.alloc(64, 8));
-    expect(jobs.listItems(accepted.jobId, 1, 20).items[0].stagedDeletePath).toBeNull();
+    expect(item.stagedDeletePath).toMatch(/movie-delete/);
+    expect(await readFile(item.stagedDeletePath!)).toEqual(Buffer.alloc(64, 8));
     service.stop();
   });
 
-  it("restores the isolated target when the kept file changes immediately before deletion", async () => {
+  it("restores the isolated target if the kept file identity changes before deletion", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
-    let hashCalls = 0;
     const deleteFile = vi.fn();
-    const service = createService(jobs, repo, { deleteFile, hashFile: async (filePath, signal) => {
-      hashCalls += 1;
-      const result = await buildFullContentHash(filePath, signal);
-      if (hashCalls === 5) {
-        await writeFile(keepVideo.path, Buffer.alloc(64, 6));
-        await utimes(keepVideo.path, new Date(keepVideo.modifiedAt), new Date(keepVideo.modifiedAt));
-      }
-      return result;
-    } });
+    const hashFile = vi.fn();
+    const renameFile = vi.fn(async (source: string, destination: string) => {
+      await rename(source, destination);
+      const replacement = `${keepVideo.path}.replacement`;
+      await writeFile(replacement, Buffer.alloc(64, 6));
+      await utimes(replacement, new Date(keepVideo.modifiedAt), new Date(keepVideo.modifiedAt));
+      await rm(keepVideo.path, { force: true });
+      await rename(replacement, keepVideo.path);
+    });
+    const service = createService(jobs, repo, { deleteFile, hashFile, renameFile });
     const accepted = service.submit({ requestId: "keep-final-race", plan });
     const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
     service.confirm({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
     const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
 
     expect(finished).toMatchObject({ successItems: 0, skippedItems: 1, status: "completed_with_errors" });
+    expect(hashFile).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
     expect((await stat(deleteVideo.path)).isFile()).toBe(true);
     expect(jobs.listItems(accepted.jobId, 1, 20).items[0].stagedDeletePath).toBeNull();
@@ -415,7 +439,7 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     service.stop();
   });
 
-  it("retry after a delete failure requires a new full verification revision and another confirmation", async () => {
+  it("retry after a delete failure requires a new size-duration review and another confirmation", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
@@ -442,7 +466,7 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     service.stop();
   });
 
-  it("invalidates queued deletion authorization across restart and resume requires a new full verification revision", async () => {
+  it("invalidates queued deletion authorization across restart and resume requires a new size-duration review", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
@@ -462,12 +486,12 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     restarted.stop();
   });
 
-  it("rejects direct authorization without a successful fresh full hash", async () => {
+  it("rejects direct authorization without a fresh size-duration review", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
     expect(() => jobs.assertVideosAvailable([deleteVideo.id])).not.toThrow();
-    expect(() => jobs.assertGenericPermanentDeleteAllowed([deleteVideo.id])).toThrow(/full SHA-256 verification/);
+    expect(() => jobs.assertGenericPermanentDeleteAllowed([deleteVideo.id])).toThrow(/大小与时长重复条件/);
     const accepted = jobs.submit({ requestId: "direct-bypass", plan });
     const job = jobs.getJob(accepted.jobId);
 
@@ -497,7 +521,7 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     expect(jobs.listItems(accepted.jobId, 1, 500).items).toHaveLength(500);
   });
 
-  it("serializes multiple verification jobs instead of hashing them in parallel", async () => {
+  it("verifies multiple jobs without reading or hashing video contents", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const repo = new VideoRepository(db);
     const plans: DuplicateResolvePlan[] = [];
@@ -512,23 +536,15 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
       plans.push({ groups: [{ groupKey: group.groupKey, keepVideoId: keep.id, deleteVideoIds: [target.id] }] });
     }
     const jobs = new DuplicateCleanupRepository(db, repo);
-    let activeHashes = 0;
-    let maxConcurrentHashes = 0;
-    const service = createService(jobs, repo, { hashFile: async (filePath, signal) => {
-      activeHashes += 1;
-      maxConcurrentHashes = Math.max(maxConcurrentHashes, activeHashes);
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      const hash = await buildFullContentHash(filePath, signal);
-      activeHashes -= 1;
-      return hash;
-    } });
-    const first = service.submit({ requestId: "serial-first", plan: plans[0] });
-    const second = service.submit({ requestId: "serial-second", plan: plans[1] });
+    const hashFile = vi.fn(async () => { throw new Error("video content hashing is disabled"); });
+    const first = createService(jobs, repo, { hashFile });
+    const acceptedFirst = first.submit({ requestId: "metadata-first", plan: plans[0] });
+    const acceptedSecond = first.submit({ requestId: "metadata-second", plan: plans[1] });
 
-    await waitFor(jobs, first.jobId, (job) => job.phase === "awaiting_confirmation");
-    await waitFor(jobs, second.jobId, (job) => job.phase === "awaiting_confirmation");
-    expect(maxConcurrentHashes).toBe(1);
-    service.stop();
+    await waitFor(jobs, acceptedFirst.jobId, (job) => job.phase === "awaiting_confirmation");
+    await waitFor(jobs, acceptedSecond.jobId, (job) => job.phase === "awaiting_confirmation");
+    expect(hashFile).not.toHaveBeenCalled();
+    first.stop();
   });
 
   it("clears terminal records but refuses to clear active tasks", async () => {
@@ -545,29 +561,30 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     service.stop();
   });
 
-  it.each([
-    ["hash mismatch", async (filePath: string) => `${await buildFullContentHash(filePath)}0`],
-    ["read failure", async () => { throw Object.assign(new Error("offline during isolated hash"), { code: "EIO" }); }]
-  ])("restores the original path when isolated target %s", async (_label, isolatedResult) => {
+  it("retains an isolated target if its size changes, without hashing video content", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
-    let hashCalls = 0;
     const deleteFile = vi.fn();
-    const service = createService(jobs, repo, { deleteFile, hashFile: async (filePath, signal) => {
-      hashCalls += 1;
-      if (hashCalls === 5) return isolatedResult(filePath);
-      return buildFullContentHash(filePath, signal);
-    } });
-    const accepted = service.submit({ requestId: `isolated-${_label}`, plan });
+    const hashFile = vi.fn();
+    const renameFile = vi.fn(async (source: string, destination: string) => {
+      await rename(source, destination);
+      await writeFile(destination, Buffer.alloc(65, 9));
+    });
+    const service = createService(jobs, repo, { deleteFile, hashFile, renameFile });
+    const accepted = service.submit({ requestId: "isolated-size-change", plan });
     const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
     service.confirm({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
     const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+    const item = jobs.listItems(accepted.jobId, 1, 20).items[0];
 
     expect(finished).toMatchObject({ successItems: 0, status: "completed_with_errors" });
+    expect(hashFile).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
-    expect((await stat(deleteVideo.path)).isFile()).toBe(true);
-    expect(jobs.listItems(accepted.jobId, 1, 20).items[0].stagedDeletePath).toBeNull();
+    expect(item.outcomeCode).toBe("isolated-target-mismatch");
+    expect(item.stagedDeletePath).toBeTruthy();
+    expect(await stat(item.stagedDeletePath!)).toBeTruthy();
+    await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
     service.stop();
   });
 
@@ -575,27 +592,28 @@ describe("full SHA-256 duplicate cleanup authorization", () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
     const jobs = new DuplicateCleanupRepository(db, repo);
-    let hashCalls = 0;
-    let releaseIsolatedHash: () => void = () => undefined;
-    const isolatedHashReached = new Promise<void>((resolve) => { releaseIsolatedHash = resolve; });
-    let continueHash: () => void = () => undefined;
-    const service = createService(jobs, repo, { deleteFile: vi.fn(), hashFile: async (filePath, signal) => {
-      hashCalls += 1;
-      if (hashCalls === 5) {
-        releaseIsolatedHash();
-        await new Promise<void>((resolve) => { continueHash = resolve; });
-      }
-      return buildFullContentHash(filePath, signal);
-    } });
+    const deleteFile = vi.fn();
+    const hashFile = vi.fn();
+    let service!: DuplicateCleanupService;
+    let activeJobId = "";
+    let signalIsolated: () => void = () => undefined;
+    const isolatedReached = new Promise<void>((resolve) => { signalIsolated = resolve; });
+    const renameFile = vi.fn(async (source: string, destination: string) => {
+      await rename(source, destination);
+      signalIsolated();
+      service.cancel(activeJobId);
+    });
+    service = createService(jobs, repo, { deleteFile, hashFile, renameFile });
     const accepted = service.submit({ requestId: "cancel-isolated", plan });
+    activeJobId = accepted.jobId;
     const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
     service.confirm({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
-    await isolatedHashReached;
-    service.cancel(accepted.jobId);
-    continueHash();
+    await isolatedReached;
     const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
 
     expect(finished).toMatchObject({ status: "cancelled", successItems: 0 });
+    expect(hashFile).not.toHaveBeenCalled();
+    expect(deleteFile).not.toHaveBeenCalled();
     expect((await stat(deleteVideo.path)).isFile()).toBe(true);
     expect(jobs.listItems(accepted.jobId, 1, 20).items[0].stagedDeletePath).toBeNull();
     service.stop();

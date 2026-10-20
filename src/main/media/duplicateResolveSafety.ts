@@ -75,7 +75,7 @@ export async function resolveDuplicatePlanSafely(
   _repo: VideoRepository,
   _plan: DuplicateResolvePlan
 ): Promise<never> {
-  throw new Error("Direct duplicate deletion is disabled. Run full SHA-256 verification and use the separately confirmed cleanup task.");
+  throw new Error("Direct duplicate deletion is disabled. Review size-and-duration matches and use the separately confirmed cleanup task.");
 }
 
 export async function resolveDuplicatePlanFast(
@@ -83,7 +83,7 @@ export async function resolveDuplicatePlanFast(
   _plan: DuplicateResolvePlan,
   _dependencies: { deleteFile?: (filePath: string) => Promise<void> } = {}
 ): Promise<DuplicateResolveResult> {
-  throw new Error("Fast duplicate deletion without full SHA-256 verification is permanently disabled.");
+  throw new Error("Fast duplicate deletion remains disabled; use size-and-duration review and separate confirmation.");
 }
 
 function summarizeResolveEntries(entries: ValidatedDuplicateResolveEntry[]): {

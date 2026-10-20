@@ -324,7 +324,7 @@ export function DuplicateGroupsPage({
 
   const handleResolveFirstParty = async () => {
     setConfirmOpen(false);
-    setActionError("候选项不能直接删除；请先运行完整 SHA-256 验证。 ");
+    setActionError("候选项不能直接删除；请先核对大小与时长，并在后台任务中二次确认。 ");
   };
 
   const handleAutoDelete = useCallback(async (autoPlan: DuplicateResolvePlan, label: string) => {
@@ -527,7 +527,7 @@ export function DuplicateGroupsPage({
       <div className="duplicate-summary">
         <details className="duplicate-rule-note">
           <summary>候选判定规则</summary>
-          <p>候选发现只使用精确文件大小和整秒时长，不能证明内容相同。快速永久删除默认关闭；请通过“验证当前页”计算完整 SHA-256，验证相同后再在后台任务中二次确认永久删除。</p>
+          <p>候选发现按文件大小与整秒时长识别重复项，不读取整个视频计算哈希。永久删除仍需通过“验证当前页”核对候选，并在后台任务中二次确认。</p>
         </details>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
@@ -578,7 +578,7 @@ export function DuplicateGroupsPage({
             </select>
           </label>
           <p className="duplicate-directory-ranking-note">
-            显示 {rankedDirectoryOptions.length.toLocaleString()} / {directoryOptions.length.toLocaleString()} 个目录；数值是候选估算，不代表文件内容相同。元数据快速永久删除已关闭，清理需完整 SHA-256 验证和二次确认。
+            显示 {rankedDirectoryOptions.length.toLocaleString()} / {directoryOptions.length.toLocaleString()} 个目录；数值是候选估算，不代表文件内容相同。清理按大小与时长核对，并需二次确认。
           </p>
           {currentPreferredDirectory && <div className="duplicate-directory-scope" aria-label="当前优先保留目录">
             <p>当前优先保留：<code title={currentPreferredDirectory.path}>{currentPreferredDirectory.path}</code>（含子目录）
@@ -734,7 +734,7 @@ export function DuplicateGroupsPage({
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setStaleItems(null); }}>
           <section className="dialog duplicate-stale-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-stale-title">
             <h3 id="duplicate-stale-title">检测到文件状态变化</h3>
-            <p>检测到部分文件状态已经变化，本次未执行删除。资料库已刷新，请重新检查候选项并完整验证。</p>
+            <p>检测到部分文件状态已经变化，本次未执行删除。资料库已刷新，请重新检查候选项并核对大小与时长。</p>
             <p>异常文件可能位于同一候选组的其他目录中。</p>
             <div className="duplicate-stale-list">
               {staleItems.map((item) => (

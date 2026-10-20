@@ -52,7 +52,7 @@ export async function deleteScanFailureFile(
   }
 
   if (!dependencies.assertPermanentDeleteAllowed) {
-    throw new Error("Permanent deletion requires the trusted duplicate-candidate full SHA-256 verification guard.");
+    throw new Error("Permanent deletion is blocked for size-duration duplicate candidates; use the duplicate cleanup task with a separate confirmation.");
   }
   dependencies.assertPermanentDeleteAllowed([video.id]);
   if (dependencies.deleteImpl) await dependencies.deleteImpl(failure.objectPath);

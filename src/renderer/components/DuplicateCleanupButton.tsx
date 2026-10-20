@@ -44,7 +44,7 @@ export function DuplicateCleanupButton({
     try {
       const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
       const accepted = await onSubmitCleanup(requestId, plan);
-      setAcceptedMessage(`已开始对 ${accepted.totalItems} 个候选移除文件及其计划保留文件进行完整 SHA-256 验证。验证阶段不会删除文件。`);
+      setAcceptedMessage(`已开始核对 ${accepted.totalItems} 个候选移除文件及其计划保留文件的大小与时长。核对阶段不读取视频内容、不计算哈希，也不会删除文件。`);
       setDialogOpen(false);
       onRefresh?.();
       queueMicrotask(() => openerRef.current?.focus());
@@ -68,12 +68,13 @@ export function DuplicateCleanupButton({
         if (event.key === "Escape") close();
         if (event.key === "Tab") trapFocus(event, event.currentTarget);
       }}>
-        {submitting && <LoaderCircle className="spin" size={24} aria-label="正在启动验证" />}
-        <h3 id="duplicate-verification-title">开始完整内容验证？</h3>
-        <p>候选列表只使用数据库中的大小和时长，不读取视频内容。此独立阶段将完整读取每个计划保留文件和候选移除文件并计算 SHA-256；网盘或离线文件可能很慢。</p>
-        <p>验证可取消。取消、读取失败、离线、文件变化或内容不同都不会删除任何文件。验证相同后仍需单独的第二次永久删除确认。</p>
-        <p>本次将读取 {planFileCount} 个文件，覆盖 {plan.groups.length} 组候选。</p>
-        <div className="dialog-actions"><button ref={cancelRef} type="button" onClick={close} disabled={submitting}>取消</button><button className="verification-primary" type="button" onClick={() => void handleSubmit()} disabled={submitting}>开始完整验证</button></div>
+        {submitting && <LoaderCircle className="spin" size={24} aria-label="正在启动核对" />}
+        <h3 id="duplicate-verification-title">开始核对大小与时长？</h3>
+        <p>候选按文件大小完全一致、视频时长四舍五入到整秒后相同来识别。本阶段只核对数据库元数据及文件系统的大小、修改时间、路径和身份，不读取整个视频、不计算内容哈希。</p>
+        <p>注意：大小和时长一致不保证视频内容完全相同；不同内容但大小/时长相同的视频也可能被识别为重复项，请逐组检查保留项和候选项。</p>
+        <p>核对可取消。文件缺失、离线、大小/时长不一致或文件状态变化时不会删除任何文件。核对完成后仍需检查保留/删除计划，并单独进行第二次永久删除确认。</p>
+        <p>本次将核对 {planFileCount} 个文件，覆盖 {plan.groups.length} 组候选。</p>
+        <div className="dialog-actions"><button ref={cancelRef} type="button" onClick={close} disabled={submitting}>取消</button><button className="verification-primary" type="button" onClick={() => void handleSubmit()} disabled={submitting}>开始核对</button></div>
       </section>
     </div>}
   </>;

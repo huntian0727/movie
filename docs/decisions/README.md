@@ -10,3 +10,4 @@
 | `ADR-003-main-delivery-and-backup.md` | 每次合格交付先存档旧 main，再普通快进更新 main，禁止强推 |
 | `ADR-004-desktop-only-product.md` | 取消独立 Web/demo 模式，React/Vite 只作为 Electron Renderer |
 | `ADR-005-codec-aware-playback-routing.md` | 自动播放路由使用已缓存 codec；历史数据只在首次播放时懒补全，禁止启动全库回填 |
+| `ADR-006-size-duration-duplicate-review.md` | 重复身份按文件大小与整秒时长判定，不计算视频内容哈希；保留文件身份复查和独立二次确认，快速删除通道继续禁用 |
