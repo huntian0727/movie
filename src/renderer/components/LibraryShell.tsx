@@ -1113,6 +1113,8 @@ export function LibraryShell({
             onViewDetails={viewVideoDetails}
             onRevealInFolder={onRevealInFolder}
             onRefresh={() => setDuplicateRefreshVersion((current) => current + 1)}
+            onManualDelete={onDelete}
+            onManualBatchDelete={onBatchDelete}
             onPreviewResolve={async (plan) => {
               if (!onPreviewDuplicateResolve) {
                 throw new Error("重复项预检查能力未连接");

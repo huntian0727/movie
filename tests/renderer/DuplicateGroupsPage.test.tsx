@@ -81,10 +81,11 @@ describe("DuplicateGroupsPage staged safety flow", () => {
 
   it("prevents cleanup of stale displayed groups while a new query is loading", () => {
     const onAutoDelete = vi.fn(); const onAutoDeleteFiltered = vi.fn();
-    render(<DuplicateGroupsPage {...baseProps()} loading onAutoDelete={onAutoDelete} onAutoDeleteFiltered={onAutoDeleteFiltered} onSubmitCleanup={vi.fn()} />);
+    render(<DuplicateGroupsPage {...baseProps()} loading onAutoDelete={onAutoDelete} onAutoDeleteFiltered={onAutoDeleteFiltered} onPreviewResolve={vi.fn()} onManualDelete={vi.fn()} onManualBatchDelete={vi.fn()} />);
     expect(screen.getByRole("button", { name: /批量删除当前页/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /批量删除全部筛选结果/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "核对后删除 clip-copy.mp4" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "删除 clip-copy.mp4" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /清理当前页（1 个文件）/ })).toBeDisabled();
   });
 
   it("reads the submitted job by identity even when it leaves the first task page", async () => {
@@ -167,7 +168,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     const { container } = render(<DuplicateGroupsPage {...baseProps()} />);
     expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip-copy.mp4")).toBeInTheDocument();
-    expect(screen.getByText(/候选发现按文件大小与整秒时长识别重复项/)).toHaveTextContent(/不读取整个视频计算哈希/);
+    expect(screen.getByText(/候选按大小与整秒时长识别/)).toHaveTextContent(/不计算文件哈希/);
     expect(container).toHaveTextContent(/计划保留/);
     expect(container).toHaveTextContent(/共 2 份 · 计划保留 1 份 · 可删除 1 份/);
     expect(container).toHaveTextContent(/可释放/);
@@ -310,25 +311,99 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
   });
 
-  it("submits a single-file size-duration review task and does not delete before separate confirmation", async () => {
-    const onSubmitCleanup = vi.fn().mockResolvedValue({ jobId: "job-single", requestId: "request-single", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 4096 });
-    render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
-    fireEvent.click(screen.getByRole("button", { name: "核对后删除 clip-copy.mp4" }));
-
-    await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
-    expect(onSubmitCleanup.mock.calls[0][0]).toBeTruthy();
-    expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }] });
-    expect(screen.getByText(/已创建单文件核对任务（clip-copy.mp4）/)).toBeInTheDocument();
-    expect(screen.getByText(/不会立即删除/)).toBeInTheDocument();
+  it("restores one-confirmation manual single deletion with an automatic size-duration preflight", async () => {
+    const onManualDelete = vi.fn().mockResolvedValue(undefined);
+    const onSubmitCleanup = vi.fn();
+    const onPreviewResolve = vi.fn().mockResolvedValue({ status: "ready", preview: { groupCount: 1, keepCount: 1, deleteCount: 1, reclaimableBytes: 4096, verificationStatus: "file_versions_current" } });
+    render(<DuplicateGroupsPage {...baseProps()} onManualDelete={onManualDelete} onPreviewResolve={onPreviewResolve} onSubmitCleanup={onSubmitCleanup} />);
+    fireEvent.click(screen.getByRole("button", { name: "删除 clip-copy.mp4" }));
+    expect(screen.getByRole("alertdialog", { name: "确认删除这一个重复文件？" })).toHaveTextContent("clip-copy.mp4");
+    expect(onManualDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "确认删除此文件" }));
+    await waitFor(() => expect(onManualDelete).toHaveBeenCalledWith(duplicateVideo));
+    expect(onPreviewResolve).toHaveBeenCalledWith({ groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }] });
+    expect(onSubmitCleanup).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog", { name: "确认删除这一个重复文件？" })).not.toBeInTheDocument();
   });
 
-  it("allows manual deletion of the currently selected keep file by preserving another group member", async () => {
-    const onSubmitCleanup = vi.fn().mockResolvedValue({ jobId: "job-keep", requestId: "request-keep", status: "queued", totalGroups: 1, totalItems: 1, plannedReclaimableBytes: 1024 });
-    render(<DuplicateGroupsPage {...baseProps()} onSubmitCleanup={onSubmitCleanup} />);
-    fireEvent.click(screen.getByRole("button", { name: "核对后删除 clip.mp4" }));
+  it("can delete the planned keep file only while retaining a different copy", async () => {
+    const onManualDelete = vi.fn().mockResolvedValue(undefined);
+    const onPreviewResolve = vi.fn().mockResolvedValue({ status: "ready", preview: { groupCount: 1, keepCount: 1, deleteCount: 1, reclaimableBytes: 1024, verificationStatus: "file_versions_current" } });
+    render(<DuplicateGroupsPage {...baseProps()} onManualDelete={onManualDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "删除 clip.mp4" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认删除此文件" }));
+    await waitFor(() => expect(onManualDelete).toHaveBeenCalledWith(video));
+    expect(onPreviewResolve).toHaveBeenCalledWith({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
+  });
 
-    await waitFor(() => expect(onSubmitCleanup).toHaveBeenCalledOnce());
-    expect(onSubmitCleanup.mock.calls[0][1]).toEqual({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
+  it("cleans only the displayed page after one confirmation and preserves the chosen keep item", async () => {
+    const onManualBatchDelete = vi.fn().mockResolvedValue({ successCount: 1, failureCount: 0, reclaimedBytes: 1024, failures: [] });
+    const onPreviewResolve = vi.fn().mockResolvedValue({ status: "ready", preview: { groupCount: 1, keepCount: 1, deleteCount: 1, reclaimableBytes: 1024, verificationStatus: "file_versions_current" } });
+    render(<DuplicateGroupsPage {...baseProps()} page={3} totalPages={5} onManualBatchDelete={onManualBatchDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "设为计划保留" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（1 个文件）" }));
+
+    const confirmation = screen.getByRole("alertdialog", { name: "确认清理当前页重复文件？" });
+    expect(confirmation).toHaveTextContent("当前第 3 页");
+    expect(confirmation).toHaveTextContent("每组保留计划选中的一份");
+    expect(onManualBatchDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 1 个文件" }));
+    await waitFor(() => expect(onManualBatchDelete).toHaveBeenCalledWith([video]));
+    expect(onPreviewResolve).toHaveBeenCalledWith({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
+    expect(await screen.findByRole("dialog", { name: "批量清理结果" })).toHaveTextContent("成功删除 1 个文件");
+  });
+
+  it("splits a large current-page cleanup into bounded batches without touching keep items", async () => {
+    const pageGroups = Array.from({ length: 101 }, (_, i) => ({
+      ...groups[0], groupKey: `group-${i}`, recommendedKeepVideoId: `keep-${i}`,
+      items: [
+        { ...groups[0].items[0], video: { ...video, id: `keep-${i}`, filename: `keep-${i}.mp4` } },
+        { ...groups[0].items[1], video: { ...duplicateVideo, id: `delete-${i}`, filename: `delete-${i}.mp4` } }
+      ]
+    }));
+    const onManualBatchDelete = vi.fn(async (videos: VideoRecord[]) => ({ successCount: videos.length, failureCount: 0, reclaimedBytes: videos.reduce((sum, v) => sum + v.sizeBytes, 0), failures: [] }));
+    const onPreviewResolve = vi.fn().mockResolvedValue({ status: "ready", preview: { groupCount: 101, keepCount: 101, deleteCount: 101, reclaimableBytes: 101 * 4096, verificationStatus: "file_versions_current" } });
+    render(<DuplicateGroupsPage {...baseProps()} groups={pageGroups} pageSize={200} totalGroups={101} onManualBatchDelete={onManualBatchDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（101 个文件）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 101 个文件" }));
+    await waitFor(() => expect(onManualBatchDelete).toHaveBeenCalledTimes(2));
+    expect(onManualBatchDelete.mock.calls[0][0]).toHaveLength(100);
+    expect(onManualBatchDelete.mock.calls[1][0]).toHaveLength(1);
+    expect(onManualBatchDelete.mock.calls.flatMap(([videos]) => videos).every((video: VideoRecord) => video.id.startsWith("delete-"))).toBe(true);
+  });
+
+  it("aborts manual deletion when the preflight finds changed media", async () => {
+    const changedItem = {
+      videoId: "delete", filename: "clip-copy.mp4", path: duplicateVideo.path, changeType: "size-changed",
+      previousSizeBytes: duplicateVideo.sizeBytes, currentSizeBytes: 123,
+      previousModifiedAt: duplicateVideo.modifiedAt, currentModifiedAt: duplicateVideo.modifiedAt, message: "大小变化"
+    };
+    const onManualDelete = vi.fn();
+    const onPreviewResolve = vi.fn().mockResolvedValue({ status: "stale", changedItems: [changedItem] });
+    render(<DuplicateGroupsPage {...baseProps()} onManualDelete={onManualDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "删除 clip-copy.mp4" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认删除此文件" }));
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "检测到文件状态变化" })).toBeInTheDocument());
+    expect(onManualDelete).not.toHaveBeenCalled();
+  });
+
+  it("keeps manual deletion available for mounted files without a CloudDrive API identity", () => {
+    const unboundGroups: DuplicateGroup[] = [{ ...groups[0], items: [
+      groups[0].items[0], { ...groups[0].items[1], canAutoDelete: false }
+    ] }];
+    render(<DuplicateGroupsPage {...baseProps()} groups={unboundGroups} onManualDelete={vi.fn()} onPreviewResolve={vi.fn()} onManualBatchDelete={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "删除 clip-copy.mp4" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "清理当前页（1 个文件）" })).toBeEnabled();
+  });
+
+  it("never deletes a manually selected file when its confirmation is cancelled", () => {
+    const onManualDelete = vi.fn();
+    const onPreviewResolve = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} onManualDelete={onManualDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "删除 clip-copy.mp4" }));
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(onPreviewResolve).not.toHaveBeenCalled();
+    expect(onManualDelete).not.toHaveBeenCalled();
   });
 
   it("does not expose the retired direct resolve fallback", () => {
