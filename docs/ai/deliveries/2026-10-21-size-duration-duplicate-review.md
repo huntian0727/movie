@@ -29,7 +29,11 @@ status: partial
 - 针对重复清理六个测试文件：132/132 PASS。首轮有 1 个中文提示断言不匹配，修复后复跑全通过。
 - `npm run lint`：PASS（项目 lint 对应 TypeScript 类型检查）。
 - `npm run test:node`：142/144 个文件通过，1329/1332 项通过；3 项 FAIL，均为既有发行审批证据和项目版本不一致：发行批准文件记录 0.1.15，但项目版本 0.1.16；public beta 测试仍断言 0.1.15；正式 release 审批的 package-lock 校验哈希不一致。本次不更新批准材料、不改变发行边界。
-- 日常桌面打包与快捷方式启动验收将在完成时补记实际结果，不预先标记通过。
+- `npm run package:development`：PASS。构建、NativeHost、Electron ABI 及原生 SQLite smoke、Windows x64 本地桌面打包通过。
+- 更新前本地旧程序备份：`.tmp/daily-rollback-size-duration-20261021-014932/`，确认保留原 `resources/app.asar`。
+- 日常桌面包 `release/win-unpacked/拉面影视.exe`：构建时间 2026-10-21 01:50:38，`app.asar` 01:50:37，构建标记 commit `664c1cd`、`workspaceDirty=false`，与本次交付代码一致。
+- 用户桌面快捷方式 `拉面影视.lnk` 的真实目标与新 exe 一致；通过该快捷方式成功启动，观察到 4 个程序进程。
+- 没有对用户真实重复视频执行人工永久删除端到端测试：NOT RUN；GUI 实际“重新核对”点击仍需用户验收。
 - 真正对网盘视频执行实际删除：NOT RUN（未授权进行真实数据破坏性测试）。
 
 ## Risks and follow-up
@@ -37,7 +41,7 @@ status: partial
 - 按整秒时长归一化和精确大小相同，不等于内容逐字节一致；程序必须让用户核对所保留的文件，不得默认自动删除。
 - 以前因无法完成 SHA 而失败的历史任务可能需要“重新核对大小与时长”或新建清理任务；旧的 workflowVersion=3 快速删除任务仍安全失效。
 - CloudDrive 挂载异常、文件元数据变更与虚拟文件身份不稳定仍可能被安全保护拒绝，不应绕过。
-- 桌面包需重新生成并校验真实快捷方式，GitHub Push/Release 未获授权，保持暂停。
+- 桌面包已重新生成并通过真实桌面快捷方式启动；仅对启动和包完整性完成验证，不代表网盘重复删除实机验收通过。GitHub Push/Release 未获授权，保持暂停。
 
 ## Documentation and release impact
 
