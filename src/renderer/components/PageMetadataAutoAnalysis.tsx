@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { VideoRecord } from "../../shared/videoTypes";
+
+const PAGE_ANALYSIS_WORKERS = 2;
+
+type FailedRetryBatch = { pageIdentity: string; ids: string[] };
 
 /**
  * Only owns requests created by this page. Cancelling an old page must never
@@ -15,19 +19,35 @@ export function PageMetadataAutoAnalysis({
 }) {
   const [enabled, setEnabled] = useState(false);
   const [documentVisible, setDocumentVisible] = useState(() => !document.hidden);
-  const [currentId, setCurrentId] = useState<string | null>(null);
-  const [attempted, setAttempted] = useState<Record<string, boolean>>({});
+  const [activeIds, setActiveIds] = useState<string[]>([]);
+  const [retryingIds, setRetryingIds] = useState<string[]>([]);
+  const [retryBatch, setRetryBatch] = useState<FailedRetryBatch | null>(null);
+  const [attemptedVersion, setAttemptedVersion] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const attemptedRef = useRef<{ pageIdentity: string; ids: Record<string, boolean> }>({ pageIdentity: "", ids: {} });
   const api = window.videoManager;
   const eligibleIds = useMemo(() => videos.filter((video) =>
     !video.isMissing && video.sizeBytes > 0 && video.metadataStatus === "pending"
   ).map((video) => video.id), [videos]);
-  const eligibleKey = eligibleIds.join("|");
+  const retryableFailedVideos = useMemo(() => videos.filter((video) =>
+    !video.isMissing && video.sizeBytes > 0 && video.metadataStatus === "failed"
+  ), [videos]);
   const pageIds = videos.map((video) => video.id).join("|");
+  const pageIdentity = `${scopeKey}\u0000${pageIds}`;
+  // Reset synchronously when the user navigates to a different page/scope.
+  if (attemptedRef.current.pageIdentity !== pageIdentity) {
+    attemptedRef.current = { pageIdentity, ids: {} };
+  }
+  const candidates = useMemo(() => eligibleIds.filter((id) => !attemptedRef.current.ids[id]),
+    [eligibleIds, attemptedVersion, pageIdentity]);
   const completed = videos.filter((video) => video.metadataStatus === "ready").length;
-  const unavailable = videos.filter((video) => video.isMissing || video.sizeBytes <= 0 || video.metadataStatus === "failed").length;
-  const candidates = eligibleIds.filter((id) => !attempted[id]);
+  const unanalysableCount = videos.filter((video) => video.isMissing || video.sizeBytes <= 0).length;
   const canRun = enabled && active && !pageLoading && documentVisible && Boolean(api?.loadPreviewMetadata);
+  const retryBatchCurrent = retryBatch?.pageIdentity === pageIdentity;
+  const retryBusy = retryBatchCurrent && retryingIds.length > 0;
+  const autoWorkPending = enabled && candidates.length > 0;
+  const retryDisabled = !api?.loadPreviewMetadata || retryableFailedVideos.length === 0 ||
+    Boolean(retryBatch) || retryingIds.length > 0 || activeIds.length > 0 || autoWorkPending || pageLoading;
 
   useEffect(() => {
     const updateVisibility = () => setDocumentVisible(!document.hidden);
@@ -35,55 +55,162 @@ export function PageMetadataAutoAnalysis({
     return () => document.removeEventListener("visibilitychange", updateVisibility);
   }, []);
 
-  // Identity tracks navigation and video IDs rather than video objects / refresh events.
-  // Completed tasks stay cached in SQLite; only requests owned by this page are cancelled.
   useEffect(() => {
     if (!canRun || !api || candidates.length === 0) {
-      setCurrentId(null);
+      setActiveIds([]);
       return;
     }
+
     let disposed = false;
-    let requestId: string | null = null;
+    let nextIndex = 0;
+    const requestIds = new Set<string>();
+    const workerCount = Math.min(PAGE_ANALYSIS_WORKERS, candidates.length);
+
+    const worker = async () => {
+      while (!disposed) {
+        const videoId = candidates[nextIndex++];
+        if (!videoId) return;
+
+        const requestId = crypto.randomUUID();
+        requestIds.add(requestId);
+        setActiveIds((current) => current.includes(videoId) ? current : [...current, videoId]);
+        try {
+          const video = await api.loadPreviewMetadata({ requestId, videoId, retry: false });
+          if (disposed) return;
+          attemptedRef.current.ids[videoId] = true;
+          setAttemptedVersion((version) => version + 1);
+          if (!video || video.metadataStatus === "pending") {
+            setNotice("部分文件未完成分析，可稍后重试");
+          }
+        } catch (error: unknown) {
+          if (disposed) return;
+          attemptedRef.current.ids[videoId] = true;
+          setAttemptedVersion((version) => version + 1);
+          setNotice(error instanceof Error ? error.message : "当前视频分析请求失败");
+        } finally {
+          requestIds.delete(requestId);
+          if (!disposed) setActiveIds((current) => current.filter((id) => id !== videoId));
+        }
+      }
+    };
+
     const timer = window.setTimeout(() => {
       if (disposed) return;
-      const videoId = candidates[0]!;
-      requestId = crypto.randomUUID();
-      setCurrentId(videoId);
       setNotice(null);
-      void api.loadPreviewMetadata({ requestId, videoId, retry: false })
-        .then((video) => {
-          if (disposed) return;
-          setAttempted((current) => ({ ...current, [videoId]: true }));
-          if (!video || video.metadataStatus === "pending") setNotice("部分文件未完成分析，可稍后重新开启重试");
-        })
-        .catch((error: unknown) => {
-          if (disposed) return;
-          setAttempted((current) => ({ ...current, [videoId]: true }));
-          setNotice(error instanceof Error ? error.message : "当前视频分析请求失败");
-        })
-        .finally(() => { if (!disposed) setCurrentId(null); });
+      // Keep two requests in flight so the bounded main-process queue stays fed.
+      // MediaReadBudget still caps total reads and serializes reads from one cloud source.
+      void Promise.all(Array.from({ length: workerCount }, () => worker()));
     }, 300);
+
     return () => {
       disposed = true;
       window.clearTimeout(timer);
-      if (requestId) void api.cancelPreviewMetadata(requestId).catch(() => undefined);
+      for (const requestId of requestIds) {
+        void api.cancelPreviewMetadata(requestId).catch(() => undefined);
+      }
     };
-  // A refreshed page can remove completed IDs. Never depend on entire video objects.
-  }, [api, canRun, scopeKey, pageIds, eligibleKey, candidates.join("|")]);
+  // Deliberately exclude candidates/metadata status: a completion must not cancel its sibling worker.
+  // Page identity and run eligibility are the cancellation boundaries.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, canRun, scopeKey, pageIds]);
 
-  useEffect(() => { setAttempted({}); setNotice(null); }, [scopeKey, pageIds]);
+  // Failed items are retried only after an explicit click. Zero-byte/missing items
+  // are excluded because they need a source/size repair, not another FFprobe run.
+  useEffect(() => {
+    if (!retryBatch || retryBatch.pageIdentity !== pageIdentity || !api?.loadPreviewMetadata || retryBatch.ids.length === 0) return;
+
+    let disposed = false;
+    let nextIndex = 0;
+    let attempted = 0;
+    let completedCount = 0;
+    let unresolvedCount = 0;
+    let lastError: string | null = null;
+    const ids = [...new Set(retryBatch.ids)];
+    const requestIds = new Set<string>();
+    const workerCount = Math.min(PAGE_ANALYSIS_WORKERS, ids.length);
+
+    const worker = async () => {
+      while (!disposed) {
+        const videoId = ids[nextIndex++];
+        if (!videoId) return;
+        const requestId = crypto.randomUUID();
+        requestIds.add(requestId);
+        setRetryingIds((current) => current.includes(videoId) ? current : [...current, videoId]);
+        try {
+          const video = await api.loadPreviewMetadata({ requestId, videoId, retry: true });
+          if (disposed) return;
+          attemptedRef.current.ids[videoId] = true;
+          setAttemptedVersion((version) => version + 1);
+          attempted += 1;
+          if (video?.metadataStatus === "ready") completedCount += 1;
+          else unresolvedCount += 1;
+        } catch (error: unknown) {
+          if (disposed) return;
+          attemptedRef.current.ids[videoId] = true;
+          setAttemptedVersion((version) => version + 1);
+          attempted += 1;
+          unresolvedCount += 1;
+          lastError = error instanceof Error ? error.message : "请求失败";
+        } finally {
+          requestIds.delete(requestId);
+          if (!disposed) setRetryingIds((current) => current.filter((id) => id !== videoId));
+        }
+      }
+    };
+
+    const timer = window.setTimeout(() => {
+      setNotice(null);
+      void Promise.all(Array.from({ length: workerCount }, () => worker())).then(() => {
+        if (disposed) return;
+        if (unresolvedCount > 0) {
+          setNotice(`已重试 ${attempted} 部，成功 ${completedCount} 部，仍有 ${unresolvedCount} 部未恢复。${lastError ? ` 最近错误：${lastError}` : "可查看失败原因后再决定是否重试。"}`);
+        } else {
+          setNotice(`重试完成：${completedCount} 部视频分析成功。`);
+        }
+        setRetryBatch(null);
+      });
+    }, 0);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+      for (const requestId of requestIds) {
+        void api.cancelPreviewMetadata(requestId).catch(() => undefined);
+      }
+    };
+  }, [api, pageIdentity, retryBatch]);
+
+  useEffect(() => {
+    setNotice(null);
+    setActiveIds([]);
+    setRetryingIds([]);
+    setRetryBatch(null);
+  }, [scopeKey, pageIds]);
 
   if (!active) return null;
   return <div className="batch-toolbar page-metadata-auto" role="region" aria-label="本页自动分析"
     style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: "8px 12px" }}>
-    <button type="button" aria-pressed={enabled} onClick={() => { setEnabled((value) => !value); setAttempted({}); }}>
+    <button type="button" aria-pressed={enabled} onClick={() => {
+      attemptedRef.current.ids = {};
+      setAttemptedVersion((version) => version + 1);
+      setEnabled((value) => !value);
+    }}>
       {enabled ? "关闭本页自动分析" : "开启本页自动分析"}
     </button>
     <span role="status">
-      本页 {videos.length} 部 · 已就绪 {completed} · 待分析 {eligibleIds.length} · 不可分析/失败 {unavailable}
+      本页 {videos.length} 部 · 已就绪 {completed} · 待分析 {eligibleIds.length} · 缺失/0B不可分析 {unanalysableCount} · 失败可重试 {retryableFailedVideos.length}
       {enabled ? pageLoading ? " · 等待页面加载" : !documentVisible ? " · 窗口暂不可见" :
-        currentId ? " · 正在处理 1 部" : candidates.length === 0 ? " · 本页处理完毕" : " · 等待排队" : " · 默认关闭"}
+        activeIds.length ? ` · 正在处理 ${activeIds.length} 部` : candidates.length === 0 ? " · 本页处理完毕" : " · 等待排队" : " · 默认关闭"}
+      {retryBusy ? ` · 正在重试 ${retryingIds.length} 部失败视频` : ""}
     </span>
+    <button type="button" disabled={retryDisabled} title="仅重试当前页中存在且大小有效的分析失败视频"
+      onClick={() => {
+        setNotice(null);
+        setRetryBatch({ pageIdentity, ids: retryableFailedVideos.map((video) => video.id) });
+      }}>
+      {retryBatch ? "正在重试失败项…" : `重试本页失败项（${retryableFailedVideos.length}）`}
+    </button>
+    {unanalysableCount > 0 && <small>缺失文件需先恢复访问；0B 文件需先重新读取大小，不会反复执行无效分析。</small>}
     {notice && <small role="alert">{notice}</small>}
   </div>;
 }
