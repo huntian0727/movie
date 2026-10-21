@@ -61,8 +61,8 @@ status: prepared-with-blockers
 2. 此预检只检查隔离 `unsigned-test-build`，不能批准公开 `unsigned-public-release`。
 3. `build/release-approval.json` 仍绑定 0.1.15；当前 `package.json` 是 0.1.16。
 4. 批准的 `package-lock.json` SHA-256 为 `7d1bdecc332cb95c412787953d0cd80b682a14aa1d3109459dc4865a78ba3e0c`，当前为 `06e88837cf56f399e173652a833d0008c011032a25dc91f4eea6ffff3158ecf1`。
-5. 本轮 QA ZIP 使用的 `source-candidate` 仍未批准：`scripts/native-source-media.lock.json` 与 `scripts/native-source-player-runtime.lock.json` 标记 `CANDIDATE_NOT_APPROVED` / `distributable=false`；其固定产物来自 `dac070da604a12acb2eeedccb4993f1ebc52e001`，上游生产 CI 为 FAIL，`originalCiClosureValid=false`，原因为打包器未识别 `CFGMGR32.dll` 与 `SHCORE.dll`。当前工作树已在 `scripts/native-source-build.py` 中加入这两个 Windows 系统导入，并由 `tests/scripts/native_source_build_test.py` 覆盖分类，但没有为此修复生成新二进制/成功 CI 证据；需要在获准提交和 CI 运行后重新构建并核对，不得改写旧锁。另一个 `lite-candidate` 同样未批准，存在 GCC Runtime Library Exception 通知、静态 FFmpeg LGPL 重链接与组件级许可待决问题。
-6. 稳定 Windows 11 与标准用户覆盖尚未完成并由所有者批准；现有隔离沙盒证据只证明其声明范围。
+5. 本轮 QA ZIP 使用的 `source-candidate` 仍未批准：`scripts/native-source-media.lock.json` 与 `scripts/native-source-player-runtime.lock.json` 标记 `CANDIDATE_NOT_APPROVED` / `distributable=false`。旧生产 run `38134981406` 为 FAIL，原因为导入闭包未识别 `CFGMGR32.dll` 与 `SHCORE.dll`；后续私有构建 run `39598671777` 也失败，但失败点已定位到 MPV 编译时 FFmpeg 的 `AVStream` 弃用警告被 `-Werror=deprecated-declarations` 当成错误。上游 shell 配方未传播编译失败，随后尝试打包不存在的 `libmpv-2.dll`。本地工作树已增加定向警告兼容处理与 fail-fast 修复，13+10+6=29 项源码构建专项测试通过；尚未由 CI 重建验证，也没有新候选二进制。不得改写旧锁或批准 JSON。`lite-candidate` 同样未批准，存在 GCC Runtime Library Exception 通知、静态 FFmpeg LGPL 重链接与组件级许可待决问题。
+6. 稳定 Windows 11 与标准用户覆盖尚未完成并由所有者批准；现有隔离沙盒证据只证明其声明范围。旧原生批准 `approved=true` 仅覆盖 run 38134981406 的精确旧哈希，不覆盖本轮新候选；详见 `docs/legal/NATIVE-SOURCE-APPROVAL-SCOPE-ADDENDUM.md`。
 7. 历史发行批准绑定的版本、依赖锁与 QA 证据不能自动延伸到新候选。
 8. FFmpeg 静态链接 LGPL 义务及组件级许可处置仍未完成审核。
 
@@ -85,3 +85,9 @@ status: prepared-with-blockers
 1. 私有 QA portable ZIP 的构建、`verify:zip` 双阶段 packaged smoke 与 `release:metadata -- --portable` 均已完成。
 2. 公开发行仍需所有者重新批准 0.1.16 精确版本/lockfile、完成原生媒体许可与分发审批、稳定 Windows/标准用户覆盖，以及最终人工体验；真实 CloudDrive/115 删除验收继续按用户要求暂缓。
 3. 不要求用户现在中断手头工作；待人工有空时按以上清单验收，获得明确发布授权后再进行公开发行。
+
+## 原生源码候选构建追查补充（2026-10-21）
+
+- 私有 run `39598671777` 已结束且失败；完整记录见 https://github.com/huntian0727/movie/actions/runs/39598671777。失败原因为 FFmpeg 的 `AVStream.nb_streams` / `AVStream.streams` 弃用警告被 MPV 的 `-Werror=deprecated-declarations` 当作错误；上游 shell 脚本又吞掉编译失败状态，后续才报缺少 `libmpv-2.dll`。
+- 本地未推送修复：`scripts/native-source-build.py` 仅给 MPV 的 `CFLAGS` 加入 `-Wno-error=deprecated-declarations`，并在 `meson compile` 失败时立即退出。它没有关闭所有警告或全局 `werror`。固定上游配方 SHA-256 核验通过，`npm run test:native-source-build` 的 29 项专项测试通过。
+- 本地修复尚未进入 GitHub Actions，未生成新的原生运行库，也未修改媒体/播放器锁或批准 JSON。后续需在获准推送后重跑私有构建，再审查闭包、哈希和源码证据；不推送、不打 tag、不发布。

@@ -15,13 +15,13 @@
 - 使用私有 FFmpeg-Lite REVIEW-v2 ZIP 重跑 `audit-release-readiness.mjs`，源码 ZIP 哈希核验 PASS（239,488,121 字节，SHA-256 `6ed202c4e30627624e2678a2a62e7c9c6e347be4a57d9b6af248fd45571b15d4`），但总结果 `OUTCOME=BLOCKED`。除旧审批绑定 0.1.15、package-lock 哈希不匹配、稳定 Windows/标准用户覆盖未获批准外，本轮 ZIP 所用 `source-candidate` 原生媒体锁仍为 `CANDIDATE_NOT_APPROVED`，上游生产 CI 为 FAIL、`originalCiClosureValid=false`；本地打包 smoke 不能覆盖此问题。旧 `lite-candidate` 也仍未批准，静态 LGPL/组件级许可存在待决项。当前私有安装器哈希不在历史 QA 批准记录中；该审计本身不能批准公开包。
 - 私有 `unsigned-community-qa` 绿色 ZIP 已通过 `dist:zip`、`npm run verify:zip` 和 `npm run release:metadata -- --portable`；229 个文件逐项校验、双阶段 packaged smoke PASS。SHA-256：`4d8f099bf436ed3f1ac46bebe3020672786d66de4c49fb56820f15e848e9e9d1`，构建 commit `bbc1a42ca4784bda1fee788f9ee3256b781900a7`；未签名、`publicReleaseApproved=false`，仅私有 QA。
 - 没有推送 GitHub、创建/推送 tag、上传或发布 Release。没有运行真实 CloudDrive/115 删除；遵守用户要求，将真实远端删除与播放器/字幕人工体验留到最后。
-- 完整证据与下一步：`docs/ai/deliveries/2026-10-21-release-candidate-prep.md`。**禁止通过编辑审批文件、改哈希、改名 QA 包来绕过发行阻塞。**
+- 当前本地分支为 `ai/native-source-closure-fix`，基于远端 `ai/traceable-player-runtime` 的 commit `757348117960dc2e184a9c1ad5facbeca2cf2d0f`；本轮修复仅在本地分支提交，不推送。原生构建 run `39598671777` 失败于 MPV/FFmpeg 弃用警告被 `-Werror` 当作错误；本地修复仅对该类警告取消“视为错误”，并修复上游配方吞掉 Meson 失败状态的问题。固定上游配方哈希核验通过，`npm run test:native-source-build` 13+10+6=29 项通过；新代码尚无 CI 重建结果。审批范围澄清：旧 `build/native-source-approval.json` 的 `approved=true` 精确绑定 38134981406 的旧锁/ZIP/源码哈希；不授权 0.1.16 新候选。`build/public-test-approval.json` 仅针对 0.1.15-beta.3，`build/release-approval.json` 仅针对 0.1.15。详见 `docs/legal/NATIVE-SOURCE-APPROVAL-SCOPE-ADDENDUM.md`。完整证据与下一步：`docs/ai/deliveries/2026-10-21-release-candidate-prep.md`。**禁止通过编辑审批文件、改哈希、改名 QA 包来绕过发行阻塞。**
 
 ## 之前的 v1.2 功能 QA 进展
 
 ## 最新进展（2026-10-21 夜间：隔离安装验收）
 
-- 当前分支：`ai/release-metadata-display-version`；界面版本仍 v1.2、技术包版本 0.1.16。开发前 checkpoint `checkpoint-20261021-174629-b0f1296-release-metadata-display-version`（local-only）。
+- 本阶段起始分支：`ai/release-metadata-display-version`；界面版本 v1.2、技术包版本 0.1.16。开发前 checkpoint `checkpoint-20261021-174629-b0f1296-release-metadata-display-version`（local-only）。
 - 修复 `scripts/write-release-metadata.mjs`：预期 BuildFlavor 补入唯一来源的 `displayVersion`，解决元数据严格匹配失败。
 - 在独立 detached worktree 构建当前 0.1.16 私有 unsigned QA 安装包；`dist:win`、`release:metadata`、`verify:artifact` 均 PASS。
 - `test:installer-smoke` PASS：隔离安装、修复、拒绝误删数据、卸载；合成 SQLite/视频哨兵保留，正式注册信息与快捷方式未变。
@@ -71,7 +71,7 @@
 ## 当前基线
 
 - 家用电脑：`MP2T8QB5`；仓库：`C:\Users\test\Documents\视频管理\movie`。
-- 当前分支：`ai/release-metadata-display-version`（发行元数据脚本与交接文档）；本轮基线 `b0f1296`，应用仍以 `c79402c1f904e80b7188eb1d313c101b2ad96ba0` 为 v1.2 功能构建。原 v1.2 功能完成于 `ai/duplicate-queued-list-ux`。
+- 当时分支：`ai/release-metadata-display-version`（发行元数据脚本与交接文档）；本轮基线 `b0f1296`，应用仍以 `c79402c1f904e80b7188eb1d313c101b2ad96ba0` 为 v1.2 功能构建。原 v1.2 功能完成于 `ai/duplicate-queued-list-ux`。
 - 功能实现提交：`c79402c1f904e80b7188eb1d313c101b2ad96ba0`（`feat: hide queued duplicate videos and exit completed folder scope`）。之后新增文档交接提交和隔离故障联动测试提交；新会话开始时请以 `git rev-parse HEAD` 读取最新 HEAD，不要依赖本文件里的固定 HEAD 值。
 - 本轮变更范围为发行预检与元数据脚本、对应单测和交接文档；不改桌面程序。交付后以 `git status --short` 核实工作区干净。
 - 用户可见版本：`v1.2`；技术包版本仍为 `0.1.16`。
