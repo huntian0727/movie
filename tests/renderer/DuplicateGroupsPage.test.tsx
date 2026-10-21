@@ -396,6 +396,20 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(onReviewedDelete).toHaveBeenCalledTimes(1);
   });
 
+  it("skips redundant mounted-filesystem preflight when the reviewed main-process route is available", async () => {
+    const onPreviewResolve = vi.fn().mockRejectedValue(new Error("Mounted filesystem stat too slow"));
+    const onReviewedDelete = vi.fn().mockResolvedValue({
+      groupCount: 1, keepCount: 1, successCount: 1, failureCount: 0,
+      reclaimedBytes: duplicateVideo.sizeBytes, failures: []
+    });
+    render(<DuplicateGroupsPage {...baseProps()} onReviewedDelete={onReviewedDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（1 个文件）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 1 个文件" }));
+    await waitFor(() => expect(onReviewedDelete).toHaveBeenCalledOnce());
+    expect(onPreviewResolve).not.toHaveBeenCalled();
+    expect(await screen.findByRole("dialog", { name: "批量清理结果" })).toHaveTextContent("已确认删除 1 个文件");
+  });
+
   it("shows reviewed main-process safety rejections as acknowledged failures, not unknown transport errors", async () => {
     const onReviewedDelete = vi.fn().mockResolvedValue({
       groupCount: 1, keepCount: 1, successCount: 0, failureCount: 1,

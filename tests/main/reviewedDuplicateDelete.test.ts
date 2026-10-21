@@ -84,7 +84,7 @@ describe("explicit reviewed duplicate deletion, isolated filesystem", () => {
     }, updates)).toBe(2);
     const freshKeep = f.repo.getVideo(f.keep.id);
     const freshDelete = f.repo.getVideo(f.removed.id);
-    const refresh = vi.fn(async () => new Map([
+    const refresh = vi.fn(async (_paths: readonly string[]) => new Map([
       [freshKeep.path, { status: "present" as const, sizeBytes: freshKeep.sizeBytes,
         modifiedAt: freshKeep.modifiedAt, providerFileId: freshKeep.providerFileId!, providerPath: freshKeep.providerPath! }],
       [freshDelete.path, { status: "present" as const, sizeBytes: freshDelete.sizeBytes,
@@ -151,6 +151,153 @@ describe("explicit reviewed duplicate deletion, isolated filesystem", () => {
     });
     const result = await deleteReviewedDuplicatePlan(f.repo, f.queue, f.plan, vi.fn(), vi.fn(), f.remote);
     expect(result).toMatchObject({ successCount: 1, failureCount: 0, reclaimedBytes: 0, recycledCount: 1 });
+  });
+
+  async function cloudBatchFixture(targetCount = 8) {
+    const f = await fixture();
+    const folder = f.repo.listSourceFolders().find((source) => source.id === f.keep.sourceFolderId)!;
+    const records = [f.keep, f.removed];
+    for (let i = 2; i <= targetCount; i++) {
+      const filePath = path.join(path.dirname(f.keepPath), `remove-${i}.mp4`);
+      await writeFile(filePath, Buffer.alloc(16, i));
+      await utimes(filePath, new Date(f.keep.modifiedAt), new Date(f.keep.modifiedAt));
+      const info = await stat(filePath);
+      const parsed = path.parse(filePath);
+      records.push(f.repo.upsertVideo({
+        sourceFolderId: folder.id, path: filePath, directory: parsed.dir,
+        filename: parsed.base, basename: parsed.name, extension: ".mp4",
+        sizeBytes: info.size, durationMs: 5200, width: 640, height: 480,
+        format: "mp4", modifiedAt: info.mtime.toISOString()
+      }));
+    }
+    expect(f.repo.bindCloudDriveVideoIdentities(folder.id, {
+      rootPath: "/115", name: "mock CloudDrive", readOnly: false
+    }, records.map((video) => ({
+      videoId: video.id, expectedPath: video.path, expectedSizeBytes: video.sizeBytes,
+      providerFileId: `provider-${video.id}`,
+      providerPath: `/115/${video.filename}`,
+      providerModifiedAt: video.modifiedAt
+    })))).toBe(targetCount + 1);
+    const keep = f.repo.getVideo(f.keep.id);
+    const targets = records.slice(1).map((video) => f.repo.getVideo(video.id));
+    const currentByLocal = new Map([keep, ...targets].map((video) => [video.path, video]));
+    const remoteFiles = new Set([keep.providerPath!, ...targets.map((video) => video.providerPath!)]);
+    const refresh = vi.fn(async (paths: readonly string[]) => new Map(paths.filter((local) => {
+      const video = currentByLocal.get(local);
+      return video && remoteFiles.has(video.providerPath!);
+    }).map((local) => {
+      const video = currentByLocal.get(local)!;
+      return [local, {
+        status: "present" as const, sizeBytes: video.sizeBytes, modifiedAt: video.modifiedAt,
+        providerFileId: video.providerFileId!, providerPath: video.providerPath!
+      }] as const;
+    })));
+    const remoteDelete = vi.fn(async (paths: readonly string[]) => {
+      if (paths.length !== 1) throw new Error("One target per attributable RPC");
+      remoteFiles.delete(paths[0]!);
+      return { success: true, permanentlyDeleted: true, errorMessage: "", resultFilePaths: [paths[0]!] };
+    });
+    const group = f.repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" }).groups[0];
+    const plan: DuplicateResolvePlan = { groups: [{
+      groupKey: group.groupKey, keepVideoId: keep.id, deleteVideoIds: targets.map((target) => target.id)
+    }] };
+    return { ...f, keep, targets, plan, remoteFiles, remote: {
+      refresh, delete: remoteDelete, binding: vi.fn(() => "stable-cloud-drive")
+    } };
+  }
+
+  it("coalesces fresh remote metadata and caps parallel per-file deletes at three", async () => {
+    const f = await cloudBatchFixture(8);
+    let active = 0, peak = 0;
+    f.remote.delete.mockImplementation(async (paths) => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 8));
+      active--;
+      f.remoteFiles.delete(paths[0]!);
+      return { success: true, permanentlyDeleted: true, errorMessage: "", resultFilePaths: [paths[0]!] };
+    });
+    const result = await deleteReviewedDuplicatePlan(f.repo, f.queue, f.plan, vi.fn(), vi.fn(), f.remote);
+    expect(result).toMatchObject({ successCount: 8, failureCount: 0, uncertainCount: 0, reclaimedBytes: 128 });
+    expect(peak).toBe(3);
+    expect(f.remote.delete).toHaveBeenCalledTimes(8);
+    expect(f.remote.delete.mock.calls.every(([paths]) => paths.length === 1)).toBe(true);
+    // Old logic did one initial refresh + one per target = 9 scans.
+    // New logic is one initial refresh + ceil(8 / 3) = 4.
+    expect(f.remote.refresh).toHaveBeenCalledTimes(4);
+    expect(f.remote.refresh.mock.calls[0][0]).toHaveLength(9);
+    expect(f.repo.getVideo(f.keep.id)).toBeTruthy();
+    expect(await readFile(f.keepPath)).toHaveLength(16);
+  });
+
+  it("waits for the current wave and stops submitting after one unknown reply", async () => {
+    const f = await cloudBatchFixture(8);
+    let issued = 0;
+    f.remote.delete.mockImplementation(async (paths) => {
+      issued++;
+      if (issued === 4) throw new Error("HTTP/2 disconnect");
+      f.remoteFiles.delete(paths[0]!);
+      return { success: true, permanentlyDeleted: true, errorMessage: "", resultFilePaths: [paths[0]!] };
+    });
+    const result = await deleteReviewedDuplicatePlan(f.repo, f.queue, f.plan, vi.fn(), vi.fn(), f.remote);
+    expect(result).toMatchObject({ successCount: 5, failureCount: 0, uncertainCount: 1, unsubmittedCount: 2 });
+    expect(result.uncertainMessage).toContain("停止提交后续");
+    expect(f.remote.delete).toHaveBeenCalledTimes(6);
+    expect(f.repo.getVideo(f.keep.id)).toBeTruthy();
+    expect(f.remoteFiles.has(f.keep.providerPath!)).toBe(true);
+    // Unknown and never-submitted videos remain in the database.
+    expect(f.repo.getVideo(f.targets[3]!.id)).toBeTruthy();
+    expect(f.repo.getVideo(f.targets[7]!.id)).toBeTruthy();
+  });
+
+  it("rejects a changed remote keeper during the second wave before any more deletions", async () => {
+    const f = await cloudBatchFixture(5);
+    const baseline = f.remote.refresh.getMockImplementation()!;
+    let calls = 0;
+    f.remote.refresh.mockImplementation(async (paths) => {
+      calls++;
+      const values = await baseline(paths);
+      if (calls === 3) {
+        const keepLive = values.get(f.keep.path)!;
+        values.set(f.keep.path, { ...keepLive, providerFileId: "different-keeper" });
+      }
+      return values;
+    });
+    const result = await deleteReviewedDuplicatePlan(f.repo, f.queue, f.plan, vi.fn(), vi.fn(), f.remote);
+    expect(result).toMatchObject({ successCount: 3, failureCount: 2, uncertainCount: 0 });
+    expect(f.remote.delete).toHaveBeenCalledTimes(3);
+    expect(f.repo.getVideo(f.keep.id)).toBeTruthy();
+  });
+
+  it("treats a rejected remote delete as a retryable failure only when the same remote object still exists", async () => {
+    const f = await cloudFixture();
+    f.remote.delete.mockResolvedValueOnce({
+      success: false, permanentlyDeleted: false, errorMessage: "Remote permission denied", resultFilePaths: []
+    });
+    const result = await deleteReviewedDuplicatePlan(f.repo, f.queue, f.plan, vi.fn(), vi.fn(), f.remote);
+    expect(result).toMatchObject({ successCount: 0, failureCount: 1, uncertainCount: 0 });
+    expect(result.failures[0]!.message).toContain("permission denied");
+    expect(f.remote.refresh).toHaveBeenCalledTimes(3); // Full, pre-delete, verify no deletion.
+    expect(f.repo.getVideo(f.removed.id)).toBeTruthy();
+  });
+
+  it("marks an API rejection UNKNOWN if the remote target has already disappeared", async () => {
+    const f = await cloudFixture();
+    const baseline = f.remote.refresh.getMockImplementation()!;
+    let calls = 0;
+    f.remote.refresh.mockImplementation(async (paths) => {
+      calls++;
+      const state = await baseline(paths);
+      if (calls === 3) state.delete(f.freshDelete.path);
+      return state;
+    });
+    f.remote.delete.mockResolvedValueOnce({
+      success: false, permanentlyDeleted: false, errorMessage: "partial operation", resultFilePaths: []
+    });
+    const result = await deleteReviewedDuplicatePlan(f.repo, f.queue, f.plan, vi.fn(), vi.fn(), f.remote);
+    expect(result).toMatchObject({ successCount: 0, failureCount: 0, uncertainCount: 1 });
+    expect(result.uncertainMessage).toContain("不能直接重试");
+    expect(f.remote.delete).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an altered keep/delete plan without touching files", async () => {

@@ -415,13 +415,15 @@ export function DuplicateGroupsPage({
     setActionPending(true);
     setActionError(null);
     try {
-      const ready = await preflightManualDelete({ groups: [{ groupKey, keepVideoId, deleteVideoIds: [video.id] }] });
+      // Reviewed main-process IPC performs the authoritative safe preflight.
+      // Avoid duplicate mounted-filesystem stat calls from the renderer.
+      const ready = onReviewedDelete ? true : await preflightManualDelete({ groups: [{ groupKey, keepVideoId, deleteVideoIds: [video.id] }] });
       if (!ready) return;
       let recycledCount = 0;
       if (onReviewedDelete) {
         const result = await onReviewedDelete({ groups: [{ groupKey, keepVideoId, deleteVideoIds: [video.id] }] });
         if (result.successCount !== 1) {
-          throw new Error(result.failures[0]?.message ?? "重复文件未删除，请检查文件状态。");
+          throw new Error(result.uncertainMessage ?? result.failures[0]?.message ?? "重复文件未删除，请检查文件状态。");
         }
         recycledCount = result.recycledCount ?? 0;
       } else {
@@ -440,6 +442,7 @@ export function DuplicateGroupsPage({
       onRefresh?.();
     } catch (cause) {
       setActionError(toDuplicateActionMessage(cause));
+      if (onReviewedDelete) onRefresh?.();
     } finally {
       submitGuardRef.current = false;
       setActionPending(false);
@@ -457,7 +460,9 @@ export function DuplicateGroupsPage({
     setManualProgress({ total: videos.length, processed: 0, success: 0, failed: 0 });
     setManualBatchUncertain(null);
     try {
-      const ready = await preflightManualDelete(deletePlan);
+      // The reviewed-delete handler verifies EVERY keeper and target before
+      // any irreversible action, including a fresh CloudDrive provider lookup.
+      const ready = onReviewedDelete ? true : await preflightManualDelete(deletePlan);
       if (!ready) { setManualProgress(null); return; }
       const failures: DuplicateResolveResult["failures"] = [];
       const groupByVideoId = new Map(deletePlan.groups.flatMap((entry) => entry.deleteVideoIds.map((id) => [id, entry.groupKey] as const)));
