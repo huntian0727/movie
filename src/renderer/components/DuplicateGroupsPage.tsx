@@ -155,6 +155,10 @@ export function DuplicateGroupsPage({
   const [singleDeleteTarget, setSingleDeleteTarget] = useState<{ video: VideoRecord; groupKey: string; keepVideoId: string } | null>(null);
   const [manualPageConfirmOpen, setManualPageConfirmOpen] = useState(false);
   const [manualDeleteStatus, setManualDeleteStatus] = useState("");
+  const [manualProgress, setManualProgress] = useState<{ total: number; processed: number; success: number; failed: number } | null>(null);
+  const [manualBatchUncertain, setManualBatchUncertain] = useState<string | null>(null);
+  const [manualRetrySelection, setManualRetrySelection] = useState<{ plan: DuplicateResolvePlan; videos: VideoRecord[] } | null>(null);
+  const [manualRetryConfirmOpen, setManualRetryConfirmOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [internalSortField, setInternalSortField] = useState<DuplicateGroupSortField>("sizeBytes");
   const [internalSortDirection, setInternalSortDirection] = useState<SortDirection>("desc");
@@ -392,6 +396,7 @@ export function DuplicateGroupsPage({
     setStaleItems(result.changedItems);
     setSingleDeleteTarget(null);
     setManualPageConfirmOpen(false);
+    setManualRetryConfirmOpen(false);
     onRefresh?.();
     return false;
   };
@@ -428,45 +433,87 @@ export function DuplicateGroupsPage({
     }
   };
 
-  const confirmManualPageDelete = async () => {
-    if (!onManualBatchDelete || submitGuardRef.current || actionPending || manualDeleteVideos.length === 0) return;
+  // Use the same safe flow for the first attempt and explicitly approved failed-item retries.
+  // A transport rejection does not prove what happened on the remote host: do NOT replay it.
+  const runManualBatchDelete = async (deletePlan: DuplicateResolvePlan, videos: VideoRecord[]) => {
+    if (!onManualBatchDelete || submitGuardRef.current || actionPending || videos.length === 0) return;
     submitGuardRef.current = true;
     setActionPending(true);
     setActionError(null);
-    setManualDeleteStatus("正在核对当前页文件状态...");
+    setManualDeleteStatus("正在核对文件状态...");
+    setManualProgress({ total: videos.length, processed: 0, success: 0, failed: 0 });
+    setManualBatchUncertain(null);
     try {
-      const ready = await preflightManualDelete(manualPlan);
-      if (!ready) return;
+      const ready = await preflightManualDelete(deletePlan);
+      if (!ready) { setManualProgress(null); return; }
       const failures: DuplicateResolveResult["failures"] = [];
-      const groupByVideoId = new Map(manualPlan.groups.flatMap((entry) => entry.deleteVideoIds.map((id) => [id, entry.groupKey] as const)));
+      const groupByVideoId = new Map(deletePlan.groups.flatMap((entry) => entry.deleteVideoIds.map((id) => [id, entry.groupKey] as const)));
       let successCount = 0;
+      let processed = 0;
       let reclaimedBytes = 0;
-      // Stay below the IPC batch limit and keep each batch's failure details.
-      for (let start = 0; start < manualDeleteVideos.length; start += 100) {
-        const chunk = manualDeleteVideos.slice(start, start + 100);
-        setManualDeleteStatus(`正在清理 ${Math.min(start + chunk.length, manualDeleteVideos.length)} / ${manualDeleteVideos.length} 个文件...`);
-        const result = await onManualBatchDelete(chunk);
+      let uncertain: string | null = null;
+      for (let start = 0; start < videos.length; start += 100) {
+        const chunk = videos.slice(start, start + 100);
+        setManualDeleteStatus(`正在处理第 ${Math.floor(start / 100) + 1} 批：已获得 ${processed} / ${videos.length} 项结果...`);
+        let result: BatchDeleteResult;
+        try {
+          result = await onManualBatchDelete(chunk);
+        } catch (cause) {
+          // Earlier acknowledged batches remain visible. This in-flight batch may
+          // have partially completed: unknown is NOT the same as failed/retryable.
+          uncertain = `第 ${Math.floor(start / 100) + 1} 批（${chunk.length} 项）通信异常，处理结果未知：${toDuplicateActionMessage(cause)}。其后 ${videos.length - start - chunk.length} 项未提交。请先刷新并核实，不能直接重试结果未知的文件。`;
+          break;
+        }
         successCount += result.successCount;
         reclaimedBytes += result.reclaimedBytes;
+        processed += chunk.length;
         for (const failure of result.failures) {
           failures.push({ ...failure, groupKey: groupByVideoId.get(failure.videoId) ?? "" });
         }
+        setManualProgress({ total: videos.length, processed, success: successCount, failed: failures.length });
+      }
+      setManualRetrySelection(null);
+      const failedIds = new Set(failures.map((item) => item.videoId));
+      if (failedIds.size > 0) {
+        const retryPlan: DuplicateResolvePlan = {
+          groups: deletePlan.groups.map((entry) => ({
+            ...entry, deleteVideoIds: entry.deleteVideoIds.filter((id) => failedIds.has(id))
+          })).filter((entry) => entry.deleteVideoIds.length > 0)
+        };
+        setManualRetrySelection({
+          plan: retryPlan,
+          videos: videos.filter((video) => failedIds.has(video.id))
+        });
       }
       setManualPageConfirmOpen(false);
-      setManualDeleteStatus(`当前页清理结束：成功 ${successCount} 个，失败 ${failures.length} 个。`);
+      setManualRetryConfirmOpen(false);
+      setManualBatchUncertain(uncertain);
+      setManualDeleteStatus(uncertain
+        ? `部分完成：已确认删除 ${successCount} 个、失败 ${failures.length} 个，另有结果未知的项目。`
+        : `清理结束：成功 ${successCount} 个、失败 ${failures.length} 个。`);
       setResolveResult({
-        groupCount: manualPlan.groups.length, keepCount: manualPlan.groups.length,
+        groupCount: deletePlan.groups.length, keepCount: deletePlan.groups.length,
         successCount, failureCount: failures.length, reclaimedBytes, failures
       });
       onRefresh?.();
     } catch (cause) {
       setManualDeleteStatus("");
-      setActionError(`当前页清理未完成，请检查列表后再操作：${toDuplicateActionMessage(cause)}`);
+      setManualProgress(null);
+      setActionError(`尚未完成清理，请检查后再操作：${toDuplicateActionMessage(cause)}`);
       onRefresh?.();
     } finally {
       submitGuardRef.current = false;
       setActionPending(false);
     }
+  };
+
+  const confirmManualPageDelete = async () => {
+    setManualRetrySelection(null);
+    await runManualBatchDelete(manualPlan, manualDeleteVideos);
+  };
+  const confirmManualRetry = async () => {
+    if (!manualRetrySelection) return;
+    await runManualBatchDelete(manualRetrySelection.plan, manualRetrySelection.videos);
   };
 
   const handleFilteredAutoDelete = async () => {
@@ -573,7 +620,7 @@ export function DuplicateGroupsPage({
     <OperationFeedback message={taskReadError ? `任务状态读取失败：${taskReadError}。任务不会重复提交。` : null} tone="error" onRetry={() => setTaskReadVersion((current) => current + 1)} />
     <OperationFeedback message={loadError ? `候选列表读取失败：${loadError}` : null} tone="error" onRetry={onRefresh} />
     <OperationFeedback message={actionError} tone="error" onDismiss={() => setActionError(null)} />
-    <OperationFeedback message={manualDeleteStatus || null} tone="success" onDismiss={() => setManualDeleteStatus("")} />
+    {!actionPending && <OperationFeedback message={manualDeleteStatus || null} tone={manualBatchUncertain ? "error" : "success"} onDismiss={() => setManualDeleteStatus("")} />}
     <OperationFeedback message={missingCheckMessage} tone={submittedCleanupJobId ? "info" : "success"} autoDismiss={!submittedCleanupJobId} onDismiss={() => setMissingCheckMessage(null)} />
     {directoryPending && <OperationFeedback message="正在保存优先保留目录..." tone="info" />}
   </>;
@@ -734,6 +781,12 @@ export function DuplicateGroupsPage({
             </select>
           </label>
           <button type="button" onClick={resetSelectionToRecommended}>按推荐选择保留项</button>
+          {onManualBatchDelete && onPreviewResolve && <button className="danger current-page-delete" type="button" disabled={loading || Boolean(loadError) || directoryPending || actionPending || manualDeleteVideos.length === 0} onClick={() => { setActionError(null); setManualDeleteStatus(""); setManualPageConfirmOpen(true); }}>
+            <Trash2 size={16} /> 清理当前页（{manualDeleteVideos.length} 个文件）
+          </button>}
+          <details className="duplicate-advanced-tools" open={!onManualBatchDelete || !onPreviewResolve}>
+            <summary>高级核对与维护工具（可选）</summary>
+            <div className="duplicate-advanced-content">
           {onCheckMissing && <button type="button" className={missingCheckPending ? "is-pending" : undefined} disabled={missingCheckPending || actionPending || groups.length === 0} onClick={() => void handleCheckMissing()}>
             {missingCheckPending ? `正在复查 ${previewFileCount} 个文件...` : "检查缺失文件"}
           </button>}
@@ -751,9 +804,6 @@ export function DuplicateGroupsPage({
             </div>
           )}
           {onLoadCleanupJobs && <button ref={taskCenterOpenerRef} type="button" onClick={() => setTaskCenterOpen(true)}><ListTodo size={16} /> 后台任务 {activeTaskCount}</button>}
-          {onManualBatchDelete && onPreviewResolve && <button className="danger current-page-delete" type="button" disabled={loading || Boolean(loadError) || directoryPending || actionPending || manualDeleteVideos.length === 0} onClick={() => { setActionError(null); setManualDeleteStatus(""); setManualPageConfirmOpen(true); }}>
-            <Trash2 size={16} /> 清理当前页（{manualDeleteVideos.length} 个文件）
-          </button>}
           {onAutoDelete && <button className="danger current-page-delete" type="button" title={`只删除当前第 ${page} 页中可通过 CloudDrive API 处理的候选项`} disabled={loading || Boolean(loadError) || directoryPending || actionPending || fastDeleteCount === 0} onClick={() => void handleAutoDelete(plan, `当前第 ${page} 页清理`)}>
             {actionPending ? "正在创建删除任务..." : `批量删除当前页（${groups.length} 组）`}
           </button>}
@@ -803,6 +853,8 @@ export function DuplicateGroupsPage({
               )}
             </>
           ) : null}
+            </div>
+          </details>
         </div>
       </div>
 
@@ -874,10 +926,35 @@ export function DuplicateGroupsPage({
             <p>确认后先核对当前页的大小、时长和文件状态，再逐项删除；若某文件在执行时变化，只会跳过该文件并显示失败明细，不会强行删除。不会计算视频内容哈希。</p>
             <p>大小、时长一致不保证内容完全一致；请核对每组计划保留项。删除不可撤销，且不会进入回收站。</p>
             {actionError && <p className="dialog-error" role="status">{actionError}</p>}
-            {actionPending && <p role="status">{manualDeleteStatus}</p>}
+            {actionPending && manualProgress && <div className="duplicate-cleanup-progress" role="status">
+              <p>{manualDeleteStatus}</p>
+              <progress aria-label="本次清理进度" max={manualProgress.total} value={manualProgress.processed} />
+              <p>已确认处理 {manualProgress.processed} / {manualProgress.total} · 已删除 {manualProgress.success} · 失败 {manualProgress.failed}</p>
+            </div>}
             <div className="dialog-actions">
               <button type="button" disabled={actionPending} onClick={() => setManualPageConfirmOpen(false)}>取消</button>
               <button className="danger" type="button" disabled={actionPending} onClick={() => void confirmManualPageDelete()}>{actionPending ? "正在核对并清理..." : `确认清理 ${manualDeleteVideos.length} 个文件`}</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {manualRetryConfirmOpen && manualRetrySelection && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setManualRetryConfirmOpen(false); }}>
+          <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-retry-confirm-title">
+            <h3 id="duplicate-retry-confirm-title">确认重新核对失败项？</h3>
+            <p>仅处理上次明确返回失败的 {manualRetrySelection.videos.length} 个文件，不包括已成功删除或通信中结果未知的文件。</p>
+            <p>将重新检查大小、时长、路径、修改时间和文件身份；只有复查通过才会重新尝试永久删除。网盘断连或文件变化时仍会停止。</p>
+            <p>文件删除不可撤销，请先确认保留项和失败文件。</p>
+            {actionError && <p className="dialog-error" role="status">{actionError}</p>}
+            {actionPending && manualProgress && <div className="duplicate-cleanup-progress" role="status">
+              <p>{manualDeleteStatus}</p>
+              <progress aria-label="失败项重试进度" max={manualProgress.total} value={manualProgress.processed} />
+              <p>已确认处理 {manualProgress.processed} / {manualProgress.total} · 已删除 {manualProgress.success} · 失败 {manualProgress.failed}</p>
+            </div>}
+            <div className="dialog-actions">
+              <button type="button" disabled={actionPending} onClick={() => setManualRetryConfirmOpen(false)}>取消</button>
+              <button type="button" className="danger" disabled={actionPending} onClick={() => void confirmManualRetry()}>{actionPending ? "正在核对失败项..." : `确认重试 ${manualRetrySelection.videos.length} 个失败项`}</button>
             </div>
           </section>
         </div>
@@ -916,7 +993,8 @@ export function DuplicateGroupsPage({
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setResolveResult(null); }}>
           <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-result-title">
             <h3 id="duplicate-result-title">批量清理结果</h3>
-            <p>成功删除 {resolveResult.successCount} 个文件，失败 {resolveResult.failureCount} 个，实际释放 {formatBytes(resolveResult.reclaimedBytes)}。</p>
+            <p>已确认删除 {resolveResult.successCount} 个文件，确认失败 {resolveResult.failureCount} 个，实际释放 {formatBytes(resolveResult.reclaimedBytes)}。</p>
+            {manualBatchUncertain && <p role="alert" className="dialog-error">{manualBatchUncertain}</p>}
             {resolveResult.failures.length > 0 && (
               <div className="duplicate-failure-list">
                 {resolveResult.failures.map((failure) => (
@@ -925,6 +1003,9 @@ export function DuplicateGroupsPage({
               </div>
             )}
             <div className="dialog-actions">
+              {manualRetrySelection && manualRetrySelection.videos.length > 0 && <button type="button" disabled={actionPending} onClick={() => { setResolveResult(null); setManualRetryConfirmOpen(true); }}>
+                仅重新核对失败项（{manualRetrySelection.videos.length}）
+              </button>}
               <button type="button" className="primary" onClick={() => setResolveResult(null)}>知道了</button>
             </div>
           </section>

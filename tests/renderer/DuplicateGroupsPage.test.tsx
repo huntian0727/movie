@@ -350,7 +350,7 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "确认清理 1 个文件" }));
     await waitFor(() => expect(onManualBatchDelete).toHaveBeenCalledWith([video]));
     expect(onPreviewResolve).toHaveBeenCalledWith({ groups: [{ groupKey: "fp-1", keepVideoId: "delete", deleteVideoIds: ["keep"] }] });
-    expect(await screen.findByRole("dialog", { name: "批量清理结果" })).toHaveTextContent("成功删除 1 个文件");
+    expect(await screen.findByRole("dialog", { name: "批量清理结果" })).toHaveTextContent("已确认删除 1 个文件");
   });
 
   it("splits a large current-page cleanup into bounded batches without touching keep items", async () => {
@@ -370,6 +370,79 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(onManualBatchDelete.mock.calls[0][0]).toHaveLength(100);
     expect(onManualBatchDelete.mock.calls[1][0]).toHaveLength(1);
     expect(onManualBatchDelete.mock.calls.flatMap(([videos]) => videos).every((video: VideoRecord) => video.id.startsWith("delete-"))).toBe(true);
+  });
+
+  it("shows confirmed batch progress while the backend request is pending", async () => {
+    let resolveBatch!: (result: { successCount: number; failureCount: number; reclaimedBytes: number; failures: [] }) => void;
+    const onManualBatchDelete = vi.fn().mockImplementation(() => new Promise((resolve) => { resolveBatch = resolve; }));
+    const onPreviewResolve = vi.fn().mockResolvedValue({ status: "ready", preview: { groupCount: 1, keepCount: 1, deleteCount: 1, reclaimableBytes: 4096, verificationStatus: "file_versions_current" } });
+    render(<DuplicateGroupsPage {...baseProps()} onManualBatchDelete={onManualBatchDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（1 个文件）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 1 个文件" }));
+    await waitFor(() => expect(onManualBatchDelete).toHaveBeenCalledOnce());
+    expect(screen.getByRole("progressbar", { name: "本次清理进度" })).toHaveAttribute("value", "0");
+    expect(screen.getByText(/已确认处理 0 \/ 1/)).toBeInTheDocument();
+    await act(async () => { resolveBatch({ successCount: 1, failureCount: 0, reclaimedBytes: 4096, failures: [] }); });
+    expect(await screen.findByRole("dialog", { name: "批量清理结果" })).toHaveTextContent("已确认删除 1 个文件");
+  });
+
+  it("keeps advanced maintenance collapsed for normal manual cleanup and opens it only on demand", () => {
+    render(<DuplicateGroupsPage {...baseProps()} onManualBatchDelete={vi.fn()} onPreviewResolve={vi.fn()} onSubmitCleanup={vi.fn()} />);
+    const advanced = screen.getByText("高级核对与维护工具（可选）").closest("details");
+    expect(advanced).not.toHaveAttribute("open");
+    expect(screen.getByRole("button", { name: "清理当前页（1 个文件）" })).toBeVisible();
+    fireEvent.click(screen.getByText("高级核对与维护工具（可选）"));
+    expect(advanced).toHaveAttribute("open");
+    expect(screen.getByRole("button", { name: "验证当前页" })).toBeVisible();
+  });
+
+  it("retries only explicitly failed batch items after a second confirmation and a fresh preflight", async () => {
+    const secondKeep = { ...video, id: "keep2", filename: "keep2.mp4" };
+    const secondDelete = { ...duplicateVideo, id: "delete2", filename: "delete2.mp4" };
+    const twoGroups: DuplicateGroup[] = [...groups, {
+      ...groups[0], groupKey: "fp-2", recommendedKeepVideoId: "keep2",
+      items: [{ ...groups[0].items[0], video: secondKeep }, { ...groups[0].items[1], video: secondDelete }]
+    }];
+    const onPreviewResolve = vi.fn().mockResolvedValue({ status: "ready", preview: { groupCount: 2, keepCount: 2, deleteCount: 2, reclaimableBytes: 8192, verificationStatus: "file_versions_current" } });
+    const onManualBatchDelete = vi.fn()
+      .mockResolvedValueOnce({ successCount: 1, failureCount: 1, reclaimedBytes: 4096, failures: [{ videoId: "delete2", path: secondDelete.path, message: "EACCES: permission denied" }] })
+      .mockResolvedValueOnce({ successCount: 1, failureCount: 0, reclaimedBytes: 4096, failures: [] });
+    render(<DuplicateGroupsPage {...baseProps()} groups={twoGroups} onManualBatchDelete={onManualBatchDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（2 个文件）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 2 个文件" }));
+
+    const firstResult = await screen.findByRole("dialog", { name: "批量清理结果" });
+    expect(firstResult).toHaveTextContent("确认失败 1 个");
+    fireEvent.click(screen.getByRole("button", { name: "仅重新核对失败项（1）" }));
+    expect(screen.getByRole("alertdialog", { name: "确认重新核对失败项？" })).toHaveTextContent("明确返回失败的 1 个文件");
+    expect(onManualBatchDelete).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "确认重试 1 个失败项" }));
+    await waitFor(() => expect(onManualBatchDelete).toHaveBeenCalledTimes(2));
+    expect(onManualBatchDelete.mock.calls[1][0]).toEqual([secondDelete]);
+    expect(onPreviewResolve.mock.calls[1][0]).toEqual({ groups: [{ groupKey: "fp-2", keepVideoId: "keep2", deleteVideoIds: ["delete2"] }] });
+  });
+
+  it("preserves acknowledged batches and marks transport-interrupted batches UNKNOWN without automatic replay", async () => {
+    const manyGroups: DuplicateGroup[] = Array.from({ length: 101 }, (_, i) => ({
+      ...groups[0], groupKey: `group-${i}`, recommendedKeepVideoId: `keep-${i}`,
+      items: [
+        { ...groups[0].items[0], video: { ...video, id: `keep-${i}`, filename: `keep-${i}.mp4` } },
+        { ...groups[0].items[1], video: { ...duplicateVideo, id: `delete-${i}`, filename: `delete-${i}.mp4` } }
+      ]
+    }));
+    const onManualBatchDelete = vi.fn()
+      .mockResolvedValueOnce({ successCount: 100, failureCount: 0, reclaimedBytes: 409600, failures: [] })
+      .mockRejectedValueOnce(new Error("CloudDrive connection lost"));
+    const onPreviewResolve = vi.fn().mockResolvedValue({ status: "ready", preview: { groupCount: 101, keepCount: 101, deleteCount: 101, reclaimableBytes: 413696, verificationStatus: "file_versions_current" } });
+    render(<DuplicateGroupsPage {...baseProps()} groups={manyGroups} pageSize={200} totalGroups={101} onManualBatchDelete={onManualBatchDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（101 个文件）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 101 个文件" }));
+    const result = await screen.findByRole("dialog", { name: "批量清理结果" });
+    expect(result).toHaveTextContent("已确认删除 100 个文件");
+    expect(result).toHaveTextContent("第 2 批（1 项）通信异常，处理结果未知");
+    expect(result).toHaveTextContent("不能直接重试结果未知的文件");
+    expect(screen.queryByRole("button", { name: /重新核对失败项/ })).not.toBeInTheDocument();
+    expect(onManualBatchDelete).toHaveBeenCalledTimes(2);
   });
 
   it("aborts manual deletion when the preflight finds changed media", async () => {
