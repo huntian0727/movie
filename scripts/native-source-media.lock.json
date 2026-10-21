@@ -3,35 +3,35 @@
   "variant": "source-candidate",
   "status": "CANDIDATE_NOT_APPROVED",
   "distributable": false,
-  "producerCommit": "dac070da604a12acb2eeedccb4993f1ebc52e001",
-  "producerRun": "https://github.com/huntian0727/movie/actions/runs/38134981406",
-  "producerCiConclusion": "FAIL",
-  "originalCiClosureValid": false,
-  "originalBinaryMapSha256": "d7909841833d0626547eaf8340377f402631ba65ce739bbfa8fd18da95ddfe4e",
-  "archiveSha256": "3b4b4d22a3cf303b05898dedd470a6f05b0bfaa532c4ca9ab481167cd8f21b99",
-  "archiveBytes": 39814033,
-  "sourceEvidenceZipSha256": "3e242199da78c68939ebcbc8bb70bae4c2e57102b7aadc5ceb6b54317880e70a",
-  "version": "git-2026-10-11-b5902e6",
+  "producerCommit": "3b73062e7008a34c8d1dba78bf09d6edb5ff3666",
+  "producerRun": "https://github.com/huntian0727/movie/actions/runs/39612312642",
+  "producerCiConclusion": "SUCCESS",
+  "originalCiClosureValid": true,
+  "originalBinaryMapSha256": "4eb22b04d69a213cf0b707e285ea4e91a88d98dba967e1e82b6479a101add8c3",
+  "archiveSha256": "46b7a00a9275da307efc89e320ef0c5c87a846fd020e5d1167f838a0d394447a",
+  "archiveBytes": 39836889,
+  "sourceEvidenceZipSha256": "4325dc1a0d216ff89785337ab68833b0a5f6f35fcfd9795370802e1c6c621130",
+  "version": "git-2026-10-21-e2798d5",
   "files": {
-    "avcodec-63.dll": "965f5f41bbfcba40eb4b476043e6055fba1cc5e544bc1b967a35208881ff0f3a",
-    "avdevice-63.dll": "cb695b427070b247b4d494699b0ed482729e401f667f90d1ecbfbb8760e4acaa",
-    "avfilter-12.dll": "b7ce2d905ba8951b9be49e1d4c53b94844abef95043e47c3ac0312dac4b93271",
-    "avformat-63.dll": "68ec6a3a0eaec48f19af76d93017efc61b950bf51e9c595fcb349e78e67e8d8e",
-    "avutil-61.dll": "f88a2fd281aa3934fb90918d9c3c33514702679e5682838f211c8f03264f98e4",
-    "ffmpeg.exe": "e170e238f838f37715b774ffc81eec357d4ae057b54ad7ebe92c2b97f68b34bd",
-    "ffprobe.exe": "561a9ead113619263fd6e643295edc8389f88150ffac191fe9b8ae92d4860609",
-    "libdav1d.dll": "7c3769e3deeb95c7e460835a85fe6ee24fe2a1f9b5fe2ef0bdb8f3b3c2487433",
+    "avcodec-63.dll": "cfa31eb9a93491e9aed018e16506dc3251c3725a96d99ce6659dcddae72a2af1",
+    "avdevice-63.dll": "bb64824cc17b2f6b5a27120be3f919f394ece6ba615ab74576b387daa07ad597",
+    "avfilter-12.dll": "a6da1ff4d1a3da129b3d8b27fff154c121f319f370ebcb4d0b782cb6e5d5086c",
+    "avformat-63.dll": "274e8d3270c60ea42dcb6a22551ae4df3cc1e53a9eacdcf5299d5135c8522be1",
+    "avutil-61.dll": "5203c2187672a28cbd05a4358072660bf40736596d351598a6453895278ac738",
+    "ffmpeg.exe": "50f7bf1b63534f9ffec0093acf8e9130b8ffa43bb7ff89b49196d834f44f54d4",
+    "ffprobe.exe": "d7075ecfc86ddebe95641b0b8ceec1056277ed9ea4ce3a898bbb85a359a20851",
+    "libdav1d.dll": "c446203aec29c5cd7029c15503fcd106faf4d92e86604b952d4138679859a073",
     "libgcc_s_seh-1.dll": "306983c483d96a6d08a2df044e360f0962e21dac021baf8311d3c0cb3b2c9def",
     "libssp-0.dll": "0b4cf4b0a5f4ceb08bc2b95e7837b72ce24c2a5e906c93edd2661facbcfe5173",
     "libwinpthread-1.dll": "fc9f14551f6609dd51801daec2c194579d35345551ef84fe465cbdb3339c2a6f",
-    "libzlib1.dll": "6e487d82c38f35e87443125b72a2b97a7c4ba5b5f58223147e4e760509f3fe4a",
-    "swresample-7.dll": "a2008a02c74a544fe0798cf19a1cef1b7112da142db111d65d4521c6029ad4c9",
-    "swscale-10.dll": "e07146f977f5e94121764768b93f28262aeae9a0ba49d37fa5f2dcc56ce4df6c",
+    "libzlib1.dll": "0d6e4d01b2e4d6865481d50bb0721f199ed0273518e8888ec4240e172406d19c",
+    "swresample-7.dll": "0d5895f5fea21b1184417b3a5899c8bf8fa97c1c1ec7668561de51e064a3c1a6",
+    "swscale-10.dll": "b631e667f7c034525d338427b98e81594dd54a510728c13cb533a9426e90b2ed",
     "LICENSE.txt": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30",
-    "SOURCE-STATUS.txt": "60e2eb4e29b8fa620ada40c3699c50ac812f6dd2c21e92c93215ec729b53e5a1"
+    "SOURCE-STATUS.txt": "39ab8f4ad75122775342004c621d01dd1ceae1d8c613d83dbce7fd79b5d2fac5"
   },
   "licenseSource": "docs/legal/FFMPEG-SOURCE-CANDIDATE-LICENSE.txt",
-  "sourceStatusText": "Source-built shared FFmpeg private QA candidate; public redistribution is NOT APPROVED.\nproducer=https://github.com/huntian0727/movie/actions/runs/38134981406\nproducer-ci-conclusion=FAIL; original map retained, local system-import verification recorded separately.\nsources-sha256=3e242199da78c68939ebcbc8bb70bae4c2e57102b7aadc5ceb6b54317880e70a\nSee resources/legal/NATIVE-SOURCE-CANDIDATE.md and NATIVE-SOURCE-CANDIDATE-NOTICES.txt.\n",
+  "sourceStatusText": "Source-built shared FFmpeg private QA candidate; public redistribution is NOT APPROVED.\nproducer=https://github.com/huntian0727/movie/actions/runs/39612312642\nproducer-ci-conclusion=SUCCESS; exact PE import closure verified; original failed producer remains preserved in historical records.\nsources-sha256=4325dc1a0d216ff89785337ab68833b0a5f6f35fcfd9795370802e1c6c621130\nSee resources/legal/NATIVE-SOURCE-CANDIDATE.md and NATIVE-SOURCE-CANDIDATE-NOTICES.txt.\n",
   "binaryImports": {
     "avcodec-63.dll": [
       "libdav1d.dll",
@@ -148,7 +148,6 @@
       "avutil-61.dll"
     ],
     "swscale-10.dll": [
-      "libzlib1.dll",
       "KERNEL32.dll",
       "msvcrt.dll",
       "libgcc_s_seh-1.dll",
@@ -156,5 +155,5 @@
       "avutil-61.dll"
     ]
   },
-  "notes": "Private QA only. Shared FFmpeg/FFprobe use the same producer and dependency bytes as the source player. Source retention does not grant public approval."
+  "notes": "Private QA candidate from successful source build 39612312642. Shared FFmpeg/FFprobe and their 12 transitive DLL dependencies have a verified complete import closure. Corresponding sources and toolchain materials are pinned separately. CANDIDATE_NOT_APPROVED and distributable=false remain intentional; no public distribution approval is granted."
 }
