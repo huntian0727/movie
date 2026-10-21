@@ -8,6 +8,7 @@ import { createDatabase, type DatabaseConnection } from "../../src/main/db/datab
 import { VideoRepository } from "../../src/main/db/videoRepository";
 import { DuplicateCleanupRepository } from "../../src/main/db/duplicateCleanupRepository";
 import { deleteReviewedDuplicatePlan } from "../../src/main/media/reviewedDuplicateDelete";
+import { ReviewedDuplicateBackgroundQueue } from "../../src/main/media/reviewedDuplicateBackground";
 import type { DuplicateResolvePlan } from "../../src/shared/videoTypes";
 
 let temp: string | undefined;
@@ -17,6 +18,18 @@ afterEach(() => {
   if (temp) rmSync(temp, { recursive: true, force: true });
   temp = undefined;
 });
+
+async function waitForBackgroundStatus(
+  queue: ReviewedDuplicateBackgroundQueue,
+  expected: "partial" | "blocked"
+) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const job = queue.get();
+    if (job?.status === expected) return job;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Background queue never became ${expected}`);
+}
 
 async function fixture() {
   temp = mkdtempSync(path.join(tmpdir(), "reviewed-duplicate-safe-"));
@@ -319,6 +332,88 @@ describe("explicit reviewed duplicate deletion, isolated filesystem", () => {
     expect(await readFile(f.keepPath)).toHaveLength(16);
     expect(await readFile(f.deletePath)).toHaveLength(17);
     expect(f.repo.getVideo(f.removed.id)).toBeTruthy();
+  });
+
+  it("persists explicit CloudDrive failures across two background chunks without hiding or retrying the failed item", async () => {
+    const f = await cloudBatchFixture(35);
+    const failed = f.targets[4]!;
+    const ordinaryDelete = f.remote.delete.getMockImplementation()!;
+    f.remote.delete.mockImplementation(async (paths) => {
+      if (paths[0] === failed.providerPath) return {
+        success: false, permanentlyDeleted: false,
+        errorMessage: "simulated permission denied", resultFilePaths: []
+      };
+      return ordinaryDelete(paths);
+    });
+    const jobFile = path.join(temp!, "reviewed-job.json");
+    const onRemoved = vi.fn();
+    const run = vi.fn((batch: DuplicateResolvePlan) =>
+      deleteReviewedDuplicatePlan(f.repo, f.queue, batch, vi.fn(), onRemoved, f.remote));
+    const queue = new ReviewedDuplicateBackgroundQueue(jobFile, run);
+    const accepted = queue.submit(f.plan);
+    expect(accepted.status).toBe("running");
+    expect(accepted.queuedVideoIds).toHaveLength(35);
+
+    const partial = await waitForBackgroundStatus(queue, "partial");
+    expect(partial).toMatchObject({
+      total: 35, processed: 35, successCount: 34, failureCount: 1,
+      uncertainCount: 0, unsubmittedCount: 0
+    });
+    expect(partial.failures).toEqual([expect.objectContaining({
+      videoId: failed.id, message: expect.stringContaining("simulated permission denied")
+    })]);
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(f.remote.delete).toHaveBeenCalledTimes(35);
+    expect(f.repo.getVideo(failed.id)).toBeTruthy();
+    expect(f.remoteFiles.has(failed.providerPath!)).toBe(true);
+    expect(f.repo.getVideo(f.keep.id)).toBeTruthy();
+    expect(await readFile(f.keepPath)).toEqual(Buffer.alloc(16, 1));
+    expect(JSON.parse(await readFile(jobFile, "utf8")).status).toBe("partial");
+
+    const noReplay = vi.fn();
+    const restored = new ReviewedDuplicateBackgroundQueue(jobFile, noReplay);
+    expect(restored.get()).toMatchObject({ status: "partial", successCount: 34, failureCount: 1 });
+    expect(noReplay).not.toHaveBeenCalled();
+  });
+
+  it("stops an integrated background CloudDrive job after an unknown reply and persists unsent items", async () => {
+    const f = await cloudBatchFixture(35);
+    const ordinaryDelete = f.remote.delete.getMockImplementation()!;
+    let submitted = 0;
+    f.remote.delete.mockImplementation(async (paths) => {
+      submitted++;
+      if (submitted === 31) throw new Error("simulated HTTP/2 disconnect after submission");
+      return ordinaryDelete(paths);
+    });
+    const jobFile = path.join(temp!, "reviewed-job.json");
+    const run = vi.fn((batch: DuplicateResolvePlan) =>
+      deleteReviewedDuplicatePlan(f.repo, f.queue, batch, vi.fn(), vi.fn(), f.remote));
+    const queue = new ReviewedDuplicateBackgroundQueue(jobFile, run);
+    queue.submit(f.plan);
+
+    const blocked = await waitForBackgroundStatus(queue, "blocked");
+    expect(blocked).toMatchObject({
+      total: 35, processed: 32, successCount: 32, failureCount: 0,
+      uncertainCount: 1, unsubmittedCount: 2
+    });
+    expect(blocked.message).toContain("不能直接重试");
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(f.remote.delete).toHaveBeenCalledTimes(33);
+    // The unknown target and the unsubmitted tail MUST remain indexed.
+    for (const target of [f.targets[30]!, f.targets[33]!, f.targets[34]!]) {
+      expect(f.repo.getVideo(target.id)).toBeTruthy();
+      expect(f.remoteFiles.has(target.providerPath!)).toBe(true);
+    }
+    expect(f.repo.getVideo(f.keep.id)).toBeTruthy();
+    expect(await readFile(f.keepPath)).toEqual(Buffer.alloc(16, 1));
+    expect(JSON.parse(await readFile(jobFile, "utf8"))).toMatchObject({
+      status: "blocked", uncertainCount: 1, unsubmittedCount: 2
+    });
+
+    const noReplay = vi.fn();
+    const restored = new ReviewedDuplicateBackgroundQueue(jobFile, noReplay);
+    expect(restored.get()).toMatchObject({ status: "blocked", uncertainCount: 1, unsubmittedCount: 2 });
+    expect(noReplay).not.toHaveBeenCalled();
   });
 
   it("respects active duplicate-job reservations and never calls a delete primitive", async () => {

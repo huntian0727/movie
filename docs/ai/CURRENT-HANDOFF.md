@@ -1,6 +1,15 @@
-# 当前开发交接：重复文件后台清理体验优化
+# 当前开发交接：v1.2 重复清理与隔离故障联动 QA
 
 更新时间：2026-10-21（北京时间）
+
+## 最新进展（2026-10-21 下午，QA-only）
+
+- 在家用电脑 `MP2T8QB5` 继续验证，没有修改生产逻辑或 v1.2 显示版本。
+- 当前开发分支：`ai/duplicate-background-fault-qa`，基于 `1f526c4` 创建；新会话仍以 `git rev-parse HEAD` 为准。
+- 开发前创建**仅本地** checkpoint `checkpoint-20261021-155122-1f526c4-duplicate-background-fault-qa`、数据快照 `2026-10-21_07-51-24-244_duplicate-background-fault-qa`（SQLite quick_check=ok）。
+- 新增 2 条真实临时 SQLite + 模拟 CloudDrive 的跨批次测试：明确拒绝产生 `partial`（34 成功/1 失败），请求后断连产生 `blocked`（32 成功/1 未知/2 未提交）；保留文件、失败/未知/未提交索引均按规则保留；重启不自动重试。
+- 本轮 `npm run typecheck` PASS；专项 3 文件 25/25 PASS，扩展 6 文件 77/77 PASS。真正 CloudDrive/115 服务器测试 NOT RUN。
+- 最新详情：`docs/ai/deliveries/2026-10-21-duplicate-background-fault-qa.md`。只允许本地提交，不推送 GitHub、不公开发版；下一次常规用户可见功能改动才升级 v1.3。
 
 ## 新会话先读
 
@@ -12,11 +21,11 @@
 ## 当前基线
 
 - 家用电脑：`MP2T8QB5`；仓库：`C:\Users\test\Documents\视频管理\movie`。
-- 分支：`ai/duplicate-queued-list-ux`。
-- 功能实现提交：`c79402c1f904e80b7188eb1d313c101b2ad96ba0`（`feat: hide queued duplicate videos and exit completed folder scope`）。之后新增了仅文档的交接提交；新会话开始时请以 `git rev-parse HEAD` 读取最新 HEAD，不要依赖本文件里的固定 HEAD 值。
+- 当前分支：`ai/duplicate-background-fault-qa`（仅测试与文档）；原 v1.2 功能完成于 `ai/duplicate-queued-list-ux`。
+- 功能实现提交：`c79402c1f904e80b7188eb1d313c101b2ad96ba0`（`feat: hide queued duplicate videos and exit completed folder scope`）。之后新增文档交接提交和隔离故障联动测试提交；新会话开始时请以 `git rev-parse HEAD` 读取最新 HEAD，不要依赖本文件里的固定 HEAD 值。
 - 当前工作区：干净。
 - 用户可见版本：`v1.2`；技术包版本仍为 `0.1.16`。
-- `release/win-unpacked/resources/build-flavor.json` 已核实：`displayVersion=1.2`、构建代码 commit 为 `c79402c1f904e80b7188eb1d313c101b2ad96ba0`、`workspaceDirty=false`。随后只增加了文档交接提交，未修改程序代码。桌面快捷方式目标存在，指向 `release/win-unpacked\拉面影视.exe`；上一份交付记录说明该桌面版已启动核对。
+- `release/win-unpacked/resources/build-flavor.json` 已核实：`displayVersion=1.2`、构建代码 commit 为 `c79402c1f904e80b7188eb1d313c101b2ad96ba0`、`workspaceDirty=false`。随后只增加了文档和测试，未修改程序代码。桌面快捷方式目标存在，指向 `release/win-unpacked\拉面影视.exe`；上一份交付记录说明该桌面版已启动核对。
 - **只做本地开发；未推送 GitHub、未公开发布。** 不要运行会推送远端的自动交付流程，除非用户重新明确授权。
 
 ## 本轮完成内容
