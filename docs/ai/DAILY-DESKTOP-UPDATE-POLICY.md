@@ -4,7 +4,7 @@
 
 **重要：每次功能修复或更新，不得只改源代码或只放一个隔离测试包。应将成果部署到用户日常使用的 Windows 桌面版本。** 这条规则覆盖此前“等全部问题完成才更新常用桌面版”的约定；但**不代表**每次都要公开发布到 GitHub。
 
-日常桌面程序入口：`C:\Users\test\Desktop\拉面影视.lnk`；已核对该快捷方式指向 `C:\Users\test\Documents\视频管理\movie\release\win-unpacked\拉面影视.exe`。每次更新必须先重新检查快捷方式当前真实目标，不要只生成 `release/unsigned-test-build` 或 `release/local-optimized` 而不把它应用到常用入口。
+日常桌面入口为 `C:\Users\test\Desktop\拉面影视.lnk`；**不要假设其目标恒定为 `release/win-unpacked`**，每次部署以重新读取快捷方式后的真实目标为准。2026-10-22 起 v1.4 的快捷方式指向 `release/daily-v1.4/win-unpacked/拉面影视.exe`（原 v1.3 正在运行，不可强制关闭）。不要只生成临时测试包而不更新常用入口。
 
 标准轻量流程：
 
@@ -12,6 +12,7 @@
 2. 对产品功能更新执行两位数版本的**次版本 +1**（例如 v1.2 → v1.3）；每个实际上交付到桌面的修复批次只涨一次。`npm run version:minor` 只在准备交付时调用，不在失败重试时重复调用。
 3. 在不覆盖真实用户资料库/设置的前提下，执行针对性测试、`npm run package:development`（可先设置 `MOVIE_SAFE_STAGE_LOCAL=1` 输出到 `release/local-optimized`），然后检查 EXE、资源 DLL 和 `resources/build-flavor.json`。
 4. 部署时备份此前 `release/win-unpacked`（保留回滚用），并将验证好的 staged `win-unpacked` 安全切换到**快捷方式实际指向的目录**；不要修改 `%APPDATA%` 用户资料或真实媒体；只有确认应用未运行后才切换，不可暴力终止。
+4a. **若旧桌面程序仍在运行**：绝不能强行结束任务或改写进程占用的 EXE；将已通过隔离 smoke 的候选移动到新的稳定版本目录（例如 `release/daily-v1.4/win-unpacked`），备份原 `.lnk`，再更新真实桌面快捷方式的 TargetPath、WorkingDirectory。旧程序继续运行，用户正常退出并重新打开快捷方式后使用新版本；备份与旧程序目录保留。注意此时启动原来仍在运行的旧实例不能算作新版本已启动。
 5. 验证快捷方式 EXE 存在，资源 metadata 的 `displayVersion` 与本次代码一致，必要时进行一次隔离启动检查。记录交付版本、提交号、部署时间、验证结果和回滚路径。
 6. **本地日常版本更新 ≠ GitHub 正式发版**。除非用户明确要求，禁止对 main 合并、创建公开 Release、上传可分发二进制。旧的他人未提交改动必须保留，不得混入本次提交。
 

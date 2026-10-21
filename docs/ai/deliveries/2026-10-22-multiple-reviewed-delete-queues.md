@@ -10,3 +10,13 @@
 - 备份：只在家里电脑执行了本地 snapshot `2026-10-21_16-56-39-073_multi-duplicate-deletion-queue`，数据库 363039 条、0.92GB、SQLite quick_check=ok。未触发任何真实网盘删除。
 - 测试：`tests/main/reviewedDuplicateBackground.test.ts` 和 `tests/main/reviewedDuplicateDelete.test.ts` 的 26 个 stub/隔离操作 PASS；5 个 renderer/queue 相关测试文件共 108 项 PASS；`DuplicateGroupsPage.test.tsx` 与 `queuedDuplicateVisibility.test.ts` 共 63 项 PASS；TypeScript 检查 PASS。覆盖 FIFO 多次受理、重复与保留文件冲突、故障中断停止后续、重启不复播、临时隐藏与跨菜单显示。
 - 交付要求：本批次源代码准备好后界面版本从 v1.3 升为 **v1.4**，只打用户日常 Windows 桌面版，不产出/上传正式 GitHub Release；只在真实快捷方式所指 exe 部署并通过隔离数据的启动 smoke 后宣布已交付。运行中程序或后台删除仍进行时不得强制覆盖，须保留原 v1.3 完整目录以回滚。
+
+## 真实日常桌面部署结果
+
+- 源码特性提交 `c855922a939603100ad7c17ec4371b7863e77da7`；界面 v1.4 版本提交 `638c405146169bf3b2373800702944cce1e593f4`，技术包仍 `0.1.16`。
+- 使用 `MOVIE_SAFE_STAGE_LOCAL=1 npm run package:development` 成功生成隔离绿色 Windows v1.4 目录；新的 `app.asar`、NativeHost、MPV DLL、FFmpeg 和 `build-flavor.json` 均核实存在。使用隔离临时用户数据运行 `node scripts/run-packaged-smoke.mjs --executable <staged EXE>` 两阶段均 PASS。
+- **原常用 v1.3 进程仍在运行（4 个 Electron 进程），因此没有强制停止，也没有替换运行中的 `release/win-unpacked` 文件**。
+- 为兼顾用户要求更新常用版本：将已验证 v1.4 绿色包移动到稳定目录 `release/daily-v1.4/win-unpacked`；将现有桌面快捷方式 `C:\Users\test\Desktop\拉面影视.lnk` 的 TargetPath 和工作目录改为新 v1.4 目录。备份原快捷方式到 `.tmp/daily-v14-shortcut-20261022/previous-v1.3.lnk`，旧 `release/win-unpacked` v1.3 完整保留，不动用户数据库。
+- **快捷方式目标最终核验**：`C:\Users\test\Documents\视频管理\movie\release\daily-v1.4\win-unpacked\拉面影视.exe`，其中 `resources/build-flavor.json` 标为 `displayVersion: 1.4`，代码 commit 为 `638c405146169bf3b2373800702944cce1e593f4`；EXE SHA-256 为 `EFDDD91747198B0152EEE265E80815DB5ECD24C1715B9B55685C32F30A9AEE7A`。
+- **激活条件**：当前已经开启的窗口仍是 v1.3，用户需要在**正常完成当前清理任务后自行退出整个 v1.3 应用**，再从桌面原快捷方式启动，即可使用 v1.4。不要声称正在运行的旧窗口自动变成新版，也不要现在代用户强制结束或自动执行远端删除。
+- 本次只更新家里电脑常用桌面快捷方式目标。**没有**推送 GitHub、创建公共发行包、修改正式 SQLite 数据或向真实网盘发送删除请求。
