@@ -1,6 +1,8 @@
 # Windows x64 绿色免安装版
 
-当前正式版为 **[0.1.16](https://github.com/huntian0727/movie/releases/tag/v0.1.16)**，程序文件为 **Movie-0.1.16-Windows-x64-Portable.zip**。完整解压，运行“拉面影视-免费分享版.exe”；无需安装 Node.js、FFmpeg 或手工提供播放器 DLL。[完整使用教程](user-guide/0.1.16.md)。
+截至 2026-10-21，当前最新公开版为 **[0.1.15](https://github.com/huntian0727/movie/releases/tag/v0.1.15)**，程序文件为 **Movie-0.1.15-Windows-x64-Portable.zip**。完整解压，运行“拉面影视-免费分享版.exe”；无需安装 Node.js、FFmpeg 或手工提供播放器 DLL。[0.1.15 完整使用教程](user-guide/0.1.15.md)。
+
+**0.1.16 仍为私有候选，尚未公开发布。** 不要将内部 QA 安装器或候选教程当成正式下载。
 
 “免安装”描述程序使用方式；资料库、设置与缓存仍在 Windows 用户数据目录，没有承诺把个人数据全部放在程序旁的跨机器便携模式。
 

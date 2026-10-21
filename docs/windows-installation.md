@@ -1,22 +1,24 @@
 # Windows 下载、文件校验与启动
 
-当前提供 **[0.1.16 正式绿色 ZIP](https://github.com/huntian0727/movie/releases/tag/v0.1.16)**，没有本轮正式 Setup 安装器。普通用户按本文解压运行即可，无需开发环境。详细操作见 [使用教程](user-guide/0.1.16.md)。
+截至 2026-10-21，当前最新公开包为 **[0.1.15 正式绿色 ZIP](https://github.com/huntian0727/movie/releases/tag/v0.1.15)**，没有正式 Setup 安装器。普通用户按本文解压运行即可，无需开发环境。详细操作见 [0.1.15 使用教程](user-guide/0.1.15.md)。
+
+0.1.16 仍在私有候选与发行准备阶段，尚未公开提供下载。
 
 ## 下载与核对
 
-1. 从上面的官方 Release 下载 **Movie-0.1.16-Windows-x64-Portable.zip** 和 **SHA256SUMS.txt**。
-2. 核对文件大小和 SHA-256；请在本次 0.1.16 Release 页面下载 SHA256SUMS.txt，使用其中与程序 ZIP 文件名完全一致的校验值。不要沿用 0.1.15 的哈希。
+1. 从上面的官方 Release 下载 **Movie-0.1.15-Windows-x64-Portable.zip** 和 **SHA256SUMS.txt**。
+2. 核对文件大小和 SHA-256；请使用同一 0.1.15 Release 页面中的 SHA256SUMS.txt，选择与程序 ZIP 文件名完全一致的校验值。不要混用其他版本的哈希。
 
 3. 若使用 PowerShell，可运行以下命令，路径改成自己的 ZIP：
 
    ```powershell
-   Get-FileHash -Algorithm SHA256 -LiteralPath '.\Movie-0.1.16-Windows-x64-Portable.zip'
+   Get-FileHash -Algorithm SHA256 -LiteralPath '.\Movie-0.1.15-Windows-x64-Portable.zip'
    ```
 
    也可在 Windows 终端用系统工具计算：
 
    ```text
-   certutil -hashfile "Movie-0.1.16-Windows-x64-Portable.zip" SHA256
+   certutil -hashfile "Movie-0.1.15-Windows-x64-Portable.zip" SHA256
    ```
 
    如果当前终端没有这些命令，使用已有支持 SHA-256 的文件校验工具即可；运行软件本身不需要终端。
@@ -25,8 +27,8 @@
 
 ## 完整解压、首次启动
 
-1. 目标平台为 Windows 11 x64；实际系统与覆盖范围见 [发行说明](releases/0.1.16.md)。
-2. 把 ZIP 全部解压到普通程序文件夹，例如 `D:\Apps\Movie-0.1.16`，不要从压缩软件直接运行或只移动 EXE。
+1. 目标平台为 Windows 11 x64；当前公开版的实际系统与覆盖范围见 [0.1.15 发行说明](releases/0.1.15.md)。
+2. 把 ZIP 全部解压到普通程序文件夹，例如 `D:\Apps\Movie-0.1.15`，不要从压缩软件直接运行或只移动 EXE。
 3. 双击 **拉面影视-免费分享版.exe**，无需单独配置 Node.js、FFmpeg、libmpv。
 4. 添加一个小视频目录，验证扫描、预览和播放，再退出重开。CloudDrive 为可选功能，不影响纯本地目录使用。
 
@@ -40,6 +42,6 @@
 
 ## 历史安装器范围
 
-仓库保留 NSIS 安装/修复/卸载安全实现与测试，但当前 Release 没有正式安装器，不应把内部 Setup 测试包当成 0.1.16 公开 ZIP。历史安装目录风险、签名升级等不能用本次绿色验收替代。
+仓库保留 NSIS 安装/修复/卸载安全实现与测试，但当前公开 Release（0.1.15）没有正式安装器，不应把内部 Setup 测试包当成 0.1.16 公开 ZIP。历史安装目录风险、签名升级等不能用绿色包验收替代。
 
-启动/网盘/字幕问题先看 [常见问题](user-guide/0.1.16.md#10-常见问题)，不通过删除数据库解决。反馈时不公开 Token、整份数据库或私人视频；安全漏洞见 [SECURITY](../SECURITY.md)。
+启动/网盘/字幕问题先看 [0.1.15 教程常见问题](user-guide/0.1.15.md#10-常见问题)，不通过删除数据库解决。反馈时不公开 Token、整份数据库或私人视频；安全漏洞见 [SECURITY](../SECURITY.md)。

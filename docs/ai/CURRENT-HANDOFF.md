@@ -8,7 +8,7 @@
 
 - 候选包构建时分支为 `ai/release-tests-historical-approval-separation`，代码 HEAD 为 `861ca815fadb65c62b68f2b7c08229e3eff0f820`；此后又提交了交接/状态文档。该 hash 仅标识 QA 包构建代码，不代表当前 HEAD；新会话必须重新运行 `git status --short --branch`、`git rev-parse HEAD`。
 - 技术版本 0.1.16，界面版本 v1.2；GitHub 最新公开版仍是 v0.1.15。没有 v0.1.16 公开 tag/Release。
-- 文档准备已完成：README、快速开始、完整教程、CHANGELOG 和候选发行说明都明确 0.1.16 尚未公开，不再把候选功能误写成已发布，也修正重复项并非内容哈希判定的说明。
+- 文档准备已完成：README、快速开始、完整教程、CHANGELOG、候选发行说明、绿色版说明、Windows 下载校验指南和源码社区发布说明已统一到当前公开版 0.1.15 / 私有候选 0.1.16；不再把候选功能误写成已发布，也修正重复项并非内容哈希判定的说明。
 - `npm run test:release-gate` PASS：149 个测试文件、1,391/1,391 用例；发行工程单测 74/74、媒体候选契约 67/67。
 - 在隔离身份 `unsigned-test-build` 下重新构建私有 QA NSIS 安装包。 `node scripts/verify-packaged-artifact.mjs` PASS（3,469 ASAR 条目、17 份精确许可声明）；`node scripts/write-release-metadata.mjs` PASS；`npm run test:installer-smoke` PASS（安装、修复、拒绝删除应用数据、卸载；合成 SQLite/视频哨兵保留，生产注册信息与快捷方式未变）。安装器 SHA-256：`d70815daaa53ea4e87e487e280767096c14fb89ff84b6ae7d277c0be1a0a0003`。
 - 当前私有安装器路径：`release/unsigned-test-build/拉面影视-0.1.16-x64-unsigned-test-build-Setup.exe`。它不是正式包，不得公开上传；日常版 `release/win-unpacked` 和桌面快捷方式未覆盖。

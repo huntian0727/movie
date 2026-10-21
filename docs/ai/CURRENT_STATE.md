@@ -7,7 +7,7 @@
 ### 最新覆盖：v0.1.16 发版准备
 
 - 最新分支/HEAD 以 `git status --short --branch` 和 `git rev-parse HEAD` 为准；技术版本 0.1.16、界面版本 v1.2，GitHub 公开版仍为 v0.1.15。
-- 发版文档已改为候选状态；全量发行门禁 1,391/1,391 PASS，私有 unsigned-test-build 安装包 `verify:artifact` 与 `test:installer-smoke` PASS。
+- 发版文档已改为候选状态，并修正 `docs/portable.md`、`docs/windows-installation.md`、`docs/SOURCE_COMMUNITY_RELEASE.md` 中错误指向未公开 0.1.16 的下载链接；全量发行门禁 1,391/1,391 PASS，私有 unsigned-test-build 安装包 `verify:artifact` 与 `test:installer-smoke` PASS。
 - `audit-release-readiness.mjs` 仍为 `OUTCOME=BLOCKED`：历史审批绑定 0.1.15，lockfile 不匹配，原生媒体/LGPL 分发审批及稳定 Windows/标准用户验收未完成。私有源码 REVIEW ZIP 核验通过，但不得公开上传。
 - 当前无已验证的 0.1.16 portable ZIP；没有推送、tag 或公开发布。日常桌面版未覆盖；真实 CloudDrive/115 删除测试继续暂缓。详见 `deliveries/2026-10-21-release-candidate-prep.md`。
 

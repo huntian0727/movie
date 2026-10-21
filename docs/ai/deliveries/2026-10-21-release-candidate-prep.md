@@ -25,6 +25,7 @@ status: prepared-with-blockers
 
 - `README.md` 与 `docs/QUICK_START.md` 现明确当前公开版仍为 0.1.15，0.1.16 是尚未公开的候选。
 - `docs/USER_GUIDE.md` 标明为候选滚动教程；`docs/user-guide/0.1.16.md` 更新为候选固定教程，补本页自动分析、播放器切换、后台重复清理/中断语义，并明确真实远端删除未验收。
+- `docs/portable.md`、`docs/windows-installation.md`、`docs/SOURCE_COMMUNITY_RELEASE.md` 已纠正仍指向 0.1.16 正式下载页的过期内容，普通用户入口统一指向公开版 0.1.15；`docs/OPEN_SOURCE_RELEASE_SIMPLE.md` 将 beta.3 的旧状态明确标成历史发行记录。
 - `docs/releases/0.1.16.md` 列出候选功能、实际自动化证据、公开发行阻塞与尚未完成人工验收的事项。
 - `CHANGELOG.md` 不再把 0.1.16 描述成已正式公开；未公开的新功能继续保留在 `[Unreleased]`。
 - 文档不再误称重复候选使用完整内容 SHA-256：当前判定为精确文件大小 + 四舍五入到整秒的时长，不等于内容相同。
