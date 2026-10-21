@@ -40,8 +40,9 @@ status: prepared-with-blockers
 - `node scripts/write-release-metadata.mjs`：PASS，生成当前候选 `build-metadata.json`、SHA-256 清单。
 - `npm run test:installer-smoke`：PASS，退出码 0。只在系统临时目录中安装隔离测试身份；覆盖拒绝非空的无关目录、全新安装、修复、拒绝显式删除应用数据、卸载；合成 SQLite 与视频哨兵在安装目录内外均保留，生产注册信息与快捷方式未变。测试日志中有测试窗口的 `ERR_UNTRUSTED_IPC_SENDER` 诊断，但所有 smoke 断言通过，最终退出码为 0。
 - 当前私有 QA 安装器：`release/unsigned-test-build/拉面影视-0.1.16-x64-unsigned-test-build-Setup.exe`，SHA-256 `d70815daaa53ea4e87e487e280767096c14fb89ff84b6ae7d277c0be1a0a0003`。该文件**只用于隔离 QA**，不是正式安装器，也不应公开上传。
-- 本轮未完成便携 ZIP 构建：远程执行层拒绝启动 `dist:zip` 命令。没有尝试绕过执行控制或改用其他路径强行执行，因此尚无本轮已验证的 0.1.16 ZIP 与便携版校验清单。
-- 自动化通过不等于所有者发行批准或真实媒体 E2E 通过。
+- 私有绿色 ZIP 构建：在 WebCodex 项目 Runner 的受支持执行通道运行 `dist:zip`，退出码 0；release class 为 `unsigned-community-qa`，App ID 为 `com.local.video.manager.community`，源码 commit `bbc1a42ca4784bda1fee788f9ee3256b781900a7`，`workspaceDirty=false`。
+- `npm run verify:zip`：PASS。应用包内容校验 3,469 ASAR 条目、17 份精确许可声明；解压后逐文件核验 229 个文件，双阶段 packaged smoke 均通过。日志中出现测试窗口 `ERR_UNTRUSTED_IPC_SENDER` 诊断和 `Can't find filter element`，但 smoke 结果均为 PASS，命令退出码 0。
+- `npm run release:metadata -- --portable`：PASS。私有 QA ZIP 为 `release/unsigned-community-qa/拉面影视-0.1.16-x64-community-qa-Portable.zip`，SHA-256 `4d8f099bf436ed3f1ac46bebe3020672786d66de4c49fb56820f15e848e9e9d1`，校验清单一致；应用与 NativeHost 均未签名，`publicReleaseApproved=false`。该 ZIP 只用于私有 QA，不得公开上传或冒充正式包。- 自动化通过不等于所有者发行批准或真实媒体 E2E 通过。
 
 ## 发行预检实际结果
 
@@ -68,8 +69,7 @@ status: prepared-with-blockers
 ## 当前未做与剩余事项
 
 - 未创建或推送 Git tag；未上传或发布 GitHub Release；未推送 GitHub。
-- 未生成本轮已验证的 portable ZIP。
-- 未覆盖日常开发版 `release/win-unpacked`，未改桌面快捷方式，未触碰真实用户资料库。
+- 已生成并验证私有 QA portable ZIP；尚未生成获批准可公开分发的正式 ZIP。- 未覆盖日常开发版 `release/win-unpacked`，未改桌面快捷方式，未触碰真实用户资料库。
 - 未操作真实 CloudDrive/115 删除；遵守用户暂缓真实删除测试的决定。
 - 播放器切换、字幕与下载等最终人工体验尚未做，按用户要求留到最后。
 - 正式发布前需人工/所有者处理：为 0.1.16 候选重新审查并批准确切版本与依赖锁；完成原生媒体许可与分发批准；完成稳定 Windows 11 / 标准用户验收；明确远端删除验收安排；再构建、校验最终 portable ZIP。
@@ -77,6 +77,6 @@ status: prepared-with-blockers
 
 ## 下一步
 
-1. 在允许的执行通道中完成隔离的 0.1.16 portable ZIP 构建、`verify:zip` 双阶段 packaged smoke 与 `release:metadata --portable`；确保候选身份和审批仍为 private QA，不上传。
-2. 更新本交付记录、`CURRENT-HANDOFF.md` 与 `CURRENT_STATE.md`，提交本地文档。
-3. 将需要所有者/人工参与的事项保留为最终清单，不要求用户现在中断手头工作。
+1. 私有 QA portable ZIP 的构建、`verify:zip` 双阶段 packaged smoke 与 `release:metadata -- --portable` 均已完成。
+2. 公开发行仍需所有者重新批准 0.1.16 精确版本/lockfile、完成原生媒体许可与分发审批、稳定 Windows/标准用户覆盖，以及最终人工体验；真实 CloudDrive/115 删除验收继续按用户要求暂缓。
+3. 不要求用户现在中断手头工作；待人工有空时按以上清单验收，获得明确发布授权后再进行公开发行。
