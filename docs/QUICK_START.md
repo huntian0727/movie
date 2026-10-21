@@ -5,7 +5,7 @@
 ## 五步开始使用
 
 1. 当前公开版请打开 [0.1.15 Release 下载页](https://github.com/huntian0727/movie/releases/tag/v0.1.15)，下载 **Movie-0.1.15-Windows-x64-Portable.zip** 和 **SHA256SUMS.txt**；Source code 是源码，不是程序。0.1.16 候选包尚未公开提供。
-2. 按 [文件校验教程](windows-installation.md)核对，完整解压，例如放到 `D:\Apps\Movie-0.1.16`。不要只解压 EXE 或在压缩软件中直接运行。
+2. 按 [文件校验教程](windows-installation.md)核对，完整解压，例如放到 `D:\Apps\Movie-0.1.15`。不要只解压 EXE 或在压缩软件中直接运行。
 3. 双击 **拉面影视-免费分享版.exe**。无需另装 Node.js、npm、FFmpeg 或内嵌播放器 DLL。
 4. 点击 **添加资料库 → 添加本地或挂载目录**，选一个小视频目录，等待扫描，再进入 **视频浏览**。
 5. 点击封面播放，试一下收藏；退出重开，确认来源和记录保留。
