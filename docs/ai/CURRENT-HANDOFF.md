@@ -13,10 +13,10 @@
 
 - 家用电脑：`MP2T8QB5`；仓库：`C:\Users\test\Documents\视频管理\movie`。
 - 分支：`ai/duplicate-queued-list-ux`。
-- 当前 HEAD：`c79402c1f904e80b7188eb1d313c101b2ad96ba0`（`feat: hide queued duplicate videos and exit completed folder scope`）。
+- 功能实现提交：`c79402c1f904e80b7188eb1d313c101b2ad96ba0`（`feat: hide queued duplicate videos and exit completed folder scope`）。之后新增了仅文档的交接提交；新会话开始时请以 `git rev-parse HEAD` 读取最新 HEAD，不要依赖本文件里的固定 HEAD 值。
 - 当前工作区：干净。
 - 用户可见版本：`v1.2`；技术包版本仍为 `0.1.16`。
-- `release/win-unpacked/resources/build-flavor.json` 已核实：`displayVersion=1.2`、commit 与当前 HEAD 一致、`workspaceDirty=false`。桌面快捷方式目标存在，指向 `release/win-unpacked\拉面影视.exe`；上一份交付记录说明该桌面版已启动核对。
+- `release/win-unpacked/resources/build-flavor.json` 已核实：`displayVersion=1.2`、构建代码 commit 为 `c79402c1f904e80b7188eb1d313c101b2ad96ba0`、`workspaceDirty=false`。随后只增加了文档交接提交，未修改程序代码。桌面快捷方式目标存在，指向 `release/win-unpacked\拉面影视.exe`；上一份交付记录说明该桌面版已启动核对。
 - **只做本地开发；未推送 GitHub、未公开发布。** 不要运行会推送远端的自动交付流程，除非用户重新明确授权。
 
 ## 本轮完成内容

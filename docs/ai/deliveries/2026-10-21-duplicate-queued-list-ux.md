@@ -20,7 +20,7 @@
 - 初轮 TypeScript typecheck PASS；专项回归四文件 141/141 PASS（包括隐藏入队、完成/失败恢复、单页自动退出、多页保留范围、跨页 UI、后台队列持久化）。
 - v1.2 升级后 `npm run typecheck` PASS；6 个专项测试文件 **163/163 PASS**：包括跨页面列表立即隐藏、完整筛选目录退出、其他页未清理时保留目录、排队保留项安全、后台已受理目标 ID 复用与版本升级规则。测试中 React 旧异步状态警告不影响结果。
 - 本轮实测 `npm run typecheck` PASS；5 个专项测试文件 **148/148 PASS**（LibraryShell 73、DuplicateGroupsPage 60、后台队列 5、版本 7、排队隐藏纯函数 3）。React 测试里有既存 `act(...)` 警告，不影响通过结果。全量 148 文件回归未重跑；早前 v1.1 全量 1379/1382、发行门禁旧版问题 3 项失败，原因是冻结批准文件与当前技术版本/依赖锁哈希失配，本轮没有绕过门禁。
-- `npm run package:development` 实际成功；桌面日常版 `release/win-unpacked` 已更新并从桌面快捷方式启动。`resources/build-flavor.json` 显示 `displayVersion=1.2`、commit `c79402c1f904e80b7188eb1d313c101b2ad96ba0`（与当前 HEAD 一致）、`workspaceDirty=false`；新旧 `app.asar` 与 staging SHA-256 一致；桌面快捷方式指向本次 `release/win-unpacked\\拉面影视.exe`。更新前目录备份为 `.tmp\\canonical-before-v1-2-duplicate-ux-20261021-145154`。
+- `npm run package:development` 实际成功；桌面日常版 `release/win-unpacked` 已更新并从桌面快捷方式启动。`resources/build-flavor.json` 显示 `displayVersion=1.2`、构建代码 commit `c79402c1f904e80b7188eb1d313c101b2ad96ba0`（之后只新增了文档交接提交，不涉及程序代码）、`workspaceDirty=false`；新旧 `app.asar` 与 staging SHA-256 一致；桌面快捷方式指向本次 `release/win-unpacked\\拉面影视.exe`。更新前目录备份为 `.tmp\\canonical-before-v1-2-duplicate-ux-20261021-145154`。
 - 本轮未发起真实视频删除；检查到已持久化的上次后台任务为 `completed`，才执行桌面更新。未推送 GitHub、未公开发布。
 - 全项目发行批准档案已有三项历史失配（冻结批准的技术版 0.1.15 与当前 0.1.16/依赖 SHA），本次不绕过、不伪造批准、不尝试公开发布。
 - 云盘实际删除由用户小范围测试；本轮没有对真实文件发删除请求。
