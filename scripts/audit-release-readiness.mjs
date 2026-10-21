@@ -3,7 +3,7 @@
  * Read-only, fail-closed QA preflight. No approvals or publication side effects.
  * Verifies bytes instead of treating the mere presence of archives as proof.
  */
-import { readFile, access, mkdir, writeFile, stat } from "node:fs/promises";
+import { readFile, access, mkdir, writeFile, stat, lstat, realpath } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -13,6 +13,7 @@ import {
   verifyIsolatedQaInstaller,
   verifyPinnedQaFfmpeg,
   verifyPinnedSourceReviewArchive,
+  verifyReleaseApprovalBindings,
 } from "./release-readiness-integrity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,12 +25,36 @@ async function hashAndSize(name) {
   for await (const chunk of createReadStream(name)) sha.update(chunk);
   return { sha256: sha.digest("hex"), sizeBytes: (await stat(name)).size };
 }
+function safeRepositoryFile(relativeName) {
+  if (typeof relativeName !== "string" || !relativeName.trim() || path.isAbsolute(relativeName)) return null;
+  try {
+    const resolved = path.resolve(root, relativeName);
+    const relative = path.relative(root, resolved);
+    if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return null;
+    return resolved;
+  } catch {
+    return null;
+  }
+}
+async function hashRegularFile(name) {
+  try {
+    const info = await lstat(name);
+    if (!info.isFile() || info.isSymbolicLink()) return null;
+    const [realRoot, realName] = await Promise.all([realpath(root), realpath(name)]);
+    const relative = path.relative(realRoot, realName);
+    if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return null;
+    return await hashAndSize(name);
+  } catch {
+    return null;
+  }
+}
 const checks = [];
 function check(name, ok, detail) {
   checks.push({ name, status: ok ? "PASS" : "BLOCKED", detail });
 }
 
 const approval = await parse("build/release-approval.json");
+const manifest = await parse("package.json");
 const lite = await parse("scripts/native-media-lite.lock.json");
 const meta = await parse("release/unsigned-test-build/build-metadata.json");
 const flavor = await parse("release/unsigned-test-build/build-flavor.json");
@@ -42,8 +67,31 @@ check("QA installer integrity", installerOkay,
   `QA identity, pinned build metadata and installer SHA256: ${installerInfo.sha256}`);
 check("Public artifact identity", false,
   "This audit checks only the isolated unsigned-test-build and cannot approve unsigned-public-release.");
-check("Owner authorization", approval.ownersConfirmed === true,
-  "Confirm ownership of project code, assets and contributions before signing off.");
+
+const packageLockInfo = await hashAndSize(file("package-lock.json"));
+const licenseInfo = await hashAndSize(file("LICENSE"));
+const evidencePath = safeRepositoryFile(approval.cleanWindows11Evidence);
+const evidenceInfo = evidencePath ? await hashRegularFile(evidencePath) : null;
+const approvalBindings = verifyReleaseApprovalBindings({
+  approval,
+  packageVersion: manifest.version,
+  actualPackageLockSha256: packageLockInfo.sha256,
+  actualLicenseSha256: licenseInfo.sha256,
+  actualCleanWindowsEvidenceSha256: evidenceInfo?.sha256 ?? null,
+});
+check("Owner confirmation flag recorded", approval.ownersConfirmed === true,
+  "A historical owner flag does not by itself approve a different package version or dependency set.");
+check("Approval version matches current package", approvalBindings.versionMatches,
+  `Recorded approval version ${approval.version ?? "(missing)"}; current package version ${manifest.version}. A mismatch requires a new owner-reviewed approval.`);
+check("Approved package-lock SHA256 matches current lockfile", approvalBindings.packageLockMatches,
+  `Recorded ${approval.packageLockSha256 ?? "(missing)"}; current ${packageLockInfo.sha256}. Do not rewrite the recorded hash to simulate approval.`);
+check("Approved LICENSE SHA256 matches current LICENSE", approvalBindings.licenseMatches,
+  `Recorded ${approval.licenseSha256 ?? "(missing)"}; current ${licenseInfo.sha256}.`);
+check("Clean Windows QA evidence bytes match approved SHA256", approvalBindings.cleanWindowsEvidenceMatches,
+  evidenceInfo
+    ? `Evidence ${approval.cleanWindows11Evidence} actual SHA256 ${evidenceInfo.sha256}.`
+    : "Approved QA evidence path is missing, unsafe, or not a regular readable file.");
+
 const approvedBinaries = Array.isArray(approval.binaries) &&
   approval.binaries.length >= 3 &&
   approval.binaries.every((b) => b.sourceComplianceApproved === true &&
@@ -54,12 +102,14 @@ check("Third-party binary release approval recorded", Boolean(approvedBinaries &
   lite.status !== "CANDIDATE_NOT_APPROVED"),
   "Human LGPL/runtime compliance approval and distributable lock are required; existence of sources is insufficient.");
 check("Clean stable Windows 11 QA approval recorded", approval.manualQaApproved === true &&
-  Boolean(approval.cleanWindows11Evidence) &&
-  typeof approval.cleanWindows11EvidenceSha256 === "string" &&
-  /^[0-9a-f]{64}$/i.test(approval.cleanWindows11EvidenceSha256),
-  "Insider/dev-machine smoke is not stable Windows 11/no-Node manual QA.");
-check("Release approval recorded", approval.approved === true,
-  "Only the owner can approve after reviewing actual evidence; this script never edits approval.");
+  approval.stableWindowsCoverage === true && approval.standardUserCoverage === true &&
+  approvalBindings.cleanWindowsEvidenceMatches,
+  "Requires owner-reviewed evidence bytes plus explicit stable Windows 11 and standard-user coverage; Insider/dev-machine smoke is insufficient.");
+const releaseApprovalBound = approval.approved === true && approval.ownersConfirmed === true &&
+  approvalBindings.versionMatches && approvalBindings.packageLockMatches &&
+  approvalBindings.licenseMatches && approvalBindings.cleanWindowsEvidenceMatches;
+check("Release approval bound to current package and evidence", releaseApprovalBound,
+  "The historical approval is valid only for its exact version, dependency lock, LICENSE and QA evidence. Any mismatch requires renewed human review; this script never edits approval.");
 
 const ffmpeg = file(".tmp", "native-media-lite-tools", "ffmpeg.exe");
 if (await isFile(ffmpeg)) {

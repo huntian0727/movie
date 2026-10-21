@@ -53,3 +53,26 @@ export function verifyPinnedSourceReviewArchive({ actualSha256, sizeBytes }) {
   return eqHash(actualSha256, PINNED_REVIEW_ZIP.sha256) &&
     sizeBytes === PINNED_REVIEW_ZIP.sizeBytes;
 }
+
+/**
+ * Binds the historical owner approval to the exact source inputs being audited.
+ * A valid historical approval is not reusable after package/version/evidence drift.
+ */
+export function verifyReleaseApprovalBindings({
+  approval,
+  packageVersion,
+  actualPackageLockSha256,
+  actualLicenseSha256,
+  actualCleanWindowsEvidenceSha256,
+}) {
+  return Object.freeze({
+    versionMatches: typeof packageVersion === "string" &&
+      typeof approval?.version === "string" && approval.version === packageVersion,
+    packageLockMatches: eqHash(approval?.packageLockSha256, actualPackageLockSha256),
+    licenseMatches: eqHash(approval?.licenseSha256, actualLicenseSha256),
+    cleanWindowsEvidenceMatches: eqHash(
+      approval?.cleanWindows11EvidenceSha256,
+      actualCleanWindowsEvidenceSha256,
+    ),
+  });
+}

@@ -5,6 +5,7 @@ import {
   verifyIsolatedQaInstaller,
   verifyPinnedQaFfmpeg,
   verifyPinnedSourceReviewArchive,
+  verifyReleaseApprovalBindings,
 } from "../../scripts/release-readiness-integrity.mjs";
 
 const installerSha = "a".repeat(64);
@@ -107,4 +108,43 @@ test("accepts only the pinned private corresponding-source review ZIP digest AND
   assert.equal(verifyPinnedSourceReviewArchive({
     actualSha256: PINNED_REVIEW_ZIP.sha256, sizeBytes: PINNED_REVIEW_ZIP.sizeBytes - 1,
   }), false);
+});
+
+const approvalBindingFixture = () => ({
+  approval: {
+    version: "0.1.15",
+    packageLockSha256: "a".repeat(64),
+    licenseSha256: "b".repeat(64),
+    cleanWindows11EvidenceSha256: "c".repeat(64),
+  },
+  packageVersion: "0.1.15",
+  actualPackageLockSha256: "a".repeat(64),
+  actualLicenseSha256: "b".repeat(64),
+  actualCleanWindowsEvidenceSha256: "c".repeat(64),
+});
+
+test("accepts approval only when current version, lockfile, license and QA evidence all match", () => {
+  assert.deepEqual(verifyReleaseApprovalBindings(approvalBindingFixture()), {
+    versionMatches: true,
+    packageLockMatches: true,
+    licenseMatches: true,
+    cleanWindowsEvidenceMatches: true,
+  });
+});
+
+test("blocks stale approval version and any missing or changed evidence hash", () => {
+  const base = approvalBindingFixture();
+  const staleVersion = verifyReleaseApprovalBindings({ ...base, packageVersion: "0.1.16" });
+  assert.equal(staleVersion.versionMatches, false);
+  assert.equal(staleVersion.packageLockMatches, true);
+
+  for (const field of ["actualPackageLockSha256", "actualLicenseSha256", "actualCleanWindowsEvidenceSha256"]) {
+    const mismatch = verifyReleaseApprovalBindings({ ...base, [field]: "d".repeat(64) });
+    assert.equal(Object.values(mismatch).every(Boolean), false, field);
+  }
+  const missing = verifyReleaseApprovalBindings({
+    ...base, actualCleanWindowsEvidenceSha256: null,
+  });
+  assert.equal(missing.cleanWindowsEvidenceMatches, false);
+  assert.equal(Object.values(verifyReleaseApprovalBindings({})).every(Boolean), false);
 });
