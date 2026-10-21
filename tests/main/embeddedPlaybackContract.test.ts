@@ -28,6 +28,15 @@ describe("embedded trial contracts", () => {
       {op:"stop"}, {op:"volume",sessionKey:"k",value:NaN}
     ]) expect(embeddedRequestSchema.safeParse(request).success).toBe(false);
   });
+  it("accepts only safe predefined playback rates through the embedded IPC boundary", () => {
+    for (const speed of [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]) {
+      expect(embeddedRequestSchema.safeParse({ op: "speed", sessionKey: "k", value: speed }).success).toBe(true);
+    }
+    for (const speed of [-1, 0, 0.1, 0.6, 2.5, 100, NaN, Infinity, "2"]) {
+      expect(embeddedRequestSchema.safeParse({ op: "speed", sessionKey: "k", value: speed }).success).toBe(false);
+    }
+    expect(embeddedRequestSchema.safeParse({ op: "speed", sessionKey: "k", value: 2, path: "C:/video.mp4" }).success).toBe(false);
+  });
   it("coalesces seeks and waits for actual restart plus an ack", () => {
     vi.useFakeTimers(); const send=vi.fn(), phase=vi.fn();
     let state:NativeSnapshot={loaded:true,token:1,time:0,rotation:0,seeking:"no",restartCount:1};

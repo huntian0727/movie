@@ -13,11 +13,11 @@ import type { StructuredLogger } from "../logging/logger.js";
 const snapshotSchema = z.object({
   token: z.number().int(), loaded: z.boolean(), time: z.number().finite().nullable(), duration: z.number().finite().nullable(),
   rotation: z.number().nullable(), seeking: z.string().nullable(), restartCount: z.number().int(), paused: z.string().nullable(),
-  pausedForCache: z.string().nullable(), volume: z.number().nullable(),
+  pausedForCache: z.string().nullable(), volume: z.number().nullable(), speed: z.number().finite().nullable().optional(),
   media: z.object({ tracks: z.array(z.object({ type: z.string().nullable(), id: z.number().nullable(), selected: z.string().nullable(), codec: z.string().nullable() })).max(16) }).nullable()
 });
 export function initialEmbeddedState(sessionKey = ""): EmbeddedState {
-  return { sessionKey, phase: "idle", time: 0, duration: 0, paused: true, volume: 20, rotation: 0, fullscreen: false, tracks: [] };
+  return { sessionKey, phase: "idle", time: 0, duration: 0, paused: true, volume: 20, speed: 1, rotation: 0, fullscreen: false, tracks: [] };
 }
 
 /** Trusted player window only. Renderer never supplies files, handles, DLL locations or native commands. */
@@ -35,6 +35,7 @@ export class EmbeddedPlayer {
   private savedAt = 0;
   private savedPosition: { videoId: string; positionMs: number } | null = null;
   private preferredVolume = 20;
+  private preferredSpeed = 1;
   private closing = false;
   private bounds: object | null = null;
   private visible = true;
@@ -76,7 +77,7 @@ export class EmbeddedPlayer {
       this.bounds = null; this.visible = true;
       this.cancelPauses();
       this.savePosition(); this.videoId = null; this.queue.reset(); this.snapshot = null;
-      this.state = { ...initialEmbeddedState(key), volume: this.preferredVolume, phase: "loading" };
+      this.state = { ...initialEmbeddedState(key), volume: this.preferredVolume, speed: this.preferredSpeed, phase: "loading" };
       this.send({ op: "quit" });
       const generation = ++this.token;
       this.work = this.work.catch(() => undefined).then(async () => {
@@ -122,6 +123,7 @@ export class EmbeddedPlayer {
     } else {
       if (request.op === "volume" && request.value > 100) throw new Error("音量无效");
       if (request.op === "volume") this.preferredVolume = request.value;
+      if (request.op === "speed") { this.preferredSpeed = request.value; this.state.speed = request.value; }
       if ((request.op === "audio-track" || request.op === "subtitle-track") && (!Number.isInteger(request.value) || request.value > 128)) throw new Error("轨道无效");
       this.send(request);
     }
@@ -202,7 +204,7 @@ export class EmbeddedPlayer {
           const value = JSON.parse(line.replace(/^\uFEFF/, "")); this.lastMessage = Date.now();
           if (value.type === "ready") {
             this.logger?.info({ module: "media.playback", event: "embedded_host_ready", durationMs: Date.now() - this.startupStartedAt });
-            clearTimeout(timeout); if (this.bounds) this.send(this.bounds); this.send({ op: "visible", value: this.visible }); this.send({ op: "load", token: generation, path: file, paused: !autoplay, start: resume / 1000, volume: this.preferredVolume }); resolve();
+            clearTimeout(timeout); if (this.bounds) this.send(this.bounds); this.send({ op: "visible", value: this.visible }); this.send({ op: "load", token: generation, path: file, paused: !autoplay, start: resume / 1000, volume: this.preferredVolume, speed: this.preferredSpeed }); resolve();
           } else if (value.type === "input") {
             const input = embeddedInputSchema.safeParse(value.input);
             if (input.success && !w.isDestroyed()) {
@@ -265,7 +267,7 @@ export class EmbeddedPlayer {
     if (!waiting) this.finishStartup("decode_ready");
     this.waitingSince = waiting ? this.waitingSince || Date.now() : 0;
     this.state = { ...this.state, time: Math.max(0, s.time ?? this.state.time), duration: s.duration ?? this.state.duration,
-      paused: s.paused === "yes", volume: s.volume ?? 20, rotation: s.rotation ?? 0,
+      paused: s.paused === "yes", volume: s.volume ?? 20, speed: s.speed ?? this.state.speed, rotation: s.rotation ?? 0,
       phase: !s.loaded ? "loading" : s.pausedForCache === "yes" ? "buffering" : s.seeking === "yes" || this.queue.busy ? "reading" : s.paused === "yes" ? "paused" : "playing",
       tracks: (s.media?.tracks ?? []).flatMap(t => (t.type === "audio" || t.type === "sub") && t.id !== null ? [{ type: t.type, id: t.id, selected: t.selected === "yes", codec: t.codec ?? "未知" }] : []) };
     if (s.loaded && Date.now() - this.savedAt > 5000) this.savePosition();

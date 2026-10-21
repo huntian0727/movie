@@ -1041,6 +1041,10 @@ button.player-placeholder:hover svg, button.player-placeholder:hover strong { co
 .time-readout { min-width: 112px; color: #b7bab4; font-variant-numeric: tabular-nums; font-size: 11px; text-align: center; }
 .time-readout span { color: #5f625e; }
 .control-group.right input { width: 82px; accent-color: #e45c44; }
+.player-speed-label { display: inline-flex; align-items: center; margin: 0 4px; }
+.player-speed-label select { width: 66px; height: 30px; padding: 0 5px; border: 1px solid #393c38; border-radius: 5px; background: #252725; color: #e7e9e5; font: inherit; font-size: 12px; cursor: pointer; }
+.player-speed-label select:hover:not(:disabled), .player-speed-label select:focus-visible { border-color: #e45c44; }
+.player-speed-label select:disabled { opacity: .4; cursor: default; }
 .player-playlist { position: absolute; z-index: 7; top: 82px; right: 14px; bottom: 116px; width: min(410px, calc(100vw - 28px)); min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; border: 1px solid rgba(94,97,91,.48); border-radius: 14px; background: rgba(17,18,17,.96); box-shadow: 0 24px 70px rgba(0,0,0,.56); backdrop-filter: blur(14px); }
 .player-page.is-fullscreen .player-playlist { top: 18px; bottom: 92px; }
 .player-playlist-header { min-width: 0; padding: 14px 14px 12px 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-bottom: 1px solid #2c2e2b; }

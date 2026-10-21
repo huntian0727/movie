@@ -182,6 +182,7 @@ class NativeHost : Form, IMessageFilter {
                 loaded=false;endReported=false;seekCount=0;restartCount=0; token=Convert.ToInt32(message["token"]);
                 Native.Set(mpv,"pause",Convert.ToBoolean(message["paused"])?"yes":"no",false);
                 if(message.ContainsKey("volume")) Native.Set(mpv,"volume",Clamp(message["volume"],0,100).ToString(CultureInfo.InvariantCulture),false);
+                if(message.ContainsKey("speed") && Native.Set(mpv,"speed",Clamp(message["speed"],0.5,2).ToString(CultureInfo.InvariantCulture),false)<0)throw new Exception("speed-load-failed");
                 Native.Set(mpv,"start",Clamp(message["start"],0,86400).ToString(CultureInfo.InvariantCulture),false);
                 string file=Convert.ToString(message["path"]); if(!System.IO.Path.IsPathRooted(file))throw new Exception("absolute-file-required");
                 result=Native.Command(mpv,"loadfile",file,"replace");
@@ -194,6 +195,7 @@ class NativeHost : Form, IMessageFilter {
             }
             else if(op=="seek") result=Native.Command(mpv,"seek",Clamp(message["value"],0,86400).ToString(CultureInfo.InvariantCulture),"absolute+exact");
             else if(op=="volume") result=Native.Set(mpv,"volume",Clamp(message["value"],0,100).ToString(CultureInfo.InvariantCulture),false);
+            else if(op=="speed") result=Native.Set(mpv,"speed",Clamp(message["value"],0.5,2).ToString(CultureInfo.InvariantCulture),false);
             else if(op=="rotate") result=Native.Set(mpv,"video-rotate",Clamp(message["value"],0,270).ToString(CultureInfo.InvariantCulture),false);
             else if(mediaFeatures && (op=="audio-track"||op=="subtitle-track")) {
                 int id=Convert.ToInt32(message["value"]);if(id<0||id>128)throw new Exception("invalid-track-id");
@@ -257,7 +259,7 @@ class NativeHost : Form, IMessageFilter {
         Native.Rect viewport; Native.GetClientRect(Handle,out viewport);
         Native.Rect videoRect; Native.GetClientRect(Native.GetWindow(Handle,5),out videoRect);
         Emit(new {type="snapshot",token=token,loaded=loaded,viewportWidth=viewport.right,viewportHeight=viewport.bottom,renderWidth=videoRect.right,renderHeight=videoRect.bottom,clipTop=clipTop,clipBottom=clipBottom,rotation=Native.Number(mpv,"video-rotate"),time=Native.Number(mpv,"time-pos"),duration=Native.Number(mpv,"duration"),
-            paused=Native.Text(mpv,"pause"),volume=Native.Number(mpv,"volume"),videoCodec=Native.Text(mpv,"video-codec"),
+            paused=Native.Text(mpv,"pause"),volume=Native.Number(mpv,"volume"),speed=Native.Number(mpv,"speed"),videoCodec=Native.Text(mpv,"video-codec"),
             audioCodec=Native.Text(mpv,"audio-codec-name"),hwdec=Native.Text(mpv,"hwdec-current"),width=Native.Number(mpv,"width"),
             height=Native.Number(mpv,"height"),avsync=Native.Number(mpv,"avsync"),dropped=Native.Number(mpv,"frame-drop-count"),
             pausedForCache=Native.Text(mpv,"paused-for-cache"),cacheDuration=Native.Number(mpv,"demuxer-cache-duration"),seeking=Native.Text(mpv,"seeking"),
