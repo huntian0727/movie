@@ -17,6 +17,13 @@
 - 只读核查数据库：v16、363216 视频、7 个 CloudDrive 来源和 4 个本地来源；本地 API TCP 可连接，未做真正的服务端删除。
 - 原备份再次 Verify PASS；本阶段未修改生产代码。详情见 `docs/ai/deliveries/2026-10-21-duplicate-background-fault-qa.md`。
 
+## 最新非删除测试（2026-10-21，用户要求暂缓真实删除）
+
+- 本轮只测试播放器、字幕、扫描、数据库迁移、Windows 文件操作、性能和 CloudDrive 安全逻辑，不操作真实影片和删除 API。
+- 37 个测试文件 **466/466** 条 Vitest 用例通过；额外 Electron 主进程 smoke PASS。320k 构造数据性能门禁 4/4 PASS。
+- 测试记录：`docs/ai/deliveries/2026-10-21-v12-nondestructive-regression.md`。旧全量回归的 3 项发行批准证据失配仍未处理；不推送、不正式发布。
+- 用户已明确暂缓实际 115 删除测试，后续优先其他低风险项目，**不要再要求提供测试目录**。
+
 ## 新会话先读
 
 1. `AGENTS.md`：开发、备份、测试和交付规则。
