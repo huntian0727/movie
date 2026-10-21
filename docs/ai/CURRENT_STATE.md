@@ -9,7 +9,7 @@
 - 最新分支/HEAD 以 `git status --short --branch` 和 `git rev-parse HEAD` 为准；技术版本 0.1.16、界面版本 v1.2，GitHub 公开版仍为 v0.1.15。
 - 发版文档已改为候选状态，并修正 `docs/portable.md`、`docs/windows-installation.md`、`docs/SOURCE_COMMUNITY_RELEASE.md` 中错误指向未公开 0.1.16 的下载链接；全量发行门禁 1,391/1,391 PASS，私有 unsigned-test-build 安装包 `verify:artifact` 与 `test:installer-smoke` PASS。
 - `audit-release-readiness.mjs` 仍为 `OUTCOME=BLOCKED`：历史审批绑定 0.1.15，lockfile 不匹配，原生媒体/LGPL 分发审批及稳定 Windows/标准用户验收未完成。私有源码 REVIEW ZIP 核验通过，但不得公开上传。
-- 当前无已验证的 0.1.16 portable ZIP；没有推送、tag 或公开发布。日常桌面版未覆盖；真实 CloudDrive/115 删除测试继续暂缓。详见 `deliveries/2026-10-21-release-candidate-prep.md`。
+- 私有 `unsigned-community-qa` 绿色 ZIP 已通过 `verify:zip`（229 文件逐项校验 + 双阶段 packaged smoke），`release:metadata -- --portable` PASS；SHA-256 `4d8f099bf436ed3f1ac46bebe3020672786d66de4c49fb56820f15e848e9e9d1`，构建 commit `bbc1a42ca4784bda1fee788f9ee3256b781900a7`。该 ZIP 未签名且 `publicReleaseApproved=false`，仅私有 QA。没有推送、tag 或公开发布。日常桌面版未覆盖；真实 CloudDrive/115 删除测试继续暂缓。详见 `deliveries/2026-10-21-release-candidate-prep.md`。
 
 - 当前直接交接入口：[`CURRENT-HANDOFF.md`](CURRENT-HANDOFF.md)。新会话先读该文件，再读 `AGENTS.md`、`START_HERE.md` 和对应交付记录。
 - 历史阶段记录（已被上方最新覆盖）：当时分支为 `ai/release-metadata-display-version`，提交 `ad6e853` 补齐发行元数据生成器的 displayVersion；原 v1.2 功能实现提交为 `c79402c1f904e80b7188eb1d313c101b2ad96ba0`。当前分支与 HEAD 请以实时 Git 查询为准。

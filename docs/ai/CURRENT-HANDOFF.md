@@ -13,7 +13,7 @@
 - 在隔离身份 `unsigned-test-build` 下重新构建私有 QA NSIS 安装包。 `node scripts/verify-packaged-artifact.mjs` PASS（3,469 ASAR 条目、17 份精确许可声明）；`node scripts/write-release-metadata.mjs` PASS；`npm run test:installer-smoke` PASS（安装、修复、拒绝删除应用数据、卸载；合成 SQLite/视频哨兵保留，生产注册信息与快捷方式未变）。安装器 SHA-256：`d70815daaa53ea4e87e487e280767096c14fb89ff84b6ae7d277c0be1a0a0003`。
 - 当前私有安装器路径：`release/unsigned-test-build/拉面影视-0.1.16-x64-unsigned-test-build-Setup.exe`。它不是正式包，不得公开上传；日常版 `release/win-unpacked` 和桌面快捷方式未覆盖。
 - 使用私有 FFmpeg-Lite REVIEW-v2 ZIP 重跑 `audit-release-readiness.mjs`，源码 ZIP 哈希核验 PASS（239,488,121 字节，SHA-256 `6ed202c4e30627624e2678a2a62e7c9c6e347be4a57d9b6af248fd45571b15d4`），但总结果 `OUTCOME=BLOCKED`。阻塞包括：旧审批绑定 0.1.15、package-lock 哈希不匹配、原生媒体分发/LGPL 审批未完成、稳定 Windows 11/标准用户覆盖未获批、当前私有安装器哈希不在历史 QA 批准记录中、此审计本身不能批准公开包。
-- 本轮便携 ZIP 构建命令被远程执行层拒绝启动；没有绕过执行控制，也没有生成本轮已验证的 0.1.16 ZIP。后续应在允许的执行通道继续私有 portable QA 构建与 `verify:zip`。
+- 私有 `unsigned-community-qa` 绿色 ZIP 已通过 `dist:zip`、`npm run verify:zip` 和 `npm run release:metadata -- --portable`；229 个文件逐项校验、双阶段 packaged smoke PASS。SHA-256：`4d8f099bf436ed3f1ac46bebe3020672786d66de4c49fb56820f15e848e9e9d1`，构建 commit `bbc1a42ca4784bda1fee788f9ee3256b781900a7`；未签名、`publicReleaseApproved=false`，仅私有 QA。
 - 没有推送 GitHub、创建/推送 tag、上传或发布 Release。没有运行真实 CloudDrive/115 删除；遵守用户要求，将真实远端删除与播放器/字幕人工体验留到最后。
 - 完整证据与下一步：`docs/ai/deliveries/2026-10-21-release-candidate-prep.md`。**禁止通过编辑审批文件、改哈希、改名 QA 包来绕过发行阻塞。**
 
@@ -25,7 +25,7 @@
 - 修复 `scripts/write-release-metadata.mjs`：预期 BuildFlavor 补入唯一来源的 `displayVersion`，解决元数据严格匹配失败。
 - 在独立 detached worktree 构建当前 0.1.16 私有 unsigned QA 安装包；`dist:win`、`release:metadata`、`verify:artifact` 均 PASS。
 - `test:installer-smoke` PASS：隔离安装、修复、拒绝误删数据、卸载；合成 SQLite/视频哨兵保留，正式注册信息与快捷方式未变。
-- `node --check`、`npm run typecheck` PASS；`npm run test:media-candidate-contract` 67/67 PASS。全量测试的 3 项旧发行审批绑定失败仍保留，没有绕过审批。
+- `node --check`、`npm run typecheck` PASS；`npm run test:media-candidate-contract` 67/67 PASS。历史阶段全量测试曾有 3 项旧发行审批绑定失败；随后修订了发行工程测试，使历史批准与当前候选正确隔离。最新 `npm run test:release-gate` 已 PASS，详情以本页顶部最新覆盖及 `deliveries/2026-10-21-release-candidate-prep.md` 为准。
 - QA 安装包使用未获公开发行批准的 source-candidate，仅限内部测试；没有替换日常桌面版或推送 GitHub。详细记录：`docs/ai/deliveries/2026-10-21-release-metadata-display-version.md`。
 
 ## 最新进展（2026-10-21 晚间：独立质量门禁与发行预检）

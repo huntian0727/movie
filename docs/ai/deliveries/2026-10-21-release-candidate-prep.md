@@ -42,7 +42,8 @@ status: prepared-with-blockers
 - 当前私有 QA 安装器：`release/unsigned-test-build/拉面影视-0.1.16-x64-unsigned-test-build-Setup.exe`，SHA-256 `d70815daaa53ea4e87e487e280767096c14fb89ff84b6ae7d277c0be1a0a0003`。该文件**只用于隔离 QA**，不是正式安装器，也不应公开上传。
 - 私有绿色 ZIP 构建：在 WebCodex 项目 Runner 的受支持执行通道运行 `dist:zip`，退出码 0；release class 为 `unsigned-community-qa`，App ID 为 `com.local.video.manager.community`，源码 commit `bbc1a42ca4784bda1fee788f9ee3256b781900a7`，`workspaceDirty=false`。
 - `npm run verify:zip`：PASS。应用包内容校验 3,469 ASAR 条目、17 份精确许可声明；解压后逐文件核验 229 个文件，双阶段 packaged smoke 均通过。日志中出现测试窗口 `ERR_UNTRUSTED_IPC_SENDER` 诊断和 `Can't find filter element`，但 smoke 结果均为 PASS，命令退出码 0。
-- `npm run release:metadata -- --portable`：PASS。私有 QA ZIP 为 `release/unsigned-community-qa/拉面影视-0.1.16-x64-community-qa-Portable.zip`，SHA-256 `4d8f099bf436ed3f1ac46bebe3020672786d66de4c49fb56820f15e848e9e9d1`，校验清单一致；应用与 NativeHost 均未签名，`publicReleaseApproved=false`。该 ZIP 只用于私有 QA，不得公开上传或冒充正式包。- 自动化通过不等于所有者发行批准或真实媒体 E2E 通过。
+- `npm run release:metadata -- --portable`：PASS。私有 QA ZIP 为 `release/unsigned-community-qa/拉面影视-0.1.16-x64-community-qa-Portable.zip`，SHA-256 `4d8f099bf436ed3f1ac46bebe3020672786d66de4c49fb56820f15e848e9e9d1`，校验清单一致；应用与 NativeHost 均未签名，`publicReleaseApproved=false`。该 ZIP 只用于私有 QA，不得公开上传或冒充正式包。
+- 自动化通过不等于所有者发行批准或真实媒体 E2E 通过。
 
 ## 发行预检实际结果
 
@@ -69,7 +70,8 @@ status: prepared-with-blockers
 ## 当前未做与剩余事项
 
 - 未创建或推送 Git tag；未上传或发布 GitHub Release；未推送 GitHub。
-- 已生成并验证私有 QA portable ZIP；尚未生成获批准可公开分发的正式 ZIP。- 未覆盖日常开发版 `release/win-unpacked`，未改桌面快捷方式，未触碰真实用户资料库。
+- 已生成并验证私有 QA portable ZIP；尚未生成获批准可公开分发的正式 ZIP。
+- 未覆盖日常开发版 `release/win-unpacked`，未改桌面快捷方式，未触碰真实用户资料库。
 - 未操作真实 CloudDrive/115 删除；遵守用户暂缓真实删除测试的决定。
 - 播放器切换、字幕与下载等最终人工体验尚未做，按用户要求留到最后。
 - 正式发布前需人工/所有者处理：为 0.1.16 候选重新审查并批准确切版本与依赖锁；完成原生媒体许可与分发批准；完成稳定 Windows 11 / 标准用户验收；明确远端删除验收安排；再构建、校验最终 portable ZIP。
