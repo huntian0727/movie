@@ -7,6 +7,7 @@
 - 当前直接交接入口：[`CURRENT-HANDOFF.md`](CURRENT-HANDOFF.md)。新会话先读该文件，再读 `AGENTS.md`、`START_HERE.md` 和对应交付记录。
 - 当前分支 `ai/duplicate-background-fault-qa`，以 `ai/duplicate-queued-list-ux` 的文档 HEAD `1f526c4` 为基线，只增补隔离故障联动测试和文档；原功能实现提交仍为 `c79402c1f904e80b7188eb1d313c101b2ad96ba0`。新会话以 `git rev-parse HEAD` 和 `git status --short` 获取实时 Git 状态；本地界面版本仍为 `v1.2`，技术包版本 `0.1.16`。
 - 容错联动专项：真实临时 SQLite + 模拟 CloudDrive，已验证跨 30+5 批次的明确失败（34 成功/1 失败）和第 31 次调用断连（32 成功/1 未知/2 未提交），重启均不自动重放；`npm run typecheck` PASS，6 文件 77/77 PASS。未进行真实 115 API 删除；详见 `deliveries/2026-10-21-duplicate-background-fault-qa.md`。
+- 新一轮仅只读运行检查和隔离打包测试：真实资料库 v16，363216 视频，CloudDrive 来源 7、本地来源 4，当前 API TCP 可达；v1.2 双阶段 packaged smoke PASS、备份 Verify PASS。真实远端删除仍 NOT RUN，详见 2026-10-21 容错 QA 交付记录。
 - 当前已完成“重复文件入后台后临时隐藏排队项、整页覆盖单页筛选目录时自动退出浏览筛选”的实现。专项 typecheck 及 5 个测试文件 148/148 通过。细节与风险见 `deliveries/2026-10-21-duplicate-queued-list-ux.md`。
 - 本任务仅本地提交，未推送 GitHub、未公开发布。桌面日常包标记与上一次程序功能提交 `c79402c` 一致（后续仅文档/测试提交，故与最新 HEAD 不相同）。2026-10-21 先前基线全量 Vitest 1386/1389 PASS、发行批准记录失配导致 3 FAIL；新增 2 条测试后未再次运行全量套件或正式发行门禁。
 

@@ -11,6 +11,12 @@
 - 本轮 `npm run typecheck` PASS；专项 3 文件 25/25 PASS，扩展 6 文件 77/77 PASS。真正 CloudDrive/115 服务器测试 NOT RUN。
 - 最新详情：`docs/ai/deliveries/2026-10-21-duplicate-background-fault-qa.md`。只允许本地提交，不推送 GitHub、不公开发版；下一次常规用户可见功能改动才升级 v1.3。
 
+## 最新补充验收
+
+- v1.2 日常打包程序已完成隔离双阶段 packaged smoke，结果 PASS；原快捷方式及日常程序未替换。
+- 只读核查数据库：v16、363216 视频、7 个 CloudDrive 来源和 4 个本地来源；本地 API TCP 可连接，未做真正的服务端删除。
+- 原备份再次 Verify PASS；本阶段未修改生产代码。详情见 `docs/ai/deliveries/2026-10-21-duplicate-background-fault-qa.md`。
+
 ## 新会话先读
 
 1. `AGENTS.md`：开发、备份、测试和交付规则。
