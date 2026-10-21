@@ -237,6 +237,11 @@ button { color: inherit; }
 .brand-mark { width: 34px; height: 34px; border-radius: 7px; display: grid; place-items: center; background: #e4573d; color: #fff; }
 .brand strong { display: block; font-size: 17px; line-height: 20px; }
 .brand small { color: #8f928d; font-size: 11px; }
+.brand-identity { min-width: 0; }
+.brand-name-row { display: flex; align-items: baseline; flex-wrap: nowrap; gap: 7px; white-space: nowrap; }
+.brand-name-row strong { flex: 0 0 auto; }
+.brand-version { flex: 0 0 auto; font-size: 12px; line-height: 18px; font-weight: 600; font-variant-numeric: tabular-nums; color: #aabbb0; }
+.brand-version:hover { color: #e5f0e8; }
 .primary-nav, .folder-nav { display: grid; gap: 3px; }
 .primary-nav { margin-top: 14px; min-height: 0; max-height: 65%; flex: 0 1 auto; overflow-y: auto; scrollbar-width: thin; gap: 6px; }
 .primary-nav button { height: 38px; width: 100%; border: 0; border-radius: 6px; padding: 0 10px; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 9px; background: transparent; color: #afb2ad; text-align: left; cursor: pointer; }

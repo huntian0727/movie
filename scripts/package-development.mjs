@@ -1,6 +1,8 @@
 // Maintainer's local daily desktop only. Never produces an installer, ZIP or publication.
 import { execFileSync, spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { assertDeliveredVersionAdvanced, formatDisplayVersion, readDisplayVersion } from "./display-version.mjs";
 import path from "node:path";
 import { readJson, writeJson, hashFile } from "./release-engineering.mjs";
 import { verifySourceMedia } from "./native-source-media.mjs";
@@ -19,13 +21,20 @@ const media = path.join(root, ".tmp/native-source-media-tools"), player = path.j
 await verifySourceMedia(media, mediaLock);
 await verifyPlayerRuntime(player, playerLock);
 const pkg = await readJson(path.join(root, "package.json"));
+const displayVersion = await readDisplayVersion(root);
+const displayVersionLabel = formatDisplayVersion(displayVersion);
 const staging = path.join(root, ".tmp/development-package");
 await mkdir(staging, { recursive: true });
 const flavor = { schemaVersion: 1, releaseClass: "local-development", appId: "com.local.video.manager.development",
-  userDataDirectoryName: "local-video-manager", version: pkg.version, arch: "x64", distributable: false,
+  userDataDirectoryName: "local-video-manager", version: pkg.version, displayVersion: displayVersionLabel, arch: "x64", distributable: false,
   commit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", windowsHide: true }).trim(),
   workspaceDirty: Boolean(execFileSync("git", ["status", "--porcelain"], { encoding: "utf8", windowsHide: true }).trim()),
   builtAt: new Date().toISOString() };
+// Fail packaging if the source code advanced but the visible version was forgotten.
+const previousFlavorPath = path.join(root, "release", "win-unpacked", "resources", "build-flavor.json");
+if (existsSync(previousFlavorPath)) {
+  assertDeliveredVersionAdvanced(await readJson(previousFlavorPath), displayVersion, flavor.commit);
+}
 await writeJson(path.join(staging, "build-flavor.json"), flavor);
 const offline = process.env.MOVIE_ELECTRON_DIST_ZIP;
 if (offline && (path.basename(offline).toLowerCase() !== "electron-v44.7.0-win32-x64.zip" ||
@@ -52,4 +61,4 @@ await new Promise((resolve, reject) => {
     { cwd: root, env: process.env, stdio: "inherit", windowsHide: true });
   child.on("error", reject); child.on("exit", code => code === 0 ? resolve() : reject(new Error(`Local desktop packaging failed (${code})`)));
 });
-console.log(`Local desktop regenerated at ${outputDirectory}/win-unpacked; distribution remains a separate workflow.`);
+console.log(`Local desktop v${displayVersionLabel} regenerated at ${outputDirectory}/win-unpacked; distribution remains a separate workflow.`);

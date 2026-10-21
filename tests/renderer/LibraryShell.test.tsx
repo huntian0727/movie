@@ -256,6 +256,7 @@ describe("LibraryShell", () => {
     render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]} />);
 
     expect(screen.getByText("拉面影视")).toBeInTheDocument();
+    expect(screen.getByLabelText("当前版本 1.1")).toHaveTextContent("v1.1");
     expect(screen.getByRole("button", { name: /浏览目录/ })).toBeInTheDocument();
     expect(screen.getByTitle(folder.path)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Drama" })).not.toBeInTheDocument();

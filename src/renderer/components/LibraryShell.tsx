@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch
 import { AlertTriangle, BookmarkX, CircleGauge, Clock3, Cloud, CopyMinus, Database, FileQuestion, FolderInput, FolderPlus, FolderSearch, HardDrive, Heart, Library, ListChecks, LoaderCircle, MoreHorizontal, Pause, PieChart, Play, PlaySquare, RotateCw, Server, Settings, Trash2 } from "lucide-react";
 import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, ReviewedDeleteBackgroundJob, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, MetadataIssueStatusFilter, PlaybackPreference, ScanFailure, ScanFailureBatchJob, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
+import displayVersion from "../../shared/displayVersion.json";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
 import { ReviewedBackgroundStatus } from "./ReviewedBackgroundStatus";
 import { AssetCenterPage } from "./AssetCenterPage";
@@ -733,7 +734,10 @@ export function LibraryShell({
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark"><PlaySquare size={22} /></span>
-          <div><strong>拉面影视</strong><small>本地视频库</small></div>
+          <div className="brand-identity">
+            <div className="brand-name-row"><strong>拉面影视</strong><span className="brand-version" title={`当前桌面界面版本 ${displayVersion.major}.${displayVersion.minor}`} aria-label={`当前版本 ${displayVersion.major}.${displayVersion.minor}`}>v{displayVersion.major}.{displayVersion.minor}</span></div>
+            <small>本地视频库</small>
+          </div>
         </div>
         <nav className="primary-nav" aria-label="视频库导航">
           <SidebarMenuGroup id="overview" title="概览" active={view === "assetCenter"}>
