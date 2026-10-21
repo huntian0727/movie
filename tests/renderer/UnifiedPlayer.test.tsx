@@ -326,12 +326,14 @@ describe("original player UI with embedded engine", () => {
       await screen.findByText("已暂停");
       const control = screen.getByRole("combobox", { name: "播放倍速" });
       expect(control).toHaveValue("1");
-      fireEvent.change(control, { target: { value: "1.75" } });
-      await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "speed", value: 1.75 })));
-      await waitFor(() => expect(control).toHaveValue("1.75"));
+      for (const rate of [3, 4, 5]) {
+        fireEvent.change(control, { target: { value: String(rate) } });
+        await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "speed", value: rate })));
+        await waitFor(() => expect(control).toHaveValue(String(rate)));
+      }
       view.rerender(<PlayerPage video={{ ...video, id: "next", filename: "后续视频.mp4" }} embeddedApi={b.api} playbackRoute="embedded" />);
       await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "start", videoId: "next" })));
-      expect(screen.getByRole("combobox", { name: "播放倍速" })).toHaveValue("1.75");
+      expect(screen.getByRole("combobox", { name: "播放倍速" })).toHaveValue("5");
     } finally { view.unmount(); }
   });
   it("shows fullscreen failure without claiming success and retries", async () => {

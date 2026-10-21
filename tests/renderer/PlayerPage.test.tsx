@@ -133,14 +133,16 @@ describe("PlayerPage", () => {
     const element = view.container.querySelector("video")!;
     expect(speed).toHaveValue("1");
     expect(element.playbackRate).toBe(1);
-    expect(Array.from(speed.querySelectorAll("option")).map(option => option.value)).toEqual(["0.5", "0.75", "1", "1.25", "1.5", "1.75", "2"]);
-    fireEvent.change(speed, { target: { value: "1.5" } });
-    expect(speed).toHaveValue("1.5");
-    expect(element.playbackRate).toBe(1.5);
+    expect(Array.from(speed.querySelectorAll("option")).map(option => option.value)).toEqual(["0.5", "0.75", "1", "1.25", "1.5", "1.75", "2", "3", "4", "5"]);
+    for (const rate of [3, 4, 5]) {
+      fireEvent.change(speed, { target: { value: String(rate) } });
+      expect(speed).toHaveValue(String(rate));
+      expect(element.playbackRate).toBe(rate);
+    }
     view.rerender(<PlayerPage video={{ ...video, id: "v2" }} mediaUrl="local-video://media/v2" />);
     fireEvent.loadedMetadata(view.container.querySelector("video")!);
-    expect(screen.getByRole("combobox", { name: "播放倍速" })).toHaveValue("1.5");
-    expect(view.container.querySelector("video")!.playbackRate).toBe(1.5);
+    expect(screen.getByRole("combobox", { name: "播放倍速" })).toHaveValue("5");
+    expect(view.container.querySelector("video")!.playbackRate).toBe(5);
     fireEvent.change(speed, { target: { value: "0.5" } });
     expect(view.container.querySelector("video")!.playbackRate).toBe(0.5);
     view.unmount();

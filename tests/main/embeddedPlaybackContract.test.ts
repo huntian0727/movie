@@ -29,10 +29,10 @@ describe("embedded trial contracts", () => {
     ]) expect(embeddedRequestSchema.safeParse(request).success).toBe(false);
   });
   it("accepts only safe predefined playback rates through the embedded IPC boundary", () => {
-    for (const speed of [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]) {
+    for (const speed of [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 3, 4, 5]) {
       expect(embeddedRequestSchema.safeParse({ op: "speed", sessionKey: "k", value: speed }).success).toBe(true);
     }
-    for (const speed of [-1, 0, 0.1, 0.6, 2.5, 100, NaN, Infinity, "2"]) {
+    for (const speed of [-1, 0, 0.1, 0.6, 2.5, 4.5, 5.5, 100, NaN, Infinity, "2"]) {
       expect(embeddedRequestSchema.safeParse({ op: "speed", sessionKey: "k", value: speed }).success).toBe(false);
     }
     expect(embeddedRequestSchema.safeParse({ op: "speed", sessionKey: "k", value: 2, path: "C:/video.mp4" }).success).toBe(false);

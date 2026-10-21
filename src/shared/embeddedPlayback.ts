@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Fixed rates supported by both the browser and the trusted MPV host. */
-export const PLAYBACK_SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
+export const PLAYBACK_SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 3, 4, 5] as const;
 
 export const embeddedRequestSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("start"), videoId: z.string().min(1), sessionKey: z.string().min(1).max(100), positionMs: z.number().int().min(0).max(86_400_000).optional(), autoplay: z.boolean() }).strict(),
