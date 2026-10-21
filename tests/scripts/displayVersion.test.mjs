@@ -5,9 +5,10 @@ import {
 } from "../../scripts/display-version.mjs";
 
 describe("two-segment visible product version", () => {
-  it("has one canonical source currently at v1.1", async () => {
-    expect(await readDisplayVersion()).toEqual({ major: 1, minor: 1 });
-    expect(formatDisplayVersion(await readDisplayVersion())).toBe("1.1");
+  it("reads a valid two-part version from the single source without hardcoding a release number", async () => {
+    const current = await readDisplayVersion();
+    expect(validateDisplayVersion(current)).toEqual(current);
+    expect(formatDisplayVersion(current)).toMatch(/^[0-9]+[.][0-9]{1,3}$/);
   });
   it("bumps small updates only in second component", () => {
     expect(bumpDisplayVersion({ major: 1, minor: 1 }, "minor")).toEqual({ major: 1, minor: 2 });

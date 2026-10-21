@@ -46,6 +46,8 @@ describe("reviewed deletion background queue", () => {
     const accepted = queue.submit(plan(65));
     expect(accepted.status).toBe("running");
     expect(accepted.total).toBe(65);
+    expect(accepted.queuedVideoIds).toHaveLength(65);
+    expect(accepted.queuedVideoIds).toContain("remove-64");
     expect(accepted.processed).toBe(0);
     await until(() => queue.get(), () => run.mock.calls.length === 1);
     expect(queue.get()?.status).toBe("running");
@@ -58,6 +60,7 @@ describe("reviewed deletion background queue", () => {
     expect(completed.unsubmittedCount).toBe(0);
     expect(run.mock.calls.map(([batch]) => batch.groups.length)).toEqual([30, 30, 5]);
     expect(JSON.parse(readFileSync(filename, "utf8")).status).toBe("completed");
+    expect(JSON.parse(readFileSync(filename, "utf8")).queuedVideoIds).toHaveLength(65);
   });
 
   it("keeps acknowledged results and stops unsubmitted chunks when a remote response is unknown", async () => {

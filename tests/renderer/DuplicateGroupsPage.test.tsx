@@ -367,12 +367,66 @@ describe("DuplicateGroupsPage staged safety flow", () => {
       onBackgroundAccepted={onBackgroundAccepted} onReviewedDelete={onReviewedDelete} onPreviewResolve={onPreviewResolve} />);
     fireEvent.click(screen.getByRole("button", { name: "清理当前页（1 个文件）" }));
     fireEvent.click(screen.getByRole("button", { name: "确认清理 1 个文件" }));
-    await waitFor(() => expect(onBackgroundAccepted).toHaveBeenCalledWith(expect.objectContaining({ status: "running", total: 1 })));
+    await waitFor(() => expect(onBackgroundAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "running", total: 1 }), { clearDirectoryScope: false }
+    ));
     expect(onStartReviewedBackground).toHaveBeenCalledWith({ groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }] });
     expect(screen.queryByRole("alertdialog", { name: "确认清理当前页重复文件？" })).not.toBeInTheDocument();
     expect(screen.getByText(/已将 1 个文件提交后台清理/)).toBeInTheDocument();
     expect(onReviewedDelete).not.toHaveBeenCalled();
     expect(onPreviewResolve).not.toHaveBeenCalled();
+  });
+
+  it("exits a fully submitted filtered directory but preserves the saved preferred keep rule", async () => {
+    const onBackgroundAccepted = vi.fn();
+    const onStartReviewedBackground = vi.fn().mockResolvedValue({
+      id: "bulk", status: "running", queuedVideoIds: ["delete"],
+      total: 1, processed: 0, successCount: 0, failureCount: 0,
+      uncertainCount: 0, unsubmittedCount: 1, reclaimedBytes: 0,
+      recycledCount: 0, failures: [], message: "accepted",
+      createdAt: "2026-10-21", updatedAt: "2026-10-21"
+    });
+    render(<DuplicateGroupsPage {...baseProps()} filterDirectoryPath="D:\\Movies"
+      preferredDirectories={[preferredDirectory]} totalPages={1} totalGroups={1}
+      onBackgroundAccepted={onBackgroundAccepted}
+      onStartReviewedBackground={onStartReviewedBackground} onPreviewResolve={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（1 个文件）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 1 个文件" }));
+    await waitFor(() => expect(onBackgroundAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "running" }), { clearDirectoryScope: true }
+    ));
+    expect(onStartReviewedBackground).toHaveBeenCalledOnce();
+    expect(screen.getByText(/当前优先保留：/)).toBeInTheDocument();
+  });
+
+  it("keeps filtered directory selected when other pages still need cleanup", async () => {
+    const onBackgroundAccepted = vi.fn();
+    const onStartReviewedBackground = vi.fn().mockResolvedValue({
+      id: "partial", status: "running", queuedVideoIds: ["delete"],
+      total: 1, processed: 0, successCount: 0, failureCount: 0,
+      uncertainCount: 0, unsubmittedCount: 1, reclaimedBytes: 0,
+      recycledCount: 0, failures: [], message: "accepted",
+      createdAt: "2026-10-21", updatedAt: "2026-10-21"
+    });
+    render(<DuplicateGroupsPage {...baseProps()} filterDirectoryPath="D:\\Movies"
+      preferredDirectories={[preferredDirectory]} totalPages={3} totalGroups={33}
+      onBackgroundAccepted={onBackgroundAccepted}
+      onStartReviewedBackground={onStartReviewedBackground} onPreviewResolve={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（1 个文件）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 1 个文件" }));
+    await waitFor(() => expect(onBackgroundAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "running" }), { clearDirectoryScope: false }
+    ));
+  });
+
+  it("offers next-page navigation if the entire visible page is queued", () => {
+    const onPage = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} groups={[]} loading={false}
+      queuedHiddenCount={1} backgroundRunning page={1} totalPages={3} totalGroups={33}
+      onPage={onPage} />);
+    expect(screen.getByText("本页待删文件已转入后台清理")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看下一页候选项" }));
+    expect(onPage).toHaveBeenCalledWith(2);
   });
 
   it("submits a single-file background task and does not wait for the actual deletion", async () => {

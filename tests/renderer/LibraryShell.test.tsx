@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryShell } from "../../src/renderer/components/LibraryShell";
+import displayVersion from "../../src/shared/displayVersion.json";
 import type { DuplicateGroup, DuplicateGroupPageQuery, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
@@ -256,7 +257,8 @@ describe("LibraryShell", () => {
     render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]} />);
 
     expect(screen.getByText("拉面影视")).toBeInTheDocument();
-    expect(screen.getByLabelText("当前版本 1.1")).toHaveTextContent("v1.1");
+    const visibleVersion = `${displayVersion.major}.${displayVersion.minor}`;
+    expect(screen.getByLabelText(`当前版本 ${visibleVersion}`)).toHaveTextContent(`v${visibleVersion}`);
     expect(screen.getByRole("button", { name: /浏览目录/ })).toBeInTheDocument();
     expect(screen.getByTitle(folder.path)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Drama" })).not.toBeInTheDocument();
@@ -947,6 +949,55 @@ describe("LibraryShell", () => {
     expect(screen.getByText("候选组 01")).toBeInTheDocument();
     expect(screen.getByText("clip.mp4")).toBeInTheDocument();
     expect(screen.getByText("episode-01.mp4")).toBeInTheDocument();
+  });
+
+  it("hides accepted background targets immediately and returns from a fully queued directory without losing keeper preference", async () => {
+    const saved = {
+      id: "saved-drama", path: "D:\\Movies\\Drama", enabled: true,
+      createdAt: "2026-07-09T00:00:00.000Z", updatedAt: "2026-07-09T00:00:00.000Z"
+    };
+    const accepted = {
+      id: "accepted-one", status: "running" as const, queuedVideoIds: [nestedVideo.id],
+      total: 1, processed: 0, successCount: 0, failureCount: 0,
+      uncertainCount: 0, unsubmittedCount: 1, reclaimedBytes: 0, recycledCount: 0, failures: [],
+      message: "running", createdAt: "2026-10-21", updatedAt: "2026-10-21"
+    };
+    let currentJob: typeof accepted | null = null;
+    const api = {
+      listDuplicatePreferredDirectories: vi.fn().mockResolvedValue([saved]),
+      submitReviewedDuplicateBackground: vi.fn().mockImplementation(async () => {
+        currentJob = accepted;
+        return accepted;
+      }),
+      getReviewedDuplicateBackground: vi.fn().mockImplementation(async () => currentJob)
+    } as unknown as VideoManagerApi;
+    const onLoadDuplicateGroups = vi.fn(async (query: DuplicateGroupPageQuery) => ({
+      groups: duplicateGroups, page: query.page, pageSize: query.pageSize, totalPages: 1,
+      totalGroups: query.filterDirectoryPath ? 1 : 11141,
+      overallTotalGroups: 11141, totalCandidateGroups: 1, totalCandidateFiles: 2,
+      totalReclaimableBytes: 1024, totalDeletableFiles: 1, totalUnboundDeletionCandidateFiles: 0,
+      directoryOptions: []
+    }));
+    render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]}
+      onLoadDuplicateGroups={onLoadDuplicateGroups} duplicateCleanupApi={api}
+      onPreviewDuplicateResolve={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filterDirectoryPath: saved.path })
+    ));
+    expect(screen.getByText("episode-01.mp4")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（1 个文件）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 1 个文件" }));
+    await waitFor(() => expect(api.submitReviewedDuplicateBackground).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByText("episode-01.mp4")).not.toBeInTheDocument());
+    expect(screen.getByText(/本页待删文件已转入后台清理/)).toBeInTheDocument();
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith(
+      expect.objectContaining({ preferredDirectoryPaths: [saved.path] })
+    ));
+    const latest = onLoadDuplicateGroups.mock.lastCall?.[0];
+    expect(latest?.filterDirectoryPath).toBeUndefined();
+    expect(screen.queryByText(/当前只查看/)).not.toBeInTheDocument();
+    expect(api.listDuplicatePreferredDirectories).toHaveBeenCalled();
   });
 
   it("restores the saved preferred directory as a real browse filter when reopening duplicates", async () => {

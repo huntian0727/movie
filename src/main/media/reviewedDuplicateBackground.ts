@@ -55,6 +55,7 @@ export class ReviewedDuplicateBackgroundQueue {
     const now = new Date().toISOString();
     this.current = {
       id: randomUUID(), status: "running", total, processed: 0,
+      queuedVideoIds: [...targetIds],
       successCount: 0, failureCount: 0, uncertainCount: 0, unsubmittedCount: total,
       reclaimedBytes: 0, recycledCount: 0, failures: [],
       message: "后台清理已接受，正在核对首批文件。", createdAt: now, updatedAt: now

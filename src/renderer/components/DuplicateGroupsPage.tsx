@@ -70,7 +70,8 @@ interface DuplicateGroupsPageProps {
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   onReviewedDelete?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   onStartReviewedBackground?(plan: DuplicateResolvePlan): Promise<ReviewedDeleteBackgroundJob>;
-  onBackgroundAccepted?(job: ReviewedDeleteBackgroundJob): void;
+  onBackgroundAccepted?(job: ReviewedDeleteBackgroundJob, options?: { clearDirectoryScope: boolean }): void;
+  queuedHiddenCount?: number;
   backgroundRunning?: boolean;
   onManualDelete?(video: VideoRecord): Promise<void> | void;
   onManualBatchDelete?(videos: VideoRecord[]): Promise<BatchDeleteResult>;
@@ -136,6 +137,7 @@ export function DuplicateGroupsPage({
   onStartReviewedBackground,
   onBackgroundAccepted,
   backgroundRunning = false,
+  queuedHiddenCount = 0,
   onManualDelete,
   onManualBatchDelete,
   onAutoDelete,
@@ -475,7 +477,12 @@ export function DuplicateGroupsPage({
     if (onStartReviewedBackground) {
       try {
         const accepted = await onStartReviewedBackground(deletePlan);
-        onBackgroundAccepted?.(accepted);
+        // Leave a fully submitted directory view immediately; do not undo
+        // the independently saved "prefer to keep this folder" rule.
+        const fullScopeSubmitted = Boolean(filterDirectoryPath) && page === 1 &&
+          totalPages === 1 && groups.length === totalGroups &&
+          deletePlan.groups.reduce((sum, entry) => sum + entry.deleteVideoIds.length, 0) === accepted.total;
+        onBackgroundAccepted?.(accepted, { clearDirectoryScope: fullScopeSubmitted });
         setManualPageConfirmOpen(false);
         setManualRetryConfirmOpen(false);
         setManualRetrySelection(null);
@@ -694,6 +701,9 @@ export function DuplicateGroupsPage({
     <OperationFeedback message={actionError} tone="error" onDismiss={() => setActionError(null)} />
     {!actionPending && <OperationFeedback message={manualDeleteStatus || null} tone={manualBatchUncertain ? "error" : "success"} onDismiss={() => setManualDeleteStatus("")} />}
     <OperationFeedback message={missingCheckMessage} tone={submittedCleanupJobId ? "info" : "success"} autoDismiss={!submittedCleanupJobId} onDismiss={() => setMissingCheckMessage(null)} />
+    {queuedHiddenCount > 0 && <OperationFeedback message={backgroundRunning
+      ? `本页 ${queuedHiddenCount} 个待删文件已加入后台队列，暂时从列表隐藏；保留文件不受影响，完成后自动刷新。`
+      : `正在刷新后台清理结果：本页 ${queuedHiddenCount} 个排队文件暂时隐藏；失败或未提交的文件将恢复显示。`} tone="info" />}
     {directoryPending && <OperationFeedback message="正在保存优先保留目录..." tone="info" />}
   </>;
 
@@ -742,8 +752,13 @@ export function DuplicateGroupsPage({
         <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={changePreferredDirectory} />
         <div className="empty-state duplicate-empty-state">
           <ReadState loading={loading} error={loadError} empty loadingText="正在整理候选项..."
-            emptyTitle={filterDirectoryPath && overallTotalGroups > 0 ? "该目录当前没有重复项" : totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}
-            emptyText={filterDirectoryPath && overallTotalGroups > 0 ? `优先保留规则仍然有效，但不会隐藏资料库中其他 ${overallTotalGroups} 组重复项。` : totalCandidateGroups > 0 ? "这些同大小文件的缓存时长不同或尚未读取成功。" : "扫描完成后，这里会显示文件大小和缓存时长相同的候选项。"} />
+            emptyTitle={queuedHiddenCount > 0 && backgroundRunning ? "本页待删文件已转入后台清理" : filterDirectoryPath && overallTotalGroups > 0 ? "该目录当前没有重复项" : totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}
+            emptyText={queuedHiddenCount > 0 && backgroundRunning ? "队列中的文件仅暂时隐藏；后台完成后会自动核对并刷新，失败项重新显示。可继续浏览其他目录。" : filterDirectoryPath && overallTotalGroups > 0 ? `优先保留规则仍然有效，但不会隐藏资料库中其他 ${overallTotalGroups} 组重复项。` : totalCandidateGroups > 0 ? "这些同大小文件的缓存时长不同或尚未读取成功。" : "扫描完成后，这里会显示文件大小和缓存时长相同的候选项。"} />
+          {!loading && !loadError && backgroundRunning && queuedHiddenCount > 0 && totalPages > 1 && (
+            <button type="button" className="empty-state-action" onClick={() => onPage?.(page < totalPages ? page + 1 : 1)}>
+              {page < totalPages ? "查看下一页候选项" : "返回第一页候选项"}
+            </button>
+          )}
           {!loading && !loadError && filterDirectoryPath && overallTotalGroups > 0 && <button type="button" className="empty-state-action" onClick={onClearDirectoryFilter}>显示全部 {overallTotalGroups} 组重复项</button>}
         </div>
         {onLoadCleanupJobs && onLoadCleanupItems && onCancelCleanup && onResumeCleanup && onRetryCleanup && onClearCleanup && (
@@ -765,7 +780,7 @@ export function DuplicateGroupsPage({
         </details>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
-          <span>{filterDirectoryPath ? "当前显示" : "大小＋时长匹配组"}</span>
+          <span>{queuedHiddenCount > 0 ? "当前范围候选组（含排队项）" : filterDirectoryPath ? "当前显示" : "大小＋时长匹配组"}</span>
         </div>
         {filterDirectoryPath && <div className="duplicate-summary-card"><strong>{overallTotalGroups}</strong><span>资料库全部重复组</span></div>}
         <div className="duplicate-summary-card">
@@ -950,7 +965,7 @@ export function DuplicateGroupsPage({
         )} />}
 
       <div className="pagination-bar duplicate-pagination" aria-label="候选项分页">
-        <span>共 {totalGroups} 个大小＋时长候选组</span>
+        <span>共 {totalGroups} 个大小＋时长候选组{queuedHiddenCount > 0 ? `（数据库原始统计；本页已有 ${queuedHiddenCount} 个文件排队暂时隐藏）` : ""}</span>
         <button type="button" disabled={page <= 1 || loading} onClick={() => onPage?.(page - 1)}>上一页</button>
         <strong>{page} / {totalPages}</strong>
         <button type="button" disabled={page >= totalPages || loading} onClick={() => onPage?.(page + 1)}>下一页</button>

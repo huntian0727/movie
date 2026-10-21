@@ -469,6 +469,8 @@ export interface ReviewedDeleteBackgroundJob {
   failureCount: number;
   uncertainCount: number;
   unsubmittedCount: number;
+  /** Submitted delete identities, kept for temporary UI hiding during a live job. */
+  queuedVideoIds?: string[];
   reclaimedBytes: number;
   recycledCount: number;
   failures: DuplicateResolveFailure[];

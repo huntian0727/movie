@@ -4,6 +4,7 @@ import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMove
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import displayVersion from "../../shared/displayVersion.json";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
+import { hideQueuedDuplicateVideos } from "./queuedDuplicateVisibility";
 import { ReviewedBackgroundStatus } from "./ReviewedBackgroundStatus";
 import { AssetCenterPage } from "./AssetCenterPage";
 import { VideoDataPage } from "./VideoDataPage";
@@ -235,6 +236,9 @@ export function LibraryShell({
   const [duplicatePreferredDirectories, setDuplicatePreferredDirectories] = useState<DuplicatePreferredDirectory[]>([]);
   const [duplicatePage, setDuplicatePage] = useState<DuplicateGroupPage>(() => createStaticDuplicatePage(duplicateGroups));
   const [backgroundReviewedJob, setBackgroundReviewedJob] = useState<ReviewedDeleteBackgroundJob | null>(null);
+  // Keep queued targets hidden through the final list refetch, avoiding a brief
+  // flash of already deleted rows between the terminal poll and DB refresh.
+  const [queuedVisualJob, setQueuedVisualJob] = useState<ReviewedDeleteBackgroundJob | null>(null);
   const backgroundStatusRef = useRef<string | null>(null);
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
@@ -445,6 +449,7 @@ export function LibraryShell({
     if (duplicatePreferredDirectoryPath) query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
     else if (duplicatePreferredDirectories.length > 0) query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
     if (duplicateFilterDirectoryPath) query.filterDirectoryPath = duplicateFilterDirectoryPath;
+    const queryStartedAfterQueue = backgroundStatusRef.current !== "running";
     void onLoadDuplicateGroups(query).then((result) => {
       if (disposed) return;
       if (query.filterDirectoryPath && result.groups.some((group) =>
@@ -453,6 +458,7 @@ export function LibraryShell({
         throw new Error("目录筛选返回了所选目录树以外的重复候选组，已阻止显示未筛选结果。请刷新重试。");
       }
       setDuplicatePage(result);
+      if (queryStartedAfterQueue && backgroundStatusRef.current !== "running") setQueuedVisualJob(null);
       if (result.page !== duplicatePageNumber) setDuplicatePageNumber(result.page);
     }).catch((cause) => {
       if (!disposed) setDuplicateLoadError(cause instanceof Error ? cause.message : String(cause));
@@ -471,7 +477,11 @@ export function LibraryShell({
       try {
         const current = await read();
         if (stopped) return;
+        if (!current && backgroundStatusRef.current === "running") return;
         setBackgroundReviewedJob(current);
+        if (current?.status === "running") {
+          setQueuedVisualJob((previous) => previous?.id === current.id ? previous : current);
+        }
         if (backgroundStatusRef.current === "running" && current?.status !== "running") {
           setDuplicateRefreshVersion((version) => version + 1);
           setVideoPageRefreshVersion((version) => version + 1);
@@ -483,6 +493,8 @@ export function LibraryShell({
     const timer = window.setInterval(() => void update(), 1500);
     return () => { stopped = true; window.clearInterval(timer); };
   }, [duplicateCleanupApi]);
+
+  const visibleDuplicatePage = useMemo(() => hideQueuedDuplicateVideos(duplicatePage.groups, queuedVisualJob), [duplicatePage.groups, queuedVisualJob]);
 
   const isHealthView = view === "healthOverview" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const isBackgroundMetadataView = view === "metadataIssues" && metadataIssueInitialStatus !== "failed";
@@ -1114,7 +1126,8 @@ export function LibraryShell({
             : <div className="empty-state"><AlertTriangle size={36} /><h3>扫描异常能力未连接</h3></div>
         ) : view === "duplicates" ? (
           <DuplicateGroupsPage
-            groups={duplicatePage.groups}
+            groups={visibleDuplicatePage.groups}
+            queuedHiddenCount={visibleDuplicatePage.hiddenVideos}
             loading={loading || duplicateLoading}
             loadError={duplicateLoadError}
             page={duplicatePage.page}
@@ -1173,7 +1186,19 @@ export function LibraryShell({
             onRefresh={() => setDuplicateRefreshVersion((current) => current + 1)}
             onReviewedDelete={duplicateCleanupApi?.deleteReviewedDuplicatePlan}
             onStartReviewedBackground={duplicateCleanupApi?.submitReviewedDuplicateBackground}
-            onBackgroundAccepted={setBackgroundReviewedJob}
+            onBackgroundAccepted={(job, options) => {
+              // The acknowledgment already includes all planned target IDs.
+              // Optimistically hide them now; do NOT touch underlying media/database.
+              setBackgroundReviewedJob(job);
+              setQueuedVisualJob(job);
+              backgroundStatusRef.current = job.status;
+              if (options?.clearDirectoryScope) {
+                duplicateFilterTouchedRef.current = true;
+                setDuplicateFilterDirectoryPath("");
+                setDuplicatePageNumber(1);
+                setDuplicateRefreshVersion((version) => version + 1);
+              }
+            }}
             backgroundRunning={backgroundReviewedJob?.status === "running"}
             onPreviewResolve={async (plan) => {
               if (!onPreviewDuplicateResolve) {

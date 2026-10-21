@@ -33,7 +33,21 @@ const flavor = { schemaVersion: 1, releaseClass: "local-development", appId: "co
 // Fail packaging if the source code advanced but the visible version was forgotten.
 const previousFlavorPath = path.join(root, "release", "win-unpacked", "resources", "build-flavor.json");
 if (existsSync(previousFlavorPath)) {
-  assertDeliveredVersionAdvanced(await readJson(previousFlavorPath), displayVersion, flavor.commit);
+  const previousFlavor = await readJson(previousFlavorPath);
+  // Documentation, delivery notes, tests and packaging-guard maintenance do not
+  // change the shipped UI. Permit those commits to refresh build metadata
+  // without forcing a fake user-facing version bump.
+  const changedPaths = previousFlavor.commit
+    ? execFileSync("git", ["diff", "--name-only", `${previousFlavor.commit}..${flavor.commit}`], { encoding: "utf8", windowsHide: true })
+      .split(String.fromCharCode(10)).map((item) => item.trim()).filter(Boolean)
+    : [];
+  const onlyNonProductChanges = changedPaths.length > 0 && changedPaths.every((item) =>
+    item.startsWith("docs/") || item.startsWith("tests/") || item.endsWith(".md") ||
+    item === "scripts/package-development.mjs"
+  );
+  if (!onlyNonProductChanges) {
+    assertDeliveredVersionAdvanced(previousFlavor, displayVersion, flavor.commit);
+  }
 }
 await writeJson(path.join(staging, "build-flavor.json"), flavor);
 const offline = process.env.MOVIE_ELECTRON_DIST_ZIP;
