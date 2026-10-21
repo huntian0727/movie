@@ -6,7 +6,7 @@
 
 用户要求：人工验收暂时没时间，先把能独立完成的发版准备做好，人工工作留到最后。
 
-- 候选包构建时分支为 `ai/release-tests-historical-approval-separation`，代码 HEAD 为 `861ca815fadb65c62b68f2b7c08229e3eff0f820`；此后又提交了交接/状态文档。该 hash 仅标识 QA 包构建代码，不代表当前 HEAD；新会话必须重新运行 `git status --short --branch`、`git rev-parse HEAD`。
+- 私有 NSIS QA 安装器构建代码提交为 `861ca815fadb65c62b68f2b7c08229e3eff0f820`；私有 portable QA ZIP 构建代码提交为 `bbc1a42ca4784bda1fee788f9ee3256b781900a7`。之后只有交接/状态文档提交；当前 HEAD 以实时 Git 查询为准，新会话先运行 `git status --short --branch`、`git rev-parse HEAD`。
 - 技术版本 0.1.16，界面版本 v1.2；GitHub 最新公开版仍是 v0.1.15。没有 v0.1.16 公开 tag/Release。
 - 文档准备已完成：README、快速开始、完整教程、CHANGELOG、候选发行说明、绿色版说明、Windows 下载校验指南和源码社区发布说明已统一到当前公开版 0.1.15 / 私有候选 0.1.16；不再把候选功能误写成已发布，也修正重复项并非内容哈希判定的说明。
 - `npm run test:release-gate` PASS：149 个测试文件、1,391/1,391 用例；发行工程单测 74/74、媒体候选契约 67/67。

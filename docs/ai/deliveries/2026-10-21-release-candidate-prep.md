@@ -16,9 +16,9 @@ status: prepared-with-blockers
 - 技术包版本：`0.1.16`；界面版本：`v1.2`。
 - 当前最新公开版本仍为 `v0.1.15`；只读查询 `origin` 未发现 `v0.1.16` tag。
 - 当前分支：`ai/release-tests-historical-approval-separation`。
-- HEAD：`861ca815fadb65c62b68f2b7c08229e3eff0f820`（`docs: prepare unpublished 0.1.16 release materials`）。
-- 前一提交：`7896fa1`（发行工程测试中，旧审批记录必须继续按原包版本绑定）。
-- 最后检查时 `git status --short --branch` 只有干净分支标题，无未提交改动；`git diff --check` 通过。
+- 初始发版准备 checkpoint：`861ca815fadb65c62b68f2b7c08229e3eff0f820`（`docs: prepare unpublished 0.1.16 release materials`）；其父提交为 `7896fa1`。
+- 私有 NSIS QA 安装器由 checkpoint `861ca815fadb65c62b68f2b7c08229e3eff0f820` 构建；私有 portable QA ZIP 由 `bbc1a42ca4784bda1fee788f9ee3256b781900a7` 构建，两个包均明确标记为未批准公开发布。之后的提交只修订文档；当前 HEAD 以实时 Git 查询为准。
+- 初始 checkpoint 的 `git status --short --branch` 干净，`git diff --check` 通过；文档收尾提交后也重新执行了 `git diff --check` 并提交。
 - 正式发布目标为 Windows x64 免安装 ZIP，不发布 NSIS 安装器。日常桌面版 `release/win-unpacked` 与快捷方式没有被覆盖；本轮构建只使用独立 `release/unsigned-test-build` QA 身份，App ID 为 `com.local.video.manager.unsignedtest`。
 
 ## 文档准备
@@ -27,6 +27,7 @@ status: prepared-with-blockers
 - `docs/USER_GUIDE.md` 标明为候选滚动教程；`docs/user-guide/0.1.16.md` 更新为候选固定教程，补本页自动分析、播放器切换、后台重复清理/中断语义，并明确真实远端删除未验收。
 - `docs/portable.md`、`docs/windows-installation.md`、`docs/SOURCE_COMMUNITY_RELEASE.md` 已纠正仍指向 0.1.16 正式下载页的过期内容，普通用户入口统一指向公开版 0.1.15；`docs/OPEN_SOURCE_RELEASE_SIMPLE.md` 将 beta.3 的旧状态明确标成历史发行记录。
 - `docs/releases/0.1.16.md` 列出候选功能、实际自动化证据、公开发行阻塞与尚未完成人工验收的事项。
+- 对 7 份本轮修改的普通用户/交接 Markdown 文档执行了本地相对链接检查，未发现失效的本地目标。
 - `CHANGELOG.md` 不再把 0.1.16 描述成已正式公开；未公开的新功能继续保留在 `[Unreleased]`。
 - 文档不再误称重复候选使用完整内容 SHA-256：当前判定为精确文件大小 + 四舍五入到整秒的时长，不等于内容相同。
 
@@ -64,6 +65,8 @@ status: prepared-with-blockers
 6. 稳定 Windows 11 与标准用户覆盖尚未完成并由所有者批准；现有隔离沙盒证据只证明其声明范围。
 7. 历史发行批准绑定的版本、依赖锁与 QA 证据不能自动延伸到新候选。
 8. FFmpeg 静态链接 LGPL 义务及组件级许可处置仍未完成审核。
+
+**依赖差异核对：** 与公开 tag `v0.1.15` 比较，`package-lock.json` 仅有根包的两个版本字段从 `0.1.15` 更新为 `0.1.16`；锁文件格式及依赖树未变化，`package.json` 的直接依赖和开发依赖也没有变化。`package.json` 另增加版本维护和开发打包脚本。尽管没有依赖树变化，审批记录仍绑定精确版本与 lockfile 哈希，因此仍需所有者重新审核/批准；不能自行修改审批 JSON 或哈希。
 
 不得编辑批准 JSON、改写哈希、将 QA 文件改名为正式包，或将私有源码审核材料公开，以消除上述阻塞。
 
