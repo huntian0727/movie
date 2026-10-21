@@ -388,7 +388,7 @@ export function DuplicateGroupsPage({
   }, []);
 
   const handleDeleteCandidate = useCallback((group: DuplicateGroup, selectedKeep: string, videoId: string) => {
-    if ((!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || !onPreviewResolve || backgroundRunning || actionPending || loading || loadError || directoryPending) return;
+    if ((!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || !onPreviewResolve || (backgroundRunning && !onStartReviewedBackground) || actionPending || loading || loadError || directoryPending) return;
     const candidate = group.items.find((item) => item.video.id === videoId);
     const keepVideoId = selectedKeep !== videoId && group.items.some((item) => item.video.id === selectedKeep)
       ? selectedKeep
@@ -413,7 +413,7 @@ export function DuplicateGroupsPage({
   };
 
   const confirmManualSingleDelete = async () => {
-    if (!singleDeleteTarget || (!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || backgroundRunning || submitGuardRef.current || actionPending) return;
+    if (!singleDeleteTarget || (!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || (backgroundRunning && !onStartReviewedBackground) || submitGuardRef.current || actionPending) return;
     const { video, groupKey, keepVideoId } = singleDeleteTarget;
     if (!groups.some((group) => group.groupKey === groupKey && group.items.some((item) => item.video.id === video.id))) {
       setActionError("候选组已变化，请刷新后重新选择文件。");
@@ -470,7 +470,7 @@ export function DuplicateGroupsPage({
   // Use the same safe flow for the first attempt and explicitly approved failed-item retries.
   // A transport rejection does not prove what happened on the remote host: do NOT replay it.
   const runManualBatchDelete = async (deletePlan: DuplicateResolvePlan, videos: VideoRecord[]) => {
-    if ((!onStartReviewedBackground && !onReviewedDelete && !onManualBatchDelete) || backgroundRunning || submitGuardRef.current || actionPending || videos.length === 0) return;
+    if ((!onStartReviewedBackground && !onReviewedDelete && !onManualBatchDelete) || (backgroundRunning && !onStartReviewedBackground) || submitGuardRef.current || actionPending || videos.length === 0) return;
     submitGuardRef.current = true;
     setActionPending(true);
     setActionError(null);
@@ -868,7 +868,7 @@ export function DuplicateGroupsPage({
             </select>
           </label>
           <button type="button" onClick={resetSelectionToRecommended}>按推荐选择保留项</button>
-          {(onStartReviewedBackground || onReviewedDelete || onManualBatchDelete) && onPreviewResolve && <button className="danger current-page-delete" type="button" disabled={loading || Boolean(loadError) || directoryPending || actionPending || backgroundRunning || manualDeleteVideos.length === 0} onClick={() => { setActionError(null); setManualDeleteStatus(""); setManualPageConfirmOpen(true); }}>
+          {(onStartReviewedBackground || onReviewedDelete || onManualBatchDelete) && onPreviewResolve && <button className="danger current-page-delete" type="button" disabled={loading || Boolean(loadError) || directoryPending || actionPending || (backgroundRunning && !onStartReviewedBackground) || manualDeleteVideos.length === 0} onClick={() => { setActionError(null); setManualDeleteStatus(""); setManualPageConfirmOpen(true); }}>
             <Trash2 size={16} /> 清理当前页（{manualDeleteVideos.length} 个文件）
           </button>}
           <details className="duplicate-advanced-tools" open={(!onStartReviewedBackground && !onReviewedDelete && !onManualBatchDelete) || !onPreviewResolve}>
@@ -954,7 +954,7 @@ export function DuplicateGroupsPage({
             page={page}
             pageSize={pageSize}
             keepVideoId={manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId}
-            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending || backgroundRunning || (!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || !onPreviewResolve}
+            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending || (backgroundRunning && !onStartReviewedBackground) || (!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || !onPreviewResolve}
             onSetKeep={handleSetKeep}
             onPreferDirectory={changePreferredDirectory}
             onOpen={onOpen}

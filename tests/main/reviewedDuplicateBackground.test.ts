@@ -51,7 +51,7 @@ describe("reviewed deletion background queue", () => {
     expect(accepted.processed).toBe(0);
     await until(() => queue.get(), () => run.mock.calls.length === 1);
     expect(queue.get()?.status).toBe("running");
-    expect(() => queue.submit(plan(1))).toThrow(/正在运行/);
+    expect(() => queue.submit(plan(1))).toThrow(/重复提交/);
     release();
     const completed = await until(() => queue.get(), (job) => job?.status === "completed") as ReviewedDeleteBackgroundJob;
     expect(completed.processed).toBe(65);
@@ -59,8 +59,8 @@ describe("reviewed deletion background queue", () => {
     expect(completed.reclaimedBytes).toBe(65 * 1024);
     expect(completed.unsubmittedCount).toBe(0);
     expect(run.mock.calls.map(([batch]) => batch.groups.length)).toEqual([30, 30, 5]);
-    expect(JSON.parse(readFileSync(filename, "utf8")).status).toBe("completed");
-    expect(JSON.parse(readFileSync(filename, "utf8")).queuedVideoIds).toHaveLength(65);
+    expect(JSON.parse(readFileSync(filename, "utf8")).current.status).toBe("completed");
+    expect(JSON.parse(readFileSync(filename, "utf8")).current.queuedVideoIds).toHaveLength(65);
   });
 
   it("keeps acknowledged results and stops unsubmitted chunks when a remote response is unknown", async () => {
@@ -98,7 +98,7 @@ describe("reviewed deletion background queue", () => {
     const restarted = new ReviewedDuplicateBackgroundQueue(filename, run);
     expect(restarted.get()).toMatchObject({ status: "interrupted", successCount: 30, uncertainCount: 25 });
     expect(run).not.toHaveBeenCalled();
-    expect(JSON.parse(readFileSync(filename, "utf8")).status).toBe("interrupted");
+    expect(JSON.parse(readFileSync(filename, "utf8")).current.status).toBe("interrupted");
   });
 
   it("does not claim a thrown RPC batch failed or retry it automatically", async () => {
@@ -110,6 +110,81 @@ describe("reviewed deletion background queue", () => {
     expect(blocked.unsubmittedCount).toBe(16);
     expect(blocked.failureCount).toBe(0);
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts more than one distinct deletion task, dispatches strictly FIFO, and survives polling", async () => {
+    let releaseFirst!: () => void;
+    const gate = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    let executions = 0;
+    const run = vi.fn(async (request: DuplicateResolvePlan) => {
+      executions++;
+      if (executions === 1) await gate;
+      return result(request.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0));
+    });
+    const { queue, filename } = createStore(run);
+    const first = queue.submit(plan(3));
+    const second = queue.submit({ groups: [{ groupKey: "next", keepVideoId: "next-keeper", deleteVideoIds: ["next-target"] }] });
+    const third = queue.submit({ groups: [{ groupKey: "third", keepVideoId: "third-keeper", deleteVideoIds: ["third-target"] }] });
+    expect(first.status).toBe("running");
+    expect(second.status).toBe("queued");
+    expect(third.status).toBe("queued");
+    expect(queue.get()).toMatchObject({ status: "running", waitingJobs: 2 });
+    expect(queue.get()?.queuedVideoIds).toEqual(expect.arrayContaining(["remove-0", "next-target", "third-target"]));
+    expect(JSON.parse(readFileSync(filename, "utf8")).waiting).toHaveLength(2);
+    await until(() => queue.get(), () => run.mock.calls.length === 1);
+    expect(run).toHaveBeenCalledTimes(1);
+    releaseFirst();
+    await until(() => queue.get(), (job) => job?.status === "completed" && job?.waitingJobs === 0);
+    expect(run.mock.calls.map(([request]) => request.groups[0]!.groupKey)).toEqual(["key-0", "next", "third"]);
+    const stored = JSON.parse(readFileSync(filename, "utf8"));
+    expect(stored.current.id).toBe(third.id);
+    expect(stored.waiting).toHaveLength(0);
+    expect(stored.history.map((job: ReviewedDeleteBackgroundJob) => job.id)).toContain(first.id);
+  });
+
+  it("rejects overlapping target/keeper identities but allows unrelated jobs while running", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const { queue } = createStore(async (request) => { await gate; return result(request.groups.length); });
+    queue.submit({ groups: [{ groupKey: "original", keepVideoId: "keeper", deleteVideoIds: ["victim"] }] });
+    expect(() => queue.submit({ groups: [{ groupKey: "duplicate", keepVideoId: "other", deleteVideoIds: ["victim"] }] })).toThrow(/重复提交/);
+    expect(() => queue.submit({ groups: [{ groupKey: "keeper-conflict", keepVideoId: "other", deleteVideoIds: ["keeper"] }] })).toThrow(/保留文件/);
+    queue.submit({ groups: [{ groupKey: "independent", keepVideoId: "independent-keep", deleteVideoIds: ["independent-delete"] }] });
+    expect(() => queue.submit({ groups: [{ groupKey: "waiting-conflict", keepVideoId: "independent-delete", deleteVideoIds: ["new-target"] }] })).toThrow(/保留文件/);
+    release();
+    await until(() => queue.get(), (job) => job?.status === "completed" && job?.waitingJobs === 0);
+  });
+
+  it("never resumes a pending queue automatically after restart, even though plans were persisted", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const { queue, filename } = createStore(async (request) => { await gate; return result(request.groups.length); });
+    queue.submit(plan(1));
+    queue.submit({ groups: [{ groupKey: "second", keepVideoId: "safe", deleteVideoIds: ["later"] }] });
+    const noReplay = vi.fn(async (request: DuplicateResolvePlan) => result(request.groups.length));
+    const recovered = new ReviewedDuplicateBackgroundQueue(filename, noReplay);
+    expect(recovered.get()).toMatchObject({ status: "interrupted", waitingJobs: 0 });
+    expect(recovered.get()?.queueJobs).toHaveLength(2);
+    expect(JSON.parse(readFileSync(filename, "utf8")).history.at(-1).status).toBe("interrupted");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(noReplay).not.toHaveBeenCalled();
+    release();
+    // The original worker belongs to the old process; do not delete its temp
+    // directory before it finishes its already-submitted simulation.
+    await until(() => queue.get(), (job) => job?.status === "completed" && job?.waitingJobs === 0);
+  });
+
+  it("halts all waiting tasks when an earlier remote deletion result is unknown", async () => {
+    const run = vi.fn(async () => { throw Error("transport uncertain"); });
+    const { queue, filename } = createStore(run);
+    queue.submit(plan(1));
+    queue.submit({ groups: [{ groupKey: "safe", keepVideoId: "safe-keep", deleteVideoIds: ["later"] }] });
+    await until(() => queue.get(), (job) => job?.status === "blocked");
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(queue.get()?.waitingJobs).toBe(0);
+    const stored = JSON.parse(readFileSync(filename, "utf8"));
+    expect(stored.waiting).toHaveLength(0);
+    expect(stored.history.at(-1).status).toBe("interrupted");
   });
 
   it("rejects a plan that repeats a target or deletes the keeper", async () => {

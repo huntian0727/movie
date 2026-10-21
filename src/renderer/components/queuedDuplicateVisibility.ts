@@ -9,7 +9,7 @@ export function hideQueuedDuplicateVideos(
   groups: readonly DuplicateGroup[],
   job: ReviewedDeleteBackgroundJob | null | undefined
 ): { groups: DuplicateGroup[]; hiddenVideos: number; hiddenGroups: number } {
-  if (job?.status !== "running" || !job.queuedVideoIds?.length) {
+  if ((job?.status !== "running" && job?.status !== "queued") || !job.queuedVideoIds?.length) {
     return { groups: groups as DuplicateGroup[], hiddenVideos: 0, hiddenGroups: 0 };
   }
   const queued = new Set(job.queuedVideoIds);

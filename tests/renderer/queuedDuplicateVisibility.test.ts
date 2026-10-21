@@ -27,6 +27,7 @@ describe("optimistic duplicate-list hiding while confirmed background queue runs
   });
   it("does not hide anything if submit was rejected, completed or interrupted", () => {
     expect(hideQueuedDuplicateVideos(groups, null).groups).toBe(groups);
+    expect(hideQueuedDuplicateVideos(groups, job("queued", ["queued"])).hiddenVideos).toBe(1);
     for (const status of ["completed", "partial", "blocked", "interrupted"] as const) {
       expect(hideQueuedDuplicateVideos(groups, job(status, ["queued"])).hiddenVideos).toBe(0);
     }

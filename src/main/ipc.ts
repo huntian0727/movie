@@ -671,7 +671,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   );
   ipcMain.handle(IPC_CHANNELS.duplicateReviewedDelete, async (_event, payload) => {
     const plan = duplicateResolvePlanSchema.parse(payload);
-    if (reviewedDeleteInFlight || getReviewedBackgroundQueue().get()?.status === "running") {
+    if (reviewedDeleteInFlight || getReviewedBackgroundQueue().hasPending()) {
       throw new Error("已有重复项清理正在执行，请等待结束后重试。");
     }
     reviewedDeleteInFlight = true;
@@ -713,7 +713,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
 
   const assertNoReviewedBackground = () => {
-    if (getReviewedBackgroundQueue().get()?.status === "running") {
+    if (getReviewedBackgroundQueue().hasPending()) {
       throw new Error("当前有重复文件后台清理正在执行，请完成后再操作其他重复清理任务。");
     }
   };

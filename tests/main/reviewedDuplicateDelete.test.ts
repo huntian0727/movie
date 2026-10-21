@@ -368,7 +368,7 @@ describe("explicit reviewed duplicate deletion, isolated filesystem", () => {
     expect(f.remoteFiles.has(failed.providerPath!)).toBe(true);
     expect(f.repo.getVideo(f.keep.id)).toBeTruthy();
     expect(await readFile(f.keepPath)).toEqual(Buffer.alloc(16, 1));
-    expect(JSON.parse(await readFile(jobFile, "utf8")).status).toBe("partial");
+    expect(JSON.parse(await readFile(jobFile, "utf8")).current.status).toBe("partial");
 
     const noReplay = vi.fn();
     const restored = new ReviewedDuplicateBackgroundQueue(jobFile, noReplay);
@@ -406,7 +406,7 @@ describe("explicit reviewed duplicate deletion, isolated filesystem", () => {
     }
     expect(f.repo.getVideo(f.keep.id)).toBeTruthy();
     expect(await readFile(f.keepPath)).toEqual(Buffer.alloc(16, 1));
-    expect(JSON.parse(await readFile(jobFile, "utf8"))).toMatchObject({
+    expect(JSON.parse(await readFile(jobFile, "utf8")).current).toMatchObject({
       status: "blocked", uncertainCount: 1, unsubmittedCount: 2
     });
 

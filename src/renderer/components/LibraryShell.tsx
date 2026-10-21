@@ -240,6 +240,7 @@ export function LibraryShell({
   // flash of already deleted rows between the terminal poll and DB refresh.
   const [queuedVisualJob, setQueuedVisualJob] = useState<ReviewedDeleteBackgroundJob | null>(null);
   const backgroundStatusRef = useRef<string | null>(null);
+  const backgroundJobIdRef = useRef<string | null>(null);
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
   const [duplicateRefreshVersion, setDuplicateRefreshVersion] = useState(0);
@@ -449,7 +450,7 @@ export function LibraryShell({
     if (duplicatePreferredDirectoryPath) query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
     else if (duplicatePreferredDirectories.length > 0) query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
     if (duplicateFilterDirectoryPath) query.filterDirectoryPath = duplicateFilterDirectoryPath;
-    const queryStartedAfterQueue = backgroundStatusRef.current !== "running";
+    const queryStartedAfterQueue = backgroundStatusRef.current !== "running" && backgroundStatusRef.current !== "queued";
     void onLoadDuplicateGroups(query).then((result) => {
       if (disposed) return;
       if (query.filterDirectoryPath && result.groups.some((group) =>
@@ -458,7 +459,7 @@ export function LibraryShell({
         throw new Error("目录筛选返回了所选目录树以外的重复候选组，已阻止显示未筛选结果。请刷新重试。");
       }
       setDuplicatePage(result);
-      if (queryStartedAfterQueue && backgroundStatusRef.current !== "running") setQueuedVisualJob(null);
+      if (queryStartedAfterQueue && backgroundStatusRef.current !== "running" && backgroundStatusRef.current !== "queued") setQueuedVisualJob(null);
       if (result.page !== duplicatePageNumber) setDuplicatePageNumber(result.page);
     }).catch((cause) => {
       if (!disposed) setDuplicateLoadError(cause instanceof Error ? cause.message : String(cause));
@@ -477,16 +478,19 @@ export function LibraryShell({
       try {
         const current = await read();
         if (stopped) return;
-        if (!current && backgroundStatusRef.current === "running") return;
+        if (!current && (backgroundStatusRef.current === "running" || backgroundStatusRef.current === "queued")) return;
         setBackgroundReviewedJob(current);
-        if (current?.status === "running") {
-          setQueuedVisualJob((previous) => previous?.id === current.id ? previous : current);
+        if (current?.status === "running" || current?.status === "queued") {
+          setQueuedVisualJob(current);
         }
-        if (backgroundStatusRef.current === "running" && current?.status !== "running") {
+        if ((backgroundStatusRef.current === "running" || backgroundStatusRef.current === "queued") &&
+            ((current?.status !== "running" && current?.status !== "queued") ||
+              (backgroundJobIdRef.current && current?.id !== backgroundJobIdRef.current))) {
           setDuplicateRefreshVersion((version) => version + 1);
           setVideoPageRefreshVersion((version) => version + 1);
         }
         backgroundStatusRef.current = current?.status ?? null;
+        backgroundJobIdRef.current = current?.id ?? null;
       } catch { /* Keep previous known state; next poll can recover. */ }
     };
     void update();
@@ -1190,8 +1194,11 @@ export function LibraryShell({
               // The acknowledgment already includes all planned target IDs.
               // Optimistically hide them now; do NOT touch underlying media/database.
               setBackgroundReviewedJob(job);
-              setQueuedVisualJob(job);
+              setQueuedVisualJob((previous) => ({ ...job,
+                queuedVideoIds: [...new Set([...(previous?.queuedVideoIds ?? []), ...(job.queuedVideoIds ?? [])])]
+              }));
               backgroundStatusRef.current = job.status;
+              backgroundJobIdRef.current = job.id;
               if (options?.clearDirectoryScope) {
                 duplicateFilterTouchedRef.current = true;
                 setDuplicateFilterDirectoryPath("");

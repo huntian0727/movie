@@ -459,7 +459,7 @@ export interface DuplicateResolvePlan {
   groups: DuplicateGroupResolution[];
 }
 
-export type ReviewedDeleteBackgroundStatus = "running" | "completed" | "partial" | "blocked" | "interrupted";
+export type ReviewedDeleteBackgroundStatus = "queued" | "running" | "completed" | "partial" | "blocked" | "interrupted";
 export interface ReviewedDeleteBackgroundJob {
   id: string;
   status: ReviewedDeleteBackgroundStatus;
@@ -471,6 +471,9 @@ export interface ReviewedDeleteBackgroundJob {
   unsubmittedCount: number;
   /** Submitted delete identities, kept for temporary UI hiding during a live job. */
   queuedVideoIds?: string[];
+  /** Count and progress of FIFO background work waiting behind the active task. */
+  waitingJobs?: number;
+  queueJobs?: Array<{ id: string; status: ReviewedDeleteBackgroundStatus; total: number; processed: number; failureCount: number; uncertainCount: number }>;
   reclaimedBytes: number;
   recycledCount: number;
   failures: DuplicateResolveFailure[];
