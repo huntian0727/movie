@@ -96,6 +96,7 @@ type DuplicateDirectorySortMode = "space" | "files" | "groups" | "path";
 type DuplicateDirectoryFilterPreset = "all" | "files-10" | "files-100" | "space-10gb" | "space-100gb" | "space-1tb";
 
 const GIBIBYTE = 1024 ** 3;
+const MAX_REVIEWED_DELETE_TASK_ITEMS = 500;
 
 export function DuplicateGroupsPage({
   groups,
@@ -164,6 +165,7 @@ export function DuplicateGroupsPage({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const [singleDeleteTarget, setSingleDeleteTarget] = useState<{ video: VideoRecord; groupKey: string; keepVideoId: string } | null>(null);
+  const [groupCleanupTarget, setGroupCleanupTarget] = useState<{ group: DuplicateGroup; keepVideoId: string; videoIds: string[] } | null>(null);
   const [manualPageConfirmOpen, setManualPageConfirmOpen] = useState(false);
   const [manualDeleteStatus, setManualDeleteStatus] = useState("");
   const [manualProgress, setManualProgress] = useState<{ total: number; processed: number; success: number; failed: number } | null>(null);
@@ -210,6 +212,10 @@ export function DuplicateGroupsPage({
   const currentPreferredDirectoryOption = currentPreferredDirectory
     ? directoryOptions.find((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(currentPreferredDirectory.path))
     : undefined;
+  const groupCleanupItems = groupCleanupTarget?.group.items ?? [];
+  const groupCleanupKeepItem = groupCleanupItems.find((item) => item.video.id === groupCleanupTarget?.keepVideoId);
+  const groupCleanupDeleteItems = groupCleanupItems.filter((item) => item.video.id !== groupCleanupTarget?.keepVideoId);
+  const groupCleanupBytes = groupCleanupDeleteItems.reduce((total, item) => total + item.video.sizeBytes, 0);
 
   const changePreferredDirectory = useCallback(async (path: string) => {
     if (!onPreferredDirectoryPathChange || directoryGuardRef.current) return;
@@ -398,6 +404,92 @@ export function DuplicateGroupsPage({
     setManualDeleteStatus("");
     setSingleDeleteTarget({ video: candidate.video, groupKey: group.groupKey, keepVideoId });
   }, [onStartReviewedBackground, onReviewedDelete, onManualDelete, onPreviewResolve, backgroundRunning, actionPending, loading, loadError, directoryPending]);
+
+  const handleQueueGroupCleanup = useCallback((group: DuplicateGroup, selectedKeep: string) => {
+    if (!onStartReviewedBackground || !onPreviewResolve || actionPending || loading || loadError || directoryPending || submitGuardRef.current) return;
+    const keepVideoId = group.items.some((item) => item.video.id === selectedKeep)
+      ? selectedKeep
+      : group.items.some((item) => item.video.id === group.recommendedKeepVideoId)
+        ? group.recommendedKeepVideoId
+        : group.items[0]?.video.id;
+    if (!keepVideoId || group.items.length < 2) return;
+    if (group.items.length - 1 > MAX_REVIEWED_DELETE_TASK_ITEMS) {
+      setActionError("本组超过后台单个任务 500 个待清理文件的上限，请分批处理。");
+      return;
+    }
+    if (group.items.some((item) => item.video.isPendingDelete)) {
+      setActionError("本组已有文件处于待删除状态，请刷新候选组后再操作。");
+      onRefresh?.();
+      return;
+    }
+    setActionError(null);
+    setManualDeleteStatus("");
+    setGroupCleanupTarget({
+      group,
+      keepVideoId,
+      videoIds: group.items.map((item) => item.video.id).sort()
+    });
+  }, [onStartReviewedBackground, onPreviewResolve, actionPending, loading, loadError, directoryPending, onRefresh]);
+
+  const confirmGroupCleanup = async () => {
+    const target = groupCleanupTarget;
+    if (!target || !onStartReviewedBackground || !onPreviewResolve || actionPending || submitGuardRef.current) return;
+    const currentGroup = groups.find((group) => group.groupKey === target.group.groupKey);
+    const currentIds = currentGroup?.items.map((item) => item.video.id).sort() ?? [];
+    if (!currentGroup || currentIds.length !== target.videoIds.length || currentIds.some((id, index) => id !== target.videoIds[index])) {
+      setActionError("候选组内容已变化，本次未提交清理。请刷新后重新确认。");
+      setGroupCleanupTarget(null);
+      onRefresh?.();
+      return;
+    }
+    if (!currentGroup.items.some((item) => item.video.id === target.keepVideoId)) {
+      setActionError("计划保留文件已不在本组，本次未提交清理。请刷新后重新确认。");
+      setGroupCleanupTarget(null);
+      onRefresh?.();
+      return;
+    }
+    if (currentGroup.items.some((item) => item.video.isPendingDelete)) {
+      setActionError("本组已有文件处于待删除状态，本次未提交清理。请刷新后重新确认。");
+      setGroupCleanupTarget(null);
+      onRefresh?.();
+      return;
+    }
+    const deleteVideoIds = currentIds.filter((id) => id !== target.keepVideoId);
+    if (deleteVideoIds.length < 1 || deleteVideoIds.length > MAX_REVIEWED_DELETE_TASK_ITEMS) {
+      setActionError("本组待清理数量已变化，超过单个后台任务 500 个文件的上限；请刷新后重新确认。");
+      setGroupCleanupTarget(null);
+      onRefresh?.();
+      return;
+    }
+    submitGuardRef.current = true;
+    setActionPending(true);
+    setActionError(null);
+    try {
+      const accepted = await onStartReviewedBackground({
+        groups: [{ groupKey: currentGroup.groupKey, keepVideoId: target.keepVideoId, deleteVideoIds }]
+      });
+      if (accepted.total !== deleteVideoIds.length) {
+        onBackgroundAccepted?.(accepted);
+        setGroupCleanupTarget(null);
+        setManualDeleteStatus("后台已返回任务，但接收数量与本组预期不一致。请到后台任务中心核对，不要重复提交。");
+        return;
+      }
+      // The accepted count confirms the whole group was queued. Include the acknowledged IDs
+      // in the UI snapshot so the group disappears immediately, without touching source files.
+      const acceptedForDisplay = {
+        ...accepted,
+        queuedVideoIds: [...new Set([...(accepted.queuedVideoIds ?? []), ...deleteVideoIds])]
+      };
+      onBackgroundAccepted?.(acceptedForDisplay);
+      setGroupCleanupTarget(null);
+      setManualDeleteStatus("本组 " + deleteVideoIds.length + " 个文件已加入后台队列；本组已暂时隐藏。实际处理结果请在后台任务中心查看。");
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+    } finally {
+      submitGuardRef.current = false;
+      setActionPending(false);
+    }
+  };
 
   const preflightManualDelete = async (deletePlan: DuplicateResolvePlan): Promise<boolean> => {
     if (!onPreviewResolve) throw new Error("无法执行重复项安全预检查。");
@@ -961,6 +1053,7 @@ export function DuplicateGroupsPage({
             onViewDetails={onViewDetails}
             onRevealInFolder={revealVideo}
             onDeleteCandidate={(onStartReviewedBackground || onReviewedDelete || onManualDelete) && onPreviewResolve ? handleDeleteCandidate : undefined}
+            onQueueGroupCleanup={onStartReviewedBackground && onPreviewResolve ? handleQueueGroupCleanup : undefined}
           />
         )} />}
 
@@ -1000,6 +1093,31 @@ export function DuplicateGroupsPage({
             <div className="dialog-actions">
               <button type="button" disabled={actionPending} onClick={() => setSingleDeleteTarget(null)}>取消</button>
               <button className="danger" type="button" disabled={actionPending} onClick={() => void confirmManualSingleDelete()}>{actionPending ? "正在核对并删除..." : "确认删除此文件"}</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {groupCleanupTarget && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setGroupCleanupTarget(null); }}>
+          <section className="dialog duplicate-group-cleanup-dialog" role="alertdialog" aria-modal="true" aria-labelledby="group-cleanup-title" onKeyDown={(event) => { if (event.key === "Escape" && !actionPending) setGroupCleanupTarget(null); }}>
+            <h3 id="group-cleanup-title">确认清理本候选组？</h3>
+            <p>本组共 {groupCleanupTarget.group.items.length} 份，计划保留 1 份；将其余 {groupCleanupDeleteItems.length} 个文件加入后台清理队列，预计释放 {formatBytes(groupCleanupBytes)}。</p>
+            <div className="duplicate-group-cleanup-keeper">
+              <strong>计划保留（不会加入删除队列）</strong>
+              <span>{groupCleanupKeepItem?.video.filename ?? "保留文件不可用"}</span>
+              {groupCleanupKeepItem && <code>{groupCleanupKeepItem.video.path}</code>}
+            </div>
+            <details className="duplicate-group-cleanup-files">
+              <summary>查看待清理文件（{groupCleanupDeleteItems.length} 个）</summary>
+              <ul>{groupCleanupDeleteItems.map((item) => <li key={item.video.id}><strong>{item.video.filename}</strong><code>{item.video.path}</code></li>)}</ul>
+            </details>
+            <p>确认入队后，本组会立即从候选列表暂时隐藏；实际删除完成后再以后台结果刷新。失败项会重新显示，结果未知时不会自动重试。</p>
+            <p>若提交时发生通信错误，请先查看后台任务中心确认任务状态，不要连续重复提交。</p>
+            {actionError && <p className="dialog-error" role="status">{actionError}</p>}
+            <div className="dialog-actions">
+              <button type="button" disabled={actionPending} onClick={() => setGroupCleanupTarget(null)}>取消</button>
+              <button type="button" className="danger" disabled={actionPending || !groupCleanupKeepItem || groupCleanupDeleteItems.length < 1 || groupCleanupDeleteItems.length > MAX_REVIEWED_DELETE_TASK_ITEMS} onClick={() => void confirmGroupCleanup()}>{actionPending ? "正在加入后台队列..." : "确认并加入后台队列（" + groupCleanupDeleteItems.length + " 个文件）"}</button>
             </div>
           </section>
         </div>
@@ -1115,7 +1233,8 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   onOpen,
   onViewDetails,
   onRevealInFolder,
-  onDeleteCandidate
+  onDeleteCandidate,
+  onQueueGroupCleanup
 }: {
   group: DuplicateGroup;
   index: number;
@@ -1129,6 +1248,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onDeleteCandidate?(group: DuplicateGroup, selectedKeep: string, videoId: string): void;
+  onQueueGroupCleanup?(group: DuplicateGroup, selectedKeep: string): void;
 }) {
   const sortedItems = useMemo(
     () => [...group.items].sort((left, right) => left.video.filename.localeCompare(right.video.filename, "zh-CN")),
@@ -1153,6 +1273,9 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
           <h3>{`候选组 ${String((page - 1) * pageSize + index + 1).padStart(2, "0")}`}</h3>
           <p>{`共 ${group.items.length} 份 · 计划保留 1 份 · 可删除 ${candidateRemovalCount} 份 · 可释放 ${formatBytes(reclaimableBytes)}`}</p>
         </div>
+        {onQueueGroupCleanup && <div className="duplicate-group-header-actions">
+          <button type="button" className="danger duplicate-group-cleanup-button" title={group.items.length - 1 > MAX_REVIEWED_DELETE_TASK_ITEMS ? "本组超过后台单个任务 500 个待清理文件的上限" : group.items.some((item) => item.video.isPendingDelete) ? "本组已有文件处于待删除状态，请刷新后再操作" : "保留当前计划保留项，其余文件加入后台清理队列"} disabled={cleanupDisabled || group.items.length < 2 || group.items.length - 1 > MAX_REVIEWED_DELETE_TASK_ITEMS || group.items.some((item) => item.video.isPendingDelete)} onClick={() => onQueueGroupCleanup(group, keepVideoId)}><Trash2 size={16} />清理本组</button>
+        </div>}
       </header>
       <div className="duplicate-group-items">
         {sortedItems.map((item) => {

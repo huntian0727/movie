@@ -885,7 +885,20 @@ button.asset-health-row:hover { background: #1d1f1d; }
 .duplicate-directory-ranking footer { margin-top: 12px; color: #a0aaa0; font-size: 12px; }
 .duplicate-pagination { margin: 0; }
 .duplicate-group-card { border: 1px solid #2a2c2a; border-radius: 12px; overflow: hidden; background: #171817; }
-.duplicate-group-header { padding: 16px 18px; border-bottom: 1px solid #252625; }
+.duplicate-group-header { padding: 16px 18px; border-bottom: 1px solid #252625; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.duplicate-group-header > div:first-child { min-width: 0; }
+.duplicate-group-header-actions { display: flex; align-items: center; justify-content: flex-end; flex-shrink: 0; }
+.duplicate-group-cleanup-button { min-height: 36px; padding: 8px 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #8b4038; border-radius: 6px; color: #ffd5cf; background: #352320; white-space: nowrap; cursor: pointer; }
+.duplicate-group-cleanup-button:hover:not(:disabled) { border-color: #c45b4d; color: #fff; background: #482b26; }
+.duplicate-group-cleanup-button:disabled { opacity: .45; cursor: not-allowed; }
+.duplicate-group-cleanup-keeper { display: grid; gap: 6px; margin: 12px 0; padding: 12px; border: 1px solid #3d5947; border-radius: 7px; background: rgba(43, 72, 56, 0.22); }
+.duplicate-group-cleanup-keeper strong { color: #dff5e7; }
+.duplicate-group-cleanup-keeper code, .duplicate-group-cleanup-files code { display: block; overflow-wrap: anywhere; color: #9fa69d; font-size: 12px; }
+.duplicate-group-cleanup-files { margin: 12px 0; padding: 10px 12px; border: 1px solid #303630; border-radius: 7px; }
+.duplicate-group-cleanup-files summary { cursor: pointer; color: #c2dec9; }
+.duplicate-group-cleanup-files ul { max-height: 180px; overflow: auto; margin-bottom: 0; padding-left: 22px; }
+.duplicate-group-cleanup-files li { margin: 8px 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .duplicate-group-header { align-items: flex-start; flex-direction: column; } .duplicate-group-header-actions { width: 100%; } }
 .duplicate-group-header h3 { margin: 0; font-size: 15px; }
 .duplicate-group-header p { margin: 6px 0 0; color: #7d817b; font-size: 12px; }
 .duplicate-group-items { display: grid; }
