@@ -26,11 +26,12 @@ describe("release engineering trust boundaries", () => {
     expect(flavor.version).toBe("1.2.15-beta.2");
     expect(windowsFileVersion({ version: "1.2.15" })).toBe("1.2.15");
   });
-  it("declares MIT and approves only the owner-selected stable portable source pair", async () => {
+  it("keeps the historical stable-portable approval bound to its exact version and dependency lock", async () => {
     const pkg = JSON.parse(await readFile(path.resolve("package.json"), "utf8"));
     const lock = JSON.parse(await readFile(path.resolve("package-lock.json"), "utf8"));
     const license = await readFile(path.resolve("LICENSE"), "utf8");
     const approval = JSON.parse(await readFile(path.resolve("build/release-approval.json"), "utf8"));
+    const currentLockSha256 = await hashFile(path.resolve("package-lock.json"));
     expect(pkg.license).toBe("MIT");
     expect(lock.packages[""].license).toBe("MIT");
     expect(license).toMatch(/^MIT License\r?\n/);
@@ -38,7 +39,11 @@ describe("release engineering trust boundaries", () => {
     expect(license).toContain("Permission is hereby granted");
     expect(approval.applicationLicense).toBe("MIT");
     expect(approval.licenseSha256).toBe(await hashFile(path.resolve("LICENSE")));
-    expect(approval).toMatchObject({approved:true,scope:"stable-portable-only",version:pkg.version,legacyUpgradeApproved:false});
+    expect(approval).toMatchObject({approved:true,scope:"stable-portable-only",legacyUpgradeApproved:false});
+    expect(approval.version).toMatch(/^\d+\.\d+\.\d+$/);
+    // A historical approval may remain in the repository, but it must never silently
+    // transfer to a different package version or dependency lock.
+    expect(approval.version === pkg.version).toBe(approval.packageLockSha256 === currentLockSha256);
     expect(approval.ownersConfirmed).toBe(true);
     expect(approval.manualQaApproved).toBe(true);
     expect(approval.binaries.every((binary) => binary.sourceComplianceApproved === false)).toBe(true);

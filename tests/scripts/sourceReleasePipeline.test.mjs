@@ -91,8 +91,10 @@ describe("public beta authorization is separate from stable Windows acceptance",
     const approval = JSON.parse(await readFile("build/public-test-approval.json", "utf8"));
     const pkg = JSON.parse(await readFile("package.json", "utf8"));
     expect(approval).toMatchObject({ approved: true, version: "0.1.15-beta.3", scope: "public-prerelease-portable-only", stableReleaseApproved: false });
-    expect(pkg.version).toBe("0.1.15");
+    expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(pkg.version).not.toBe(approval.version);
     expect(approval.packageLockSha256).toBe("e45ecc4bdd40b0a90f72727cf1becdab349dc65fc84b2474cdceb968aae0addb");
+    expect(approval.packageLockSha256).not.toBe(await hashFile("package-lock.json"));
     expect(approval.nativeSourceApprovalSha256).toBe(await hashFile("build/native-source-approval.json"));
     expect(approval.decisionEvidenceSha256).toBe(await hashFile(approval.decisionEvidence));
     expect(approval.sandboxEvidenceSha256).toBe(await hashFile(approval.sandboxEvidence));
@@ -201,12 +203,24 @@ describe("private community QA and exact source release approval", () => {
 });
 
 describe("owner-selected Windows scope for stable portable release", () => {
-  it("binds actual current decision, dependency and Sandbox evidence without claiming stable OS coverage", async () => {
+  it("retains historical decision and Sandbox evidence but never reuses stale approval for the current package", async () => {
     const a = JSON.parse(await readFile("build/release-approval.json", "utf8"));
-    expect(a.packageLockSha256).toBe(await hashFile("package-lock.json"));
+    const pkg = JSON.parse(await readFile("package.json", "utf8"));
+    const currentLockSha256 = await hashFile("package-lock.json");
+    expect(a.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(a.version === pkg.version).toBe(a.packageLockSha256 === currentLockSha256);
+    if (a.version !== pkg.version || a.packageLockSha256 !== currentLockSha256) {
+      await expect(verifyFormalApproval(process.cwd(), {
+        releaseClass: "unsigned-public-release",
+        version: pkg.version,
+        mediaVariant: "source-candidate",
+        playerRuntimeVariant: "source-candidate",
+        publicTestRelease: false,
+      })).rejects.toThrow();
+    }
     for (const [file, pin] of [[a.decisionEvidence, a.decisionEvidenceSha256], [a.cleanWindows11Evidence, a.cleanWindows11EvidenceSha256]]) expect(await hashFile(file)).toBe(pin);
     const qa = JSON.parse(await readFile(a.cleanWindows11Evidence, "utf8"));
-    expect(qa).toMatchObject({ ownerAcceptedEnvironment: true, status: "PASS_OWNER_ACCEPTED_SANDBOX_SCOPE", version: "0.1.15", environment: {stableWindowsCoverage:false, standardUserCoverage:false} });
+    expect(qa).toMatchObject({ ownerAcceptedEnvironment: true, status: "PASS_OWNER_ACCEPTED_SANDBOX_SCOPE", version: a.version, environment: {stableWindowsCoverage:false, standardUserCoverage:false} });
     expect(await hashFile(qa.previousSandboxEvidence)).toBe(qa.previousSandboxEvidenceSha256);
   });
   it("does not permit installer or directory mode from a ZIP approval", () => {
