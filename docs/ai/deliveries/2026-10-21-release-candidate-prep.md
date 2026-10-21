@@ -61,7 +61,7 @@ status: prepared-with-blockers
 2. 此预检只检查隔离 `unsigned-test-build`，不能批准公开 `unsigned-public-release`。
 3. `build/release-approval.json` 仍绑定 0.1.15；当前 `package.json` 是 0.1.16。
 4. 批准的 `package-lock.json` SHA-256 为 `7d1bdecc332cb95c412787953d0cd80b682a14aa1d3109459dc4865a78ba3e0c`，当前为 `06e88837cf56f399e173652a833d0008c011032a25dc91f4eea6ffff3158ecf1`。
-5. 本轮 QA ZIP 使用的 `source-candidate` 仍未批准：`scripts/native-source-media.lock.json` 与 `scripts/native-source-player-runtime.lock.json` 标记 `CANDIDATE_NOT_APPROVED` / `distributable=false`；上游生产 CI 为 FAIL，`originalCiClosureValid=false`。本地 PE/哈希核对与 packaged smoke 不能代替对原生来源闭包的修复和分发批准。另一个 `lite-candidate` 同样未批准，存在 GCC Runtime Library Exception 通知、静态 FFmpeg LGPL 重链接与组件级许可待决问题。
+5. 本轮 QA ZIP 使用的 `source-candidate` 仍未批准：`scripts/native-source-media.lock.json` 与 `scripts/native-source-player-runtime.lock.json` 标记 `CANDIDATE_NOT_APPROVED` / `distributable=false`；其固定产物来自 `dac070da604a12acb2eeedccb4993f1ebc52e001`，上游生产 CI 为 FAIL，`originalCiClosureValid=false`，原因为打包器未识别 `CFGMGR32.dll` 与 `SHCORE.dll`。当前工作树已在 `scripts/native-source-build.py` 中加入这两个 Windows 系统导入，并由 `tests/scripts/native_source_build_test.py` 覆盖分类，但没有为此修复生成新二进制/成功 CI 证据；需要在获准提交和 CI 运行后重新构建并核对，不得改写旧锁。另一个 `lite-candidate` 同样未批准，存在 GCC Runtime Library Exception 通知、静态 FFmpeg LGPL 重链接与组件级许可待决问题。
 6. 稳定 Windows 11 与标准用户覆盖尚未完成并由所有者批准；现有隔离沙盒证据只证明其声明范围。
 7. 历史发行批准绑定的版本、依赖锁与 QA 证据不能自动延伸到新候选。
 8. FFmpeg 静态链接 LGPL 义务及组件级许可处置仍未完成审核。
