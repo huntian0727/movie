@@ -17,8 +17,8 @@
 - 用户已明确暂缓真实删除验证。随后完成 v1.2 非删除专项回归：Windows 文件/网络 37、迁移 41、常规性能/缓存 31、播放器/字幕/扫描 283、320k 构造数据性能 4、CloudDrive 模拟/安全 70，共 **466/466 PASS**（37 个 Vitest 文件）；Electron 主进程 smoke 另行 PASS。仅测试和文档，无生产代码修改、无用户可见版本升级。见 `deliveries/2026-10-21-v12-nondestructive-regression.md`。
 - 新一轮仅只读运行检查和隔离打包测试：真实资料库 v16，363216 视频，CloudDrive 来源 7、本地来源 4，当前 API TCP 可达；v1.2 双阶段 packaged smoke PASS、备份 Verify PASS。真实远端删除仍 NOT RUN，详见 2026-10-21 容错 QA 交付记录。
 - 当前已完成“重复文件入后台后临时隐藏排队项、整页覆盖单页筛选目录时自动退出浏览筛选”的实现。专项 typecheck 及 5 个测试文件 148/148 通过。细节与风险见 `deliveries/2026-10-21-duplicate-queued-list-ux.md`。
-- 全量 `npm run test:node` 已重跑：149 文件，1388/1391 PASS；3 项失败均为旧 0.1.15 发行审批与当前 0.1.16 package.json / package-lock 失配。新增发行预检绑定测试 16/16 PASS，`npm run test:media-candidate-contract` 67/67 PASS，`npm run typecheck` PASS，`npm run build` PASS；Electron、renderer security、现有 v1.2 packaged smoke 均 PASS。
-- 发行预检现实际阻塞：批准版本 0.1.15 与当前 0.1.16 不一致，审批 lockfile SHA256 与当前 lockfile 不一致；LICENSE/QA 文件哈希匹配，但稳定 Windows/标准用户覆盖未批准、原生二进制合规未批准、私有 REVIEW ZIP 缺失。主工作区旧 `release/unsigned-test-build` 的 metadata/flavor 仍不一致；为不覆盖旧候选，另在隔离 worktree 重建 0.1.16 私有 QA 包，`release:metadata`、`verify:artifact` 和 `test:installer-smoke` 均 PASS。详见 `deliveries/2026-10-21-release-preflight-binding-guard.md` 与 `deliveries/2026-10-21-release-metadata-display-version.md`。
+- 历史阶段曾有一次 `npm run test:node` 结果为 149 文件、1388/1391 PASS，3 项失败与旧审批绑定有关；随后修订了发行工程测试以确保历史审批按原包版本隔离。最新完整 `npm run test:release-gate` 已重新执行并以退出码 0 结束；精确详情见上方 `deliveries/2026-10-21-release-candidate-prep.md`。
+- 历史阶段发行预检曾因 REVIEW ZIP 未定位及旧 `release/unsigned-test-build` metadata/flavor 失配而阻塞；这些局部问题已由上方最新覆盖更新：当前已定位并核验私有 REVIEW-v2 ZIP，主工作区隔离 QA 安装器已重建，`verify:artifact` 和 `test:installer-smoke` 均 PASS。整体公开发行仍被旧批准版本/lockfile、原生媒体许可和稳定 Windows/标准用户覆盖等项目阻塞。详见 `deliveries/2026-10-21-release-candidate-prep.md`。
 
 ## 最新覆盖（2026-10-21）
 
