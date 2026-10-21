@@ -285,7 +285,7 @@ export class DuplicateCleanupRepository {
         WHERE candidate.id IN (${placeholders}) AND candidate.is_missing = 0
           AND candidate.metadata_status = 'ready' AND candidate.duration_ms IS NOT NULL AND candidate.duration_ms > 0
           AND EXISTS (SELECT 1 FROM videos peer WHERE peer.id <> candidate.id AND peer.is_missing = 0
-            AND peer.metadata_status = 'ready' AND peer.duration_ms = candidate.duration_ms
+            AND peer.metadata_status = 'ready' AND ((peer.duration_ms + 500) / 1000) = ((candidate.duration_ms + 500) / 1000)
             AND peer.size_bytes = candidate.size_bytes) LIMIT 1`).get(...chunk) as { id: string } | undefined;
       if (row) {
         throw new Error("选中的视频符合大小与时长重复条件；请先核对候选，并在后台任务中单独确认删除。");

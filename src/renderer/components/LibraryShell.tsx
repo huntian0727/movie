@@ -98,7 +98,7 @@ interface LibraryShellProps {
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "confirmDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">
-    & Partial<Pick<VideoManagerApi, "getDuplicateCleanupJob" | "fastDeleteDuplicateCandidates" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "getLegacyCloudDriveBindingStatus" | "cancelLegacyCloudDriveBinding" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
+    & Partial<Pick<VideoManagerApi, "getDuplicateCleanupJob" | "fastDeleteDuplicateCandidates" | "deleteReviewedDuplicatePlan" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "getLegacyCloudDriveBindingStatus" | "cancelLegacyCloudDriveBinding" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -1142,8 +1142,7 @@ export function LibraryShell({
             onViewDetails={viewVideoDetails}
             onRevealInFolder={onRevealInFolder}
             onRefresh={() => setDuplicateRefreshVersion((current) => current + 1)}
-            onManualDelete={onDelete}
-            onManualBatchDelete={onBatchDelete}
+            onReviewedDelete={duplicateCleanupApi?.deleteReviewedDuplicatePlan}
             onPreviewResolve={async (plan) => {
               if (!onPreviewDuplicateResolve) {
                 throw new Error("重复项预检查能力未连接");

@@ -46,6 +46,7 @@ import { loadPreviewImage } from "./media/mediaProtocol.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
 import type { DirectoryImageService } from "./media/directoryImageService.js";
 import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js";
+import { deleteReviewedDuplicatePlan } from "./media/reviewedDuplicateDelete.js";
 import { bindLegacyCloudDriveDuplicateCandidates } from "./media/cloudDriveLegacyBindingService.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
@@ -73,6 +74,7 @@ function readScope(event: IpcMainInvokeEvent, operation: string, purpose: unknow
 let ipcLogger: StructuredLogger | undefined;
 const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.duplicateFastDelete,
+  IPC_CHANNELS.duplicateReviewedDelete,
   IPC_CHANNELS.duplicateCleanupConfirm,
   IPC_CHANNELS.duplicateCloudDriveBindLegacy,
   IPC_CHANNELS.cloudDriveTest,
@@ -630,6 +632,25 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
       });
     }
     return result;
+  });
+
+  let reviewedDeleteInFlight = false;
+  ipcMain.handle(IPC_CHANNELS.duplicateReviewedDelete, async (_event, payload) => {
+    const plan = duplicateResolvePlanSchema.parse(payload);
+    if (reviewedDeleteInFlight) throw new Error("已有重复项清理正在执行，请等待结束后重试。");
+    reviewedDeleteInFlight = true;
+    try {
+      return await deleteReviewedDuplicatePlan(
+        repo, dependencies.metadataQueue, plan,
+        (ids) => dependencies.duplicateCleanupJobs.assertVideosAvailable(ids),
+        (removedIds) => {
+          dependencies.cacheManager.scheduleMaintenance(true);
+          dependencies.domainEvents.publish({ type: "video:removed", videoIds: removedIds });
+        }
+      );
+    } finally {
+      reviewedDeleteInFlight = false;
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.duplicateFastDelete, async (_event, payload) => {

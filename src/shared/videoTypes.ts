@@ -569,6 +569,12 @@ export interface DuplicateResolveResult {
   successCount: number;
   failureCount: number;
   reclaimedBytes: number;
+  /** CloudDrive moved-to-recycle results: not counted as physically freed bytes. */
+  recycledCount?: number;
+  /** A remote request was sent but its outcome cannot be confirmed; never auto-retry. */
+  uncertainCount?: number;
+  unsubmittedCount?: number;
+  uncertainMessage?: string;
   failures: DuplicateResolveFailure[];
 }
 
@@ -1065,6 +1071,7 @@ export const IPC_CHANNELS = {
   duplicateList: "duplicate:list",
   duplicatePreviewResolve: "duplicate:preview-resolve",
   duplicateFastDelete: "duplicate:fast-delete",
+  duplicateReviewedDelete: "duplicate:reviewed-delete",
   duplicateCheckMissing: "duplicate:check-missing",
   duplicateCleanupSubmit: "duplicate-cleanup:submit",
   duplicateCleanupSubmitFiltered: "duplicate-cleanup:submit-filtered",
@@ -1147,6 +1154,7 @@ export interface VideoManagerApi extends SubtitleApi, DataStorageApi {
   listDuplicateGroups(query: DuplicateGroupPageQuery, purpose?: string): Promise<DuplicateGroupPage>;
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   fastDeleteDuplicateCandidates(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  deleteReviewedDuplicatePlan(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
   submitFilteredDuplicateCleanup(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted>;
