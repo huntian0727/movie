@@ -44,6 +44,12 @@ status: verified-private-qa-public-release-blocked
 - 新运行库实际许可证组件、对应源码公开交付及可更换 DLL/权利等需完成当前批次逐项人工审阅、决策留痕，并基于最终实际二进制更新正式批准；候选仍未公开可下载。
 - 后续：全量门禁 → 实测隔离五种编码的 MPV 播放与切换、真实稳定 Windows QA/数据迁移 → 维护者签署本批次来源与发行批准 → 从完全干净且固定 commit 生成正式包与对应源 ZIP → 同一次 Release 上传、检验 SHA、手册、许可证及公开链接。未经以上审批不创建正式 v0.1.16 Release。
 
+## 从干净提交复打包及 GitHub 协作（最终补记）
+
+- 上述修复、源码锁、测试和交接内容已统一提交至 `245dc156bcf247d73e38417cb3b803f43869fcc8`（`chore: integrate verified private LGPL runtime candidate`），并以普通推送更新到远程开发分支 `ai/native-runtime-candidate-integration`；远端 SHA 已比对一致。
+- 使用该**干净提交**再运行 `dist:zip` → `verify:zip` → `release:metadata` → `test:packaged-smoke`，全部 PASS；`build-flavor.json.commit=245dc156...`、`workspaceDirty=false`、`releaseClass=unsigned-test-build`、`displayVersion=1.2`。230 个绿色 ZIP 文件逐个检查。
+- 最终私有 QA ZIP：`release/unsigned-test-build/拉面影视-0.1.16-x64-unsigned-test-build-Portable.zip`，214,807,755 字节，SHA-256 **`75ee4f58d8479c1b2132c1fc3a313dcfcbbf9f4bc8bfaa84d5fc8e353e37599de9`**；原临时版 `7dd193f2...` 已移动至 `.tmp/native-run-39612312642/precommit-sourcebuilt-test-zip/`，**不要把原临时版误当作最新包**。签名为 `NotSigned`，QA 报告明确 `publicReleaseApproved=false`。
+- 已建立 [GitHub Draft PR #29](https://github.com/huntian0727/movie/pull/29)（对比 `main`，处于审核草稿状态）；Windows CI 和安全审计已触发。Draft PR、CI 和 QA 包均**不是正式 Release**；目前最新公开包仍为 v0.1.15。只有新来源/许可审查、实际验收证据与主人最终当批次批准均成立后才可创建公开安装包及 tag。
 ## 回退与权限
 
 - 开工前完整备份 snapshot `2026-10-21_14-42-15-269_native-source-runtime-qa-20261021`（SQLite 快速检查通过，视频 363,216）；Git checkpoint `checkpoint-20261021-224208-3b73062-native-source-runtime-qa-20261021`。
