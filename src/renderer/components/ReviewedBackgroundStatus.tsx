@@ -4,11 +4,11 @@ import { formatBytes } from "./formatters";
 
 export function ReviewedBackgroundStatus({ job }: { job: ReviewedDeleteBackgroundJob | null }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  if (!job) return null;
+  // The main process retains completed checkpoints for safety; a successful
+  // historical task is not an active notification and must not occupy the UI.
+  if (!job || job.status === "completed") return null;
   const active = job.status === "running";
-  const complete = job.status === "completed";
   const label = active ? "重复文件后台清理中"
-    : complete ? "重复文件后台清理已完成"
     : job.status === "partial" ? "重复文件清理部分失败"
     : job.status === "blocked" ? "重复文件后台清理已停止"
     : "上次重复文件后台清理中断";

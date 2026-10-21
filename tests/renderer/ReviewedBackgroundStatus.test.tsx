@@ -22,6 +22,24 @@ describe("cross-view background duplicate status", () => {
     expect(screen.getByText(/permission denied/)).toBeInTheDocument();
     expect(screen.getByText(/完成前请保持程序开启/)).toBeInTheDocument();
   });
+  it("removes a successfully completed checkpoint instead of leaving a permanent progress bar", () => {
+    const rendered = render(<ReviewedBackgroundStatus job={job} />);
+    expect(screen.getByRole("progressbar", { name: "后台重复文件清理进度" })).toBeInTheDocument();
+    rendered.rerender(<ReviewedBackgroundStatus job={{ ...job, status: "completed", processed: 60,
+      successCount: 60, failureCount: 0, unsubmittedCount: 0 }} />);
+    expect(screen.queryByRole("region", { name: "重复文件后台清理状态" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", { name: "后台重复文件清理进度" })).not.toBeInTheDocument();
+  });
+
+  it("does not hide failed or blocked outcomes needing manual inspection", () => {
+    const rendered = render(<ReviewedBackgroundStatus job={{ ...job, status: "partial" }} />);
+    expect(screen.getByText("重复文件清理部分失败")).toBeInTheDocument();
+    rendered.rerender(<ReviewedBackgroundStatus job={{ ...job, status: "blocked", uncertainCount: 3 }} />);
+    expect(screen.getByText("重复文件后台清理已停止")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看详情" }));
+    expect(screen.getByText(/结果未知的文件不能自动重试/)).toBeInTheDocument();
+  });
+
   it("shows interrupted and unknown results without suggesting an automatic retry", () => {
     render(<ReviewedBackgroundStatus job={{ ...job, status: "interrupted", uncertainCount: 30,
       message: "任务异常停止，未知结果不可自动重试" }} />);

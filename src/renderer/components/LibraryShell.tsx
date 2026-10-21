@@ -866,7 +866,7 @@ export function LibraryShell({
             <button type="button" onClick={onOpenSettings}><Settings size={15} /><span>设置</span></button>
           </nav>
         </header>
-        <ReviewedBackgroundStatus job={backgroundReviewedJob} />
+        {view === "duplicates" && <ReviewedBackgroundStatus key={backgroundReviewedJob?.id} job={backgroundReviewedJob} />}
         {usesCommonToolbar && <Toolbar
           title={title}
           count={toolbarCount}

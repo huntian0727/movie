@@ -951,6 +951,64 @@ describe("LibraryShell", () => {
     expect(screen.getByText("episode-01.mp4")).toBeInTheDocument();
   });
 
+  it("shows an active duplicate-cleanup bar only on the duplicate page and hides it after polling completion", async () => {
+    const running = {
+      id: "scoped-background", status: "running" as const, total: 2, processed: 1,
+      successCount: 1, failureCount: 0, uncertainCount: 0, unsubmittedCount: 1,
+      reclaimedBytes: 1024, recycledCount: 0, failures: [], message: "working",
+      createdAt: "2026-10-21", updatedAt: "2026-10-21"
+    };
+    let latest: typeof running | (Omit<typeof running, "status"> & { status: "completed" }) = running;
+    const getReviewedDuplicateBackground = vi.fn(async () => latest);
+    const api = { getReviewedDuplicateBackground } as unknown as VideoManagerApi;
+    vi.useFakeTimers();
+    try {
+      const rendered = render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]}
+        duplicateCleanupApi={api} />);
+      await act(async () => { await Promise.resolve(); });
+      expect(getReviewedDuplicateBackground).toHaveBeenCalled();
+      expect(screen.queryByRole("region", { name: "重复文件后台清理状态" })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+      expect(screen.getByText("重复文件后台清理中")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "查看收藏视频" }));
+      expect(screen.queryByRole("region", { name: "重复文件后台清理状态" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+      expect(screen.getByText("重复文件后台清理中")).toBeInTheDocument();
+
+      latest = { ...running, status: "completed", processed: 2, successCount: 2, unsubmittedCount: 0 };
+      await act(async () => { vi.advanceTimersByTime(1500); await Promise.resolve(); });
+      expect(screen.queryByRole("region", { name: "重复文件后台清理状态" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "查看收藏视频" }));
+      fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+      expect(screen.queryByRole("region", { name: "重复文件后台清理状态" })).not.toBeInTheDocument();
+      rendered.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps failed cleanup details available on duplicates without displaying the bar on other menus", async () => {
+    const api = { getReviewedDuplicateBackground: vi.fn().mockResolvedValue({
+      id: "partial-job", status: "partial", total: 2, processed: 2,
+      successCount: 1, failureCount: 1, uncertainCount: 0, unsubmittedCount: 0,
+      reclaimedBytes: 0, recycledCount: 0, failures: [
+        { videoId: nestedVideo.id, groupKey: "size-duration", path: nestedVideo.path, message: "denied" }
+      ], message: "部分失败", createdAt: "2026-10-21", updatedAt: "2026-10-21"
+    }) } as unknown as VideoManagerApi;
+    render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]} duplicateCleanupApi={api} />);
+    await waitFor(() => expect(api.getReviewedDuplicateBackground).toHaveBeenCalled());
+    expect(screen.queryByRole("region", { name: "重复文件后台清理状态" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+    expect(screen.getByText("重复文件清理部分失败")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看详情" }));
+    expect(screen.getByText(/denied/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看收藏视频" }));
+    expect(screen.queryByRole("region", { name: "重复文件后台清理状态" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+    expect(screen.getByText("重复文件清理部分失败")).toBeInTheDocument();
+  });
+
   it("hides accepted background targets immediately and returns from a fully queued directory without losing keeper preference", async () => {
     const saved = {
       id: "saved-drama", path: "D:\\Movies\\Drama", enabled: true,
