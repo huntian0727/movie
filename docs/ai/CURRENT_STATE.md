@@ -1,6 +1,13 @@
 # 当前项目状态
 
-更新时间：2026-08-18。本文主体是历史维护基线；精确 Commit 以 `git rev-parse HEAD` 和最新交付记录为准。与本文冲突时，以以下最新覆盖、当前代码、`CHANGELOG.md` 的 `[Unreleased]` 和最新 ADR 为准。
+更新时间：2026-10-21。本文主体是长期项目维护基线；精确 Commit 以 `git rev-parse HEAD` 和最新交付记录为准。与本文冲突时，以当前代码、以下最新覆盖、`CHANGELOG.md` 的 `[Unreleased]` 和最新交付记录为准。
+
+## 当前开发节点（2026-10-21）
+
+- 当前直接交接入口：[`CURRENT-HANDOFF.md`](CURRENT-HANDOFF.md)。新会话先读该文件，再读 `AGENTS.md`、`START_HERE.md` 和对应交付记录。
+- 当前分支 `ai/duplicate-queued-list-ux`，HEAD `c79402c1f904e80b7188eb1d313c101b2ad96ba0`，工作区干净；本地界面版本 `v1.2`，技术包版本 `0.1.16`。
+- 当前已完成“重复文件入后台后临时隐藏排队项、整页覆盖单页筛选目录时自动退出浏览筛选”的实现。专项 typecheck 及 5 个测试文件 148/148 通过。细节与风险见 `deliveries/2026-10-21-duplicate-queued-list-ux.md`。
+- 本任务仅本地提交，未推送 GitHub、未公开发布。桌面日常包标记已核对与当前 HEAD 一致；全量测试与正式发行门禁本轮未运行。
 
 ## 最新覆盖（2026-10-21）
 
