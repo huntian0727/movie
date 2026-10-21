@@ -1,6 +1,23 @@
-# 当前开发交接：v1.2 重复清理与隔离故障联动 QA
+# 当前开发交接：v0.1.16 发版准备 + v1.2 功能 QA
 
 更新时间：2026-10-21（北京时间）
+
+## 当前最高优先级：发版准备（覆盖旧的发行准备状态）
+
+用户要求：人工验收暂时没时间，先把能独立完成的发版准备做好，人工工作留到最后。
+
+- 候选包构建时分支为 `ai/release-tests-historical-approval-separation`，代码 HEAD 为 `861ca815fadb65c62b68f2b7c08229e3eff0f820`；本交接文档还会产生本地提交，因此新会话必须重新运行 `git status --short --branch`、`git rev-parse HEAD` 获取最终状态。
+- 技术版本 0.1.16，界面版本 v1.2；GitHub 最新公开版仍是 v0.1.15。没有 v0.1.16 公开 tag/Release。
+- 文档准备已完成：README、快速开始、完整教程、CHANGELOG 和候选发行说明都明确 0.1.16 尚未公开，不再把候选功能误写成已发布，也修正重复项并非内容哈希判定的说明。
+- `npm run test:release-gate` PASS：149 个测试文件、1,391/1,391 用例；发行工程单测 74/74、媒体候选契约 67/67。
+- 在隔离身份 `unsigned-test-build` 下重新构建私有 QA NSIS 安装包。 `node scripts/verify-packaged-artifact.mjs` PASS（3,469 ASAR 条目、17 份精确许可声明）；`node scripts/write-release-metadata.mjs` PASS；`npm run test:installer-smoke` PASS（安装、修复、拒绝删除应用数据、卸载；合成 SQLite/视频哨兵保留，生产注册信息与快捷方式未变）。安装器 SHA-256：`d70815daaa53ea4e87e487e280767096c14fb89ff84b6ae7d277c0be1a0a0003`。
+- 当前私有安装器路径：`release/unsigned-test-build/拉面影视-0.1.16-x64-unsigned-test-build-Setup.exe`。它不是正式包，不得公开上传；日常版 `release/win-unpacked` 和桌面快捷方式未覆盖。
+- 使用私有 FFmpeg-Lite REVIEW-v2 ZIP 重跑 `audit-release-readiness.mjs`，源码 ZIP 哈希核验 PASS（239,488,121 字节，SHA-256 `6ed202c4e30627624e2678a2a62e7c9c6e347be4a57d9b6af248fd45571b15d4`），但总结果 `OUTCOME=BLOCKED`。阻塞包括：旧审批绑定 0.1.15、package-lock 哈希不匹配、原生媒体分发/LGPL 审批未完成、稳定 Windows 11/标准用户覆盖未获批、当前私有安装器哈希不在历史 QA 批准记录中、此审计本身不能批准公开包。
+- 本轮便携 ZIP 构建命令被远程执行层拒绝启动；没有绕过执行控制，也没有生成本轮已验证的 0.1.16 ZIP。后续应在允许的执行通道继续私有 portable QA 构建与 `verify:zip`。
+- 没有推送 GitHub、创建/推送 tag、上传或发布 Release。没有运行真实 CloudDrive/115 删除；遵守用户要求，将真实远端删除与播放器/字幕人工体验留到最后。
+- 完整证据与下一步：`docs/ai/deliveries/2026-10-21-release-candidate-prep.md`。**禁止通过编辑审批文件、改哈希、改名 QA 包来绕过发行阻塞。**
+
+## 之前的 v1.2 功能 QA 进展
 
 ## 最新进展（2026-10-21 夜间：隔离安装验收）
 

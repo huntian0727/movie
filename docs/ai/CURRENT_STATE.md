@@ -4,8 +4,15 @@
 
 ## 当前开发节点（2026-10-21）
 
+### 最新覆盖：v0.1.16 发版准备
+
+- 最新分支/HEAD 以 `git status --short --branch` 和 `git rev-parse HEAD` 为准；技术版本 0.1.16、界面版本 v1.2，GitHub 公开版仍为 v0.1.15。
+- 发版文档已改为候选状态；全量发行门禁 1,391/1,391 PASS，私有 unsigned-test-build 安装包 `verify:artifact` 与 `test:installer-smoke` PASS。
+- `audit-release-readiness.mjs` 仍为 `OUTCOME=BLOCKED`：历史审批绑定 0.1.15，lockfile 不匹配，原生媒体/LGPL 分发审批及稳定 Windows/标准用户验收未完成。私有源码 REVIEW ZIP 核验通过，但不得公开上传。
+- 当前无已验证的 0.1.16 portable ZIP；没有推送、tag 或公开发布。日常桌面版未覆盖；真实 CloudDrive/115 删除测试继续暂缓。详见 `deliveries/2026-10-21-release-candidate-prep.md`。
+
 - 当前直接交接入口：[`CURRENT-HANDOFF.md`](CURRENT-HANDOFF.md)。新会话先读该文件，再读 `AGENTS.md`、`START_HERE.md` 和对应交付记录。
-- 当前分支 `ai/release-metadata-display-version`，基于发行预检修复提交 `b0f1296`；代码修复提交 `ad6e853` 仅补齐发行元数据生成器的 displayVersion。原 v1.2 功能实现提交仍为 `c79402c1f904e80b7188eb1d313c101b2ad96ba0`。新会话以 `git rev-parse HEAD` 和 `git status --short` 获取实时状态；界面版本仍为 `v1.2`，技术包版本 `0.1.16`。
+- 历史阶段记录（已被上方最新覆盖）：当时分支为 `ai/release-metadata-display-version`，提交 `ad6e853` 补齐发行元数据生成器的 displayVersion；原 v1.2 功能实现提交为 `c79402c1f904e80b7188eb1d313c101b2ad96ba0`。当前分支与 HEAD 请以实时 Git 查询为准。
 - 容错联动专项：真实临时 SQLite + 模拟 CloudDrive，已验证跨 30+5 批次的明确失败（34 成功/1 失败）和第 31 次调用断连（32 成功/1 未知/2 未提交），重启均不自动重放；`npm run typecheck` PASS，6 文件 77/77 PASS。未进行真实 115 API 删除；详见 `deliveries/2026-10-21-duplicate-background-fault-qa.md`。
 - 用户已明确暂缓真实删除验证。随后完成 v1.2 非删除专项回归：Windows 文件/网络 37、迁移 41、常规性能/缓存 31、播放器/字幕/扫描 283、320k 构造数据性能 4、CloudDrive 模拟/安全 70，共 **466/466 PASS**（37 个 Vitest 文件）；Electron 主进程 smoke 另行 PASS。仅测试和文档，无生产代码修改、无用户可见版本升级。见 `deliveries/2026-10-21-v12-nondestructive-regression.md`。
 - 新一轮仅只读运行检查和隔离打包测试：真实资料库 v16，363216 视频，CloudDrive 来源 7、本地来源 4，当前 API TCP 可达；v1.2 双阶段 packaged smoke PASS、备份 Verify PASS。真实远端删除仍 NOT RUN，详见 2026-10-21 容错 QA 交付记录。
