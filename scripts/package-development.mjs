@@ -12,7 +12,7 @@ if (process.platform !== "win32" || process.arch !== "x64" || process.env.GITHUB
 const root = process.cwd();
 // The optional staging directory lets us build a new local desktop without
 // overwriting an app that could be processing a destructive operation.
-const outputDirectory = process.env.MOVIE_SAFE_STAGE_LOCAL === "1" ? "release/local-optimized" : "release";
+const outputDirectory = process.env.MOVIE_SAFE_STAGE_LOCAL === "background" ? "release/local-background" : process.env.MOVIE_SAFE_STAGE_LOCAL === "1" ? "release/local-optimized" : "release";
 const mediaLock = await readJson(path.join(root, "scripts/native-source-media.lock.json"));
 const playerLock = await readJson(path.join(root, "scripts/native-source-player-runtime.lock.json"));
 const media = path.join(root, ".tmp/native-source-media-tools"), player = path.join(root, ".tmp/native-source-player-runtime");

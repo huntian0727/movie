@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type FormEvent, type PointerEvent as ReactPointerEvent, type SetStateAction } from "react";
 import { AlertTriangle, BookmarkX, CircleGauge, Clock3, Cloud, CopyMinus, Database, FileQuestion, FolderInput, FolderPlus, FolderSearch, HardDrive, Heart, Library, ListChecks, LoaderCircle, MoreHorizontal, Pause, PieChart, Play, PlaySquare, RotateCw, Server, Settings, Trash2 } from "lucide-react";
-import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, MetadataIssueStatusFilter, PlaybackPreference, ScanFailure, ScanFailureBatchJob, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, ReviewedDeleteBackgroundJob, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, MetadataIssueStatusFilter, PlaybackPreference, ScanFailure, ScanFailureBatchJob, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
+import { ReviewedBackgroundStatus } from "./ReviewedBackgroundStatus";
 import { AssetCenterPage } from "./AssetCenterPage";
 import { VideoDataPage } from "./VideoDataPage";
 import { PlaybackDiagnosticPage } from "./PlaybackDiagnosticPage";
@@ -98,7 +99,7 @@ interface LibraryShellProps {
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "confirmDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">
-    & Partial<Pick<VideoManagerApi, "getDuplicateCleanupJob" | "fastDeleteDuplicateCandidates" | "deleteReviewedDuplicatePlan" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "getLegacyCloudDriveBindingStatus" | "cancelLegacyCloudDriveBinding" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
+    & Partial<Pick<VideoManagerApi, "getDuplicateCleanupJob" | "fastDeleteDuplicateCandidates" | "deleteReviewedDuplicatePlan" | "submitReviewedDuplicateBackground" | "getReviewedDuplicateBackground" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "getLegacyCloudDriveBindingStatus" | "cancelLegacyCloudDriveBinding" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -232,6 +233,8 @@ export function LibraryShell({
   const [duplicatePreferencesLoaded, setDuplicatePreferencesLoaded] = useState(false);
   const [duplicatePreferredDirectories, setDuplicatePreferredDirectories] = useState<DuplicatePreferredDirectory[]>([]);
   const [duplicatePage, setDuplicatePage] = useState<DuplicateGroupPage>(() => createStaticDuplicatePage(duplicateGroups));
+  const [backgroundReviewedJob, setBackgroundReviewedJob] = useState<ReviewedDeleteBackgroundJob | null>(null);
+  const backgroundStatusRef = useRef<string | null>(null);
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
   const [duplicateRefreshVersion, setDuplicateRefreshVersion] = useState(0);
@@ -458,6 +461,27 @@ export function LibraryShell({
 
     return () => { disposed = true; };
   }, [duplicateCleanupApi, duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferencesLoaded, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
+
+  useEffect(() => {
+    const read = duplicateCleanupApi?.getReviewedDuplicateBackground;
+    if (!read) return;
+    let stopped = false;
+    const update = async () => {
+      try {
+        const current = await read();
+        if (stopped) return;
+        setBackgroundReviewedJob(current);
+        if (backgroundStatusRef.current === "running" && current?.status !== "running") {
+          setDuplicateRefreshVersion((version) => version + 1);
+          setVideoPageRefreshVersion((version) => version + 1);
+        }
+        backgroundStatusRef.current = current?.status ?? null;
+      } catch { /* Keep previous known state; next poll can recover. */ }
+    };
+    void update();
+    const timer = window.setInterval(() => void update(), 1500);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [duplicateCleanupApi]);
 
   const isHealthView = view === "healthOverview" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const isBackgroundMetadataView = view === "metadataIssues" && metadataIssueInitialStatus !== "failed";
@@ -826,6 +850,7 @@ export function LibraryShell({
             <button type="button" onClick={onOpenSettings}><Settings size={15} /><span>设置</span></button>
           </nav>
         </header>
+        <ReviewedBackgroundStatus job={backgroundReviewedJob} />
         {usesCommonToolbar && <Toolbar
           title={title}
           count={toolbarCount}
@@ -1143,6 +1168,9 @@ export function LibraryShell({
             onRevealInFolder={onRevealInFolder}
             onRefresh={() => setDuplicateRefreshVersion((current) => current + 1)}
             onReviewedDelete={duplicateCleanupApi?.deleteReviewedDuplicatePlan}
+            onStartReviewedBackground={duplicateCleanupApi?.submitReviewedDuplicateBackground}
+            onBackgroundAccepted={setBackgroundReviewedJob}
+            backgroundRunning={backgroundReviewedJob?.status === "running"}
             onPreviewResolve={async (plan) => {
               if (!onPreviewDuplicateResolve) {
                 throw new Error("重复项预检查能力未连接");

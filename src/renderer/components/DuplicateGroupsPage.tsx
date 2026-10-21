@@ -13,6 +13,7 @@ import type {
   DuplicateResolvePreview,
   DuplicateResolvePreviewResult,
   DuplicateResolveResult,
+  ReviewedDeleteBackgroundJob,
   DuplicateMissingCheckResult,
   DuplicateCleanupAccepted,
   DuplicateCleanupConfirmRequest,
@@ -68,6 +69,9 @@ interface DuplicateGroupsPageProps {
   onCancelLegacyCloudDriveBinding?(): Promise<CloudDriveLegacyBindingProgress>;
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   onReviewedDelete?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  onStartReviewedBackground?(plan: DuplicateResolvePlan): Promise<ReviewedDeleteBackgroundJob>;
+  onBackgroundAccepted?(job: ReviewedDeleteBackgroundJob): void;
+  backgroundRunning?: boolean;
   onManualDelete?(video: VideoRecord): Promise<void> | void;
   onManualBatchDelete?(videos: VideoRecord[]): Promise<BatchDeleteResult>;
   onAutoDelete?(plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
@@ -129,6 +133,9 @@ export function DuplicateGroupsPage({
   onCancelLegacyCloudDriveBinding,
   onResolve,
   onReviewedDelete,
+  onStartReviewedBackground,
+  onBackgroundAccepted,
+  backgroundRunning = false,
   onManualDelete,
   onManualBatchDelete,
   onAutoDelete,
@@ -379,7 +386,7 @@ export function DuplicateGroupsPage({
   }, []);
 
   const handleDeleteCandidate = useCallback((group: DuplicateGroup, selectedKeep: string, videoId: string) => {
-    if ((!onReviewedDelete && !onManualDelete) || !onPreviewResolve || actionPending || loading || loadError || directoryPending) return;
+    if ((!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || !onPreviewResolve || backgroundRunning || actionPending || loading || loadError || directoryPending) return;
     const candidate = group.items.find((item) => item.video.id === videoId);
     const keepVideoId = selectedKeep !== videoId && group.items.some((item) => item.video.id === selectedKeep)
       ? selectedKeep
@@ -388,7 +395,7 @@ export function DuplicateGroupsPage({
     setActionError(null);
     setManualDeleteStatus("");
     setSingleDeleteTarget({ video: candidate.video, groupKey: group.groupKey, keepVideoId });
-  }, [onReviewedDelete, onManualDelete, onPreviewResolve, actionPending, loading, loadError, directoryPending]);
+  }, [onStartReviewedBackground, onReviewedDelete, onManualDelete, onPreviewResolve, backgroundRunning, actionPending, loading, loadError, directoryPending]);
 
   const preflightManualDelete = async (deletePlan: DuplicateResolvePlan): Promise<boolean> => {
     if (!onPreviewResolve) throw new Error("无法执行重复项安全预检查。");
@@ -404,7 +411,7 @@ export function DuplicateGroupsPage({
   };
 
   const confirmManualSingleDelete = async () => {
-    if (!singleDeleteTarget || (!onReviewedDelete && !onManualDelete) || submitGuardRef.current || actionPending) return;
+    if (!singleDeleteTarget || (!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || backgroundRunning || submitGuardRef.current || actionPending) return;
     const { video, groupKey, keepVideoId } = singleDeleteTarget;
     if (!groups.some((group) => group.groupKey === groupKey && group.items.some((item) => item.video.id === video.id))) {
       setActionError("候选组已变化，请刷新后重新选择文件。");
@@ -415,6 +422,15 @@ export function DuplicateGroupsPage({
     setActionPending(true);
     setActionError(null);
     try {
+      if (onStartReviewedBackground) {
+        const accepted = await onStartReviewedBackground({
+          groups: [{ groupKey, keepVideoId, deleteVideoIds: [video.id] }]
+        });
+        onBackgroundAccepted?.(accepted);
+        setSingleDeleteTarget(null);
+        setManualDeleteStatus("已提交后台清理；可继续浏览和播放，进度在页面顶部查看。");
+        return;
+      }
       // Reviewed main-process IPC performs the authoritative safe preflight.
       // Avoid duplicate mounted-filesystem stat calls from the renderer.
       const ready = onReviewedDelete ? true : await preflightManualDelete({ groups: [{ groupKey, keepVideoId, deleteVideoIds: [video.id] }] });
@@ -452,10 +468,27 @@ export function DuplicateGroupsPage({
   // Use the same safe flow for the first attempt and explicitly approved failed-item retries.
   // A transport rejection does not prove what happened on the remote host: do NOT replay it.
   const runManualBatchDelete = async (deletePlan: DuplicateResolvePlan, videos: VideoRecord[]) => {
-    if ((!onReviewedDelete && !onManualBatchDelete) || submitGuardRef.current || actionPending || videos.length === 0) return;
+    if ((!onStartReviewedBackground && !onReviewedDelete && !onManualBatchDelete) || backgroundRunning || submitGuardRef.current || actionPending || videos.length === 0) return;
     submitGuardRef.current = true;
     setActionPending(true);
     setActionError(null);
+    if (onStartReviewedBackground) {
+      try {
+        const accepted = await onStartReviewedBackground(deletePlan);
+        onBackgroundAccepted?.(accepted);
+        setManualPageConfirmOpen(false);
+        setManualRetryConfirmOpen(false);
+        setManualRetrySelection(null);
+        setManualProgress(null);
+        setManualDeleteStatus(`已将 ${accepted.total} 个文件提交后台清理；你可以继续使用其他页面。`);
+      } catch (cause) {
+        setActionError(toDuplicateActionMessage(cause));
+      } finally {
+        submitGuardRef.current = false;
+        setActionPending(false);
+      }
+      return;
+    }
     setManualDeleteStatus("正在核对文件状态...");
     setManualProgress({ total: videos.length, processed: 0, success: 0, failed: 0 });
     setManualBatchUncertain(null);
@@ -820,10 +853,10 @@ export function DuplicateGroupsPage({
             </select>
           </label>
           <button type="button" onClick={resetSelectionToRecommended}>按推荐选择保留项</button>
-          {(onReviewedDelete || onManualBatchDelete) && onPreviewResolve && <button className="danger current-page-delete" type="button" disabled={loading || Boolean(loadError) || directoryPending || actionPending || manualDeleteVideos.length === 0} onClick={() => { setActionError(null); setManualDeleteStatus(""); setManualPageConfirmOpen(true); }}>
+          {(onStartReviewedBackground || onReviewedDelete || onManualBatchDelete) && onPreviewResolve && <button className="danger current-page-delete" type="button" disabled={loading || Boolean(loadError) || directoryPending || actionPending || backgroundRunning || manualDeleteVideos.length === 0} onClick={() => { setActionError(null); setManualDeleteStatus(""); setManualPageConfirmOpen(true); }}>
             <Trash2 size={16} /> 清理当前页（{manualDeleteVideos.length} 个文件）
           </button>}
-          <details className="duplicate-advanced-tools" open={(!onReviewedDelete && !onManualBatchDelete) || !onPreviewResolve}>
+          <details className="duplicate-advanced-tools" open={(!onStartReviewedBackground && !onReviewedDelete && !onManualBatchDelete) || !onPreviewResolve}>
             <summary>高级核对与维护工具（可选）</summary>
             <div className="duplicate-advanced-content">
           {onCheckMissing && <button type="button" className={missingCheckPending ? "is-pending" : undefined} disabled={missingCheckPending || actionPending || groups.length === 0} onClick={() => void handleCheckMissing()}>
@@ -906,13 +939,13 @@ export function DuplicateGroupsPage({
             page={page}
             pageSize={pageSize}
             keepVideoId={manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId}
-            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending || (!onReviewedDelete && !onManualDelete) || !onPreviewResolve}
+            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending || backgroundRunning || (!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || !onPreviewResolve}
             onSetKeep={handleSetKeep}
             onPreferDirectory={changePreferredDirectory}
             onOpen={onOpen}
             onViewDetails={onViewDetails}
             onRevealInFolder={revealVideo}
-            onDeleteCandidate={(onReviewedDelete || onManualDelete) && onPreviewResolve ? handleDeleteCandidate : undefined}
+            onDeleteCandidate={(onStartReviewedBackground || onReviewedDelete || onManualDelete) && onPreviewResolve ? handleDeleteCandidate : undefined}
           />
         )} />}
 
@@ -946,7 +979,7 @@ export function DuplicateGroupsPage({
             <p className="delete-filename">{singleDeleteTarget.video.filename}</p>
             <p className="duplicate-path" title={singleDeleteTarget.video.path}>{singleDeleteTarget.video.path}</p>
             <p>文件大小 {formatBytes(singleDeleteTarget.video.sizeBytes)}；同组其他文件保留不动。</p>
-            <p>确认后自动核对文件大小、时长、路径及文件身份；检查通过才会删除所选文件。CloudDrive 如果不支持直接永久删除，可能移入网盘回收站，释放空间不会提前计入。</p>
+            <p>确认后交给后台清理，继续浏览和播放不受影响；后台会核对大小、时长、路径及文件身份。CloudDrive 如果不支持直接永久删除，可能移入网盘回收站，释放空间不会提前计入。</p>
             <p>大小和时长相同不保证内容完全一致。永久删除不可撤销，请确认选中的文件是要移除的那一份。</p>
             {actionError && <p className="dialog-error" role="status">{actionError}</p>}
             <div className="dialog-actions">
@@ -962,7 +995,7 @@ export function DuplicateGroupsPage({
           <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="manual-page-cleanup-title" onKeyDown={(event) => { if (event.key === "Escape" && !actionPending) setManualPageConfirmOpen(false); }}>
             <h3 id="manual-page-cleanup-title">确认清理当前页重复文件？</h3>
             <p>仅处理当前第 {page} 页，共 {manualPlan.groups.length} 组；每组保留计划选中的一份，删除其余 {manualDeleteVideos.length} 份，预计释放 {formatBytes(manualDeleteBytes)}。</p>
-            <p>确认后先核对当前页的大小、时长和文件状态，再逐项删除；若某文件在执行时变化，只会跳过该文件并显示失败明细，不会强行删除。不会计算视频内容哈希。</p>
+            <p>确认后后台执行清理，前端可自由切换页面，但任务完成前请勿退出程序；后台会核对大小、时长和文件状态。若某文件在执行时变化，只会跳过该文件并显示失败明细，不会强行删除。不会计算视频内容哈希。</p>
             <p>大小、时长一致不保证内容完全一致；请核对每组计划保留项。本地文件永久删除不可撤销；CloudDrive 若不支持永久删除，会转入云盘回收站。</p>
             {actionError && <p className="dialog-error" role="status">{actionError}</p>}
             {actionPending && manualProgress && <div className="duplicate-cleanup-progress" role="status">

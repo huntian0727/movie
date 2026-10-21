@@ -841,6 +841,16 @@ button.asset-health-row:hover { background: #1d1f1d; }
 .duplicate-cleanup-progress { display: grid; gap: 7px; padding: 10px 12px; border: 1px solid #375447; border-radius: 8px; color: #bcdbca; background: rgba(30, 69, 48, .2); }
 .duplicate-cleanup-progress p { margin: 0; }
 .duplicate-cleanup-progress progress { width: 100%; height: 12px; accent-color: #62b38a; }
+.reviewed-background-status { margin: 10px 16px 0; padding: 9px 12px; border: 1px solid #425446; border-radius: 8px; background: #202722; color: #cedbd0; font-size: 12px; }
+.reviewed-background-status.is-running { border-color: #47795e; }
+.reviewed-background-status-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.reviewed-background-status-head strong { color: #e2f1e6; }
+.reviewed-background-status-head span { color: #b4c9b9; flex: 1 1 auto; }
+.reviewed-background-status-head button { border: 1px solid #48644e; border-radius: 5px; padding: 5px 10px; color: #c8e7d1; background: #284031; cursor: pointer; }
+.reviewed-background-status progress { width: 100%; height: 7px; accent-color: #6fba91; margin-top: 8px; }
+.reviewed-background-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid #385043; }
+.reviewed-background-details p { margin: 5px 0; line-height: 1.6; }
+.reviewed-background-details .duplicate-failure-list { max-height: 180px; overflow-y: auto; }
 .duplicate-delete-disabled-reason { flex: 1 0 100%; margin: 0; padding: 9px 11px; border-left: 3px solid #d6a458; color: #d9bc82; background: rgba(86, 66, 29, .24); font-size: 11px; line-height: 18px; }
 .cloud-binding-progress { flex: 1 0 100%; min-width: 0; display: grid; grid-template-columns: minmax(180px, 1fr) auto; align-items: center; gap: 7px 12px; padding: 10px 12px; border: 1px solid #355447; border-radius: 7px; color: #b8d7c5; background: rgba(35, 72, 53, .28); font-size: 11px; }
 .cloud-binding-progress progress { width: 100%; height: 8px; accent-color: #5fb488; }

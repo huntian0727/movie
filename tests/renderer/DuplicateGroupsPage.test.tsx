@@ -353,6 +353,47 @@ describe("DuplicateGroupsPage staged safety flow", () => {
     expect(await screen.findByRole("dialog", { name: "批量清理结果" })).toHaveTextContent("已确认删除 1 个文件");
   });
 
+  it("submits one confirmed background task for the whole page and closes modal immediately", async () => {
+    const onStartReviewedBackground = vi.fn().mockResolvedValue({
+      id: "task-1", status: "running", total: 1, processed: 0, successCount: 0,
+      failureCount: 0, uncertainCount: 0, unsubmittedCount: 1,
+      reclaimedBytes: 0, recycledCount: 0, failures: [],
+      message: "accepted", createdAt: "2026-10-21", updatedAt: "2026-10-21"
+    });
+    const onReviewedDelete = vi.fn();
+    const onPreviewResolve = vi.fn();
+    const onBackgroundAccepted = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} onStartReviewedBackground={onStartReviewedBackground}
+      onBackgroundAccepted={onBackgroundAccepted} onReviewedDelete={onReviewedDelete} onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "清理当前页（1 个文件）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 1 个文件" }));
+    await waitFor(() => expect(onBackgroundAccepted).toHaveBeenCalledWith(expect.objectContaining({ status: "running", total: 1 })));
+    expect(onStartReviewedBackground).toHaveBeenCalledWith({ groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }] });
+    expect(screen.queryByRole("alertdialog", { name: "确认清理当前页重复文件？" })).not.toBeInTheDocument();
+    expect(screen.getByText(/已将 1 个文件提交后台清理/)).toBeInTheDocument();
+    expect(onReviewedDelete).not.toHaveBeenCalled();
+    expect(onPreviewResolve).not.toHaveBeenCalled();
+  });
+
+  it("submits a single-file background task and does not wait for the actual deletion", async () => {
+    const onStartReviewedBackground = vi.fn().mockResolvedValue({
+      id: "single-1", status: "running", total: 1, processed: 0, successCount: 0,
+      failureCount: 0, uncertainCount: 0, unsubmittedCount: 1,
+      reclaimedBytes: 0, recycledCount: 0, failures: [],
+      message: "accepted", createdAt: "2026-10-21", updatedAt: "2026-10-21"
+    });
+    const onPreviewResolve = vi.fn();
+    render(<DuplicateGroupsPage {...baseProps()} onStartReviewedBackground={onStartReviewedBackground}
+      onPreviewResolve={onPreviewResolve} />);
+    fireEvent.click(screen.getByRole("button", { name: "删除 clip-copy.mp4" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认删除此文件" }));
+    await waitFor(() => expect(onStartReviewedBackground).toHaveBeenCalledWith({
+      groups: [{ groupKey: "fp-1", keepVideoId: "keep", deleteVideoIds: ["delete"] }]
+    }));
+    expect(screen.queryByRole("alertdialog", { name: "确认删除这一个重复文件？" })).not.toBeInTheDocument();
+    expect(onPreviewResolve).not.toHaveBeenCalled();
+  });
+
   it("uses the trusted duplicate-only reviewed IPC instead of ordinary video deletion", async () => {
     const onReviewedDelete = vi.fn().mockResolvedValue({
       groupCount: 1, keepCount: 1, successCount: 1, failureCount: 0,

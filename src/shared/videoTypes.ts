@@ -459,6 +459,24 @@ export interface DuplicateResolvePlan {
   groups: DuplicateGroupResolution[];
 }
 
+export type ReviewedDeleteBackgroundStatus = "running" | "completed" | "partial" | "blocked" | "interrupted";
+export interface ReviewedDeleteBackgroundJob {
+  id: string;
+  status: ReviewedDeleteBackgroundStatus;
+  total: number;
+  processed: number;
+  successCount: number;
+  failureCount: number;
+  uncertainCount: number;
+  unsubmittedCount: number;
+  reclaimedBytes: number;
+  recycledCount: number;
+  failures: DuplicateResolveFailure[];
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DuplicateResolvePreview {
   verificationStatus: Extract<DuplicateIdentityStatus, "file_versions_current">;
   groupCount: number;
@@ -1072,6 +1090,8 @@ export const IPC_CHANNELS = {
   duplicatePreviewResolve: "duplicate:preview-resolve",
   duplicateFastDelete: "duplicate:fast-delete",
   duplicateReviewedDelete: "duplicate:reviewed-delete",
+  duplicateBackgroundSubmit: "duplicate:background-submit",
+  duplicateBackgroundStatus: "duplicate:background-status",
   duplicateCheckMissing: "duplicate:check-missing",
   duplicateCleanupSubmit: "duplicate-cleanup:submit",
   duplicateCleanupSubmitFiltered: "duplicate-cleanup:submit-filtered",
@@ -1155,6 +1175,8 @@ export interface VideoManagerApi extends SubtitleApi, DataStorageApi {
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   fastDeleteDuplicateCandidates(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   deleteReviewedDuplicatePlan(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  submitReviewedDuplicateBackground(plan: DuplicateResolvePlan): Promise<ReviewedDeleteBackgroundJob>;
+  getReviewedDuplicateBackground(): Promise<ReviewedDeleteBackgroundJob | null>;
   checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
   submitFilteredDuplicateCleanup(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted>;
