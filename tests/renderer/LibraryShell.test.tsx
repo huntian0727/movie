@@ -948,6 +948,93 @@ describe("LibraryShell", () => {
     expect(screen.getByText("episode-01.mp4")).toBeInTheDocument();
   });
 
+  it("restores the saved preferred directory as a real browse filter when reopening duplicates", async () => {
+    const saved = {
+      id: "saved-drama", path: "D:\\Movies\\Drama", enabled: true,
+      createdAt: "2026-07-09T00:00:00.000Z", updatedAt: "2026-07-09T00:00:00.000Z"
+    };
+    const onLoadDuplicateGroups = vi.fn(async (query: DuplicateGroupPageQuery) => ({
+      groups: duplicateGroups,
+      page: query.page, pageSize: query.pageSize, totalPages: 1,
+      totalGroups: query.filterDirectoryPath ? 1 : 11141,
+      overallTotalGroups: 11141, totalCandidateGroups: 1, totalCandidateFiles: 2,
+      totalReclaimableBytes: 1024, totalDeletableFiles: 1, totalUnboundDeletionCandidateFiles: 0, directoryOptions: []
+    }));
+    const duplicateCleanupApi = {
+      listDuplicatePreferredDirectories: vi.fn().mockResolvedValue([saved]),
+      saveDuplicatePreferredDirectory: vi.fn().mockResolvedValue(saved)
+    } as unknown as VideoManagerApi;
+    render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]}
+      onLoadDuplicateGroups={onLoadDuplicateGroups} duplicateCleanupApi={duplicateCleanupApi} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith(expect.objectContaining({
+      filterDirectoryPath: saved.path, preferredDirectoryPaths: [saved.path], page: 1
+    })));
+    expect(screen.getByText(/当前只查看/)).toHaveTextContent(saved.path);
+    expect(screen.getByText("共 1 个大小＋时长候选组")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "显示全部 11141 组" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith(expect.not.objectContaining({
+      filterDirectoryPath: saved.path
+    })));
+    expect(screen.queryByText(/当前只查看/)).not.toBeInTheDocument();
+  });
+
+  it("applies a directory filter immediately before preference persistence finishes", async () => {
+    let finishSave!: (value: { id: string; path: string; enabled: boolean; createdAt: string; updatedAt: string }) => void;
+    const saved = {
+      id: "saved-drama", path: "D:\\Movies\\Drama", enabled: true,
+      createdAt: "2026-07-09T00:00:00.000Z", updatedAt: "2026-07-09T00:00:00.000Z"
+    };
+    const saveDuplicatePreferredDirectory = vi.fn().mockImplementation(() =>
+      new Promise((resolve) => { finishSave = resolve; }));
+    const duplicateCleanupApi = {
+      listDuplicatePreferredDirectories: vi.fn().mockResolvedValue([]),
+      saveDuplicatePreferredDirectory
+    } as unknown as VideoManagerApi;
+    const onLoadDuplicateGroups = vi.fn(async (query: DuplicateGroupPageQuery) => ({
+      groups: duplicateGroups,
+      page: query.page, pageSize: query.pageSize, totalPages: 1,
+      totalGroups: query.filterDirectoryPath ? 1 : 11141,
+      overallTotalGroups: 11141, totalCandidateGroups: 1, totalCandidateFiles: 2,
+      totalReclaimableBytes: 1024, totalDeletableFiles: 1, totalUnboundDeletionCandidateFiles: 0, directoryOptions: []
+    }));
+    render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]}
+      onLoadDuplicateGroups={onLoadDuplicateGroups} duplicateCleanupApi={duplicateCleanupApi} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "优先保留 D:\\Movies\\Drama 及其所有子目录（来自 episode-01.mp4）" }));
+    expect(saveDuplicatePreferredDirectory).toHaveBeenCalledWith(saved.path);
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith(expect.objectContaining({
+      filterDirectoryPath: saved.path, preferredDirectoryPath: saved.path, page: 1
+    })));
+    expect(screen.getByText(/当前只查看/)).toHaveTextContent(saved.path);
+    await act(async () => { finishSave(saved); });
+    await waitFor(() => expect(onLoadDuplicateGroups).toHaveBeenLastCalledWith(expect.objectContaining({
+      filterDirectoryPath: saved.path, preferredDirectoryPaths: [saved.path]
+    })));
+  });
+
+  it("does not silently display out-of-scope duplicate groups when the backend ignores the folder", async () => {
+    const outOfScope: DuplicateGroup = {
+      ...duplicateGroups[0],
+      items: [
+        { ...duplicateGroups[0].items[0], video: { ...video, id: "other-a", directory: "E:\\Other" } },
+        { ...duplicateGroups[0].items[1], video: { ...nestedVideo, id: "other-b", directory: "E:\\Backup" } }
+      ]
+    };
+    const onLoadDuplicateGroups = vi.fn(async (query: DuplicateGroupPageQuery) => ({
+      groups: query.filterDirectoryPath ? [outOfScope] : duplicateGroups,
+      page: query.page, pageSize: query.pageSize, totalPages: 1,
+      totalGroups: 1, overallTotalGroups: 1,
+      totalCandidateGroups: 1, totalCandidateFiles: 2, totalReclaimableBytes: 1024, totalDeletableFiles: 1, totalUnboundDeletionCandidateFiles: 0, directoryOptions: []
+    }));
+    render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]} onLoadDuplicateGroups={onLoadDuplicateGroups} />);
+    fireEvent.click(screen.getByRole("button", { name: "查看重复项" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "优先保留 D:\\Movies\\Drama 及其所有子目录（来自 episode-01.mp4）" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "优先保留 D:\\Movies\\Drama 及其所有子目录（来自 episode-01.mp4）" }));
+    expect(await screen.findByText(/已阻止显示未筛选结果/)).toBeInTheDocument();
+  });
+
   it("loads duplicate groups only after opening the paginated duplicates view", async () => {
     const onLoadDuplicateGroups = vi.fn().mockImplementation(async (query: DuplicateGroupPageQuery) => ({
       groups: duplicateGroups,

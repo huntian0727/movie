@@ -227,6 +227,9 @@ export function LibraryShell({
   const [duplicateSortDirection, setDuplicateSortDirection] = useState<SortDirection>("desc");
   const [duplicatePreferredDirectoryPath, setDuplicatePreferredDirectoryPath] = useState("");
   const [duplicateFilterDirectoryPath, setDuplicateFilterDirectoryPath] = useState("");
+  // An explicit user scope, including "show all", must override persisted preferences.
+  const duplicateFilterTouchedRef = useRef(false);
+  const [duplicatePreferencesLoaded, setDuplicatePreferencesLoaded] = useState(false);
   const [duplicatePreferredDirectories, setDuplicatePreferredDirectories] = useState<DuplicatePreferredDirectory[]>([]);
   const [duplicatePage, setDuplicatePage] = useState<DuplicateGroupPage>(() => createStaticDuplicatePage(duplicateGroups));
   const [duplicateLoading, setDuplicateLoading] = useState(false);
@@ -399,16 +402,27 @@ export function LibraryShell({
   }, [duplicateGroups, onLoadDuplicateGroups, view]);
 
   useEffect(() => {
-    if (view !== "duplicates" || !duplicateCleanupApi?.listDuplicatePreferredDirectories) return;
+    if (view !== "duplicates") return;
+    if (!duplicateCleanupApi?.listDuplicatePreferredDirectories) return;
     let disposed = false;
     void duplicateCleanupApi.listDuplicatePreferredDirectories().then((directories) => {
-      if (!disposed) setDuplicatePreferredDirectories(directories);
-    }).catch(() => undefined);
+      if (disposed || duplicateFilterTouchedRef.current) return;
+      setDuplicatePreferredDirectories(directories);
+      // Restore the filter along with the saved keep directory, not only the keep rule.
+      if (directories[0]) {
+        setDuplicateFilterDirectoryPath(directories[0].path);
+        setDuplicatePageNumber(1);
+      }
+    }).catch(() => undefined).finally(() => {
+      if (!disposed) setDuplicatePreferencesLoaded(true);
+    });
     return () => { disposed = true; };
   }, [duplicateCleanupApi, view]);
 
   useEffect(() => {
     if (view !== "duplicates") return;
+    // Avoid loading the entire library before restoring the saved folder scope.
+    if (duplicateCleanupApi?.listDuplicatePreferredDirectories && !duplicatePreferencesLoaded) return;
     if (!onLoadDuplicateGroups) {
       setDuplicatePage(createStaticDuplicatePage(duplicateGroups));
       return;
@@ -423,11 +437,17 @@ export function LibraryShell({
       sortField: duplicateSortField,
       sortDirection: duplicateSortDirection
     };
-    if (duplicatePreferredDirectories.length > 0) query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
-    else if (duplicatePreferredDirectoryPath) query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
+    // The new click takes priority while preference persistence is still pending.
+    if (duplicatePreferredDirectoryPath) query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
+    else if (duplicatePreferredDirectories.length > 0) query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
     if (duplicateFilterDirectoryPath) query.filterDirectoryPath = duplicateFilterDirectoryPath;
     void onLoadDuplicateGroups(query).then((result) => {
       if (disposed) return;
+      if (query.filterDirectoryPath && result.groups.some((group) =>
+        !group.items.some((item) => isPathWithin(item.video.directory, query.filterDirectoryPath!))
+      )) {
+        throw new Error("目录筛选返回了所选目录树以外的重复候选组，已阻止显示未筛选结果。请刷新重试。");
+      }
       setDuplicatePage(result);
       if (result.page !== duplicatePageNumber) setDuplicatePageNumber(result.page);
     }).catch((cause) => {
@@ -437,7 +457,7 @@ export function LibraryShell({
     });
 
     return () => { disposed = true; };
-  }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
+  }, [duplicateCleanupApi, duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferencesLoaded, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
 
   const isHealthView = view === "healthOverview" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const isBackgroundMetadataView = view === "metadataIssues" && metadataIssueInitialStatus !== "failed";
@@ -1089,21 +1109,30 @@ export function LibraryShell({
             filterDirectoryPath={duplicateFilterDirectoryPath || undefined}
             onPreferredDirectoryPathChange={async (path) => {
               if (!path) return;
-              if (!duplicateCleanupApi?.saveDuplicatePreferredDirectory) {
-                setDuplicatePreferredDirectoryPath(path);
-                setDuplicateFilterDirectoryPath(path);
-                setDuplicatePageNumber(1);
-                return;
-              }
-              const saved = await duplicateCleanupApi.saveDuplicatePreferredDirectory(path);
-              setDuplicatePreferredDirectories([saved]);
-              setDuplicatePreferredDirectoryPath("");
+              // Apply the browse scope immediately; slow persistence must not leave all groups visible.
+              const previousScope = duplicateFilterDirectoryPath;
+              const previousPreferredPath = duplicatePreferredDirectoryPath;
+              duplicateFilterTouchedRef.current = true;
+              setDuplicatePreferredDirectoryPath(path);
               setDuplicateFilterDirectoryPath(path);
               setDuplicatePageNumber(1);
+              if (!duplicateCleanupApi?.saveDuplicatePreferredDirectory) return;
+              try {
+                const saved = await duplicateCleanupApi.saveDuplicatePreferredDirectory(path);
+                setDuplicatePreferredDirectories([saved]);
+                setDuplicatePreferredDirectoryPath("");
+                setDuplicateFilterDirectoryPath(saved.path);
+              } catch (cause) {
+                // A failed preference save must not be presented as a completed selection.
+                setDuplicatePreferredDirectoryPath(previousPreferredPath);
+                setDuplicateFilterDirectoryPath(previousScope);
+                throw cause;
+              }
             }}
-            onClearDirectoryFilter={() => { setDuplicateFilterDirectoryPath(""); setDuplicatePageNumber(1); }}
+            onClearDirectoryFilter={() => { duplicateFilterTouchedRef.current = true; setDuplicateFilterDirectoryPath(""); setDuplicatePageNumber(1); }}
             onRemovePreferredDirectory={duplicateCleanupApi?.removeDuplicatePreferredDirectory ? async (id) => {
               await duplicateCleanupApi.removeDuplicatePreferredDirectory!(id);
+              duplicateFilterTouchedRef.current = true;
               setDuplicatePreferredDirectories([]);
               setDuplicatePreferredDirectoryPath("");
               setDuplicateFilterDirectoryPath("");
@@ -1127,6 +1156,7 @@ export function LibraryShell({
             onCancelLegacyCloudDriveBinding={duplicateCleanupApi?.cancelLegacyCloudDriveBinding}
             onSubmitCleanup={duplicateCleanupApi ? (requestId, plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId, plan, sourceView: "duplicates-verified" }) : undefined}
             onFilteredCleanupAccepted={() => {
+              duplicateFilterTouchedRef.current = true;
               setDuplicateFilterDirectoryPath("");
               setDuplicatePageNumber(1);
               setDuplicateRefreshVersion((current) => current + 1);
@@ -1156,6 +1186,7 @@ export function LibraryShell({
               if (currentDirectory && duplicateCleanupApi?.removeDuplicatePreferredDirectory) {
                 await duplicateCleanupApi.removeDuplicatePreferredDirectory(currentDirectory.id);
               }
+              duplicateFilterTouchedRef.current = true;
               setDuplicatePreferredDirectories([]);
               setDuplicatePreferredDirectoryPath("");
               setDuplicateFilterDirectoryPath("");

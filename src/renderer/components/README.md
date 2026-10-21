@@ -40,7 +40,7 @@ use the complete query result rather than only the mounted subset.
 - `SettingsPage.tsx`：设置、快捷键捕获/冲突提示、缓存确认、封面截帧位置和诊断预览/导出。缺失文件不再在设置页展示，但底层扫描标记仍保留。诊断区必须先预览白名单，再允许导出；完整应用目录披露默认关闭且切换后必须重新预览。诊断接口仅主窗口可用。
 - `CloudDriveFolderDialog.tsx`：通过主进程 API 列出已挂载 CloudDrive 来源并逐层浏览远端目录，添加时同时保存远端路径和本地挂载播放路径。窗口内“配置 API”直接定位设置页的 CloudDrive API 区域；返回添加目录后重新获取挂载来源。Renderer 不接触 Token，也不自行拼接可信目录身份。
 - `DuplicateGroupsPage.tsx`：分别展示同大小候选统计与“精确大小＋缓存时长”匹配组，支持分页、全局大小排序、当前页保留选择，以及从任一候选文件一键把其所在目录树设为优先保留范围。优先目录始终递归包含所有子目录；筛选会返回命中目录树的候选组及组内跨目录的全部文件，并优先推荐保留目录树中的一个文件。显式单组选择高于目录推荐。重复页不得为了判断而主动读取视频或计算指纹；组内单文件垃圾桶入口恢复为一次确认后自动进行大小/时长和版本预检查，并调用既有受管文件安全删除接口；批量“清理当前页”也只在一次确认后处理当前页保留计划之外的文件，并展示部分失败。需要第二次确认的后台核对和旧库身份绑定统一折叠到“高级核对与维护工具”，旧未经核对的 CloudDrive API 快速删除路径保持禁用。当前页清理按每批至多 100 条执行，界面同步展示已确认进度、删除成功与失败数；仅明确返回失败的 ID 可在再次确认并重新预检后单独重试。如果某个 IPC 批次没有返回（例如网盘断连），前序确认成功结果必须保留，当前批次标记未知、后续批次不提交，不允许对未知结果自动重放。
-- `LibraryShell.tsx`：正式应用始终通过 `onLoadVideoPage` 请求数据库分页；静态 `videos` 筛选路径只用于隔离组件测试，不代表浏览器产品模式。目录树使用轻量 `LibraryNavigationSnapshot`，不要重新传入全量视频构树。
+- `LibraryShell.tsx`：正式应用始终通过 `onLoadVideoPage` 请求数据库分页；静态 `videos` 筛选路径只用于隔离组件测试，不代表浏览器产品模式。目录树使用轻量 `LibraryNavigationSnapshot`，不要重新传入全量视频构树。重复模块的“优先保留此目录”还要即时应用递归目录筛选，已保存偏好重新进入模块时也要恢复筛选；显式“显示全部”优先于后台恢复，返回的每个重复组至少有一个成员位于所选目录树中，否则禁止显示失效筛选结果。
 - `formatters.ts`：大小/时长展示。
 
 自然语言定位：预览/播放控制先看 `PlayerPage`；快捷键新增或修改看 shared `shortcuts.ts`/`videoTypes.ts`、`settingsStore.ts`、IPC schema、`SettingsPage` 及 `LibraryShell`/`PlayerPage` 消费点；播放器队列切换或跨窗口刷新还要看 `App.tsx`、`renderer/windowSync.ts`、shared 契约及 main `playerWindow.ts`/`ipc.ts`；“避开开头黑屏”或“重建单个预览”看 `SettingsPage`、`VideoGrid`、main media protocol/cache；大量视频卡顿看 `LibraryShell`、grid/table 与上游查询；增加排序看 Toolbar + shared + repository；删除确认/重命名看 LibraryShell 与主进程文件链；设置看 SettingsPage。
