@@ -61,7 +61,7 @@ status: prepared-with-blockers
 2. 此预检只检查隔离 `unsigned-test-build`，不能批准公开 `unsigned-public-release`。
 3. `build/release-approval.json` 仍绑定 0.1.15；当前 `package.json` 是 0.1.16。
 4. 批准的 `package-lock.json` SHA-256 为 `7d1bdecc332cb95c412787953d0cd80b682a14aa1d3109459dc4865a78ba3e0c`，当前为 `06e88837cf56f399e173652a833d0008c011032a25dc91f4eea6ffff3158ecf1`。
-5. 原生媒体分发尚未批准：`scripts/native-media-lite.lock.json` 仍标记 `CANDIDATE_NOT_APPROVED` / `distributable=false`；静态 FFmpeg LGPL 重链接与组件级许可处置未最终签核。
+5. 本轮 QA ZIP 使用的 `source-candidate` 仍未批准：`scripts/native-source-media.lock.json` 与 `scripts/native-source-player-runtime.lock.json` 标记 `CANDIDATE_NOT_APPROVED` / `distributable=false`；上游生产 CI 为 FAIL，`originalCiClosureValid=false`。本地 PE/哈希核对与 packaged smoke 不能代替对原生来源闭包的修复和分发批准。另一个 `lite-candidate` 同样未批准，存在 GCC Runtime Library Exception 通知、静态 FFmpeg LGPL 重链接与组件级许可待决问题。
 6. 稳定 Windows 11 与标准用户覆盖尚未完成并由所有者批准；现有隔离沙盒证据只证明其声明范围。
 7. 历史发行批准绑定的版本、依赖锁与 QA 证据不能自动延伸到新候选。
 8. FFmpeg 静态链接 LGPL 义务及组件级许可处置仍未完成审核。
