@@ -32,7 +32,9 @@ status: local-development-qa
 - 聚焦测试 `tests/main/publicReleaseDeletionAdversarial.test.ts` + `tests/renderer/DuplicateGroupsPage.test.tsx` + `tests/renderer/duplicateSafetyStyles.test.ts`：61/61 PASS（3 文件）。
 - `npm run typecheck`：PASS。
 - `npm run test:node`：完整执行完成。144 个测试文件中 142 通过、2 个发行证据文件失败；总计 **1340/1343 项通过，3 项失败**。失败均是先前已存在的发布批准证据冻结版本与当前项目不匹配：审批记录的 0.1.15 与当前 package 0.1.16 不一致，`package-lock.json` 的当前 SHA-256 与 `build/release-approval.json` 冻结哈希不一致。具体为 `tests/scripts/releaseEngineering.test.mjs` 1 项、`tests/scripts/sourceReleasePipeline.test.mjs` 2 项；没有更改或伪造发布批准材料。其余与清理有关的回归均通过。
-- 日常桌面重新打包/桌面快捷方式启动：待实际执行结果补充。
+- `npm run lint`：PASS（当前 lint 实际执行 TypeScript 类型检查）；`npm run package:development`：PASS，Vite 客户端构建、原生 NativeHost、Electron 44 ABI149、SQLite native smoke 和 Windows x64 本地打包均成功。
+- 本轮桌面交付：得到用户先前明确授权后关闭日常程序原 4 个运行进程；在 `.tmp/daily-rollback-duplicate-resilience-20261021-085512/` 备份之前的 exe、`resources/app.asar` 和构建标记。已使用 `release/win-unpacked/拉面影视.exe` 生成新包，实测桌面 `拉面影视.lnk` 快捷方式的目标与该 exe 一致，并从实际快捷方式启动，5 秒后进程数为 4。
+- 首轮桌面构建时间 `2026-10-21 08:55:40`，`app.asar` `08:55:39`，构建标记 `6f3dc27ed7183810be7015fced771f3631bc640d`、`workspaceDirty=false` 且与首轮打包时 HEAD 一致。此次更新交付文档会形成后一笔仅文档提交；此后需重新打包以保持构建标记与最终 HEAD 一致。真实 GUI 删除点击和网盘删除未代替用户验收。
 - 真实 CloudDrive2 挂载文件永久删除：NOT RUN（仅允许隔离临时资料，无授权删除真实影片）。
 
 ## 仍需关注的边界
