@@ -2,10 +2,19 @@
 
 更新时间：2026-10-21（北京时间）
 
+## 最新进展（2026-10-21 夜间：隔离安装验收）
+
+- 当前分支：`ai/release-metadata-display-version`；界面版本仍 v1.2、技术包版本 0.1.16。开发前 checkpoint `checkpoint-20261021-174629-b0f1296-release-metadata-display-version`（local-only）。
+- 修复 `scripts/write-release-metadata.mjs`：预期 BuildFlavor 补入唯一来源的 `displayVersion`，解决元数据严格匹配失败。
+- 在独立 detached worktree 构建当前 0.1.16 私有 unsigned QA 安装包；`dist:win`、`release:metadata`、`verify:artifact` 均 PASS。
+- `test:installer-smoke` PASS：隔离安装、修复、拒绝误删数据、卸载；合成 SQLite/视频哨兵保留，正式注册信息与快捷方式未变。
+- `node --check`、`npm run typecheck` PASS；`npm run test:media-candidate-contract` 67/67 PASS。全量测试的 3 项旧发行审批绑定失败仍保留，没有绕过审批。
+- QA 安装包使用未获公开发行批准的 source-candidate，仅限内部测试；没有替换日常桌面版或推送 GitHub。详细记录：`docs/ai/deliveries/2026-10-21-release-metadata-display-version.md`。
+
 ## 最新进展（2026-10-21 晚间：独立质量门禁与发行预检）
 
 - 用户要求先完成无需人工配合的工作，真实删除与人工体验留到最后。本轮未操作真实媒体、未调用 115 删除、未公开发布。
-- 当前任务分支：`ai/release-preflight-binding-guard`，基于 `830b32c`；开发前 checkpoint `checkpoint-20261021-173152-830b32c-release-preflight-stale-approval-guard`（local-only），数据快照 `2026-10-21_09-31-54-514_release-preflight-stale-approval-guard`。
+- 上一轮任务分支：`ai/release-preflight-binding-guard`，基于 `830b32c`；开发前 checkpoint `checkpoint-20261021-173152-830b32c-release-preflight-stale-approval-guard`（local-only），数据快照 `2026-10-21_09-31-54-514_release-preflight-stale-approval-guard`。
 - 修改仅涉及发行预检脚本及其 Node 单测：现在核对批准版本、package-lock、LICENSE 和实际 QA 证据文件 SHA256；只有证据真实匹配且明确声明稳定 Windows/标准用户覆盖时才通过对应检查。未修改审批文件或其哈希。
 - 新增的绑定单测 16/16 PASS；`npm run test:media-candidate-contract` 67/67 PASS；`npm run typecheck` PASS；`npm run build` PASS（应用源码未修改）；Electron smoke、Renderer 安全 smoke、现有 v1.2 packaged smoke 均 PASS；原生源码审计 28/28 PASS。
 - 全量 `npm run test:node`：149 文件，1388/1391 PASS；仅 3 项发行元数据测试失败，原因是审批仍固定在 0.1.15 / 旧 package-lock，而当前 package.json 是 0.1.16。没有篡改或绕过这些失败。
@@ -45,9 +54,9 @@
 ## 当前基线
 
 - 家用电脑：`MP2T8QB5`；仓库：`C:\Users\test\Documents\视频管理\movie`。
-- 当前分支：`ai/release-preflight-binding-guard`（发行预检脚本、单测与交接文档）；本轮基线 `830b32c0d3abee00e910fb8b25458f5d56c125e5`。原 v1.2 功能完成于 `ai/duplicate-queued-list-ux`。
+- 当前分支：`ai/release-metadata-display-version`（发行元数据脚本与交接文档）；本轮基线 `b0f1296`，应用仍以 `c79402c1f904e80b7188eb1d313c101b2ad96ba0` 为 v1.2 功能构建。原 v1.2 功能完成于 `ai/duplicate-queued-list-ux`。
 - 功能实现提交：`c79402c1f904e80b7188eb1d313c101b2ad96ba0`（`feat: hide queued duplicate videos and exit completed folder scope`）。之后新增文档交接提交和隔离故障联动测试提交；新会话开始时请以 `git rev-parse HEAD` 读取最新 HEAD，不要依赖本文件里的固定 HEAD 值。
-- 本轮变更范围为发行预检脚本、对应单测和交接文档；不改桌面程序。交付后以 `git status --short` 核实工作区干净。
+- 本轮变更范围为发行预检与元数据脚本、对应单测和交接文档；不改桌面程序。交付后以 `git status --short` 核实工作区干净。
 - 用户可见版本：`v1.2`；技术包版本仍为 `0.1.16`。
 - `release/win-unpacked/resources/build-flavor.json` 已核实：`displayVersion=1.2`、应用构建 commit 为 `c79402c1f904e80b7188eb1d313c101b2ad96ba0`、`workspaceDirty=false`。当前分支只改发行预检工具与测试，不修改应用运行代码；未重新打包桌面版。快捷方式仍指向 `release/win-unpacked\拉面影视.exe`；本轮对该现有 v1.2 exe 直接执行 packaged smoke 并通过，未启动新桌面版本。
 - **只做本地开发；未推送 GitHub、未公开发布。** 不要运行会推送远端的自动交付流程，除非用户重新明确授权。
