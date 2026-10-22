@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -7,9 +7,22 @@ import { readJson, releaseOutputDirectory } from "./release-engineering.mjs";
 
 const timeoutMs = 60_000;
 
+export async function createSmokeRoot(tempDirectory = os.tmpdir()) {
+  const createdDirectory = await mkdtemp(path.join(tempDirectory, "video-manager-packaged-smoke-"));
+  try {
+    // TEMP on Windows CI can be an 8.3 alias (for example C:\Users\RUNNER~1).
+    // DataDirectoryManager intentionally rejects paths whose realpath differs, so
+    // pass a canonical path to the packaged app rather than triggering a hidden modal.
+    return await realpath(createdDirectory);
+  } catch (error) {
+    await rm(createdDirectory, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 export async function runPackagedSmoke(executablePath) {
   executablePath ??= await defaultExecutablePath();
-  const smokeRoot = await mkdtemp(path.join(os.tmpdir(), "video-manager-packaged-smoke-"));
+  const smokeRoot = await createSmokeRoot();
   let succeeded = false;
   try {
     const createResult = await runPhase(executablePath, smokeRoot, "create");
@@ -37,13 +50,13 @@ async function runPhase(executablePath, smokeRoot, phase) {
   };
   delete childEnvironment.ELECTRON_RUN_AS_NODE;
 
-  await spawnAndWait(executablePath, ["--disable-gpu"], childEnvironment, timeoutMs);
+  await spawnAndWait(executablePath, ["--disable-gpu"], childEnvironment, timeoutMs, phase);
   const result = JSON.parse(await readFile(resultPath, "utf8"));
   if (!result.ok) throw new Error(`Packaged smoke ${phase} phase failed:\n${result.error ?? "unknown error"}`);
   return result;
 }
 
-function spawnAndWait(command, args, environment, timeout) {
+function spawnAndWait(command, args, environment, timeout, phase) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: process.cwd(),
@@ -54,7 +67,7 @@ function spawnAndWait(command, args, environment, timeout) {
     });
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error(`Timed out after ${timeout} ms: ${command}`));
+      reject(new Error(`Packaged smoke ${phase} phase timed out after ${timeout} ms: ${command}`));
     }, timeout);
     child.on("error", (error) => {
       clearTimeout(timer);

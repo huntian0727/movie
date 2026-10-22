@@ -2,6 +2,13 @@
 
 更新时间：2026-10-22（北京时间）
 
+## 2026-10-22 Packaged smoke startup timeout fix
+
+- Root cause: Windows CI TEMP may use an 8.3 short path. The smoke runner passed that alias directly to the app, triggering the data-directory real-path security guard. A hidden startup error dialog then caused the external runner to time out after 60 seconds.
+- Fix: scripts/run-packaged-smoke.mjs now canonicalizes the temporary directory with realpath(); timeout diagnostics identify the create or verify phase. Added tests/scripts/runPackagedSmoke.test.mjs to reproduce aliased parent paths through a junction/symlink.
+- Local verification: release gate, Electron smoke, renderer security smoke, packaged smoke under aliased TEMP, artifact verification, Windows installer build, release metadata, and isolated install/repair/uninstall smoke passed. The pushed Windows CI run remains the authority for remote status.
+- Release boundary: this changes QA infrastructure only and does not change native-runtime approval. Unapproved candidate binaries must not be published as a public release.
+
 ## 2026-10-22 最新发布状态：源码已推送，修复远程 CI 后待复跑
 
 - 用户明确授权将最新源码推送到 GitHub。本次仅推送源码/草稿集成，不等于公开二进制发布；不创建 tag 或 GitHub Release。
