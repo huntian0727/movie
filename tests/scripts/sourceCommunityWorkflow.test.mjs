@@ -59,7 +59,7 @@ describe("source community workflow delivery boundaries", () => {
     const media = JSON.parse(await readFile("scripts/native-source-media.lock.json", "utf8"));
     expect(media.variant).toBe("source-candidate");
     expect(media.distributable).toBe(false);
-    expect(media.producerCiConclusion).toBe("SUCCESS");
+    expect(media.producerCiConclusion).toBe("FAIL"); expect(media.originalCiClosureValid).toBe(false);
     const release = await readFile(".github/workflows/source-community-build.yml", "utf8");
     expect(release).toContain("MOVIE_MEDIA_VARIANT: source-candidate");
   });
