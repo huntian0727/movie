@@ -2,6 +2,9 @@
 
 本文件作为下一次发行的历史证据，下一次程序员应优先读 docs/RELEASE_FASTPATH.md。
 
+## Context
+维护者要求把 v0.1.16 发布经验固化为下一版可直接执行的快速流程，减少反复验证和不必要的等待。
+
 ## 最终确认的事实
 
 - GitHub 公开 Latest：v0.1.16，https://github.com/huntian0727/movie/releases/tag/v0.1.16
@@ -10,6 +13,11 @@
 - Windows CI：39733324623，Security audit：39733324536，GitHub 正式 Source builder：39734209982；三者均针对同一 Commit 成功。
 - GitHub Release ID：420326400；六附件为程序 ZIP、应用源代码 ZIP、Native 对应源码 ZIP、SOURCE-PAIR.json、SHA256SUMS.txt、RELEASE-VERIFICATION.json。
 - 用户只要求未签名 Windows x64 绿色版；没有把 NSIS 安装器和完整稳定 Windows 多环境 GUI 测试作为本版交付范围；没有执行真实 CloudDrive/115 永久删除。
+
+## Changes
+- 固化唯一入口 `docs/RELEASE_FASTPATH.md`，并在 AGENTS、简易发布页和开发发布约定引导后续开发者。
+- 新增只读预检 `npm run release:check`、三分类记录 `npm run release:note`、NEXT-CHANGES 日志和发行说明模板。
+- 增强预检，检查版本、审批/源码哈希、Draft ID、六份附件、tag、同一 Commit 的 CI 与 Latest。
 
 ## 为什么会花这么长时间
 
@@ -31,6 +39,13 @@
 - GitHub source-community-build.yml 手工 unsigned-public-release 构建正式 Windows ZIP 并上传到同一 Draft；
 - 基于真实 GitHub 资产 SHA 补齐 SHA256SUMS 与 RELEASE-VERIFICATION；
 - 一次性解除 Draft 并设 Latest，最后通过 GitHub API 核实下载文件，才向用户报告“发布成功”。
+
+## Validation
+- 两个新 JS 工具 `node --check` 通过。
+- `npx vitest run tests/scripts/releaseFastpathPreflight.test.mjs tests/scripts/releaseRecordChange.test.mjs`：6/6 PASS。
+- `npm run release:check -- --version 0.1.16`：本地 19 项发行身份/证据检查全部 PASS。
+- `git diff --check`：PASS。
+- 只改文档、预检工具和 npm 命令，没有改应用功能、数据库或公开 Release。
 
 ## 从此以后留下的可重复入口
 
@@ -70,5 +85,10 @@
 - draft / published 阶段必须在正式 tag 对应源代码检出目录运行。当前工作分支后续提交导致“不匹配”是保护机制，不能通过随意修改已公开 tag 规避。
 - 若以后变更 FFmpeg、MPV 或 NativeHost 字节，仍需对**变化的那部分**真实核验许可证和对应源码；审批文件不能自动翻转通过。
 - 本次纯文档和辅助脚本，不更新桌面显示版本号、无需重打包、无需创建新 GitHub Release。
+
+## Risks / next steps
+- 本次发布流程文件已由 `ai/release-fastpath-playbook` 正常快进同步到 GitHub main，提交 `7dd61ec`；保留 `backup-main-20261022-150921-6a08dfd` 可供追溯。此后的文档修正也应通过正常提交，不强推。
+- `--draft` / `--published` 应在对应正式 tag 的源码检出目录执行；后续开发分支 SHA 不同时会被正确阻断。
+- 只读预检不替代正式构建/许可检查，也不把真实未测的网盘永久删除写成通过。
 
 本次工作**只改文档和发行辅助工具，不改用户运行功能、不重复发 v0.1.16，也不将旧 tag 重写**。日常版更新依 docs/ai/DAILY-DESKTOP-UPDATE-POLICY.md，GitHub 公共发行需要用户明确授权。
