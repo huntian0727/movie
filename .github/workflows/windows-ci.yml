@@ -16,6 +16,10 @@ jobs:
   node-tests:
     name: Node tests and Windows file safety
     runs-on: windows-latest
+    # CI uses a pinned test-only LGPL input because the prior BtbN autobuild expired.
+    # Source-built public candidates require separate provenance and owner approval.
+    env:
+      MOVIE_MEDIA_VARIANT: lite-candidate
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -90,6 +94,8 @@ jobs:
     runs-on: windows-2025
     env:
       MOVIE_RELEASE_CLASS: unsigned-test-build
+      # QA-only input. Never upload these binaries or infer distribution approval.
+      MOVIE_MEDIA_VARIANT: lite-candidate
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:

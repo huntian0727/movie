@@ -1,13 +1,22 @@
-# 当前开发交接：v0.1.16 发版准备 + v1.2 功能 QA
+# 当前开发交接：v1.6 候选组清理 + v0.1.16 源码候选
 
-更新时间：2026-10-21（北京时间）
-## 最新进展（2026-10-21 夜：源构建 SUCCESS，新 QA 绿色包完成）
+更新时间：2026-10-22（北京时间）
 
-- 用户已恢复正式发布准备授权；优先完成可自动实测内容，**不因催进度绕过原生分发审批、实际播放或真实 Windows QA**。主仓当前开发分支 `ai/native-runtime-candidate-integration`；基线 `3b73062`，最终 commit 以实时 Git 状态为准。开工前备份 snapshot `2026-10-21_14-42-15-269_native-source-runtime-qa-20261021`，checkpoint `checkpoint-20261021-224208-3b73062-native-source-runtime-qa-20261021`。
-- 新源码 CI [39612312642](https://github.com/huntian0727/movie/actions/runs/39612312642) 已 **SUCCESS**，新原生运行库 26/26 文件 SHA 和 DLL 闭包通过、0 unresolved imports；25 份源码输入完整核验/恢复，244 MPV + 298 shaderc 编译源审计；FFmpeg `--disable-gpl --disable-nonfree --disable-static --enable-shared`。
-- 新原生私有 ZIP SHA256 `46b7a00a9275da307efc89e320ef0c5c87a846fd020e5d1167f838a0d394447a`；对应私有源码 ZIP SHA256 `4325dc1a0d216ff89785337ab68833b0a5f6f35fcfd9795370802e1c6c621130`。相关私有附件已下载并存储于 `.tmp/native-run-39612312642/`，不发布原始候选二进制。
-- 更新 `scripts/native-source-media.lock.json`、`scripts/native-source-player-runtime.lock.json` 到新精确生产运行库，`CANDIDATE_NOT_APPROVED` 和 `distributable=false` 仍为硬约束。修复旧审批与新源码锁相等的测试假设，目标是**拒绝**旧的 39 PE 批准自动覆盖新候选；该测试 47/47 PASS。**未修改**旧 `build/native-source-approval.json`、`build/release-approval.json`、`build/public-test-approval.json`。
-- **最新干净 Commit QA 包**：代码/测试/文档提交 `245dc156bcf247d73e38417cb3b803f43869fcc8`，已推到 GitHub `ai/native-runtime-candidate-integration` 并创建 [Draft PR #29](https://github.com/huntian0727/movie/pull/29)。从该干净提交重新构建 `release/unsigned-test-build/拉面影视-0.1.16-x64-unsigned-test-build-Portable.zip`：214,807,755 字节，最终 SHA256 `75ee4f58d8479c1b2132c1fc3a313dcfcbbf9f4bc8bfaa84d5fc8e353e37599de9`；`dist:zip`、`verify:zip`、`release:metadata`、`test:packaged-smoke` 均 PASS（230 项文件核验，`workspaceDirty=false`，`displayVersion=1.2`，`publicReleaseApproved=false`）。此前临时 SHA `7dd193f2...` **不是最终 QA 包**。Windows CI/安全审计由 PR 触发，当前仍不是正式发行。
+## 2026-10-22 最新发布状态：本机门禁通过，待 GitHub CI
+
+- 用户明确授权将最新源码推送到 GitHub。本次范围是源码/草稿集成，不等于公开二进制发布；不创建 tag 或 GitHub Release。
+- 当前本地分支 ai/per-group-queued-cleanup-button，提交 b1ea4d5（后续发布记录/回归修复会形成新提交）。它包含 v1.5 播放倍速、后台重复项清理和 v1.6「清理本组」等本地未发布改进。
+- MOVIE_MEDIA_VARIANT=lite-candidate npm run test:release-gate 已于 2026-10-22 本机全量 PASS，退出码 0。首次运行发现旧倍速测试仍拒绝 4×，与现有 3×/4×/5× 支持冲突；已改为拒绝 6×，单测 15/15 PASS，之后全量门禁通过。
+- Windows CI 的旧 BtbN 2026-10-05 每日 ZIP 曾返回 HTTP 404；QA job 已改为使用固定的 lite-candidate 输入，正式 source-candidate 锁和审批未改。推送后仍需以 GitHub Actions 实际终态为准。
+- 现有 Draft PR #29 (https://github.com/huntian0727/movie/pull/29) 明确禁止在原生/许可审批和人工验收完成前合并到 main 或发布公开 Release。因此本次只推进该草稿分支/源码备份，不绕过门禁更新 main。
+- 桌面日常包为 release/daily-v1.6/win-unpacked，快捷方式已指向 v1.6；部署时仍有 4 个 v1.5 进程运行，尚未实际通过快捷方式启动 v1.6。真实 CloudDrive/115 删除未执行。
+
+## 2026-10-21 最新 Windows CI 404 修复（历史记录）
+
+- GitHub PR #29 的 Windows CI run 39627833290：安全审计、Electron 原生安全 smoke、生产依赖核查均 PASS；Node job 仅因旧 BtbN/FFmpeg-Builds 2026-10-05 每日 ZIP 已被上游删除、下载 HTTP 404 而在开始跑测试前失败，后续 NSIS QA 被依赖跳过。绝不能把这一批 CI 写成全绿。
+- 固定改用 .github/workflows/windows-ci.yml 两个 CI QA job 的 MOVIE_MEDIA_VARIANT=lite-candidate，复用仓库旧稳定并经 pin 的 serversideup/ffmpeg-lgpl-builds v8.1.2-27。已复核资产 HTTP 200，13/13 文件哈希及 FFmpeg/FFprobe 真实 SHA PASS。不修改全量测试命令、正式 source-candidate 锁、发行证据或审批。
+- 详见 [CI 问题与修复交接](deliveries/2026-10-21-windows-ci-expired-btbn-qa-pin.md)。原本成功的 MPV 新版 source-candidate 私有绿色包 SHA 75ee4f58...、正式 Release 阻塞及旧审批绑定均保持不变。
+
 - `npm run test:release-gate` 已重新全量 **PASS**（终态 `wc_job_ukbAhzEPnrCjRBLD` 退出码 0），三个历史批准文件未被修改。**真实 MPV 5 种中性编码样片隔离播放 5/5 PASS**（含 H.264/HEVC/VP9、双音轨和字幕，`production-service-test.json` 0 failures）；实际人工听音仍 NOT RUN。源库本批次人工批准及正式公共绿色发行仍未完成。尚未替换日常桌面快捷方式、没有在真实资料库执行删除。详见 [独立交付记录](deliveries/2026-10-21-native-source-candidate-integration.md)。
 
 

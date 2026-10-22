@@ -65,7 +65,7 @@ describe("pause confirmation without periodic telemetry", () => {
       expect(f.commands().find(command => command.op === "load")).toMatchObject({ speed: 1 });
       expect(await f.call({ op: "speed", value: 1.5 })).toMatchObject({ speed: 1.5 });
       expect(f.commands().at(-1)).toMatchObject({ op: "speed", value: 1.5 });
-      await expect(f.call({ op: "speed", value: 4 })).rejects.toThrow();
+      await expect(f.call({ op: "speed", value: 6 })).rejects.toThrow();
       expect(f.commands().filter(command => command.op === "speed")).toHaveLength(1);
       f.emit({ type: "snapshot", token: 1, loaded: true, time: 3, duration: 12, rotation: 0, seeking: "no", restartCount: 0,
         paused: "yes", pausedForCache: "no", volume: 20, speed: 1.5, media: null });
