@@ -1,6 +1,6 @@
 # 绿色 ZIP 发布清单
 
-当前公开正式版本为 [0.1.15](https://github.com/huntian0727/movie/releases/tag/v0.1.15)，已经发布。下方首发准备记录中的 BLOCKED、未发布、稳定 Windows 等描述属于当时状态，不再描述这个已经发布的 ZIP，也不自动批准未来版本。
+**下一次发版请直接从 [极简绿色 ZIP 发布 SOP](RELEASE_FASTPATH.md) 开始。** 实际最新版本以 [GitHub Releases](https://github.com/huntian0727/movie/releases/latest) 为准；2026-10-22 已成功发布 [v0.1.16](https://github.com/huntian0727/movie/releases/tag/v0.1.16)。本页下方 v0.1.15 的旧清单和 BLOCKED 状态仅为历史记录，不是现在的发行状态。
 
 后续执行 [开发与发版约定](DEVELOPMENT_AND_RELEASE.md) 及 [源码绿色版技术流程](SOURCE_COMMUNITY_RELEASE.md)。维护者日常使用确认稳定后，明确要求制作候选；现有安全、源码/许可、构建与相关验收门槛继续保留。
 
