@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from
 import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, ExternalLink, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { useEmbeddedEngine } from "./useEmbeddedEngine";
+import { PLAYBACK_SPEED_OPTIONS } from "../../shared/embeddedPlayback";
 import { usePlayerWindowFullscreen } from "./usePlayerWindowFullscreen";
 import { DEFAULT_SHORTCUTS, formatShortcutBinding, matchesShortcut } from "../../shared/shortcuts";
 import { formatBytes, formatDuration } from "./formatters";
@@ -83,6 +84,7 @@ export function PlayerPage({
   const [duration, setDuration] = useState((video.durationMs ?? 0) / 1000);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const [dragTime, setDragTime] = useState<number | null>(null);
@@ -184,6 +186,7 @@ export function PlayerPage({
     if (!["idle", "loading"].includes(s.phase)) {
       setMuted(s.volume === 0);
       if (s.volume > 0) setVolume(s.volume / 100);
+      if (PLAYBACK_SPEED_OPTIONS.some((speed) => speed === s.speed)) setPlaybackSpeed(s.speed);
     }
     if (s.duration > 0) setDuration(s.duration);
     if (s.phase === "ended" && endedSessionRef.current !== s.sessionKey) {
@@ -205,6 +208,11 @@ export function PlayerPage({
     pendingStartRef.current = startPositionMs;
     if (!isExternalPlayback && !isEmbeddedPlayback) applyStartingPosition();
   }, [video.id, mediaUrl, isExternalPlayback, isEmbeddedPlayback, startPositionMs, startRequestId]);
+
+  useEffect(() => {
+    // Browser media elements can reset playbackRate after a source change.
+    if (!isEmbeddedPlayback && !isExternalPlayback && videoRef.current) videoRef.current.playbackRate = playbackSpeed;
+  }, [playbackSpeed, video.id, mediaUrl, isExternalPlayback, isEmbeddedPlayback]);
 
   const clearControlsHideTimeout = () => {
     if (controlsHideTimeoutRef.current !== null) {
@@ -477,6 +485,13 @@ export function PlayerPage({
     }
     setVolume(value);
     setMuted(false);
+  };
+
+  const updatePlaybackSpeed = (speed: number) => {
+    if (!PLAYBACK_SPEED_OPTIONS.some((option) => option === speed) || isExternalPlayback) return;
+    setPlaybackSpeed(speed);
+    if (isEmbeddedPlayback) void embedded.send({ op: "speed", value: speed });
+    else if (videoRef.current) videoRef.current.playbackRate = speed;
   };
 
   const toggleMute = () => {
@@ -776,6 +791,7 @@ export function PlayerPage({
             onClick={handleStageClick}
             onLoadedMetadata={(event) => {
               applyStartingPosition();
+              event.currentTarget.playbackRate = playbackSpeed;
               const { videoWidth, videoHeight } = event.currentTarget;
               if (videoWidth > 0 && videoHeight > 0) {
                 setDecodedVideoSize({ width: videoWidth, height: videoHeight });
@@ -1010,6 +1026,12 @@ export function PlayerPage({
               {muted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
             </button>
             <input aria-label="音量" type="range" min="0" max="1" step="0.05" value={muted ? 0 : volume} disabled={isExternalPlayback} onChange={(event) => updateVolume(Number(event.target.value))} />
+            <label className="player-speed-label" title={isExternalPlayback ? "外部播放器中调整倍速" : "播放倍速"}>
+              <select aria-label="播放倍速" value={playbackSpeed} disabled={isExternalPlayback || (isEmbeddedPlayback && (!embedded.state || ["idle", "loading", "failed", "ended"].includes(embedded.state.phase)))}
+                onChange={(event) => updatePlaybackSpeed(Number(event.target.value))}>
+                {PLAYBACK_SPEED_OPTIONS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
+              </select>
+            </label>
             <button
               className={playlistOpen ? "is-active" : undefined}
               aria-label="播放列表"

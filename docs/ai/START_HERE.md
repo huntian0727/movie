@@ -14,10 +14,11 @@
 ## 首次阅读顺序
 
 1. `AGENTS.md`：不可违反的工作区、测试、桌面交付和 Git 规则。
-2. `.agent/context/PROJECT_SNAPSHOT.md`：低成本缓存，只用于快速建立项目模型。
-3. 当前 task、角色规则和最新 required handoff。
-4. `docs/ai/CODE_MAP.md`：定位 3–8 个直接相关的代码和测试文件。
-5. 只有发生冲突、高风险或证据不足时，再展开 `CURRENT_STATE`、`KNOWN_RISKS`、架构和历史交付。
+2. `docs/ai/CURRENT-HANDOFF.md`（存在时）：当前开发分支、最新任务、验证结果与禁止事项；避免重复开发已经完成的工作。
+3. `.agent/context/PROJECT_SNAPSHOT.md`：低成本缓存，只用于快速建立项目模型。
+4. 当前 task、角色规则和最新 required handoff。
+5. `docs/ai/CODE_MAP.md`：定位 3–8 个直接相关的代码和测试文件。
+6. 只有发生冲突、高风险或证据不足时，再展开 `CURRENT_STATE`、`KNOWN_RISKS`、架构和历史交付。
 
 不要把 `docs/plans/`、`docs/superpowers/plans/` 或历史执行包当作当前事实。它们保存设计背景；如果与代码、迁移、测试或最新交付记录冲突，以当前代码为准，并在交付记录中说明偏差。
 

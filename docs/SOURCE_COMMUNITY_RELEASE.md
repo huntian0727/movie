@@ -1,14 +1,14 @@
-## 当前正式绿色版：0.1.15
+## 当前稳定绿色版：0.1.15；当前公开预发布：0.1.16-beta.1
 
-日常开发、候选验收与教程同步遵循 [2026-10-14 维护约定](DEVELOPMENT_AND_RELEASE.md)。普通用户阅读 [0.1.15 教程](user-guide/0.1.15.md)。下方 beta、旧批准状态和历史日期按各自记录保留，当前正式版本以本节和对应 Release 为准。
+截至 2026-10-22，当前最新稳定版仍为 **0.1.15**；公开测试预发布为 **0.1.16-beta.1**（界面版本 v1.6），不代表稳定版认证。普通用户阅读 [0.1.15 教程](user-guide/0.1.15.md)，测试新版请先阅读 [0.1.16-beta.1 说明](releases/0.1.16-beta.1.md)。日常开发、候选验收与教程同步遵循 [2026-10-14 维护约定](DEVELOPMENT_AND_RELEASE.md)。
 
-[正式版下载](https://github.com/huntian0727/movie/releases/tag/v0.1.15)。维护者选择当前 Windows 沙盒完成本次正式验收，不再以操作系统版本阻塞；实际覆盖范围见 docs/releases/0.1.15.md。
+**稳定版 0.1.16 仍未发布**；公开测试版仅限 v0.1.16-beta.1，下载请使用 [公开预发布页面](https://github.com/huntian0727/movie/releases/tag/v0.1.16-beta.1)。稳定候选范围见 [0.1.16 候选发行说明](releases/0.1.16.md)。
 
-后续普通更新：修改和针对性验证 → 常规 CI/安全检查 → 更新实际版本与对应审批哈希 → 精确版本 tag → source-community-build 云端绿色包与私有草稿 → 成品与相关功能验收 → 发布。固定的 39 个原生文件不变时复用原生源码/许可审阅和已有声音确认；原生库变更时重新核对相关证据。正式版草稿由 stage-stable-portable-draft.mjs 暂存，核对版本、源码资产、commit、哈希；此步骤不自动公开。签名/安装器仍为独立范围。
+后续普通更新：修改和针对性验证 → 常规 CI/安全检查 → 由所有者重新审核准确版本、依赖锁和对应审批证据 → 精确版本 tag → source-community-build 云端绿色包与私有草稿 → 成品与相关功能验收 → 在批准后发布。固定的 39 个原生文件不变时复用原生源码/许可审阅和已有声音确认；原生库变更时重新核对相关证据。正式版草稿由 stage-stable-portable-draft.mjs 暂存，核对版本、源码资产、commit、哈希；此步骤不自动公开。签名/安装器仍为独立范围。
 
 # 源码可追溯社区版的更新与发布
 
-当前版本：0.1.15-beta.3。当前路线：同一生产批次的共享 FFmpeg/FFprobe 与共享 libmpv 运行库，两个 variant 均为 `source-candidate`。这是绿色 ZIP 路线；`unsigned-community-qa` 文件名和窗口明确标记验收、未发布，使用正式社区版的资料库身份。
+历史候选版本：0.1.15-beta.3。已采用的原生组件路线：同一生产批次的共享 FFmpeg/FFprobe 与共享 libmpv 运行库，两个 variant 均为 `source-candidate`。这是绿色 ZIP 路线；`unsigned-community-qa` 文件名和窗口明确标记验收、未发布，使用正式社区版的资料库身份。
 
 ## 普通应用更新
 

@@ -1,4 +1,4 @@
-import { dialog, ipcMain as electronIpcMain, shell } from "electron";
+import { app, dialog, ipcMain as electronIpcMain, shell } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
 import type { SubtitleService } from "./subtitles/subtitleService.js";
 import { subtitleActionSchema, subtitleConfigSchema, subtitleSearchSchema, subtitleProviderSchema, subtitleProviderWebsites } from "../shared/subtitles.js";
@@ -46,6 +46,8 @@ import { loadPreviewImage } from "./media/mediaProtocol.js";
 import type { MediaCacheManager } from "./media/cacheManager.js";
 import type { DirectoryImageService } from "./media/directoryImageService.js";
 import { previewDuplicateResolveSafely } from "./media/duplicateResolveSafety.js";
+import { ReviewedDuplicateBackgroundQueue } from "./media/reviewedDuplicateBackground.js";
+import { deleteReviewedDuplicatePlan } from "./media/reviewedDuplicateDelete.js";
 import { bindLegacyCloudDriveDuplicateCandidates } from "./media/cloudDriveLegacyBindingService.js";
 import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
@@ -73,6 +75,9 @@ function readScope(event: IpcMainInvokeEvent, operation: string, purpose: unknow
 let ipcLogger: StructuredLogger | undefined;
 const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.duplicateFastDelete,
+  IPC_CHANNELS.duplicateReviewedDelete,
+  IPC_CHANNELS.duplicateBackgroundSubmit,
+  IPC_CHANNELS.duplicateBackgroundStatus,
   IPC_CHANNELS.duplicateCleanupConfirm,
   IPC_CHANNELS.duplicateCloudDriveBindLegacy,
   IPC_CHANNELS.cloudDriveTest,
@@ -632,6 +637,58 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return result;
   });
 
+  let reviewedDeleteInFlight = false;
+  let reviewedBackgroundQueue: ReviewedDuplicateBackgroundQueue | null = null;
+  const getReviewedBackgroundQueue = () => {
+    if (!reviewedBackgroundQueue) {
+      reviewedBackgroundQueue = new ReviewedDuplicateBackgroundQueue(
+        path.join(app.getPath("userData"), "reviewed-duplicate-background.json"),
+        (plan) => deleteReviewedDuplicatePlan(
+          repo, dependencies.metadataQueue, plan,
+          (ids) => dependencies.duplicateCleanupJobs.assertVideosAvailable(ids),
+          (removedIds) => {
+            dependencies.cacheManager.scheduleMaintenance(true);
+            dependencies.domainEvents.publish({ type: "video:removed", videoIds: removedIds });
+          }
+        )
+      );
+    }
+    return reviewedBackgroundQueue;
+  };
+  ipcMain.handle(IPC_CHANNELS.duplicateBackgroundSubmit, (_event, payload) => {
+    const plan = duplicateResolvePlanSchema.parse(payload);
+    if (reviewedDeleteInFlight) throw new Error("已有重复文件删除请求尚未完成，请稍后提交。");
+    // Validate every keep/delete identity synchronously BEFORE accepting the
+    // irreversible background job. It will be revalidated before each batch.
+    repo.validateDuplicateResolvePlan(plan);
+    dependencies.duplicateCleanupJobs.assertVideosAvailable(
+      plan.groups.flatMap((group) => [group.keepVideoId, ...group.deleteVideoIds])
+    );
+    return getReviewedBackgroundQueue().submit(plan);
+  });
+  ipcMain.handle(IPC_CHANNELS.duplicateBackgroundStatus, () =>
+    getReviewedBackgroundQueue().get()
+  );
+  ipcMain.handle(IPC_CHANNELS.duplicateReviewedDelete, async (_event, payload) => {
+    const plan = duplicateResolvePlanSchema.parse(payload);
+    if (reviewedDeleteInFlight || getReviewedBackgroundQueue().hasPending()) {
+      throw new Error("已有重复项清理正在执行，请等待结束后重试。");
+    }
+    reviewedDeleteInFlight = true;
+    try {
+      return await deleteReviewedDuplicatePlan(
+        repo, dependencies.metadataQueue, plan,
+        (ids) => dependencies.duplicateCleanupJobs.assertVideosAvailable(ids),
+        (removedIds) => {
+          dependencies.cacheManager.scheduleMaintenance(true);
+          dependencies.domainEvents.publish({ type: "video:removed", videoIds: removedIds });
+        }
+      );
+    } finally {
+      reviewedDeleteInFlight = false;
+    }
+  });
+
   ipcMain.handle(IPC_CHANNELS.duplicateFastDelete, async (_event, payload) => {
     duplicateResolvePlanSchema.parse(payload);
     throw new Error("未完成完整 SHA-256 验证的快速永久删除已禁用；请使用一键验证并删除。");
@@ -655,10 +712,17 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     };
   });
 
-  ipcMain.handle(IPC_CHANNELS.duplicateCleanupSubmit, (_event, payload) =>
-    dependencies.duplicateCleanup.submit(duplicateCleanupSubmitSchema.parse(payload))
-  );
+  const assertNoReviewedBackground = () => {
+    if (getReviewedBackgroundQueue().hasPending()) {
+      throw new Error("当前有重复文件后台清理正在执行，请完成后再操作其他重复清理任务。");
+    }
+  };
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupSubmit, (_event, payload) => {
+    assertNoReviewedBackground();
+    return dependencies.duplicateCleanup.submit(duplicateCleanupSubmitSchema.parse(payload));
+  });
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupSubmitFiltered, (_event, payload) => {
+    assertNoReviewedBackground();
     const parsed = duplicateCleanupFilteredSubmitSchema.parse(payload);
     return dependencies.duplicateCleanup.submitFiltered(parsed);
   });
@@ -727,9 +791,10 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.duplicatePreferredDirectoryRemove, (_event, id) =>
     repo.removeDuplicatePreferredDirectory(z.string().uuid().parse(id))
   );
-  ipcMain.handle(IPC_CHANNELS.duplicateCleanupConfirm, (_event, payload) =>
-    dependencies.duplicateCleanup.confirm(duplicateCleanupConfirmSchema.parse(payload))
-  );
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupConfirm, (_event, payload) => {
+    assertNoReviewedBackground();
+    return dependencies.duplicateCleanup.confirm(duplicateCleanupConfirmSchema.parse(payload));
+  });
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupJobs, (_event, payload) => {
     const parsed = duplicateCleanupPageSchema.parse(payload);
     return dependencies.duplicateCleanupJobs.listJobs(parsed.page, parsed.pageSize);
@@ -742,8 +807,14 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return dependencies.duplicateCleanupJobs.listItems(parsed.jobId, parsed.page, parsed.pageSize);
   });
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupCancel, (_event, jobId) => dependencies.duplicateCleanup.cancel(z.string().uuid().parse(jobId)));
-  ipcMain.handle(IPC_CHANNELS.duplicateCleanupResume, (_event, jobId) => dependencies.duplicateCleanup.resume(z.string().uuid().parse(jobId)));
-  ipcMain.handle(IPC_CHANNELS.duplicateCleanupRetry, (_event, jobId) => dependencies.duplicateCleanup.retry(z.string().uuid().parse(jobId)));
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupResume, (_event, jobId) => {
+    assertNoReviewedBackground();
+    return dependencies.duplicateCleanup.resume(z.string().uuid().parse(jobId));
+  });
+  ipcMain.handle(IPC_CHANNELS.duplicateCleanupRetry, (_event, jobId) => {
+    assertNoReviewedBackground();
+    return dependencies.duplicateCleanup.retry(z.string().uuid().parse(jobId));
+  });
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupClear, (_event, jobId) => dependencies.duplicateCleanupJobs.clear(z.string().uuid().parse(jobId)));
   ipcMain.handle(IPC_CHANNELS.duplicateCleanupOpenItem, async (_event, itemId) => {
     const error = await shell.openPath(dependencies.duplicateCleanupJobs.getItemDirectory(z.string().uuid().parse(itemId)));

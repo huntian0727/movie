@@ -69,6 +69,18 @@ class SourceCaptureTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build.capture_download("https://credential@example.org/source.tar.gz", file)
 
+    def test_mpv_build_only_downgrades_deprecation_warning_and_fails_fast(self):
+        recipe = """CFLAGS+=" -I'$prefix_dir/include'"
+meson compile -C $build -j "${BUILD_JOBS:-2}"
+"""
+        patched = build.patch_mpv_build(recipe)
+        self.assertIn("-Wno-error=deprecated-declarations", patched)
+        self.assertIn('meson compile -C $build -j "${BUILD_JOBS:-2}" || exit $?', patched)
+        self.assertEqual(patched.count("-Wno-error=deprecated-declarations"), 1)
+        self.assertNotIn("-Dwerror=false", patched)
+        with self.assertRaisesRegex(ValueError, "Pinned recipe structure changed"):
+            build.patch_mpv_build('meson compile -C $build -j "${BUILD_JOBS:-2}"')
+
     def test_changed_recipe_cannot_be_transformed(self):
         with self.assertRaisesRegex(ValueError, "bytes differ"):
             build.patch_recipe(b"unreviewed upstream recipe", Path("/helper"))

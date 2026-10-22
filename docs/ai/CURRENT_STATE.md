@@ -1,6 +1,32 @@
 # 当前项目状态
 
-更新时间：2026-08-18。本文只描述当前维护基线；精确 Commit 以 `git rev-parse HEAD` 和最新交付记录为准。
+更新时间：2026-10-21。本文主体是长期项目维护基线；精确 Commit 以 `git rev-parse HEAD` 和最新交付记录为准。与本文冲突时，以当前代码、以下最新覆盖、`CHANGELOG.md` 的 `[Unreleased]` 和最新交付记录为准。
+
+## 当前开发节点（2026-10-21）
+
+### 最新覆盖：v0.1.16 发版准备
+
+- 最新分支/HEAD 以 `git status --short --branch` 和 `git rev-parse HEAD` 为准；技术版本 0.1.16、界面版本 v1.2，GitHub 公开版仍为 v0.1.15。
+- 发版文档已改为候选状态，并修正 `docs/portable.md`、`docs/windows-installation.md`、`docs/SOURCE_COMMUNITY_RELEASE.md` 中错误指向未公开 0.1.16 的下载链接；全量发行门禁 1,391/1,391 PASS，私有 unsigned-test-build 安装包 `verify:artifact` 与 `test:installer-smoke` PASS。
+- `audit-release-readiness.mjs` 仍为 `OUTCOME=BLOCKED`：历史应用审批绑定 0.1.15、lockfile 哈希不匹配；当前 source-candidate 锁绑定的旧生产 run 仍是 FAIL，`originalCiClosureValid=false`；`lite-candidate` 的 LGPL/组件级许可也未结案。旧 `build/native-source-approval.json` 的 `approved=true` 只覆盖 38134981406 的精确旧哈希，不覆盖新候选。原生重建 run `39598671777` 已结束且 FAIL：MPV 编译把 FFmpeg 的 `AVStream` 弃用警告当成错误，随后打包器又尝试复制未生成的 `libmpv-2.dll`。本地未推送修复已定向处理该警告并让编译失败立即退出；`npm run test:native-source-build` 的 29 项本地测试通过，但新修复尚未由 CI 重建验证。审批范围及证据见 `docs/legal/NATIVE-SOURCE-APPROVAL-SCOPE-ADDENDUM.md`。私有源码 REVIEW ZIP 核验通过，但不得作为公开附件上传。
+- 私有 `unsigned-community-qa` 绿色 ZIP 已通过 `verify:zip`（229 文件逐项校验 + 双阶段 packaged smoke），`release:metadata -- --portable` PASS；SHA-256 `4d8f099bf436ed3f1ac46bebe3020672786d66de4c49fb56820f15e848e9e9d1`，构建 commit `bbc1a42ca4784bda1fee788f9ee3256b781900a7`。该 ZIP 未签名且 `publicReleaseApproved=false`，仅私有 QA。没有推送、tag 或公开发布。日常桌面版未覆盖；真实 CloudDrive/115 删除测试继续暂缓。详见 `deliveries/2026-10-21-release-candidate-prep.md`。
+
+- 当前直接交接入口：[`CURRENT-HANDOFF.md`](CURRENT-HANDOFF.md)。新会话先读该文件，再读 `AGENTS.md`、`START_HERE.md` 和对应交付记录。
+- 历史阶段记录（已被上方最新覆盖）：当时分支为 `ai/release-metadata-display-version`，提交 `ad6e853` 补齐发行元数据生成器的 displayVersion；原 v1.2 功能实现提交为 `c79402c1f904e80b7188eb1d313c101b2ad96ba0`。当前分支与 HEAD 请以实时 Git 查询为准。
+- 容错联动专项：真实临时 SQLite + 模拟 CloudDrive，已验证跨 30+5 批次的明确失败（34 成功/1 失败）和第 31 次调用断连（32 成功/1 未知/2 未提交），重启均不自动重放；`npm run typecheck` PASS，6 文件 77/77 PASS。未进行真实 115 API 删除；详见 `deliveries/2026-10-21-duplicate-background-fault-qa.md`。
+- 用户已明确暂缓真实删除验证。随后完成 v1.2 非删除专项回归：Windows 文件/网络 37、迁移 41、常规性能/缓存 31、播放器/字幕/扫描 283、320k 构造数据性能 4、CloudDrive 模拟/安全 70，共 **466/466 PASS**（37 个 Vitest 文件）；Electron 主进程 smoke 另行 PASS。仅测试和文档，无生产代码修改、无用户可见版本升级。见 `deliveries/2026-10-21-v12-nondestructive-regression.md`。
+- 新一轮仅只读运行检查和隔离打包测试：真实资料库 v16，363216 视频，CloudDrive 来源 7、本地来源 4，当前 API TCP 可达；v1.2 双阶段 packaged smoke PASS、备份 Verify PASS。真实远端删除仍 NOT RUN，详见 2026-10-21 容错 QA 交付记录。
+- 当前已完成“重复文件入后台后临时隐藏排队项、整页覆盖单页筛选目录时自动退出浏览筛选”的实现。专项 typecheck 及 5 个测试文件 148/148 通过。细节与风险见 `deliveries/2026-10-21-duplicate-queued-list-ux.md`。
+- 历史阶段曾有一次 `npm run test:node` 结果为 149 文件、1388/1391 PASS，3 项失败与旧审批绑定有关；随后修订了发行工程测试以确保历史审批按原包版本隔离。最新完整 `npm run test:release-gate` 已重新执行并以退出码 0 结束；精确详情见上方 `deliveries/2026-10-21-release-candidate-prep.md`。
+- 历史阶段发行预检曾因 REVIEW ZIP 未定位及旧 `release/unsigned-test-build` metadata/flavor 失配而阻塞；这些局部问题已由上方最新覆盖更新：当前已定位并核验私有 REVIEW-v2 ZIP，主工作区隔离 QA 安装器已重建，`verify:artifact` 和 `test:installer-smoke` 均 PASS。整体公开发行仍被旧批准版本/lockfile、原生媒体许可和稳定 Windows/标准用户覆盖等项目阻塞。详见 `deliveries/2026-10-21-release-candidate-prep.md`。
+
+## 最新覆盖（2026-10-21）
+
+- 本地开发版重复清理继续优化：默认主要保留单项删除和“清理当前页”，高级维护按钮折叠。每批最多 100 条、进度反馈和部分失败明细；失败项重试先由用户确认再重新安全预检。通信中断导致某批结果未知时停止后续批次，前序已确认结果不丢失，未知结果不得自动重放。隔离真实文件夹测试只使用系统临时目录，不动资料库真实影片。
+- 当前重复视频判定只比较精确文件大小与四舍五入到整秒的时长，不计算视频内容哈希。手动单项/当前页清理恢复一次确认，执行前自动复查路径、大小、时长、修改时间和文件身份；后台高级核对任务仍要求检查计划并输入大写 `DELETE` 二次确认。
+- 旧 CloudDrive API 快速删除通道、筛选全集快速删除和 workflowVersion=3 旧任务续跑/重试仍保持禁用，不自动恢复任何快速删除行为。
+- 重复清理交互已恢复到单项/当前页一次确认的快捷模式（本地开发版）。先由主进程按数据库重复组及文件状态校验大小、时长、路径、版本，再调用现有受管文件删除安全入口；单文件和当前页操作不强制创建两阶段后台任务。原按钮消失的根因是两阶段安全改造移除了旧 `onAutoDelete` 回调，但按钮仍以旧回调作为渲染条件。
+- 本地未发布改动：大小与时长判重和单项/当前页一次确认的简洁删除界面，保持旧快速 API 关闭；本地开发分支，不推送 GitHub、不公开发版，除非维护者明确要求。没有对真实媒体执行删除或清理。
 
 ## 产品与技术基线
 
@@ -18,7 +44,7 @@
 - 新视频先快速入库，再由单并发 MetadataQueue 后台读取元数据。
 - 普通资料库和重复项均在 SQLite 分页；资料库支持搜索、排序、目录、收藏、最近播放和待删除视图。
 - 重复候选仍按“缓存的精确大小 + 精确时长”发现，普通浏览不读取视频内容；时长未就绪的文件不参与候选分组。
-- 重复页默认提供效率优先的“一键永久删除候选移除项”：按当前缓存的精确大小+时长生成 keep/delete 计划，主进程重新验证组归属与“每组只保留一个”，随后跳过 SHA-256 和二次确认直接永久删除。schema v10 的完整 SHA-256 两阶段任务仍保留为可选安全模式及历史任务处理能力。
+- 重复页恢复单文件和当前页快速清理：一次人工确认后自动完成大小/时长和文件版本预检查，并复用受管文件的安全删除入口。两阶段后台核对作为高级可选操作保留，旧未经核对的 CloudDrive 快速删除通道仍关闭。
 - 播放支持 native → mpv → 系统默认播放器 fallback；`auto` 使用 metadata/probe 状态+容器+codec 保守路由。历史 ready 视频按 `codec_probe_status` 最多自动探测一次，播放准备最多等待 2 秒；失败后不重复探测，文件版本变化后重新允许。pending 的常见 native 容器临时 native-first，WebM 10-bit 等复杂格式转 mpv。
 - 封面和时间轴按需生成并写入 userData 下的持久缓存；缓存可重建、有限额、可手动清理。
 - 文件移动、重命名和永久删除集中在主进程，包含路径校验、冲突处理和失败恢复逻辑。

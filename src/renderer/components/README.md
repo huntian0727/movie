@@ -39,8 +39,8 @@ use the complete query result rather than only the mounted subset.
 - `PlayerPage.tsx`：native/mpv 两态、控制、可配置快捷键、同目录播放列表、hover 预览与失败降级。默认上下键按 5% 调音量、Ctrl + 左/右每次旋转 90°，`Ctrl+D` 只打开永久删除确认框且必须再次确认；实际匹配必须读取 `AppSettings.shortcuts`。播放器还可持久化标记待删除；外部 mpv 窗口不受这些主窗口快捷键控制。
 - `SettingsPage.tsx`：设置、快捷键捕获/冲突提示、缓存确认、封面截帧位置和诊断预览/导出。缺失文件不再在设置页展示，但底层扫描标记仍保留。诊断区必须先预览白名单，再允许导出；完整应用目录披露默认关闭且切换后必须重新预览。诊断接口仅主窗口可用。
 - `CloudDriveFolderDialog.tsx`：通过主进程 API 列出已挂载 CloudDrive 来源并逐层浏览远端目录，添加时同时保存远端路径和本地挂载播放路径。窗口内“配置 API”直接定位设置页的 CloudDrive API 区域；返回添加目录后重新获取挂载来源。Renderer 不接触 Token，也不自行拼接可信目录身份。
-- `DuplicateGroupsPage.tsx`：分别展示同大小候选统计与“精确大小＋缓存时长”匹配组，支持分页、全局大小排序、当前页保留选择，以及从任一候选文件一键把其所在目录树设为优先保留范围。优先目录始终递归包含所有子目录；筛选会返回命中目录树的候选组及组内跨目录的全部文件，并优先推荐保留目录树中的一个文件。显式单组选择高于目录推荐。重复页不得为了判断而主动读取视频或计算指纹；“一键永久删除候选移除项”跳过 SHA-256 与确认，但必须把完整 keep/delete 计划交给主进程重新校验，不能接受 renderer 提供的任意路径。
-- `LibraryShell.tsx`：正式应用始终通过 `onLoadVideoPage` 请求数据库分页；静态 `videos` 筛选路径只用于隔离组件测试，不代表浏览器产品模式。目录树使用轻量 `LibraryNavigationSnapshot`，不要重新传入全量视频构树。
+- `DuplicateGroupsPage.tsx`：分别展示同大小候选统计与“精确大小＋缓存时长”匹配组，支持分页、全局大小排序、当前页保留选择，以及从任一候选文件一键把其所在目录树设为优先保留范围。优先目录始终递归包含所有子目录；筛选会返回命中目录树的候选组及组内跨目录的全部文件，并优先推荐保留目录树中的一个文件。显式单组选择高于目录推荐。重复页不得为了判断而主动读取视频或计算指纹；组内单文件垃圾桶入口恢复为一次确认后自动进行大小/时长和版本预检查，并调用既有受管文件安全删除接口；批量“清理当前页”也只在一次确认后处理当前页保留计划之外的文件，并展示部分失败。需要第二次确认的后台核对和旧库身份绑定统一折叠到“高级核对与维护工具”，旧未经核对的 CloudDrive API 快速删除路径保持禁用。当前页清理按每批至多 100 条执行，界面同步展示已确认进度、删除成功与失败数；仅明确返回失败的 ID 可在再次确认并重新预检后单独重试。如果某个 IPC 批次没有返回（例如网盘断连），前序确认成功结果必须保留，当前批次标记未知、后续批次不提交，不允许对未知结果自动重放。
+- `LibraryShell.tsx`：正式应用始终通过 `onLoadVideoPage` 请求数据库分页；静态 `videos` 筛选路径只用于隔离组件测试，不代表浏览器产品模式。目录树使用轻量 `LibraryNavigationSnapshot`，不要重新传入全量视频构树。重复模块的“优先保留此目录”还要即时应用递归目录筛选，已保存偏好重新进入模块时也要恢复筛选；显式“显示全部”优先于后台恢复，返回的每个重复组至少有一个成员位于所选目录树中，否则禁止显示失效筛选结果。
 - `formatters.ts`：大小/时长展示。
 
 自然语言定位：预览/播放控制先看 `PlayerPage`；快捷键新增或修改看 shared `shortcuts.ts`/`videoTypes.ts`、`settingsStore.ts`、IPC schema、`SettingsPage` 及 `LibraryShell`/`PlayerPage` 消费点；播放器队列切换或跨窗口刷新还要看 `App.tsx`、`renderer/windowSync.ts`、shared 契约及 main `playerWindow.ts`/`ipc.ts`；“避开开头黑屏”或“重建单个预览”看 `SettingsPage`、`VideoGrid`、main media protocol/cache；大量视频卡顿看 `LibraryShell`、grid/table 与上游查询；增加排序看 Toolbar + shared + repository；删除确认/重命名看 LibraryShell 与主进程文件链；设置看 SettingsPage。
@@ -57,6 +57,6 @@ use the complete query result rather than only the mounted subset.
 
 `MissingVideosPage.tsx` 是 `is_missing = 1` 记录的专用工作台：资产中心可进入全部明细，资料库“问题”单元格可携带来源 ID 直接筛选。界面只传递 video ID，复查和记录移除由主进程反查路径并完成安全校验。
 
-`MetadataIssuesPage.tsx` 是有效视频中 `metadata_status = pending/failed` 的分页工作台。资产中心可从全局统计或单个资料库直接进入；页面分别显示全局运行队列、待自动分析、暂缓分析和分析失败，并支持只看 0B。资产中心把待分析数量与分析失败数量分开说明，避免把大量正常等待任务误读为损坏。普通记录可单条或按当前页优先重新分析，批量时限制 8 个并发 IPC。
+`MetadataIssuesPage.tsx` 是有效视频中 `metadata_status = pending/failed` 的分页工作台。资产中心可从全局统计或单个资料库直接进入；页面分别显示全局运行队列、待自动分析、暂缓分析和分析失败，并支持只看 0B。资产中心把待分析数量与分析失败数量分开说明，避免把大量正常等待任务误读为损坏。普通记录可单条或按当前页优先重新分析，批量时限制 8 个并发 IPC。视频列表的本页分析条把缺失/0B不可分析项与有效失败项分开统计，并支持显式重试本页有效失败项；失败不自动循环重试。
 
 0B 记录使用“重新读取大小”：主进程通过 CloudDrive API 强制刷新远端父目录。大小恢复后更新文件版本并优先排队；仍为 0B 时记录为 `EMPTY_FILE` 且不调用 ffprobe；远端确认缺失时转入文件缺失复查。该动作不修改或删除视频文件。

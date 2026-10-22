@@ -37,7 +37,7 @@ async function fixture() {
   const original = await stat(filePath);
   const record = { id: "fixture-video", sourceFolderId: "fixture-folder", path: filePath,
     sizeBytes: original.size, modifiedAt: original.mtime.toISOString(), filename: "fixture.mp4" };
-  const repo = { interruptActiveScanFailureBatchJobs: vi.fn(), getVideo: vi.fn(() => record), removeVideo: vi.fn(),
+  const repo = { interruptActiveScanFailureBatchJobs: vi.fn(), getVideo: vi.fn((_videoId: string) => record), removeVideo: vi.fn(),
     listSourceFolders: () => [{ id: "fixture-folder", path: managed, enabled: true }],
     getVideoByPath: () => record, getScanFailure: () => ({ id: "fixture-failure", status: "unresolved", objectType: "file",
       objectPath: filePath, sourceFolderId: record.sourceFolderId, errorCode: "CONFIRMED_CORRUPT", errorSummary: "fixture independent confirmation" }),
@@ -55,6 +55,7 @@ async function fixture() {
   const caller = { sender, senderFrame: sender.mainFrame };
   return { root, managed, directory, filePath, repo, genericGuard,
     invokeDelete: () => electron.handlers.get(IPC_CHANNELS.videoDelete)!(caller, { videoId: record.id }),
+    invokeBatch: (videoIds: string[]) => electron.handlers.get(IPC_CHANNELS.videoBatchDelete)!(caller, videoIds),
     invokeDataDelete: () => electron.handlers.get(IPC_CHANNELS.videoDataDelete)!(caller, {}, { all: false, ids: [record.id], excludedIds: [] }) };
 }
 
@@ -64,6 +65,36 @@ describe("independent public-release deletion safety", () => {
     await expect(f.invokeDelete()).resolves.toBe(true);
     await expect(stat(f.filePath)).rejects.toMatchObject({ code: "ENOENT" });
     expect(f.repo.removeVideo).toHaveBeenCalledWith("fixture-video");
+  });
+
+  it("performs isolated batch deletion with partial success: keeps a changed file, does not erase an offline file index, and removes only the verified file", async () => {
+    const f = await fixture();
+    const changedPath = path.join(f.directory, "changed.mp4");
+    const absentPath = path.join(f.directory, "offline.mp4");
+    await writeFile(changedPath, "original-before-change");
+    const indexed = await stat(changedPath);
+    const records = new Map([
+      ["fixture-video", { id: "fixture-video", sourceFolderId: "fixture-folder", path: f.filePath, filename: "fixture.mp4", sizeBytes: (await stat(f.filePath)).size, modifiedAt: (await stat(f.filePath)).mtime.toISOString() }],
+      ["changed", { id: "changed", sourceFolderId: "fixture-folder", path: changedPath, filename: "changed.mp4", sizeBytes: indexed.size, modifiedAt: indexed.mtime.toISOString() }],
+      ["offline", { id: "offline", sourceFolderId: "fixture-folder", path: absentPath, filename: "offline.mp4", sizeBytes: 123, modifiedAt: indexed.mtime.toISOString() }]
+    ]);
+    f.repo.getVideo.mockImplementation((id: string) => {
+      const record = records.get(id);
+      if (!record) throw new Error("Indexed video not found");
+      return record;
+    });
+    f.repo.removeVideo.mockImplementation((id: string) => { records.delete(id); });
+    await writeFile(changedPath, "now-the-file-was-modified-after-indexing");
+
+    const result = await f.invokeBatch(["fixture-video", "changed", "offline"]);
+    expect(result).toMatchObject({ successCount: 1, failureCount: 2 });
+    expect(new Set(result.failures.map((item: { videoId: string }) => item.videoId))).toEqual(new Set(["changed", "offline"]));
+    await expect(stat(f.filePath)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(changedPath, "utf8")).toBe("now-the-file-was-modified-after-indexing");
+    expect(records.has("fixture-video")).toBe(false);
+    expect(records.has("changed")).toBe(true);
+    expect(records.has("offline")).toBe(true);
+    expect(f.repo.removeVideo).toHaveBeenCalledTimes(1);
   });
 
   it("preserves explicitly selected ordinary data-table deletion without a duplicate/hash policy guard", async () => {

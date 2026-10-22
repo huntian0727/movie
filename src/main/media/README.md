@@ -7,10 +7,10 @@
 - `fileDiscovery.ts`：基于 `opendir` 流式递归枚举支持的视频，跳过临时后缀并隔离子目录错误；网盘保护采用单次目录条目读取 30 秒无响应超时，而不是整个目录的固定总时限。
 - `metadataService.ts`：调用静态 ffprobe；一次解析时长、分辨率、容器和首个视频/音频流的 codec、profile、pixel format，不得为 codec 再启动第二次 probe。
 - `playbackMetadataEnricher.ts`：只为历史 metadata ready 且 `codec_probe_status = unprobed`、并且真正准备播放的视频懒补全编码信息；同视频并发合并，成功写 `ready`（包括 codec 为空），失败写 `failed` 且普通播放不重试。播放器最多等待 2 秒，后台 probe 自行收尾并按文件版本更新。禁止把它改成启动时或迁移时的全库回填。
-- `metadataQueue.ts`：单并发后台 FFprobe 队列；按视频 id 去重，启动时恢复 `pending` 任务，并用路径/大小/修改时间防止慢任务覆盖新文件版本。FFprobe 失败写入持久 `scan_failures`，成功后只解决 metadata 阶段异常并通知侧栏刷新。
+- `metadataQueue.ts`：有界后台 FFprobe 队列（最多 3 个 worker；共享 `MediaReadBudget` 将实际媒体读取总并发限制为 2、同一远端来源限制为 1）；按视频 id 去重，启动时恢复 `pending` 任务，并用路径/大小/修改时间防止慢任务覆盖新文件版本。FFprobe 失败写入持久 `scan_failures`，成功后只解决 metadata 阶段异常并通知侧栏刷新。
 - `libraryScanner.ts`：实现当前目录快照扫描和异常项重试。每个目录用 mtime、直属视频/子目录计数和排序摘要独立判断；父目录可跳过直属视频但永远不跳过子目录检查。只对完整枚举的直属目录做缺失对账，父目录明确删除子目录后才清理旧子树快照并软标缺失。
 - CloudDrive API 资料来源由远端目录选择器创建，同时保存挂载播放路径和 provider 根路径。扫描通过 `GetSubFiles` 获取路径、远端 ID、大小和修改时间并写入 SQLite；明确的 API 来源在服务离线时不得退回挂载盘遍历，也不得执行缺失对账。CloudDrive 视频先保持元数据待分析，仅当数据库出现同大小候选时才进入 FFprobe 时长队列。
-- 视频浏览列表的截图条会为当前可见且缺少时长的 pending 视频请求分析，复用 `MetadataQueue.requestVisible` 和既有并发上限。可见请求优先但不抢占正在执行的分析；离屏撤销仅由截图条排入、尚未执行且没有其他消费者的任务，不能取消扫描器/手动重试拥有的任务。CloudDrive 继续优先轻量 `readDuration`，成功写入既有字段；已开始分析有界收尾并缓存结果。失败不自动循环重试。
+- 视频浏览列表的截图条会为当前可见且缺少时长的 pending 视频请求分析，复用 `MetadataQueue.requestVisible` 和既有并发上限；当前页自动分析最多同时提交 2 个请求，避免单任务串行时队列空转；分析失败项可在本页显式批量重试（最多 2 个请求），缺失/0B 项单独计数且不进入媒体重试，切换页面会取消本页拥有的请求。可见请求优先但不抢占正在执行的分析；离屏撤销仅由截图条排入、尚未执行且没有其他消费者的任务，不能取消扫描器/手动重试拥有的任务。CloudDrive 继续优先轻量 `readDuration`，成功写入既有字段；已开始分析有界收尾并缓存结果。失败不自动循环重试。
 - `previewMetadataIpc.ts`：`preview-metadata:load` 接收 `{ requestId: UUID, videoId, retry: boolean }`，分析完成返回当前 `VideoRecord | null`；`preview-metadata:state` 与 `preview-metadata:cancel` 接收 requestId，只能查询/撤销同一 main Renderer 的请求。每窗口最多 64 个请求，导航/关闭释放请求；均沿用可信 IPC 校验。状态查询只读内存队列，不访问磁盘；列表每秒查询可见且尚未完成的请求状态。0B/缺失文件不发起分析，failed 仅用户明确重试才重置。
 - `scanManager.ts`：三种模式的串行调度、同源互斥、任务状态/计数、暂停和协作式取消；全盘逐源复用当前目录扫描，不启用无界并发。
 - `cacheService.ts`：持久缓存位置、旧缓存安全迁移、缓存 key、FFmpeg 封面/时间轴帧生成，以及短视频封面截帧回退。

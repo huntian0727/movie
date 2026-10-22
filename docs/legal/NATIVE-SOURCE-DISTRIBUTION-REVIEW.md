@@ -51,6 +51,10 @@ mpv、FFmpeg、libplacebo、FriBidi 的上游授权包含 later-version 选择�
 
 源代码 ZIP 与最终应用 ZIP 必须在同一公开测试版同时提供。稳定 Windows 11 标准用户覆盖仍未取得；已有本机沙盒是 Insider Preview，其五类声音/画面和绿色数据保留验收记录单独保存。维护者最新公开测试版授权与准确范围见 `PUBLIC_TEST_RELEASE_DECISION.md`，不是稳定系统的验收结论。
 
+## v0.1.16-beta.1 审阅补充（2026-10-22）
+
+本次公开预发布复用此前已核准的同一 FFmpeg/FFprobe 与共享 libmpv 运行库归档；第三方运行库锁、归档字节和对应源码归档均保持原批准批次不变。39 个分发 PE 中，38 个第三方/运行库文件保持批准哈希不变；唯一变化是项目自有 MIT 代码 NativeHost.exe，由对应的 native/embedded-mpv/NativeHost.cs 为播放倍速新增 mpv speed 属性读取/设置。该源码的材料哈希已在下方清单更新；本机和 GitHub Windows CI #251 的确定性构建均得到 SHA-256 d2d3b8065aad06f2409d854e33fe3769dd04e959487fcf454976993504298ace。新包已完成 230 个文件的逐项 ZIP 验证和打包程序 smoke。此次范围仍是公开预发布，不表示稳定 Windows 11、标准用户权限、签名安装/升级或真实 CloudDrive/115 删除行为已验收。
+
 ## Reviewed material byte hashes
 
 Owned text/code hashes canonicalize CRLF to LF; upstream TXT bytes remain exact.
@@ -71,7 +75,7 @@ material-sha256 5af705f2dfaac18d8e89133d32538ef1c8955e5713a4f4950e54a52c2e8feea5
 material-sha256 92f3039a098d5251ed5604bcc2a5dcdb7344d0afd5652990bd11680c080f5956 docs/legal/NATIVE-SOURCE-COMPILE-REVIEW.json
 material-sha256 8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903 docs/legal/GNU-GPLv3.txt
 material-sha256 da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768 docs/legal/GNU-LGPLv3.txt
-material-sha256 db5e94ee76f1b5fa3015e4f935d9fcad0c981eb8b9fb429322cdcf55696b5376 native/embedded-mpv/NativeHost.cs
+material-sha256 c175e5b97799d9157e71568eac74924c51080a6c85745e90549979ad28a18fb4 native/embedded-mpv/NativeHost.cs
 material-sha256 0ecf25f02be8f93810ab2e4ef34edc4a4406a1ed93cf4e2e6bbe50b6462f27f8 scripts/build-native-player.mjs
 material-sha256 fd71a9a4fb90fa06ec62ff1e8aba276e25929db9326da6735c2406da59cf1f09 scripts/native-player-toolchain.mjs
 material-sha256 dbc59c9a468f0671b6f422a02da1d1fa46acd17acfd6123f309c926f8a8b73b8 scripts/native-player-toolchain.lock.json

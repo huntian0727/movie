@@ -91,8 +91,10 @@ describe("public beta authorization is separate from stable Windows acceptance",
     const approval = JSON.parse(await readFile("build/public-test-approval.json", "utf8"));
     const pkg = JSON.parse(await readFile("package.json", "utf8"));
     expect(approval).toMatchObject({ approved: true, version: "0.1.15-beta.3", scope: "public-prerelease-portable-only", stableReleaseApproved: false });
-    expect(pkg.version).toBe("0.1.15");
+    expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(pkg.version).not.toBe(approval.version);
     expect(approval.packageLockSha256).toBe("e45ecc4bdd40b0a90f72727cf1becdab349dc65fc84b2474cdceb968aae0addb");
+    expect(approval.packageLockSha256).not.toBe(await hashFile("package-lock.json"));
     expect(approval.nativeSourceApprovalSha256).toBe(await hashFile("build/native-source-approval.json"));
     expect(approval.decisionEvidenceSha256).toBe(await hashFile(approval.decisionEvidence));
     expect(approval.sandboxEvidenceSha256).toBe(await hashFile(approval.sandboxEvidence));
@@ -137,7 +139,7 @@ describe("private community QA and exact source release approval", () => {
     expect(() => createBuildFlavor(manifest, { MOVIE_RELEASE_CLASS: "unsigned-community-qa", CSC_LINK: "synthetic" })).toThrow();
     expect(() => createBuildFlavor(manifest, { ...publicEnv, MOVIE_PLAYER_VARIANT: "legacy-candidate" })).toThrow();
   });
-  it("covers all 39 reviewed real PE paths while stable Windows approval stays closed", async () => {
+  it("retains 39 historical reviewed PE approvals but rejects the new unapproved source runtime", async () => {
     const media = JSON.parse(await readFile("scripts/native-source-media.lock.json", "utf8"));
     const player = JSON.parse(await readFile("scripts/native-source-player-runtime.lock.json", "utf8"));
     const approval = JSON.parse(await readFile("build/native-source-approval.json", "utf8"));
@@ -145,10 +147,19 @@ describe("private community QA and exact source release approval", () => {
     expect(approval.binaries.every(item => item.sourceComplianceApproved === true)).toBe(true);
     const stable = JSON.parse(await readFile("build/release-approval.json", "utf8"));
     expect(stable).toMatchObject({ approved: true, manualQaApproved: true, scope: "stable-portable-only", version: "0.1.15", stableWindowsCoverage: false, standardUserCoverage: false, legacyUpgradeApproved: false });
+    expect(media.status).toBe("CANDIDATE_NOT_APPROVED"); expect(media.distributable).toBe(false);
+    expect(player.status).toBe("CANDIDATE_NOT_APPROVED"); expect(player.distributable).toBe(false);
+    expect(media.producerCiConclusion).toBe("SUCCESS"); expect(media.originalCiClosureValid).toBe(true);
+    expect(player.producerCiConclusion).toBe("SUCCESS"); expect(player.originalCiClosureValid).toBe(true);
     const host = approval.binaries.find(item => item.path === "native-player/NativeHost.exe");
-    expect(approval.binaries.map(({ path, sha256 }) => ({ path, sha256 }))).toEqual(sourceBinaryRecords(media, player, host.sha256));
-    expect(approval.mediaRuntimeLockSha256).toBe(await hashFile("scripts/native-source-media.lock.json"));
-    expect(approval.playerRuntimeLockSha256).toBe(await hashFile("scripts/native-source-player-runtime.lock.json"));
+    expect(approval.binaries.map(({ path, sha256 }) => ({ path, sha256 }))).not.toEqual(sourceBinaryRecords(media, player, host.sha256));
+    expect(approval.mediaRuntimeLockSha256).not.toBe(await hashFile("scripts/native-source-media.lock.json"));
+    expect(approval.playerRuntimeLockSha256).not.toBe(await hashFile("scripts/native-source-player-runtime.lock.json"));
+    await expect(verifySourceReleaseApproval(process.cwd(), {
+      releaseClass: "unsigned-public-release", mediaVariant: "source-candidate", playerRuntimeVariant: "source-candidate",
+      mediaRuntimeLockSha256: await hashFile("scripts/native-source-media.lock.json"),
+      playerRuntimeLockSha256: await hashFile("scripts/native-source-player-runtime.lock.json"),
+    }, async () => {})).rejects.toThrow(/Source runtime approval or paired input locks differ/);
   });
   it("accepts a fully approved synthetic pair and binds both approval manifests", async () => {
     const { root, flavor, approval } = await sourceFixture();
@@ -201,12 +212,24 @@ describe("private community QA and exact source release approval", () => {
 });
 
 describe("owner-selected Windows scope for stable portable release", () => {
-  it("binds actual current decision, dependency and Sandbox evidence without claiming stable OS coverage", async () => {
+  it("retains historical decision and Sandbox evidence but never reuses stale approval for the current package", async () => {
     const a = JSON.parse(await readFile("build/release-approval.json", "utf8"));
-    expect(a.packageLockSha256).toBe(await hashFile("package-lock.json"));
+    const pkg = JSON.parse(await readFile("package.json", "utf8"));
+    const currentLockSha256 = await hashFile("package-lock.json");
+    expect(a.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(a.version === pkg.version).toBe(a.packageLockSha256 === currentLockSha256);
+    if (a.version !== pkg.version || a.packageLockSha256 !== currentLockSha256) {
+      await expect(verifyFormalApproval(process.cwd(), {
+        releaseClass: "unsigned-public-release",
+        version: pkg.version,
+        mediaVariant: "source-candidate",
+        playerRuntimeVariant: "source-candidate",
+        publicTestRelease: false,
+      })).rejects.toThrow();
+    }
     for (const [file, pin] of [[a.decisionEvidence, a.decisionEvidenceSha256], [a.cleanWindows11Evidence, a.cleanWindows11EvidenceSha256]]) expect(await hashFile(file)).toBe(pin);
     const qa = JSON.parse(await readFile(a.cleanWindows11Evidence, "utf8"));
-    expect(qa).toMatchObject({ ownerAcceptedEnvironment: true, status: "PASS_OWNER_ACCEPTED_SANDBOX_SCOPE", version: "0.1.15", environment: {stableWindowsCoverage:false, standardUserCoverage:false} });
+    expect(qa).toMatchObject({ ownerAcceptedEnvironment: true, status: "PASS_OWNER_ACCEPTED_SANDBOX_SCOPE", version: a.version, environment: {stableWindowsCoverage:false, standardUserCoverage:false} });
     expect(await hashFile(qa.previousSandboxEvidence)).toBe(qa.previousSandboxEvidenceSha256);
   });
   it("does not permit installer or directory mode from a ZIP approval", () => {

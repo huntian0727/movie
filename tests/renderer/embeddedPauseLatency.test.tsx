@@ -4,7 +4,7 @@ import { useEmbeddedEngine } from "../../src/renderer/components/useEmbeddedEngi
 import type { EmbeddedRequest, EmbeddedState } from "../../src/shared/embeddedPlayback";
 
 afterEach(() => vi.useRealTimers());
-const state = (key: string, paused = true): EmbeddedState => ({ sessionKey: key, phase: paused ? "paused" : "playing", paused, time: 3, duration: 12, volume: 20, rotation: 0, fullscreen: false, tracks: [] });
+const state = (key: string, paused = true): EmbeddedState => ({ sessionKey: key, phase: paused ? "paused" : "playing", paused, time: 3, duration: 12, volume: 20, speed: 1, rotation: 0, fullscreen: false, tracks: [] });
 function fixture(implementation?: (request: EmbeddedRequest) => Promise<EmbeddedState>) {
   const api = { embeddedPlayback: vi.fn(implementation ?? (async r => state(r.sessionKey))), subscribeEmbeddedInput: vi.fn(() => vi.fn()) };
   const hook = renderHook(({ videoId }) => useEmbeddedEngine({ api, enabled: true, videoId, autoplay: false, stage: { current: null }, visible: true, layoutKey: "", onInput: () => undefined }), { initialProps: { videoId: "one" } });

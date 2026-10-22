@@ -1,6 +1,6 @@
 {
   "name": "local-video-manager",
-  "version": "0.1.15",
+  "version": "0.1.16-beta.1",
   "private": true,
   "license": "MIT",
   "main": "dist-main/main/index.js",
@@ -41,6 +41,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "lint": "npm run typecheck",
+    "version:minor": "node scripts/bump-display-version.mjs minor",
+    "version:major": "node scripts/bump-display-version.mjs major",
     "build": "npm run clean && tsc -p tsconfig.node.json && tsc -p tsconfig.web.json && vite build",
     "package": "npm run package:dir",
     "package:development": "npm run build && node scripts/build-native-player.mjs && npm run prepare:electron && node scripts/package-development.mjs",

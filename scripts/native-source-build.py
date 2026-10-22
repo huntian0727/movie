@@ -33,6 +33,24 @@ def replace_once(text, old, new):
     return text.replace(old, new, 1)
 
 
+def patch_mpv_build(text):
+    # FFmpeg marks AVStream fields as deprecated; keep that warning visible but
+    # do not let this upstream compatibility warning fail the MPV build.
+    text = replace_once(
+        text,
+        "CFLAGS+=\" -I'$prefix_dir/include'\"",
+        "CFLAGS+=\" -I'$prefix_dir/include' -Wno-error=deprecated-declarations\"",
+    )
+    # The upstream shell recipe can otherwise hide Meson failures and continue
+    # into packaging. Stop immediately with the compiler exit status.
+    text = replace_once(
+        text,
+        'meson compile -C $build -j "${BUILD_JOBS:-2}"',
+        'meson compile -C $build -j "${BUILD_JOBS:-2}" || exit $?',
+    )
+    return text
+
+
 def patch_recipe(raw, helper):
     if hashlib.sha256(raw).hexdigest() != RECIPE_SHA:
         raise ValueError("Upstream recipe bytes differ")
@@ -54,6 +72,7 @@ def patch_recipe(raw, helper):
     text = text.replace("ninja\n", 'ninja -j "${BUILD_JOBS:-2}"\n')
     text = replace_once(text, "meson compile -C $build", 'meson compile -C $build -j "${BUILD_JOBS:-2}"')
     text = text.replace("make -j$(nproc)", 'make -j"${BUILD_JOBS:-2}"')
+    text = patch_mpv_build(text)
     text = "export SOURCE_CAPTURE=" + json.dumps(str(helper)) + "\n" + text
     return text
 

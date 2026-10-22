@@ -1,8 +1,8 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readdirSync, renameSync, writeFileSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
-import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { DuplicateCleanupService } from "../../src/main/media/duplicateCleanupService";
@@ -169,18 +169,33 @@ describe("verified duplicate restoration never overwrites concurrent user media"
       const stable = [stats.dev, stats.ino, stats.birthtimeNs].map(String).join(":");
       return JSON.stringify({ stable, version: [stable, stats.size, stats.mtimeNs, stats.ctimeNs].map(String).join(":") });
     };
-    const hash = crypto.createHash("sha256").update("original-duplicate-video").digest("hex");
-    const item = { id: "final-isolated-item", delete_video_id: "synthetic-video", keep_path: keep, delete_path: original,
-      staged_delete_path: null as string | null, expected_keep_size_bytes: Number(keepStats.size),
+    const expectedSize = Number(keepStats.size);
+    const item = { id: "final-isolated-item", group_key: `size-duration:${expectedSize}:5000`,
+      keep_video_id: "synthetic-keep", delete_video_id: "synthetic-video", keep_path: keep, delete_path: original,
+      staged_delete_path: null as string | null, expected_keep_size_bytes: expectedSize,
       expected_keep_modified_at: keepOrdinary.mtime.toISOString(), expected_delete_size_bytes: Number(deleteStats.size),
       expected_delete_modified_at: deleteOrdinary.mtime.toISOString(), keep_file_identity: identity(keepStats),
-      delete_file_identity: identity(deleteStats), keep_sha256: hash, delete_sha256: hash };
+      delete_file_identity: identity(deleteStats), keep_sha256: null, delete_sha256: null };
     const jobs = { interruptActiveJobs: vi.fn(), recoverFastJobs: () => [],
       listStagedItems: () => item.staged_delete_path ? [item] : [], isCancelling: () => false,
       prepareIsolation: (_job: string, _item: string, staged: string) => { item.staged_delete_path = staged; return true; },
-      claimDeletionItem: () => true, clearIsolation: vi.fn(), updateItem: vi.fn() };
-    const videos = { listSourceFolders: () => [{ id: "synthetic-source", path: managed, enabled: true }], removeVideo: vi.fn() };
-    let keepHashCalls = 0;
+      claimDeletionItem: () => {
+        const stagedName = readdirSync(managed).find(name => name.includes(".movie-delete-"));
+        if (!stagedName) throw new Error("Isolation did not occur before final file identity check");
+        const staged = path.join(managed, stagedName);
+        renameSync(staged, retained);
+        writeFileSync(staged, "newcomer-isolated-video!");
+        return true;
+      },
+      clearIsolation: vi.fn(), recordIsolationRecoveryFailure: vi.fn(), updateItem: vi.fn() };
+    const videos = {
+      listSourceFolders: () => [{ id: "synthetic-source", path: managed, enabled: true }],
+      getVideo: (id: string) => id === "synthetic-keep"
+        ? { path: keep, sizeBytes: expectedSize, durationMs: 5000, modifiedAt: keepOrdinary.mtime.toISOString(), metadataStatus: "ready", isMissing: false }
+        : { path: original, sizeBytes: expectedSize, durationMs: 5000, modifiedAt: deleteOrdinary.mtime.toISOString(), metadataStatus: "ready", isMissing: false },
+      removeVideo: vi.fn()
+    };
+    const hashFile = vi.fn();
     const deleteFile = vi.fn(async (file: string) => rm(file));
     const service = new DuplicateCleanupService(
       jobs as unknown as ConstructorParameters<typeof DuplicateCleanupService>[0],
@@ -188,21 +203,12 @@ describe("verified duplicate restoration never overwrites concurrent user media"
       {} as ConstructorParameters<typeof DuplicateCleanupService>[2],
       {} as ConstructorParameters<typeof DuplicateCleanupService>[3],
       { publish: vi.fn() } as unknown as ConstructorParameters<typeof DuplicateCleanupService>[4],
-      { deleteFile, hashFile: async (file) => {
-        if (file === keep && ++keepHashCalls === 2) {
-          const stagedName = (await readdir(managed)).find(name => name.includes(".movie-delete-"));
-          if (!stagedName) throw new Error("Isolation did not occur before final keep hash");
-          const staged = path.join(managed, stagedName);
-          await rename(staged, retained);
-          await writeFile(staged, "newcomer-isolated-video!");
-        }
-        return crypto.createHash("sha256").update(await readFile(file)).digest("hex");
-      } }
+      { deleteFile, hashFile }
     );
     const internal = service as unknown as InternalService;
     await internal.recoveryPromise;
     await internal.processAuthorizedDelete("synthetic-job", item);
-    expect(keepHashCalls, JSON.stringify(jobs.updateItem.mock.calls)).toBe(2);
+    expect(hashFile).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
     expect(videos.removeVideo).not.toHaveBeenCalled();
     expect(await readFile(item.staged_delete_path!, "utf8")).toBe("newcomer-isolated-video!");

@@ -285,10 +285,10 @@ export class DuplicateCleanupRepository {
         WHERE candidate.id IN (${placeholders}) AND candidate.is_missing = 0
           AND candidate.metadata_status = 'ready' AND candidate.duration_ms IS NOT NULL AND candidate.duration_ms > 0
           AND EXISTS (SELECT 1 FROM videos peer WHERE peer.id <> candidate.id AND peer.is_missing = 0
-            AND peer.metadata_status = 'ready' AND peer.duration_ms = candidate.duration_ms
+            AND peer.metadata_status = 'ready' AND ((peer.duration_ms + 500) / 1000) = ((candidate.duration_ms + 500) / 1000)
             AND peer.size_bytes = candidate.size_bytes) LIMIT 1`).get(...chunk) as { id: string } | undefined;
       if (row) {
-        throw new Error("A selected video is a duplicate candidate. Permanent deletion requires full SHA-256 verification and separate confirmation.");
+        throw new Error("选中的视频符合大小与时长重复条件；请先核对候选，并在后台任务中单独确认删除。");
       }
     }
   }
@@ -422,7 +422,6 @@ export class DuplicateCleanupRepository {
   recordVerificationGroup(
     jobId: string, groupKey: string, revision: string,
     result: Extract<DuplicateVerificationStatus, "verified-identical" | "content-different" | "unverifiable">,
-    keepHash: string | null, deleteHashes: ReadonlyMap<string, string>,
     keepIdentity: string | null, deleteIdentities: ReadonlyMap<string, string>, error: string | null
   ): void {
     const now = new Date().toISOString();
@@ -432,11 +431,11 @@ export class DuplicateCleanupRepository {
         throw new Error("Verification result is stale and was rejected.");
       }
       const rows = this.db.prepare("SELECT id FROM duplicate_cleanup_items WHERE job_id = ? AND group_key = ? AND status <> 'deleted'").all(jobId, groupKey) as Array<{ id: string }>;
-      const update = this.db.prepare(`UPDATE duplicate_cleanup_items SET verification_status = ?, keep_sha256 = ?, delete_sha256 = ?,
+      const update = this.db.prepare(`UPDATE duplicate_cleanup_items SET verification_status = ?, keep_sha256 = NULL, delete_sha256 = NULL,
         keep_file_identity = ?, delete_file_identity = ?, verified_at = ?, verification_error = ?,
         authorized_revision = NULL, updated_at = ? WHERE id = ? AND verification_revision = ?`);
-      for (const row of rows) update.run(result, keepHash, deleteHashes.get(row.id) ?? null,
-        keepIdentity, deleteIdentities.get(row.id) ?? null, now, error, now, row.id, revision);
+      for (const row of rows) update.run(result, keepIdentity, deleteIdentities.get(row.id) ?? null,
+        now, error, now, row.id, revision);
       this.refreshVerificationCounts(jobId);
     })();
   }
@@ -466,18 +465,16 @@ export class DuplicateCleanupRepository {
         throw new Error("This task is not awaiting permanent deletion confirmation.");
       }
       if (!job.verificationRevision || job.verificationRevision !== request.verificationRevision || job.verificationCompletedAt === null) {
-        throw new Error("Full SHA-256 verification is missing or stale.");
+        throw new Error("大小与时长核对记录缺失或已过期，请重新核对候选。");
       }
       const invalid = (this.db.prepare(`SELECT COUNT(*) AS count FROM duplicate_cleanup_items
         WHERE job_id = ? AND verification_status = 'verified-identical'
-          AND (verification_revision <> ? OR keep_sha256 IS NULL OR length(keep_sha256) <> 64
-            OR delete_sha256 IS NULL OR length(delete_sha256) <> 64 OR keep_sha256 <> delete_sha256
-            OR keep_file_identity IS NULL OR delete_file_identity IS NULL)`)
+          AND (verification_revision <> ? OR keep_file_identity IS NULL OR delete_file_identity IS NULL)`)
         .get(job.id, job.verificationRevision) as { count: number }).count;
       const eligible = (this.db.prepare(`SELECT COUNT(*) AS count FROM duplicate_cleanup_items
         WHERE job_id = ? AND verification_status = 'verified-identical' AND verification_revision = ?`)
         .get(job.id, job.verificationRevision) as { count: number }).count;
-      if (invalid > 0 || eligible === 0) throw new Error("No fresh successful full SHA-256 authorization is available.");
+      if (invalid > 0 || eligible === 0) throw new Error("没有有效的大小/时长核对记录或文件身份记录，请重新核对。");
       const authorization = crypto.randomUUID();
       const now = new Date().toISOString();
       this.db.prepare(`UPDATE duplicate_cleanup_items SET
@@ -499,7 +496,6 @@ export class DuplicateCleanupRepository {
     if (job.workflowVersion !== 2 || job.phase !== "deletion" || !job.authorizedRevision || job.status !== "running") return [];
     return this.db.prepare(`SELECT * FROM duplicate_cleanup_items WHERE job_id = ? AND status = 'pending'
       AND verification_status = 'verified-identical' AND verification_revision = ? AND authorized_revision = ?
-      AND keep_sha256 IS NOT NULL AND length(keep_sha256) = 64 AND delete_sha256 = keep_sha256
       AND keep_file_identity IS NOT NULL AND delete_file_identity IS NOT NULL ORDER BY created_at`)
       .all(jobId, job.verificationRevision, job.authorizedRevision) as ItemRow[];
   }
@@ -508,7 +504,6 @@ export class DuplicateCleanupRepository {
     const now = new Date().toISOString();
     return this.db.prepare(`UPDATE duplicate_cleanup_items SET status = 'deleting', updated_at = ?
       WHERE id = ? AND job_id = ? AND status = 'pending' AND verification_status = 'verified-identical'
-        AND keep_sha256 IS NOT NULL AND length(keep_sha256) = 64 AND delete_sha256 = keep_sha256
         AND keep_file_identity IS NOT NULL AND delete_file_identity IS NOT NULL
         AND verification_revision = (SELECT verification_revision FROM duplicate_cleanup_jobs WHERE id = ?)
         AND authorized_revision = (SELECT authorized_revision FROM duplicate_cleanup_jobs WHERE id = ?)
@@ -521,7 +516,8 @@ export class DuplicateCleanupRepository {
     const now = new Date().toISOString();
     return this.db.prepare(`UPDATE duplicate_cleanup_items SET staged_delete_path = ?, staged_at = ?, updated_at = ?
       WHERE id = ? AND job_id = ? AND status = 'pending' AND staged_delete_path IS NULL
-        AND verification_status = 'verified-identical' AND keep_sha256 = delete_sha256
+        AND verification_status = 'verified-identical'
+        AND keep_file_identity IS NOT NULL AND delete_file_identity IS NOT NULL
         AND verification_revision = (SELECT verification_revision FROM duplicate_cleanup_jobs WHERE id = ?)
         AND authorized_revision = (SELECT authorized_revision FROM duplicate_cleanup_jobs WHERE id = ?)
         AND EXISTS (SELECT 1 FROM duplicate_cleanup_jobs WHERE id = ? AND workflow_version = 2

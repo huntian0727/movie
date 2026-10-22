@@ -37,6 +37,32 @@ describe("source community workflow delivery boundaries", () => {
     const artifactSection = workflow.slice(workflow.indexOf("- name: Upload metadata only"));
     expect(artifactSection).not.toMatch(/win-unpacked|\*Setup|\.zip\s*$/m);
   });
+  it("pins durable FFmpeg only for isolated Windows CI tests without authorizing source-built distribution", async () => {
+    const ci = await readFile(".github/workflows/windows-ci.yml", "utf8");
+    const nodeTests = ci.split("  node-tests:")[1]?.split("  electron-smoke:")[0];
+    const unsignedQa = ci.split("  unsigned-installation-qa:")[1];
+    expect(nodeTests).toBeDefined();
+    expect(unsignedQa).toBeDefined();
+    expect(nodeTests).toContain("MOVIE_MEDIA_VARIANT: lite-candidate");
+    expect(nodeTests).toContain("Stage pinned Lite QA tools for synthetic-media tests");
+    expect(nodeTests).toContain(".tmp/native-media-lite-tools/*");
+    expect(nodeTests).toContain("native-bin/media-tools/ffmpeg.exe");
+    expect(nodeTests).toContain("npm run test:release-gate");
+    expect(unsignedQa).toContain("MOVIE_RELEASE_CLASS: unsigned-test-build");
+    expect(unsignedQa).toContain("MOVIE_MEDIA_VARIANT: lite-candidate");
+    for (const gate of ["npm run verify:artifact", "npm run test:packaged-smoke", "npm run test:installer-smoke"]) {
+      expect(unsignedQa).toContain(gate);
+    }
+    const lite = JSON.parse(await readFile("scripts/native-media-lite.lock.json", "utf8"));
+    expect(lite.status).toBe("CANDIDATE_NOT_APPROVED");
+    expect(lite.distributable).toBe(false);
+    const media = JSON.parse(await readFile("scripts/native-source-media.lock.json", "utf8"));
+    expect(media.variant).toBe("source-candidate");
+    expect(media.distributable).toBe(false);
+    expect(media.producerCiConclusion).toBe("SUCCESS");
+    const release = await readFile(".github/workflows/source-community-build.yml", "utf8");
+    expect(release).toContain("MOVIE_MEDIA_VARIANT: source-candidate");
+  });
   it("uses the same pinned inputs in its read-only transport probe", async () => {
     const probe = await readFile(".github/workflows/native-source-input-check.yml", "utf8");
     expect(probe).toContain("contents: read"); expect(probe).toContain("prepare-source-release-inputs.mjs");

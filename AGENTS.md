@@ -36,6 +36,14 @@ powershell -ExecutionPolicy Bypass -File scripts/finish-and-push.ps1 -Message "<
 
 以后每次开发固定执行：阅读 `AGENTS.md`（首次接手再读 `docs/ai/START_HERE.md`）→ 检查工作区 → 运行 `project-backup.ps1` 创建开发前快照 → 创建功能分支 → 完成开发 → 写交付记录 → 运行测试 → 运行 `finish-and-push.ps1` → 备份旧 `main` → 更新 GitHub `main` → 只报告关键结果和备份标签、数据快照 ID。
 
+## 本地界面版本号（维护者约定 2026-10-21）
+
+- 左上角“拉面影视”旁必须显示当前交付的两段式界面版本 `v主版本.次版本`，唯一数据源 `src/shared/displayVersion.json`；初始交付为 `v1.1`。两个分量都是整数，主版本至少 1，次版本为 0～999。
+- 每次用户可感知的开发任务（新增功能、缺陷修复、UI 改进）完成并交付前，运行 `npm run version:minor` 更新第二段；只有用户明确认定为重大升级时运行 `npm run version:major`，增加第一段并将第二段重置为 0。**不要因测试重跑、重复打包而再次涨版本。** 不修改 `package.json` 的技术三段 SemVer 来模拟界面号。
+- 修改版本文件后应一起提交本地 Git。`package:development` 会读取它写入 `resources/build-flavor.json` 中的 `displayVersion`，检查与旧日常桌面包相比同版本是否被新的 Git 提交复用；检测到未升级将阻止打包。正式打包流程也写入界面版本标记。
+- 每次交付最终回答必须写明：**本次界面版本、对应 Git 提交、实际桌面快捷方式目标、新版是否已启动核对**。用户只须看左上角的版本，即可与交付说明对比。
+- **当前会话用户已经明确暂停 GitHub Push/Release**：这条当期指令优先于本文件旧“自动交付”模板。直到用户明确重新授权，所有修改只本地提交、仅更新家里电脑日常版，不运行会推送远程的 `finish-and-push.ps1`。
+
 ## 桌面端可用性交付（强制）
 
 凡是会影响 Electron 桌面端行为或界面的任务，代码提交和推送不代表用户已经拿到新版本。交付前必须同时完成：

@@ -125,6 +125,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
   const pendingRemovalSequence = useRef(0);
   const pendingMetadataSequence = useRef(0);
   const lastAppliedSequence = useRef(0);
+  const playerSessionSyncSequence = useRef(0);
   const focusCheckPending = useRef(false);
   const initialized = useRef(false);
   const playerVideoIds = useRef(new Set<string>());
@@ -155,14 +156,18 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
     try {
       const syncSnapshot = providedSnapshot ?? await api.getWindowSyncSnapshot();
       lastAppliedSequence.current = Math.max(lastAppliedSequence.current, syncSnapshot.sequence);
+      playerSessionSyncSequence.current = Math.max(playerSessionSyncSequence.current, syncSnapshot.sequence);
       const nextPlayerSession = isPlayerWindow ? syncSnapshot.playerSession : null;
       if (isPlayerWindow) {
         const [settingsSnapshot, nextPlayHistory] = await Promise.all([
           api.getSettings(),
           api.listPlayHistory()
         ]);
-        setVideos(nextPlayerSession?.videos ?? []);
-        setPlayerSession(nextPlayerSession);
+        if (syncSnapshot.sequence >= playerSessionSyncSequence.current) {
+          playerSessionSyncSequence.current = syncSnapshot.sequence;
+          setVideos(nextPlayerSession?.videos ?? []);
+          setPlayerSession(nextPlayerSession);
+        }
         setSettings(settingsSnapshot.settings);
         setCacheLocation(settingsSnapshot.cacheLocation);
         setCacheStatus(settingsSnapshot.cacheStatus);
@@ -203,7 +208,19 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       return;
     }
     if (event.type === "playback:changed") {
-      setPlayHistory(await api.listPlayHistory());
+      const playHistoryPromise = api.listPlayHistory();
+      if (isPlayerWindow) {
+        const snapshot = await api.getWindowSyncSnapshot();
+        if (
+          snapshot.sequence >= event.sequence &&
+          snapshot.sequence >= playerSessionSyncSequence.current
+        ) {
+          playerSessionSyncSequence.current = snapshot.sequence;
+          setVideos(snapshot.playerSession?.videos ?? []);
+          setPlayerSession(snapshot.playerSession);
+        }
+      }
+      setPlayHistory(await playHistoryPromise);
       return;
     }
     if (isPlayerWindow) {

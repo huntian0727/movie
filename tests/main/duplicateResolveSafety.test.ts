@@ -218,7 +218,7 @@ describe("duplicate cleanup stale-file safety", () => {
   it("hard-fails the former fast-delete helper before any file mutation", async () => {
     const fixture = await createDuplicateFixture();
     const deleteFile = vi.fn();
-    await expect(resolveDuplicatePlanFast(fixture.repo, fixture.plan, { deleteFile })).rejects.toThrow(/full SHA-256 verification is permanently disabled/i);
+    await expect(resolveDuplicatePlanFast(fixture.repo, fixture.plan, { deleteFile })).rejects.toThrow(/Fast duplicate deletion remains disabled/i);
     expect(deleteFile).not.toHaveBeenCalled();
     expect(await readFile(fixture.keepVideo.path)).toHaveLength(16);
     expect(await readFile(fixture.deleteVideo.path)).toHaveLength(16);
@@ -232,7 +232,7 @@ describe("duplicate cleanup stale-file safety", () => {
       groups: [{ ...fixture.plan.groups[0], deleteVideoIds: [fixture.keepVideo.id] }]
     };
 
-    await expect(resolveDuplicatePlanFast(fixture.repo, invalidPlan, { deleteFile })).rejects.toThrow(/full SHA-256 verification is permanently disabled/i);
+    await expect(resolveDuplicatePlanFast(fixture.repo, invalidPlan, { deleteFile })).rejects.toThrow(/Fast duplicate deletion remains disabled/i);
     expect(deleteFile).not.toHaveBeenCalled();
     expect(await readFile(fixture.keepVideo.path)).toHaveLength(16);
     expect(await readFile(fixture.deleteVideo.path)).toHaveLength(16);

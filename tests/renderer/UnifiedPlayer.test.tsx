@@ -9,11 +9,12 @@ import { useEmbeddedEngine } from "../../src/renderer/components/useEmbeddedEngi
 const video = { id: "v1", filename: "测试.mp4", path: "D:/test/测试.mp4", directory: "D:/test", extension: ".mp4", durationMs: 90000, sizeBytes: 1024, width: 1920, height: 1080, modifiedAt: "2026-10-03", importedAt: "2026-10-03", metadataStatus: "ready", codecProbeStatus: "ready" } as VideoRecord;
 function bridge() {
   let input: (event: EmbeddedInput) => void = () => undefined;
-  let state: EmbeddedState = { sessionKey: "", phase: "paused", time: 30, duration: 90, paused: true, volume: 20, rotation: 0, fullscreen: false, tracks: [] };
+  let state: EmbeddedState = { sessionKey: "", phase: "paused", time: 30, duration: 90, paused: true, volume: 20, speed: 1, rotation: 0, fullscreen: false, tracks: [] };
   const unsubscribe = vi.fn();
   const api = {
     embeddedPlayback: vi.fn(async (request: EmbeddedRequest) => {
       if (request.op === "fullscreen") state = { ...state, fullscreen: request.value };
+      if (request.op === "speed") state = { ...state, speed: request.value };
       return { ...state, sessionKey: request.sessionKey };
     }),
     subscribeEmbeddedInput: vi.fn(listener => { input = listener; return unsubscribe; })
@@ -219,7 +220,7 @@ describe("original player UI with embedded engine", () => {
   });
   it("updates play/pause from confirmation without waiting for the next poll", async () => {
     const b = bridge();
-    b.api.embeddedPlayback.mockImplementation(async r => ({ sessionKey: r.sessionKey, phase: r.op === "pause" && !r.value ? "playing" : "paused", paused: r.op !== "pause" || r.value, time: 30, duration: 90, volume: 20, rotation: 0, fullscreen: false, tracks: [] }));
+    b.api.embeddedPlayback.mockImplementation(async r => ({ sessionKey: r.sessionKey, phase: r.op === "pause" && !r.value ? "playing" : "paused", paused: r.op !== "pause" || r.value, time: 30, duration: 90, volume: 20, speed: 1, rotation: 0, fullscreen: false, tracks: [] }));
     const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
     await screen.findByText("已暂停");
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "播放" })));
@@ -232,7 +233,7 @@ describe("original player UI with embedded engine", () => {
     const b = bridge();
     const original = b.api.embeddedPlayback.getMockImplementation()!;
     const replies: Array<() => void> = [];
-    b.api.embeddedPlayback.mockImplementation(r => r.op !== "pause" ? original(r) : new Promise(resolve => replies.push(() => resolve({ sessionKey: r.sessionKey, phase: r.value ? "paused" : "playing", paused: r.value, time: 30, duration: 90, volume: 20, rotation: 0, fullscreen: false, tracks: [] }))));
+    b.api.embeddedPlayback.mockImplementation(r => r.op !== "pause" ? original(r) : new Promise(resolve => replies.push(() => resolve({ sessionKey: r.sessionKey, phase: r.value ? "paused" : "playing", paused: r.value, time: 30, duration: 90, volume: 20, speed: 1, rotation: 0, fullscreen: false, tracks: [] }))));
     const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
     await screen.findByText("已暂停");
     const button = screen.getByRole("button", { name: "播放" });
@@ -317,6 +318,23 @@ describe("original player UI with embedded engine", () => {
     expect(b.api.embeddedPlayback.mock.calls.some(([r]) => ["audio-track", "subtitle-track", "subtitle-file"].includes(r.op))).toBe(false);
     view.rerender(<PlayerPage video={{ ...video, id: "native" }} embeddedApi={b.api} playbackRoute="native" />);
     expectNoTrackControls(); view.unmount();
+  });
+  it("updates the embedded decoder speed and retains it when playing the next video", async () => {
+    const b = bridge();
+    const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" />);
+    try {
+      await screen.findByText("已暂停");
+      const control = screen.getByRole("combobox", { name: "播放倍速" });
+      expect(control).toHaveValue("1");
+      for (const rate of [3, 4, 5]) {
+        fireEvent.change(control, { target: { value: String(rate) } });
+        await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "speed", value: rate })));
+        await waitFor(() => expect(control).toHaveValue(String(rate)));
+      }
+      view.rerender(<PlayerPage video={{ ...video, id: "next", filename: "后续视频.mp4" }} embeddedApi={b.api} playbackRoute="embedded" />);
+      await waitFor(() => expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "start", videoId: "next" })));
+      expect(screen.getByRole("combobox", { name: "播放倍速" })).toHaveValue("5");
+    } finally { view.unmount(); }
   });
   it("shows fullscreen failure without claiming success and retries", async () => {
     const b = bridge(), original = b.api.embeddedPlayback.getMockImplementation()!;

@@ -16,6 +16,10 @@ jobs:
   node-tests:
     name: Node tests and Windows file safety
     runs-on: windows-latest
+    # CI uses a pinned test-only LGPL input because the prior BtbN autobuild expired.
+    # Source-built public candidates require separate provenance and owner approval.
+    env:
+      MOVIE_MEDIA_VARIANT: lite-candidate
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -33,6 +37,14 @@ jobs:
           key: windows-node-22.23.1-npm-10.9.8-${{ hashFiles('package-lock.json') }}-abi-node
       - run: npm install --global npm@10.9.8
       - run: npm ci
+      - name: Stage pinned Lite QA tools for synthetic-media tests
+        shell: pwsh
+        run: |
+          npm run prepare:media-tools
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned Lite QA media preparation failed.' }
+          New-Item -ItemType Directory -Path 'native-bin/media-tools' -Force | Out-Null
+          Copy-Item -Path '.tmp/native-media-lite-tools/*' -Destination 'native-bin/media-tools' -Force
+          if (-not (Test-Path 'native-bin/media-tools/ffmpeg.exe') -or -not (Test-Path 'native-bin/media-tools/ffprobe.exe')) { throw 'Validated Lite QA executables were not staged for synthetic-media tests.' }
       - name: Windows data-safety and release regression gate
         # Use runner-owned scratch storage for large real SQLite/WAL fixtures.
         # This preserves the single 60s test and all query budgets.
@@ -90,6 +102,8 @@ jobs:
     runs-on: windows-2025
     env:
       MOVIE_RELEASE_CLASS: unsigned-test-build
+      # QA-only input. Never upload these binaries or infer distribution approval.
+      MOVIE_MEDIA_VARIANT: lite-candidate
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:

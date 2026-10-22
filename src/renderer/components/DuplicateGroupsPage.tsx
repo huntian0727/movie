@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderOpen, Info, Link2, ListTodo, LoaderCircle, Play, Trash2 } from "lucide-react";
 import type {
+  BatchDeleteResult,
   CloudDriveLegacyBindingProgress,
   CloudDriveLegacyBindingResult,
   DuplicateGroup,
@@ -12,6 +13,7 @@ import type {
   DuplicateResolvePreview,
   DuplicateResolvePreviewResult,
   DuplicateResolveResult,
+  ReviewedDeleteBackgroundJob,
   DuplicateMissingCheckResult,
   DuplicateCleanupAccepted,
   DuplicateCleanupConfirmRequest,
@@ -66,6 +68,13 @@ interface DuplicateGroupsPageProps {
   onGetLegacyCloudDriveBindingStatus?(): Promise<CloudDriveLegacyBindingProgress>;
   onCancelLegacyCloudDriveBinding?(): Promise<CloudDriveLegacyBindingProgress>;
   onResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  onReviewedDelete?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  onStartReviewedBackground?(plan: DuplicateResolvePlan): Promise<ReviewedDeleteBackgroundJob>;
+  onBackgroundAccepted?(job: ReviewedDeleteBackgroundJob, options?: { clearDirectoryScope: boolean }): void;
+  queuedHiddenCount?: number;
+  backgroundRunning?: boolean;
+  onManualDelete?(video: VideoRecord): Promise<void> | void;
+  onManualBatchDelete?(videos: VideoRecord[]): Promise<BatchDeleteResult>;
   onAutoDelete?(plan: DuplicateResolvePlan): Promise<DuplicateCleanupAccepted>;
   onAutoDeleteFiltered?(): Promise<DuplicateCleanupAccepted>;
   onFilteredCleanupAccepted?(): void;
@@ -87,6 +96,7 @@ type DuplicateDirectorySortMode = "space" | "files" | "groups" | "path";
 type DuplicateDirectoryFilterPreset = "all" | "files-10" | "files-100" | "space-10gb" | "space-100gb" | "space-1tb";
 
 const GIBIBYTE = 1024 ** 3;
+const MAX_REVIEWED_DELETE_TASK_ITEMS = 500;
 
 export function DuplicateGroupsPage({
   groups,
@@ -124,6 +134,13 @@ export function DuplicateGroupsPage({
   onGetLegacyCloudDriveBindingStatus,
   onCancelLegacyCloudDriveBinding,
   onResolve,
+  onReviewedDelete,
+  onStartReviewedBackground,
+  onBackgroundAccepted,
+  backgroundRunning = false,
+  queuedHiddenCount = 0,
+  onManualDelete,
+  onManualBatchDelete,
   onAutoDelete,
   onAutoDeleteFiltered,
   onFilteredCleanupAccepted,
@@ -147,6 +164,14 @@ export function DuplicateGroupsPage({
   const [resolveResult, setResolveResult] = useState<DuplicateResolveResult | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
+  const [singleDeleteTarget, setSingleDeleteTarget] = useState<{ video: VideoRecord; groupKey: string; keepVideoId: string } | null>(null);
+  const [groupCleanupTarget, setGroupCleanupTarget] = useState<{ group: DuplicateGroup; keepVideoId: string; videoIds: string[] } | null>(null);
+  const [manualPageConfirmOpen, setManualPageConfirmOpen] = useState(false);
+  const [manualDeleteStatus, setManualDeleteStatus] = useState("");
+  const [manualProgress, setManualProgress] = useState<{ total: number; processed: number; success: number; failed: number } | null>(null);
+  const [manualBatchUncertain, setManualBatchUncertain] = useState<string | null>(null);
+  const [manualRetrySelection, setManualRetrySelection] = useState<{ plan: DuplicateResolvePlan; videos: VideoRecord[] } | null>(null);
+  const [manualRetryConfirmOpen, setManualRetryConfirmOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [internalSortField, setInternalSortField] = useState<DuplicateGroupSortField>("sizeBytes");
   const [internalSortDirection, setInternalSortDirection] = useState<SortDirection>("desc");
@@ -187,6 +212,10 @@ export function DuplicateGroupsPage({
   const currentPreferredDirectoryOption = currentPreferredDirectory
     ? directoryOptions.find((option) => normalizeDirectoryForComparison(option.path) === normalizeDirectoryForComparison(currentPreferredDirectory.path))
     : undefined;
+  const groupCleanupItems = groupCleanupTarget?.group.items ?? [];
+  const groupCleanupKeepItem = groupCleanupItems.find((item) => item.video.id === groupCleanupTarget?.keepVideoId);
+  const groupCleanupDeleteItems = groupCleanupItems.filter((item) => item.video.id !== groupCleanupTarget?.keepVideoId);
+  const groupCleanupBytes = groupCleanupDeleteItems.reduce((total, item) => total + item.video.sizeBytes, 0);
 
   const changePreferredDirectory = useCallback(async (path: string) => {
     if (!onPreferredDirectoryPathChange || directoryGuardRef.current) return;
@@ -304,6 +333,23 @@ export function DuplicateGroupsPage({
   useEffect(() => {
     setFilteredSubmissionHidden(false);
   }, [groups]);
+  // Manual cleanup covers local and mounted files, not just CloudDrive API-bound items.
+  const manualPlan = useMemo<DuplicateResolvePlan>(() => ({
+    groups: groups.map((group) => {
+      const keepVideoId = manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
+      return {
+        groupKey: group.groupKey,
+        keepVideoId,
+        deleteVideoIds: group.items.filter((item) => item.video.id !== keepVideoId).map((item) => item.video.id)
+      };
+    }).filter((entry) => entry.deleteVideoIds.length > 0)
+  }), [groups, manualKeepByGroup]);
+  const manualDeleteVideos = useMemo(() => {
+    const deleteIds = new Set(manualPlan.groups.flatMap((entry) => entry.deleteVideoIds));
+    return groups.flatMap((group) => group.items.map((item) => item.video)).filter((video) => deleteIds.has(video.id));
+  }, [groups, manualPlan]);
+  const manualDeleteBytes = useMemo(() => manualDeleteVideos.reduce((sum, video) => sum + video.sizeBytes, 0), [manualDeleteVideos]);
+
   const fastDeleteCount = useMemo(
     () => plan.groups.reduce((total, group) => total + group.deleteVideoIds.length, 0),
     [plan]
@@ -324,7 +370,7 @@ export function DuplicateGroupsPage({
 
   const handleResolveFirstParty = async () => {
     setConfirmOpen(false);
-    setActionError("候选项不能直接删除；请先运行完整 SHA-256 验证。 ");
+    setActionError("候选项不能直接删除；请先核对大小与时长，并在后台任务中二次确认。 ");
   };
 
   const handleAutoDelete = useCallback(async (autoPlan: DuplicateResolvePlan, label: string) => {
@@ -348,12 +394,298 @@ export function DuplicateGroupsPage({
   }, []);
 
   const handleDeleteCandidate = useCallback((group: DuplicateGroup, selectedKeep: string, videoId: string) => {
-    const keepVideoId = selectedKeep === videoId
-      ? group.items.find((item) => item.video.id !== videoId)?.video.id
-      : selectedKeep;
-    if (!keepVideoId) return;
-    void handleAutoDelete({ groups: [{ groupKey: group.groupKey, keepVideoId, deleteVideoIds: [videoId] }] }, "单项清理");
-  }, [handleAutoDelete]);
+    if ((!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || !onPreviewResolve || (backgroundRunning && !onStartReviewedBackground) || actionPending || loading || loadError || directoryPending) return;
+    const candidate = group.items.find((item) => item.video.id === videoId);
+    const keepVideoId = selectedKeep !== videoId && group.items.some((item) => item.video.id === selectedKeep)
+      ? selectedKeep
+      : group.items.find((item) => item.video.id !== videoId)?.video.id;
+    if (!candidate || !keepVideoId) return;
+    setActionError(null);
+    setManualDeleteStatus("");
+    setSingleDeleteTarget({ video: candidate.video, groupKey: group.groupKey, keepVideoId });
+  }, [onStartReviewedBackground, onReviewedDelete, onManualDelete, onPreviewResolve, backgroundRunning, actionPending, loading, loadError, directoryPending]);
+
+  const handleQueueGroupCleanup = useCallback((group: DuplicateGroup, selectedKeep: string) => {
+    if (!onStartReviewedBackground || !onPreviewResolve || actionPending || loading || loadError || directoryPending || submitGuardRef.current) return;
+    const keepVideoId = group.items.some((item) => item.video.id === selectedKeep)
+      ? selectedKeep
+      : group.items.some((item) => item.video.id === group.recommendedKeepVideoId)
+        ? group.recommendedKeepVideoId
+        : group.items[0]?.video.id;
+    if (!keepVideoId || group.items.length < 2) return;
+    if (group.items.length - 1 > MAX_REVIEWED_DELETE_TASK_ITEMS) {
+      setActionError("本组超过后台单个任务 500 个待清理文件的上限，请分批处理。");
+      return;
+    }
+    if (group.items.some((item) => item.video.isPendingDelete)) {
+      setActionError("本组已有文件处于待删除状态，请刷新候选组后再操作。");
+      onRefresh?.();
+      return;
+    }
+    setActionError(null);
+    setManualDeleteStatus("");
+    setGroupCleanupTarget({
+      group,
+      keepVideoId,
+      videoIds: group.items.map((item) => item.video.id).sort()
+    });
+  }, [onStartReviewedBackground, onPreviewResolve, actionPending, loading, loadError, directoryPending, onRefresh]);
+
+  const confirmGroupCleanup = async () => {
+    const target = groupCleanupTarget;
+    if (!target || !onStartReviewedBackground || !onPreviewResolve || actionPending || submitGuardRef.current) return;
+    const currentGroup = groups.find((group) => group.groupKey === target.group.groupKey);
+    const currentIds = currentGroup?.items.map((item) => item.video.id).sort() ?? [];
+    if (!currentGroup || currentIds.length !== target.videoIds.length || currentIds.some((id, index) => id !== target.videoIds[index])) {
+      setActionError("候选组内容已变化，本次未提交清理。请刷新后重新确认。");
+      setGroupCleanupTarget(null);
+      onRefresh?.();
+      return;
+    }
+    if (!currentGroup.items.some((item) => item.video.id === target.keepVideoId)) {
+      setActionError("计划保留文件已不在本组，本次未提交清理。请刷新后重新确认。");
+      setGroupCleanupTarget(null);
+      onRefresh?.();
+      return;
+    }
+    if (currentGroup.items.some((item) => item.video.isPendingDelete)) {
+      setActionError("本组已有文件处于待删除状态，本次未提交清理。请刷新后重新确认。");
+      setGroupCleanupTarget(null);
+      onRefresh?.();
+      return;
+    }
+    const deleteVideoIds = currentIds.filter((id) => id !== target.keepVideoId);
+    if (deleteVideoIds.length < 1 || deleteVideoIds.length > MAX_REVIEWED_DELETE_TASK_ITEMS) {
+      setActionError("本组待清理数量已变化，超过单个后台任务 500 个文件的上限；请刷新后重新确认。");
+      setGroupCleanupTarget(null);
+      onRefresh?.();
+      return;
+    }
+    submitGuardRef.current = true;
+    setActionPending(true);
+    setActionError(null);
+    try {
+      const accepted = await onStartReviewedBackground({
+        groups: [{ groupKey: currentGroup.groupKey, keepVideoId: target.keepVideoId, deleteVideoIds }]
+      });
+      if (accepted.total !== deleteVideoIds.length) {
+        onBackgroundAccepted?.(accepted);
+        setGroupCleanupTarget(null);
+        setManualDeleteStatus("后台已返回任务，但接收数量与本组预期不一致。请到后台任务中心核对，不要重复提交。");
+        return;
+      }
+      // The accepted count confirms the whole group was queued. Include the acknowledged IDs
+      // in the UI snapshot so the group disappears immediately, without touching source files.
+      const acceptedForDisplay = {
+        ...accepted,
+        queuedVideoIds: [...new Set([...(accepted.queuedVideoIds ?? []), ...deleteVideoIds])]
+      };
+      onBackgroundAccepted?.(acceptedForDisplay);
+      setGroupCleanupTarget(null);
+      setManualDeleteStatus("本组 " + deleteVideoIds.length + " 个文件已加入后台队列；本组已暂时隐藏。实际处理结果请在后台任务中心查看。");
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+    } finally {
+      submitGuardRef.current = false;
+      setActionPending(false);
+    }
+  };
+
+  const preflightManualDelete = async (deletePlan: DuplicateResolvePlan): Promise<boolean> => {
+    if (!onPreviewResolve) throw new Error("无法执行重复项安全预检查。");
+    const result = await onPreviewResolve(deletePlan);
+    if (result.status === "ready") return true;
+    setStaleVideosById(Object.fromEntries(groups.flatMap((group) => group.items.map((item) => [item.video.id, item.video]))));
+    setStaleItems(result.changedItems);
+    setSingleDeleteTarget(null);
+    setManualPageConfirmOpen(false);
+    setManualRetryConfirmOpen(false);
+    onRefresh?.();
+    return false;
+  };
+
+  const confirmManualSingleDelete = async () => {
+    if (!singleDeleteTarget || (!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || (backgroundRunning && !onStartReviewedBackground) || submitGuardRef.current || actionPending) return;
+    const { video, groupKey, keepVideoId } = singleDeleteTarget;
+    if (!groups.some((group) => group.groupKey === groupKey && group.items.some((item) => item.video.id === video.id))) {
+      setActionError("候选组已变化，请刷新后重新选择文件。");
+      setSingleDeleteTarget(null);
+      return;
+    }
+    submitGuardRef.current = true;
+    setActionPending(true);
+    setActionError(null);
+    try {
+      if (onStartReviewedBackground) {
+        const accepted = await onStartReviewedBackground({
+          groups: [{ groupKey, keepVideoId, deleteVideoIds: [video.id] }]
+        });
+        onBackgroundAccepted?.(accepted);
+        setSingleDeleteTarget(null);
+        setManualDeleteStatus("已提交后台清理；可继续浏览和播放，进度在页面顶部查看。");
+        return;
+      }
+      // Reviewed main-process IPC performs the authoritative safe preflight.
+      // Avoid duplicate mounted-filesystem stat calls from the renderer.
+      const ready = onReviewedDelete ? true : await preflightManualDelete({ groups: [{ groupKey, keepVideoId, deleteVideoIds: [video.id] }] });
+      if (!ready) return;
+      let recycledCount = 0;
+      if (onReviewedDelete) {
+        const result = await onReviewedDelete({ groups: [{ groupKey, keepVideoId, deleteVideoIds: [video.id] }] });
+        if (result.successCount !== 1) {
+          throw new Error(result.uncertainMessage ?? result.failures[0]?.message ?? "重复文件未删除，请检查文件状态。");
+        }
+        recycledCount = result.recycledCount ?? 0;
+      } else {
+        await onManualDelete!(video);
+      }
+      setSingleDeleteTarget(null);
+      setManualDeleteStatus(recycledCount > 0
+        ? `已将 ${video.filename} 移入 CloudDrive 回收站；尚未确认真正释放空间。列表已刷新。`
+        : `已删除 ${video.filename}。重复项列表已刷新。`);
+      setManualKeepByGroup((current) => {
+        if (current[groupKey] !== video.id) return current;
+        const updated = { ...current };
+        delete updated[groupKey];
+        return updated;
+      });
+      onRefresh?.();
+    } catch (cause) {
+      setActionError(toDuplicateActionMessage(cause));
+      if (onReviewedDelete) onRefresh?.();
+    } finally {
+      submitGuardRef.current = false;
+      setActionPending(false);
+    }
+  };
+
+  // Use the same safe flow for the first attempt and explicitly approved failed-item retries.
+  // A transport rejection does not prove what happened on the remote host: do NOT replay it.
+  const runManualBatchDelete = async (deletePlan: DuplicateResolvePlan, videos: VideoRecord[]) => {
+    if ((!onStartReviewedBackground && !onReviewedDelete && !onManualBatchDelete) || (backgroundRunning && !onStartReviewedBackground) || submitGuardRef.current || actionPending || videos.length === 0) return;
+    submitGuardRef.current = true;
+    setActionPending(true);
+    setActionError(null);
+    if (onStartReviewedBackground) {
+      try {
+        const accepted = await onStartReviewedBackground(deletePlan);
+        // Leave a fully submitted directory view immediately; do not undo
+        // the independently saved "prefer to keep this folder" rule.
+        const fullScopeSubmitted = Boolean(filterDirectoryPath) && page === 1 &&
+          totalPages === 1 && groups.length === totalGroups &&
+          deletePlan.groups.reduce((sum, entry) => sum + entry.deleteVideoIds.length, 0) === accepted.total;
+        onBackgroundAccepted?.(accepted, { clearDirectoryScope: fullScopeSubmitted });
+        setManualPageConfirmOpen(false);
+        setManualRetryConfirmOpen(false);
+        setManualRetrySelection(null);
+        setManualProgress(null);
+        setManualDeleteStatus(`已将 ${accepted.total} 个文件提交后台清理；你可以继续使用其他页面。`);
+      } catch (cause) {
+        setActionError(toDuplicateActionMessage(cause));
+      } finally {
+        submitGuardRef.current = false;
+        setActionPending(false);
+      }
+      return;
+    }
+    setManualDeleteStatus("正在核对文件状态...");
+    setManualProgress({ total: videos.length, processed: 0, success: 0, failed: 0 });
+    setManualBatchUncertain(null);
+    try {
+      // The reviewed-delete handler verifies EVERY keeper and target before
+      // any irreversible action, including a fresh CloudDrive provider lookup.
+      const ready = onReviewedDelete ? true : await preflightManualDelete(deletePlan);
+      if (!ready) { setManualProgress(null); return; }
+      const failures: DuplicateResolveResult["failures"] = [];
+      const groupByVideoId = new Map(deletePlan.groups.flatMap((entry) => entry.deleteVideoIds.map((id) => [id, entry.groupKey] as const)));
+      let successCount = 0;
+      let processed = 0;
+      let reclaimedBytes = 0;
+      let recycledCount = 0;
+      let uncertain: string | null = null;
+      for (let start = 0; start < videos.length; start += 100) {
+        const chunk = videos.slice(start, start + 100);
+        setManualDeleteStatus(`正在处理第 ${Math.floor(start / 100) + 1} 批：已获得 ${processed} / ${videos.length} 项结果...`);
+        let result: BatchDeleteResult;
+        let reviewedUnknown: string | null = null;
+        try {
+          if (onReviewedDelete) {
+            const selected = new Set(chunk.map((video) => video.id));
+            const chunkPlan: DuplicateResolvePlan = {
+              groups: deletePlan.groups.map((entry) => ({
+                ...entry, deleteVideoIds: entry.deleteVideoIds.filter((id) => selected.has(id))
+              })).filter((entry) => entry.deleteVideoIds.length > 0)
+            };
+            const reviewed = await onReviewedDelete(chunkPlan);
+            result = {
+              successCount: reviewed.successCount, failureCount: reviewed.failureCount,
+              reclaimedBytes: reviewed.reclaimedBytes, failures: reviewed.failures
+            };
+            recycledCount += reviewed.recycledCount ?? 0;
+            if (reviewed.uncertainMessage) {
+              reviewedUnknown = `${reviewed.uncertainMessage} 本批尚未提交 ${reviewed.unsubmittedCount ?? 0} 项，后续批次另有 ${videos.length - start - chunk.length} 项未提交。请刷新网盘实际状态，不能直接重试结果未知的文件。`;
+            }
+          } else {
+            result = await onManualBatchDelete!(chunk);
+          }
+        } catch (cause) {
+          // Earlier acknowledged batches remain visible. This in-flight batch may
+          // have partially completed: unknown is NOT the same as failed/retryable.
+          uncertain = `第 ${Math.floor(start / 100) + 1} 批（${chunk.length} 项）通信异常，处理结果未知：${toDuplicateActionMessage(cause)}。其后 ${videos.length - start - chunk.length} 项未提交。请先刷新并核实，不能直接重试结果未知的文件。`;
+          break;
+        }
+        successCount += result.successCount;
+        reclaimedBytes += result.reclaimedBytes;
+        processed += reviewedUnknown ? result.successCount + result.failureCount : chunk.length;
+        for (const failure of result.failures) {
+          failures.push({ ...failure, groupKey: groupByVideoId.get(failure.videoId) ?? "" });
+        }
+        setManualProgress({ total: videos.length, processed, success: successCount, failed: failures.length });
+        if (reviewedUnknown) { uncertain = reviewedUnknown; break; }
+      }
+      setManualRetrySelection(null);
+      const failedIds = new Set(failures.map((item) => item.videoId));
+      if (failedIds.size > 0) {
+        const retryPlan: DuplicateResolvePlan = {
+          groups: deletePlan.groups.map((entry) => ({
+            ...entry, deleteVideoIds: entry.deleteVideoIds.filter((id) => failedIds.has(id))
+          })).filter((entry) => entry.deleteVideoIds.length > 0)
+        };
+        setManualRetrySelection({
+          plan: retryPlan,
+          videos: videos.filter((video) => failedIds.has(video.id))
+        });
+      }
+      setManualPageConfirmOpen(false);
+      setManualRetryConfirmOpen(false);
+      setManualBatchUncertain(uncertain);
+      setManualDeleteStatus(uncertain
+        ? `部分完成：已确认删除 ${successCount} 个、失败 ${failures.length} 个，另有结果未知的项目。`
+        : `清理结束：成功 ${successCount} 个、失败 ${failures.length} 个。`);
+      setResolveResult({
+        groupCount: deletePlan.groups.length, keepCount: deletePlan.groups.length,
+        successCount, failureCount: failures.length, reclaimedBytes, recycledCount, failures
+      });
+      onRefresh?.();
+    } catch (cause) {
+      setManualDeleteStatus("");
+      setManualProgress(null);
+      setActionError(`尚未完成清理，请检查后再操作：${toDuplicateActionMessage(cause)}`);
+      onRefresh?.();
+    } finally {
+      submitGuardRef.current = false;
+      setActionPending(false);
+    }
+  };
+
+  const confirmManualPageDelete = async () => {
+    setManualRetrySelection(null);
+    await runManualBatchDelete(manualPlan, manualDeleteVideos);
+  };
+  const confirmManualRetry = async () => {
+    if (!manualRetrySelection) return;
+    await runManualBatchDelete(manualRetrySelection.plan, manualRetrySelection.videos);
+  };
 
   const handleFilteredAutoDelete = async () => {
     if (!onAutoDeleteFiltered || actionPending || loading || loadError || directoryPending) return;
@@ -459,7 +791,11 @@ export function DuplicateGroupsPage({
     <OperationFeedback message={taskReadError ? `任务状态读取失败：${taskReadError}。任务不会重复提交。` : null} tone="error" onRetry={() => setTaskReadVersion((current) => current + 1)} />
     <OperationFeedback message={loadError ? `候选列表读取失败：${loadError}` : null} tone="error" onRetry={onRefresh} />
     <OperationFeedback message={actionError} tone="error" onDismiss={() => setActionError(null)} />
+    {!actionPending && <OperationFeedback message={manualDeleteStatus || null} tone={manualBatchUncertain ? "error" : "success"} onDismiss={() => setManualDeleteStatus("")} />}
     <OperationFeedback message={missingCheckMessage} tone={submittedCleanupJobId ? "info" : "success"} autoDismiss={!submittedCleanupJobId} onDismiss={() => setMissingCheckMessage(null)} />
+    {queuedHiddenCount > 0 && <OperationFeedback message={backgroundRunning
+      ? `本页 ${queuedHiddenCount} 个待删文件已加入后台队列，暂时从列表隐藏；保留文件不受影响，完成后自动刷新。`
+      : `正在刷新后台清理结果：本页 ${queuedHiddenCount} 个排队文件暂时隐藏；失败或未提交的文件将恢复显示。`} tone="info" />}
     {directoryPending && <OperationFeedback message="正在保存优先保留目录..." tone="info" />}
   </>;
 
@@ -508,8 +844,13 @@ export function DuplicateGroupsPage({
         <DuplicateDirectoryRanking options={rankedDirectoryOptions} onSelect={changePreferredDirectory} />
         <div className="empty-state duplicate-empty-state">
           <ReadState loading={loading} error={loadError} empty loadingText="正在整理候选项..."
-            emptyTitle={filterDirectoryPath && overallTotalGroups > 0 ? "该目录当前没有重复项" : totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}
-            emptyText={filterDirectoryPath && overallTotalGroups > 0 ? `优先保留规则仍然有效，但不会隐藏资料库中其他 ${overallTotalGroups} 组重复项。` : totalCandidateGroups > 0 ? "这些同大小文件的缓存时长不同或尚未读取成功。" : "扫描完成后，这里会显示文件大小和缓存时长相同的候选项。"} />
+            emptyTitle={queuedHiddenCount > 0 && backgroundRunning ? "本页待删文件已转入后台清理" : filterDirectoryPath && overallTotalGroups > 0 ? "该目录当前没有重复项" : totalCandidateGroups > 0 ? "暂时没有同大小且同时长的文件" : "暂时没有同大小文件"}
+            emptyText={queuedHiddenCount > 0 && backgroundRunning ? "队列中的文件仅暂时隐藏；后台完成后会自动核对并刷新，失败项重新显示。可继续浏览其他目录。" : filterDirectoryPath && overallTotalGroups > 0 ? `优先保留规则仍然有效，但不会隐藏资料库中其他 ${overallTotalGroups} 组重复项。` : totalCandidateGroups > 0 ? "这些同大小文件的缓存时长不同或尚未读取成功。" : "扫描完成后，这里会显示文件大小和缓存时长相同的候选项。"} />
+          {!loading && !loadError && backgroundRunning && queuedHiddenCount > 0 && totalPages > 1 && (
+            <button type="button" className="empty-state-action" onClick={() => onPage?.(page < totalPages ? page + 1 : 1)}>
+              {page < totalPages ? "查看下一页候选项" : "返回第一页候选项"}
+            </button>
+          )}
           {!loading && !loadError && filterDirectoryPath && overallTotalGroups > 0 && <button type="button" className="empty-state-action" onClick={onClearDirectoryFilter}>显示全部 {overallTotalGroups} 组重复项</button>}
         </div>
         {onLoadCleanupJobs && onLoadCleanupItems && onCancelCleanup && onResumeCleanup && onRetryCleanup && onClearCleanup && (
@@ -527,11 +868,11 @@ export function DuplicateGroupsPage({
       <div className="duplicate-summary">
         <details className="duplicate-rule-note">
           <summary>候选判定规则</summary>
-          <p>候选发现只使用精确文件大小和整秒时长，不能证明内容相同。快速永久删除默认关闭；请通过“验证当前页”计算完整 SHA-256，验证相同后再在后台任务中二次确认永久删除。</p>
+          <p>候选按大小与整秒时长识别，不计算文件哈希。常用操作：行末垃圾桶删除单项，或“清理当前页”批量处理；只需一次确认，程序会自动安全核对。需要额外检查时，可使用“验证当前页”创建高级后台核对任务。</p>
         </details>
         <div className="duplicate-summary-card">
           <strong>{totalGroups}</strong>
-          <span>{filterDirectoryPath ? "当前显示" : "大小＋时长匹配组"}</span>
+          <span>{queuedHiddenCount > 0 ? "当前范围候选组（含排队项）" : filterDirectoryPath ? "当前显示" : "大小＋时长匹配组"}</span>
         </div>
         {filterDirectoryPath && <div className="duplicate-summary-card"><strong>{overallTotalGroups}</strong><span>资料库全部重复组</span></div>}
         <div className="duplicate-summary-card">
@@ -578,7 +919,7 @@ export function DuplicateGroupsPage({
             </select>
           </label>
           <p className="duplicate-directory-ranking-note">
-            显示 {rankedDirectoryOptions.length.toLocaleString()} / {directoryOptions.length.toLocaleString()} 个目录；数值是候选估算，不代表文件内容相同。元数据快速永久删除已关闭，清理需完整 SHA-256 验证和二次确认。
+            显示 {rankedDirectoryOptions.length.toLocaleString()} / {directoryOptions.length.toLocaleString()} 个目录；数值是候选估算，不代表文件内容相同。清理按大小与时长核对，并需二次确认。
           </p>
           {currentPreferredDirectory && <div className="duplicate-directory-scope" aria-label="当前优先保留目录">
             <p>当前优先保留：<code title={currentPreferredDirectory.path}>{currentPreferredDirectory.path}</code>（含子目录）
@@ -619,6 +960,12 @@ export function DuplicateGroupsPage({
             </select>
           </label>
           <button type="button" onClick={resetSelectionToRecommended}>按推荐选择保留项</button>
+          {(onStartReviewedBackground || onReviewedDelete || onManualBatchDelete) && onPreviewResolve && <button className="danger current-page-delete" type="button" disabled={loading || Boolean(loadError) || directoryPending || actionPending || (backgroundRunning && !onStartReviewedBackground) || manualDeleteVideos.length === 0} onClick={() => { setActionError(null); setManualDeleteStatus(""); setManualPageConfirmOpen(true); }}>
+            <Trash2 size={16} /> 清理当前页（{manualDeleteVideos.length} 个文件）
+          </button>}
+          <details className="duplicate-advanced-tools" open={(!onStartReviewedBackground && !onReviewedDelete && !onManualBatchDelete) || !onPreviewResolve}>
+            <summary>高级核对与维护工具（可选）</summary>
+            <div className="duplicate-advanced-content">
           {onCheckMissing && <button type="button" className={missingCheckPending ? "is-pending" : undefined} disabled={missingCheckPending || actionPending || groups.length === 0} onClick={() => void handleCheckMissing()}>
             {missingCheckPending ? `正在复查 ${previewFileCount} 个文件...` : "检查缺失文件"}
           </button>}
@@ -685,6 +1032,8 @@ export function DuplicateGroupsPage({
               )}
             </>
           ) : null}
+            </div>
+          </details>
         </div>
       </div>
 
@@ -697,18 +1046,19 @@ export function DuplicateGroupsPage({
             page={page}
             pageSize={pageSize}
             keepVideoId={manualKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId}
-            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending || !onAutoDelete}
+            cleanupDisabled={loading || Boolean(loadError) || directoryPending || actionPending || (backgroundRunning && !onStartReviewedBackground) || (!onStartReviewedBackground && !onReviewedDelete && !onManualDelete) || !onPreviewResolve}
             onSetKeep={handleSetKeep}
             onPreferDirectory={changePreferredDirectory}
             onOpen={onOpen}
             onViewDetails={onViewDetails}
             onRevealInFolder={revealVideo}
-            onDeleteCandidate={onAutoDelete ? handleDeleteCandidate : undefined}
+            onDeleteCandidate={(onStartReviewedBackground || onReviewedDelete || onManualDelete) && onPreviewResolve ? handleDeleteCandidate : undefined}
+            onQueueGroupCleanup={onStartReviewedBackground && onPreviewResolve ? handleQueueGroupCleanup : undefined}
           />
         )} />}
 
       <div className="pagination-bar duplicate-pagination" aria-label="候选项分页">
-        <span>共 {totalGroups} 个大小＋时长候选组</span>
+        <span>共 {totalGroups} 个大小＋时长候选组{queuedHiddenCount > 0 ? `（数据库原始统计；本页已有 ${queuedHiddenCount} 个文件排队暂时隐藏）` : ""}</span>
         <button type="button" disabled={page <= 1 || loading} onClick={() => onPage?.(page - 1)}>上一页</button>
         <strong>{page} / {totalPages}</strong>
         <button type="button" disabled={page >= totalPages || loading} onClick={() => onPage?.(page + 1)}>下一页</button>
@@ -730,11 +1080,96 @@ export function DuplicateGroupsPage({
         <DuplicateCleanupTasksPanel open={taskCenterOpen} onClose={() => setTaskCenterOpen(false)} returnFocusRef={taskCenterOpenerRef} loadJobs={onLoadCleanupJobs} loadItems={onLoadCleanupItems} onConfirm={onConfirmCleanup} onCancel={onCancelCleanup} onResume={onResumeCleanup} onRetry={onRetryCleanup} onClear={onClearCleanup} onOpenItem={onOpenCleanupItem} refreshSequence={cleanupRefreshSequence} />
       )}
 
+      {singleDeleteTarget && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setSingleDeleteTarget(null); }}>
+          <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="single-duplicate-delete-title" onKeyDown={(event) => { if (event.key === "Escape" && !actionPending) setSingleDeleteTarget(null); }}>
+            <h3 id="single-duplicate-delete-title">确认删除这一个重复文件？</h3>
+            <p className="delete-filename">{singleDeleteTarget.video.filename}</p>
+            <p className="duplicate-path" title={singleDeleteTarget.video.path}>{singleDeleteTarget.video.path}</p>
+            <p>文件大小 {formatBytes(singleDeleteTarget.video.sizeBytes)}；同组其他文件保留不动。</p>
+            <p>确认后交给后台清理，继续浏览和播放不受影响；后台会核对大小、时长、路径及文件身份。CloudDrive 如果不支持直接永久删除，可能移入网盘回收站，释放空间不会提前计入。</p>
+            <p>大小和时长相同不保证内容完全一致。永久删除不可撤销，请确认选中的文件是要移除的那一份。</p>
+            {actionError && <p className="dialog-error" role="status">{actionError}</p>}
+            <div className="dialog-actions">
+              <button type="button" disabled={actionPending} onClick={() => setSingleDeleteTarget(null)}>取消</button>
+              <button className="danger" type="button" disabled={actionPending} onClick={() => void confirmManualSingleDelete()}>{actionPending ? "正在核对并删除..." : "确认删除此文件"}</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {groupCleanupTarget && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setGroupCleanupTarget(null); }}>
+          <section className="dialog duplicate-group-cleanup-dialog" role="alertdialog" aria-modal="true" aria-labelledby="group-cleanup-title" onKeyDown={(event) => { if (event.key === "Escape" && !actionPending) setGroupCleanupTarget(null); }}>
+            <h3 id="group-cleanup-title">确认清理本候选组？</h3>
+            <p>本组共 {groupCleanupTarget.group.items.length} 份，计划保留 1 份；将其余 {groupCleanupDeleteItems.length} 个文件加入后台清理队列，预计释放 {formatBytes(groupCleanupBytes)}。</p>
+            <div className="duplicate-group-cleanup-keeper">
+              <strong>计划保留（不会加入删除队列）</strong>
+              <span>{groupCleanupKeepItem?.video.filename ?? "保留文件不可用"}</span>
+              {groupCleanupKeepItem && <code>{groupCleanupKeepItem.video.path}</code>}
+            </div>
+            <details className="duplicate-group-cleanup-files">
+              <summary>查看待清理文件（{groupCleanupDeleteItems.length} 个）</summary>
+              <ul>{groupCleanupDeleteItems.map((item) => <li key={item.video.id}><strong>{item.video.filename}</strong><code>{item.video.path}</code></li>)}</ul>
+            </details>
+            <p>确认入队后，本组会立即从候选列表暂时隐藏；实际删除完成后再以后台结果刷新。失败项会重新显示，结果未知时不会自动重试。</p>
+            <p>若提交时发生通信错误，请先查看后台任务中心确认任务状态，不要连续重复提交。</p>
+            {actionError && <p className="dialog-error" role="status">{actionError}</p>}
+            <div className="dialog-actions">
+              <button type="button" disabled={actionPending} onClick={() => setGroupCleanupTarget(null)}>取消</button>
+              <button type="button" className="danger" disabled={actionPending || !groupCleanupKeepItem || groupCleanupDeleteItems.length < 1 || groupCleanupDeleteItems.length > MAX_REVIEWED_DELETE_TASK_ITEMS} onClick={() => void confirmGroupCleanup()}>{actionPending ? "正在加入后台队列..." : "确认并加入后台队列（" + groupCleanupDeleteItems.length + " 个文件）"}</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {manualPageConfirmOpen && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setManualPageConfirmOpen(false); }}>
+          <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="manual-page-cleanup-title" onKeyDown={(event) => { if (event.key === "Escape" && !actionPending) setManualPageConfirmOpen(false); }}>
+            <h3 id="manual-page-cleanup-title">确认清理当前页重复文件？</h3>
+            <p>仅处理当前第 {page} 页，共 {manualPlan.groups.length} 组；每组保留计划选中的一份，删除其余 {manualDeleteVideos.length} 份，预计释放 {formatBytes(manualDeleteBytes)}。</p>
+            <p>确认后后台执行清理，前端可自由切换页面，但任务完成前请勿退出程序；后台会核对大小、时长和文件状态。若某文件在执行时变化，只会跳过该文件并显示失败明细，不会强行删除。不会计算视频内容哈希。</p>
+            <p>大小、时长一致不保证内容完全一致；请核对每组计划保留项。本地文件永久删除不可撤销；CloudDrive 若不支持永久删除，会转入云盘回收站。</p>
+            {actionError && <p className="dialog-error" role="status">{actionError}</p>}
+            {actionPending && manualProgress && <div className="duplicate-cleanup-progress" role="status">
+              <p>{manualDeleteStatus}</p>
+              <progress aria-label="本次清理进度" max={manualProgress.total} value={manualProgress.processed} />
+              <p>已确认处理 {manualProgress.processed} / {manualProgress.total} · 已删除 {manualProgress.success} · 失败 {manualProgress.failed}</p>
+            </div>}
+            <div className="dialog-actions">
+              <button type="button" disabled={actionPending} onClick={() => setManualPageConfirmOpen(false)}>取消</button>
+              <button className="danger" type="button" disabled={actionPending} onClick={() => void confirmManualPageDelete()}>{actionPending ? "正在核对并清理..." : `确认清理 ${manualDeleteVideos.length} 个文件`}</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {manualRetryConfirmOpen && manualRetrySelection && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !actionPending) setManualRetryConfirmOpen(false); }}>
+          <section className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-retry-confirm-title">
+            <h3 id="duplicate-retry-confirm-title">确认重新核对失败项？</h3>
+            <p>仅处理上次明确返回失败的 {manualRetrySelection.videos.length} 个文件，不包括已成功删除或通信中结果未知的文件。</p>
+            <p>将重新检查大小、时长、路径、修改时间和文件身份；只有复查通过才会重新尝试永久删除。网盘断连或文件变化时仍会停止。</p>
+            <p>文件删除不可撤销，请先确认保留项和失败文件。</p>
+            {actionError && <p className="dialog-error" role="status">{actionError}</p>}
+            {actionPending && manualProgress && <div className="duplicate-cleanup-progress" role="status">
+              <p>{manualDeleteStatus}</p>
+              <progress aria-label="失败项重试进度" max={manualProgress.total} value={manualProgress.processed} />
+              <p>已确认处理 {manualProgress.processed} / {manualProgress.total} · 已删除 {manualProgress.success} · 失败 {manualProgress.failed}</p>
+            </div>}
+            <div className="dialog-actions">
+              <button type="button" disabled={actionPending} onClick={() => setManualRetryConfirmOpen(false)}>取消</button>
+              <button type="button" className="danger" disabled={actionPending} onClick={() => void confirmManualRetry()}>{actionPending ? "正在核对失败项..." : `确认重试 ${manualRetrySelection.videos.length} 个失败项`}</button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {staleItems && (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setStaleItems(null); }}>
           <section className="dialog duplicate-stale-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-stale-title">
             <h3 id="duplicate-stale-title">检测到文件状态变化</h3>
-            <p>检测到部分文件状态已经变化，本次未执行删除。资料库已刷新，请重新检查候选项并完整验证。</p>
+            <p>检测到部分文件状态已经变化，本次未执行删除。资料库已刷新，请重新检查候选项并核对大小与时长。</p>
             <p>异常文件可能位于同一候选组的其他目录中。</p>
             <div className="duplicate-stale-list">
               {staleItems.map((item) => (
@@ -763,7 +1198,9 @@ export function DuplicateGroupsPage({
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setResolveResult(null); }}>
           <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-result-title">
             <h3 id="duplicate-result-title">批量清理结果</h3>
-            <p>成功删除 {resolveResult.successCount} 个文件，失败 {resolveResult.failureCount} 个，实际释放 {formatBytes(resolveResult.reclaimedBytes)}。</p>
+            <p>已确认删除 {resolveResult.successCount} 个文件，确认失败 {resolveResult.failureCount} 个，确认永久释放 {formatBytes(resolveResult.reclaimedBytes)}。</p>
+            {(resolveResult.recycledCount ?? 0) > 0 && <p role="status">其中 {resolveResult.recycledCount} 个文件已移入 CloudDrive 回收站，未计入实际释放空间；需在网盘回收站进一步确认。</p>}
+            {manualBatchUncertain && <p role="alert" className="dialog-error">{manualBatchUncertain}</p>}
             {resolveResult.failures.length > 0 && (
               <div className="duplicate-failure-list">
                 {resolveResult.failures.map((failure) => (
@@ -772,6 +1209,9 @@ export function DuplicateGroupsPage({
               </div>
             )}
             <div className="dialog-actions">
+              {manualRetrySelection && manualRetrySelection.videos.length > 0 && <button type="button" disabled={actionPending} onClick={() => { setResolveResult(null); setManualRetryConfirmOpen(true); }}>
+                仅重新核对失败项（{manualRetrySelection.videos.length}）
+              </button>}
               <button type="button" className="primary" onClick={() => setResolveResult(null)}>知道了</button>
             </div>
           </section>
@@ -793,7 +1233,8 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   onOpen,
   onViewDetails,
   onRevealInFolder,
-  onDeleteCandidate
+  onDeleteCandidate,
+  onQueueGroupCleanup
 }: {
   group: DuplicateGroup;
   index: number;
@@ -807,6 +1248,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
   onViewDetails(video: VideoRecord): void;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onDeleteCandidate?(group: DuplicateGroup, selectedKeep: string, videoId: string): void;
+  onQueueGroupCleanup?(group: DuplicateGroup, selectedKeep: string): void;
 }) {
   const sortedItems = useMemo(
     () => [...group.items].sort((left, right) => left.video.filename.localeCompare(right.video.filename, "zh-CN")),
@@ -831,6 +1273,9 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
           <h3>{`候选组 ${String((page - 1) * pageSize + index + 1).padStart(2, "0")}`}</h3>
           <p>{`共 ${group.items.length} 份 · 计划保留 1 份 · 可删除 ${candidateRemovalCount} 份 · 可释放 ${formatBytes(reclaimableBytes)}`}</p>
         </div>
+        {onQueueGroupCleanup && <div className="duplicate-group-header-actions">
+          <button type="button" className="danger duplicate-group-cleanup-button" title={group.items.length - 1 > MAX_REVIEWED_DELETE_TASK_ITEMS ? "本组超过后台单个任务 500 个待清理文件的上限" : group.items.some((item) => item.video.isPendingDelete) ? "本组已有文件处于待删除状态，请刷新后再操作" : "保留当前计划保留项，其余文件加入后台清理队列"} disabled={cleanupDisabled || group.items.length < 2 || group.items.length - 1 > MAX_REVIEWED_DELETE_TASK_ITEMS || group.items.some((item) => item.video.isPendingDelete)} onClick={() => onQueueGroupCleanup(group, keepVideoId)}><Trash2 size={16} />清理本组</button>
+        </div>}
       </header>
       <div className="duplicate-group-items">
         {sortedItems.map((item) => {
@@ -864,7 +1309,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
                 <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
                 <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
                 <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
-                {onDeleteCandidate && <button type="button" className="danger" aria-label={`验证并永久删除 ${item.video.filename}`} disabled={cleanupDisabled || item.canAutoDelete === false} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>}
+                {onDeleteCandidate && <button type="button" className="danger" aria-label={`删除 ${item.video.filename}`} title="确认后执行单文件删除；删除前自动核对文件大小、时长和状态" disabled={cleanupDisabled} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>}
               </div>
             </article>
           );

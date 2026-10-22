@@ -459,6 +459,29 @@ export interface DuplicateResolvePlan {
   groups: DuplicateGroupResolution[];
 }
 
+export type ReviewedDeleteBackgroundStatus = "queued" | "running" | "completed" | "partial" | "blocked" | "interrupted";
+export interface ReviewedDeleteBackgroundJob {
+  id: string;
+  status: ReviewedDeleteBackgroundStatus;
+  total: number;
+  processed: number;
+  successCount: number;
+  failureCount: number;
+  uncertainCount: number;
+  unsubmittedCount: number;
+  /** Submitted delete identities, kept for temporary UI hiding during a live job. */
+  queuedVideoIds?: string[];
+  /** Count and progress of FIFO background work waiting behind the active task. */
+  waitingJobs?: number;
+  queueJobs?: Array<{ id: string; status: ReviewedDeleteBackgroundStatus; total: number; processed: number; failureCount: number; uncertainCount: number }>;
+  reclaimedBytes: number;
+  recycledCount: number;
+  failures: DuplicateResolveFailure[];
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DuplicateResolvePreview {
   verificationStatus: Extract<DuplicateIdentityStatus, "file_versions_current">;
   groupCount: number;
@@ -569,6 +592,12 @@ export interface DuplicateResolveResult {
   successCount: number;
   failureCount: number;
   reclaimedBytes: number;
+  /** CloudDrive moved-to-recycle results: not counted as physically freed bytes. */
+  recycledCount?: number;
+  /** A remote request was sent but its outcome cannot be confirmed; never auto-retry. */
+  uncertainCount?: number;
+  unsubmittedCount?: number;
+  uncertainMessage?: string;
   failures: DuplicateResolveFailure[];
 }
 
@@ -1065,6 +1094,9 @@ export const IPC_CHANNELS = {
   duplicateList: "duplicate:list",
   duplicatePreviewResolve: "duplicate:preview-resolve",
   duplicateFastDelete: "duplicate:fast-delete",
+  duplicateReviewedDelete: "duplicate:reviewed-delete",
+  duplicateBackgroundSubmit: "duplicate:background-submit",
+  duplicateBackgroundStatus: "duplicate:background-status",
   duplicateCheckMissing: "duplicate:check-missing",
   duplicateCleanupSubmit: "duplicate-cleanup:submit",
   duplicateCleanupSubmitFiltered: "duplicate-cleanup:submit-filtered",
@@ -1147,6 +1179,9 @@ export interface VideoManagerApi extends SubtitleApi, DataStorageApi {
   listDuplicateGroups(query: DuplicateGroupPageQuery, purpose?: string): Promise<DuplicateGroupPage>;
   previewDuplicateResolve(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   fastDeleteDuplicateCandidates(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  deleteReviewedDuplicatePlan(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
+  submitReviewedDuplicateBackground(plan: DuplicateResolvePlan): Promise<ReviewedDeleteBackgroundJob>;
+  getReviewedDuplicateBackground(): Promise<ReviewedDeleteBackgroundJob | null>;
   checkDuplicateMissing(plan: DuplicateResolvePlan): Promise<DuplicateMissingCheckResult>;
   submitDuplicateCleanup(request: DuplicateCleanupSubmitRequest): Promise<DuplicateCleanupAccepted>;
   submitFilteredDuplicateCleanup(request: DuplicateCleanupFilteredSubmitRequest): Promise<DuplicateCleanupAccepted>;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import type { EmbeddedRequest, EmbeddedState } from "../../shared/embeddedPlayback";
+import { PLAYBACK_SPEED_OPTIONS } from "../../shared/embeddedPlayback";
 import { formatDuration } from "./formatters";
 
 interface Props {
@@ -90,6 +91,7 @@ export function EmbeddedPlayerPage({ api, video, autoplay, startPositionMs, star
         <button disabled={!ready} onClick={() => void send({ op: "seek", value: Math.min(state?.duration ?? 0, (state?.time ?? 0) + 10) } as EmbeddedRequest)}>前进 10 秒</button>
         <span>{formatDuration((state?.time ?? 0) * 1000)} / {formatDuration((state?.duration ?? 0) * 1000)}</span>
         <label>音量 <input aria-label="音量" type="range" min={0} max={100} value={state?.volume ?? 20} disabled={!ready} onChange={e => void send({ op: "volume", value: Number(e.target.value) } as EmbeddedRequest)} /></label>
+        <label>倍速 <select aria-label="播放倍速" disabled={!ready} value={state?.speed ?? 1} onChange={e => void send({ op: "speed", value: Number(e.target.value) } as EmbeddedRequest)}>{PLAYBACK_SPEED_OPTIONS.map(speed => <option key={speed} value={speed}>{speed}×</option>)}</select></label>
         <button disabled={!ready} onClick={() => void send({ op: "rotate", value: ((state?.rotation ?? 0) + 90) % 360 } as EmbeddedRequest)}>旋转 90°</button>
         <button onClick={() => void send({ op: "fullscreen", value: !state?.fullscreen } as EmbeddedRequest)}>{state?.fullscreen ? "退出全屏" : "全屏"}</button>
         <button onClick={() => setRetry(n => n + 1)}>重新加载</button>

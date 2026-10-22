@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type FormEvent, type PointerEvent as ReactPointerEvent, type SetStateAction } from "react";
 import { AlertTriangle, BookmarkX, CircleGauge, Clock3, Cloud, CopyMinus, Database, FileQuestion, FolderInput, FolderPlus, FolderSearch, HardDrive, Heart, Library, ListChecks, LoaderCircle, MoreHorizontal, Pause, PieChart, Play, PlaySquare, RotateCw, Server, Settings, Trash2 } from "lucide-react";
-import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, MetadataIssueStatusFilter, PlaybackPreference, ScanFailure, ScanFailureBatchJob, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, ReviewedDeleteBackgroundJob, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, MetadataIssueStatusFilter, PlaybackPreference, ScanFailure, ScanFailureBatchJob, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
+import displayVersion from "../../shared/displayVersion.json";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
+import { hideQueuedDuplicateVideos } from "./queuedDuplicateVisibility";
+import { ReviewedBackgroundStatus } from "./ReviewedBackgroundStatus";
 import { AssetCenterPage } from "./AssetCenterPage";
 import { VideoDataPage } from "./VideoDataPage";
 import { PlaybackDiagnosticPage } from "./PlaybackDiagnosticPage";
@@ -19,6 +22,7 @@ import { Toolbar } from "./Toolbar";
 import { VideoDetailsDialog } from "./VideoDetailsDialog";
 import { VideoGrid } from "./VideoGrid";
 import { VideoTable } from "./VideoTable";
+import { PageMetadataAutoAnalysis } from "./PageMetadataAutoAnalysis";
 import { formatBytes } from "./formatters";
 
 const PAGE_SIZE_OPTIONS = [30, 50, 100, 200, 300] as const;
@@ -97,7 +101,7 @@ interface LibraryShellProps {
   onPreviewDuplicateResolve?(plan: DuplicateResolvePlan): Promise<DuplicateResolvePreviewResult>;
   onResolveDuplicateGroups?(plan: DuplicateResolvePlan): Promise<DuplicateResolveResult>;
   duplicateCleanupApi?: Pick<VideoManagerApi, "submitDuplicateCleanup" | "confirmDuplicateCleanup" | "checkDuplicateMissing" | "listDuplicateCleanupJobs" | "listDuplicateCleanupItems" | "cancelDuplicateCleanup" | "resumeDuplicateCleanup" | "retryDuplicateCleanup" | "clearDuplicateCleanup" | "openDuplicateCleanupItem">
-    & Partial<Pick<VideoManagerApi, "getDuplicateCleanupJob" | "fastDeleteDuplicateCandidates" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "getLegacyCloudDriveBindingStatus" | "cancelLegacyCloudDriveBinding" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
+    & Partial<Pick<VideoManagerApi, "getDuplicateCleanupJob" | "fastDeleteDuplicateCandidates" | "deleteReviewedDuplicatePlan" | "submitReviewedDuplicateBackground" | "getReviewedDuplicateBackground" | "submitFilteredDuplicateCleanup" | "bindLegacyCloudDriveDuplicates" | "getLegacyCloudDriveBindingStatus" | "cancelLegacyCloudDriveBinding" | "listDuplicatePreferredDirectories" | "saveDuplicatePreferredDirectory" | "removeDuplicatePreferredDirectory">>;
   onRevealInFolder?(video: VideoRecord): void | Promise<void>;
   onPreviewRemoveFolder?(folder: SourceFolder): Promise<SourceFolderRemovalPreview>;
   onOpenSettings?(): void;
@@ -226,8 +230,17 @@ export function LibraryShell({
   const [duplicateSortDirection, setDuplicateSortDirection] = useState<SortDirection>("desc");
   const [duplicatePreferredDirectoryPath, setDuplicatePreferredDirectoryPath] = useState("");
   const [duplicateFilterDirectoryPath, setDuplicateFilterDirectoryPath] = useState("");
+  // An explicit user scope, including "show all", must override persisted preferences.
+  const duplicateFilterTouchedRef = useRef(false);
+  const [duplicatePreferencesLoaded, setDuplicatePreferencesLoaded] = useState(false);
   const [duplicatePreferredDirectories, setDuplicatePreferredDirectories] = useState<DuplicatePreferredDirectory[]>([]);
   const [duplicatePage, setDuplicatePage] = useState<DuplicateGroupPage>(() => createStaticDuplicatePage(duplicateGroups));
+  const [backgroundReviewedJob, setBackgroundReviewedJob] = useState<ReviewedDeleteBackgroundJob | null>(null);
+  // Keep queued targets hidden through the final list refetch, avoiding a brief
+  // flash of already deleted rows between the terminal poll and DB refresh.
+  const [queuedVisualJob, setQueuedVisualJob] = useState<ReviewedDeleteBackgroundJob | null>(null);
+  const backgroundStatusRef = useRef<string | null>(null);
+  const backgroundJobIdRef = useRef<string | null>(null);
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
   const [duplicateRefreshVersion, setDuplicateRefreshVersion] = useState(0);
@@ -398,16 +411,27 @@ export function LibraryShell({
   }, [duplicateGroups, onLoadDuplicateGroups, view]);
 
   useEffect(() => {
-    if (view !== "duplicates" || !duplicateCleanupApi?.listDuplicatePreferredDirectories) return;
+    if (view !== "duplicates") return;
+    if (!duplicateCleanupApi?.listDuplicatePreferredDirectories) return;
     let disposed = false;
     void duplicateCleanupApi.listDuplicatePreferredDirectories().then((directories) => {
-      if (!disposed) setDuplicatePreferredDirectories(directories);
-    }).catch(() => undefined);
+      if (disposed || duplicateFilterTouchedRef.current) return;
+      setDuplicatePreferredDirectories(directories);
+      // Restore the filter along with the saved keep directory, not only the keep rule.
+      if (directories[0]) {
+        setDuplicateFilterDirectoryPath(directories[0].path);
+        setDuplicatePageNumber(1);
+      }
+    }).catch(() => undefined).finally(() => {
+      if (!disposed) setDuplicatePreferencesLoaded(true);
+    });
     return () => { disposed = true; };
   }, [duplicateCleanupApi, view]);
 
   useEffect(() => {
     if (view !== "duplicates") return;
+    // Avoid loading the entire library before restoring the saved folder scope.
+    if (duplicateCleanupApi?.listDuplicatePreferredDirectories && !duplicatePreferencesLoaded) return;
     if (!onLoadDuplicateGroups) {
       setDuplicatePage(createStaticDuplicatePage(duplicateGroups));
       return;
@@ -422,12 +446,20 @@ export function LibraryShell({
       sortField: duplicateSortField,
       sortDirection: duplicateSortDirection
     };
-    if (duplicatePreferredDirectories.length > 0) query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
-    else if (duplicatePreferredDirectoryPath) query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
+    // The new click takes priority while preference persistence is still pending.
+    if (duplicatePreferredDirectoryPath) query.preferredDirectoryPath = duplicatePreferredDirectoryPath;
+    else if (duplicatePreferredDirectories.length > 0) query.preferredDirectoryPaths = duplicatePreferredDirectories.map((directory) => directory.path);
     if (duplicateFilterDirectoryPath) query.filterDirectoryPath = duplicateFilterDirectoryPath;
+    const queryStartedAfterQueue = backgroundStatusRef.current !== "running" && backgroundStatusRef.current !== "queued";
     void onLoadDuplicateGroups(query).then((result) => {
       if (disposed) return;
+      if (query.filterDirectoryPath && result.groups.some((group) =>
+        !group.items.some((item) => isPathWithin(item.video.directory, query.filterDirectoryPath!))
+      )) {
+        throw new Error("目录筛选返回了所选目录树以外的重复候选组，已阻止显示未筛选结果。请刷新重试。");
+      }
       setDuplicatePage(result);
+      if (queryStartedAfterQueue && backgroundStatusRef.current !== "running" && backgroundStatusRef.current !== "queued") setQueuedVisualJob(null);
       if (result.page !== duplicatePageNumber) setDuplicatePageNumber(result.page);
     }).catch((cause) => {
       if (!disposed) setDuplicateLoadError(cause instanceof Error ? cause.message : String(cause));
@@ -436,7 +468,37 @@ export function LibraryShell({
     });
 
     return () => { disposed = true; };
-  }, [duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
+  }, [duplicateCleanupApi, duplicateFilterDirectoryPath, duplicateGroups, duplicatePageNumber, duplicatePageSize, duplicatePreferencesLoaded, duplicatePreferredDirectories, duplicatePreferredDirectoryPath, duplicateRefreshSequence, duplicateRefreshVersion, duplicateSortDirection, duplicateSortField, onLoadDuplicateGroups, view]);
+
+  useEffect(() => {
+    const read = duplicateCleanupApi?.getReviewedDuplicateBackground;
+    if (!read) return;
+    let stopped = false;
+    const update = async () => {
+      try {
+        const current = await read();
+        if (stopped) return;
+        if (!current && (backgroundStatusRef.current === "running" || backgroundStatusRef.current === "queued")) return;
+        setBackgroundReviewedJob(current);
+        if (current?.status === "running" || current?.status === "queued") {
+          setQueuedVisualJob(current);
+        }
+        if ((backgroundStatusRef.current === "running" || backgroundStatusRef.current === "queued") &&
+            ((current?.status !== "running" && current?.status !== "queued") ||
+              (backgroundJobIdRef.current && current?.id !== backgroundJobIdRef.current))) {
+          setDuplicateRefreshVersion((version) => version + 1);
+          setVideoPageRefreshVersion((version) => version + 1);
+        }
+        backgroundStatusRef.current = current?.status ?? null;
+        backgroundJobIdRef.current = current?.id ?? null;
+      } catch { /* Keep previous known state; next poll can recover. */ }
+    };
+    void update();
+    const timer = window.setInterval(() => void update(), 1500);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [duplicateCleanupApi]);
+
+  const visibleDuplicatePage = useMemo(() => hideQueuedDuplicateVideos(duplicatePage.groups, queuedVisualJob), [duplicatePage.groups, queuedVisualJob]);
 
   const isHealthView = view === "healthOverview" || view === "scanFailures" || view === "missingVideos" || view === "metadataIssues";
   const isBackgroundMetadataView = view === "metadataIssues" && metadataIssueInitialStatus !== "failed";
@@ -688,7 +750,10 @@ export function LibraryShell({
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark"><PlaySquare size={22} /></span>
-          <div><strong>拉面影视</strong><small>本地视频库</small></div>
+          <div className="brand-identity">
+            <div className="brand-name-row"><strong>拉面影视</strong><span className="brand-version" title={`当前桌面界面版本 ${displayVersion.major}.${displayVersion.minor}`} aria-label={`当前版本 ${displayVersion.major}.${displayVersion.minor}`}>v{displayVersion.major}.{displayVersion.minor}</span></div>
+            <small>本地视频库</small>
+          </div>
         </div>
         <nav className="primary-nav" aria-label="视频库导航">
           <SidebarMenuGroup id="overview" title="概览" active={view === "assetCenter"}>
@@ -805,6 +870,7 @@ export function LibraryShell({
             <button type="button" onClick={onOpenSettings}><Settings size={15} /><span>设置</span></button>
           </nav>
         </header>
+        {view === "duplicates" && <ReviewedBackgroundStatus key={backgroundReviewedJob?.id} job={backgroundReviewedJob} />}
         {usesCommonToolbar && <Toolbar
           title={title}
           count={toolbarCount}
@@ -850,6 +916,12 @@ export function LibraryShell({
           </nav>
         )}
 
+        <PageMetadataAutoAnalysis
+          active={isVideoBrowseView}
+          pageLoading={loading || videoPageLoading}
+          videos={renderedVideos}
+          scopeKey={`${view}:${page}:${pageSize}:${selectedFolderPath ?? ""}:${folderScope}:${querySearch}:${sortField}:${sortDirection}`}
+        />
         {isVideoBrowseView && (
           <div className="batch-toolbar">
             {!selectionMode ? <>
@@ -1058,7 +1130,8 @@ export function LibraryShell({
             : <div className="empty-state"><AlertTriangle size={36} /><h3>扫描异常能力未连接</h3></div>
         ) : view === "duplicates" ? (
           <DuplicateGroupsPage
-            groups={duplicatePage.groups}
+            groups={visibleDuplicatePage.groups}
+            queuedHiddenCount={visibleDuplicatePage.hiddenVideos}
             loading={loading || duplicateLoading}
             loadError={duplicateLoadError}
             page={duplicatePage.page}
@@ -1082,21 +1155,30 @@ export function LibraryShell({
             filterDirectoryPath={duplicateFilterDirectoryPath || undefined}
             onPreferredDirectoryPathChange={async (path) => {
               if (!path) return;
-              if (!duplicateCleanupApi?.saveDuplicatePreferredDirectory) {
-                setDuplicatePreferredDirectoryPath(path);
-                setDuplicateFilterDirectoryPath(path);
-                setDuplicatePageNumber(1);
-                return;
-              }
-              const saved = await duplicateCleanupApi.saveDuplicatePreferredDirectory(path);
-              setDuplicatePreferredDirectories([saved]);
-              setDuplicatePreferredDirectoryPath("");
+              // Apply the browse scope immediately; slow persistence must not leave all groups visible.
+              const previousScope = duplicateFilterDirectoryPath;
+              const previousPreferredPath = duplicatePreferredDirectoryPath;
+              duplicateFilterTouchedRef.current = true;
+              setDuplicatePreferredDirectoryPath(path);
               setDuplicateFilterDirectoryPath(path);
               setDuplicatePageNumber(1);
+              if (!duplicateCleanupApi?.saveDuplicatePreferredDirectory) return;
+              try {
+                const saved = await duplicateCleanupApi.saveDuplicatePreferredDirectory(path);
+                setDuplicatePreferredDirectories([saved]);
+                setDuplicatePreferredDirectoryPath("");
+                setDuplicateFilterDirectoryPath(saved.path);
+              } catch (cause) {
+                // A failed preference save must not be presented as a completed selection.
+                setDuplicatePreferredDirectoryPath(previousPreferredPath);
+                setDuplicateFilterDirectoryPath(previousScope);
+                throw cause;
+              }
             }}
-            onClearDirectoryFilter={() => { setDuplicateFilterDirectoryPath(""); setDuplicatePageNumber(1); }}
+            onClearDirectoryFilter={() => { duplicateFilterTouchedRef.current = true; setDuplicateFilterDirectoryPath(""); setDuplicatePageNumber(1); }}
             onRemovePreferredDirectory={duplicateCleanupApi?.removeDuplicatePreferredDirectory ? async (id) => {
               await duplicateCleanupApi.removeDuplicatePreferredDirectory!(id);
+              duplicateFilterTouchedRef.current = true;
               setDuplicatePreferredDirectories([]);
               setDuplicatePreferredDirectoryPath("");
               setDuplicateFilterDirectoryPath("");
@@ -1106,6 +1188,25 @@ export function LibraryShell({
             onViewDetails={viewVideoDetails}
             onRevealInFolder={onRevealInFolder}
             onRefresh={() => setDuplicateRefreshVersion((current) => current + 1)}
+            onReviewedDelete={duplicateCleanupApi?.deleteReviewedDuplicatePlan}
+            onStartReviewedBackground={duplicateCleanupApi?.submitReviewedDuplicateBackground}
+            onBackgroundAccepted={(job, options) => {
+              // The acknowledgment already includes all planned target IDs.
+              // Optimistically hide them now; do NOT touch underlying media/database.
+              setBackgroundReviewedJob(job);
+              setQueuedVisualJob((previous) => ({ ...job,
+                queuedVideoIds: [...new Set([...(previous?.queuedVideoIds ?? []), ...(job.queuedVideoIds ?? [])])]
+              }));
+              backgroundStatusRef.current = job.status;
+              backgroundJobIdRef.current = job.id;
+              if (options?.clearDirectoryScope) {
+                duplicateFilterTouchedRef.current = true;
+                setDuplicateFilterDirectoryPath("");
+                setDuplicatePageNumber(1);
+                setDuplicateRefreshVersion((version) => version + 1);
+              }
+            }}
+            backgroundRunning={backgroundReviewedJob?.status === "running"}
             onPreviewResolve={async (plan) => {
               if (!onPreviewDuplicateResolve) {
                 throw new Error("重复项预检查能力未连接");
@@ -1118,6 +1219,7 @@ export function LibraryShell({
             onCancelLegacyCloudDriveBinding={duplicateCleanupApi?.cancelLegacyCloudDriveBinding}
             onSubmitCleanup={duplicateCleanupApi ? (requestId, plan) => duplicateCleanupApi.submitDuplicateCleanup({ requestId, plan, sourceView: "duplicates-verified" }) : undefined}
             onFilteredCleanupAccepted={() => {
+              duplicateFilterTouchedRef.current = true;
               setDuplicateFilterDirectoryPath("");
               setDuplicatePageNumber(1);
               setDuplicateRefreshVersion((current) => current + 1);
@@ -1147,6 +1249,7 @@ export function LibraryShell({
               if (currentDirectory && duplicateCleanupApi?.removeDuplicatePreferredDirectory) {
                 await duplicateCleanupApi.removeDuplicatePreferredDirectory(currentDirectory.id);
               }
+              duplicateFilterTouchedRef.current = true;
               setDuplicatePreferredDirectories([]);
               setDuplicatePreferredDirectoryPath("");
               setDuplicateFilterDirectoryPath("");

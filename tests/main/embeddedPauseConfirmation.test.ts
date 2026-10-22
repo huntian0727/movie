@@ -59,6 +59,22 @@ describe("pause confirmation without periodic telemetry", () => {
       expect(f.commands().filter(c => c.op === "seek" || c.op === "pause")).toHaveLength(0);
     } finally { f.player.dispose(); }
   });
+  it("sends actual speed controls to the trusted MPV host and retains the choice for the next session", async () => {
+    const f = await fixture();
+    try {
+      expect(f.commands().find(command => command.op === "load")).toMatchObject({ speed: 1 });
+      expect(await f.call({ op: "speed", value: 1.5 })).toMatchObject({ speed: 1.5 });
+      expect(f.commands().at(-1)).toMatchObject({ op: "speed", value: 1.5 });
+      await expect(f.call({ op: "speed", value: 6 })).rejects.toThrow();
+      expect(f.commands().filter(command => command.op === "speed")).toHaveLength(1);
+      f.emit({ type: "snapshot", token: 1, loaded: true, time: 3, duration: 12, rotation: 0, seeking: "no", restartCount: 0,
+        paused: "yes", pausedForCache: "no", volume: 20, speed: 1.5, media: null });
+      await vi.waitFor(async () => expect((await f.call({ op: "state" })).speed).toBe(1.5));
+      await f.call({ op: "stop" });
+      const next = await f.player.handle(f.event, { op: "start", sessionKey: "two", videoId: "v", autoplay: false });
+      expect(next).toMatchObject({ sessionKey: "two", speed: 1.5, phase: "loading" });
+    } finally { f.player.dispose(); }
+  });
   it("does not stop video when native subtitle loading fails", async () => {
     const f = await fixture(undefined, false, async () => ({ path: null, offsetSeconds: 0 }));
     try {

@@ -7,12 +7,14 @@ import electronPackage from "electron/package.json" with { type: "json" };
 import { authenticode, createBuildFlavor, hashFile, readJson, releaseOutputDirectory, verifyApplicationVersion, verifyFormalApproval, zipArtifactName } from "./release-engineering.mjs";
 import { mediaLockPath } from "./media-variant.mjs";
 import { playerRuntimeLockPath, playerRuntimeVariant } from "./native-player-runtime.mjs";
+import { formatDisplayVersion, readDisplayVersion } from "./display-version.mjs";
 
 const releaseDirectory = path.join(process.cwd(), releaseOutputDirectory());
 const flavor = await readJson(path.join(releaseDirectory, "build-flavor.json"));
 const embeddedFlavor = await readJson(path.join(releaseDirectory, "win-unpacked", "resources", "build-flavor.json"));
 const manifest = await readJson(path.join(process.cwd(), "package.json"));
 const expectedFlavor = createBuildFlavor(manifest, process.env, { signingCredentialsRequired: false });
+expectedFlavor.displayVersion = formatDisplayVersion(await readDisplayVersion(process.cwd()));
 expectedFlavor.commit = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { cwd: process.cwd(), encoding: "utf8", windowsHide: true }).trim();
 expectedFlavor.workspaceDirty = Boolean(execFileSync("git", ["status", "--porcelain"], { cwd: process.cwd(), encoding: "utf8", windowsHide: true }).trim());
 if (expectedFlavor.mediaVariant === "source-candidate") expectedFlavor.mediaRuntimeLockSha256 = await hashFile(mediaLockPath(process.cwd(), "source-candidate"));

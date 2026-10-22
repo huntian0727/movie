@@ -295,7 +295,7 @@ describe("scan failure review", () => {
     const failure = record(repo, source.id, candidatePath, "file", "independent validation confirmed structural corruption", "CONFIRMED_CORRUPT");
     const deleteImpl = vi.fn().mockResolvedValue(undefined);
 
-    await expect(deleteScanFailureFile(repo, failure.id, { deleteImpl })).rejects.toThrow(/full SHA-256 verification/i);
+    await expect(deleteScanFailureFile(repo, failure.id, { deleteImpl })).rejects.toThrow(/大小与时长重复条件|size-duration duplicate candidates/i);
     expect(deleteImpl).not.toHaveBeenCalled();
     expect(repo.getVideo(candidate.id)).toBeTruthy();
   });
@@ -322,7 +322,7 @@ describe("scan failure review", () => {
     });
 
     expect(result).toMatchObject({ successCount: 0, failureCount: 1, skippedCount: 0 });
-    expect(result.items[0].message).toMatch(/full SHA-256 verification/i);
+    expect(result.items[0].message).toMatch(/大小与时长重复条件|size-duration duplicate candidates/i);
     expect(deleteImpl).not.toHaveBeenCalled();
     expect(repo.getVideoByPath(candidatePath)).toBeTruthy();
   });
