@@ -28,6 +28,9 @@ status: completed
 - 倍速回归测试：npx vitest run tests/main/embeddedPauseConfirmation.test.ts — 15/15 通过。
 - 类型检查：npm run typecheck — 通过。
 - Electron 主进程 smoke：npm run test:electron-smoke — PASS；环境、原生 ABI、发行身份、CloudDrive 沙箱 preload、safeStorage、资料库迁移与 app.whenReady 检查通过。
+- GitHub 源码已推送：分支 ai/per-group-queued-cleanup-button，首轮推送提交 797b852；同时以快进方式更新现有 Draft PR #29 的源分支 ai/native-runtime-candidate-integration。PR 保持 Draft，未更新 main、未创建 tag/Release。
+- 远程 Windows CI 对 797b852 的首轮结果：Security audit、Electron smoke、Dependency review PASS；Node gate FAIL，失败原因是 lite-candidate 工具只暂存于 .tmp/native-media-lite-tools，而合成媒体测试要求 native-bin/media-tools/ffmpeg.exe；unsigned NSIS QA 因依赖失败被跳过。
+- 本轮补充修复 .github/workflows/windows-ci.yml：哈希验证后显式复制 Lite QA 工具至 native-bin/media-tools；tests/scripts/sourceCommunityWorkflow.test.mjs 3/3 PASS。该补充尚未推送，需提交后快进更新 PR #29 并检查新 CI 终态。
 - 完整发布质量门禁：MOVIE_MEDIA_VARIANT=lite-candidate npm run test:release-gate — PASS，退出码 0。第一次运行发现旧测试仍要求 4× 被拒绝；修正为拒绝 6× 后重跑整套门禁通过。
 - 桌面构建：npm run package:development 通过，输出目录为 release/daily-v1.6/win-unpacked。
 - 包内版本标记：displayVersion=1.6，构建源码提交 171d36b2fdde5d7bea3b04ad6d9f81995af2d0c1，技术版本 0.1.16；已确认打包后的 renderer 资源包含「清理本组」按钮。

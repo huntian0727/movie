@@ -44,6 +44,9 @@ describe("source community workflow delivery boundaries", () => {
     expect(nodeTests).toBeDefined();
     expect(unsignedQa).toBeDefined();
     expect(nodeTests).toContain("MOVIE_MEDIA_VARIANT: lite-candidate");
+    expect(nodeTests).toContain("Stage pinned Lite QA tools for synthetic-media tests");
+    expect(nodeTests).toContain(".tmp/native-media-lite-tools/*");
+    expect(nodeTests).toContain("native-bin/media-tools/ffmpeg.exe");
     expect(nodeTests).toContain("npm run test:release-gate");
     expect(unsignedQa).toContain("MOVIE_RELEASE_CLASS: unsigned-test-build");
     expect(unsignedQa).toContain("MOVIE_MEDIA_VARIANT: lite-candidate");

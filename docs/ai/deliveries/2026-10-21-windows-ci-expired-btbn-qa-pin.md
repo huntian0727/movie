@@ -18,6 +18,7 @@ https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-05-13-
 ## Changes
 
 - .github/workflows/windows-ci.yml 的 node-tests 与 unsigned-installation-qa 两个 job 固定环境变量 MOVIE_MEDIA_VARIANT=lite-candidate。所有原本的测试步骤、npm run test:release-gate、构建/解压/安装/卸载门禁均保留，未删除、跳过或放宽断言。
+- 首轮 CI 发现 Lite QA 工具仅暂存于 .tmp/native-media-lite-tools，而合成媒体测试从 native-bin/media-tools/ffmpeg.exe 启动程序。新增显式 CI 步骤：先执行哈希校验，再将经过校验的 Lite QA 工具复制到该测试预期目录；保留原全量测试与断言。
 - 此选项对应现有 scripts/native-media-lite.lock.json，固定的 serversideup/ffmpeg-lgpl-builds v8.1.2-27 Windows x64 LGPL QA 输入。上游固定资产 HTTP 200，原 SHA-256 fb2de01912edb449a5eba1cc487696c7f71ebb7b325e5c5c69434642ec2ba6b0；本机重新核对 13/13 文件哈希，ffmpeg.exe SHA dd2ae91c672ecc7d9233a7ed075dc9437aa817cfb68dce66b172bd61e25cbbe4，ffprobe.exe SHA 57dec3db58729d5f00794bf65d76f15f9278c457989e4a649a02063abdd19bc8。
 - 正式原生候选依旧为 source-candidate；本修复不替换/降级正式候选，也不修改两个 source lock。
 - Lite 输入仍为 CANDIDATE_NOT_APPROVED 与 distributable=false；CI 只上传无二进制的 QA 验证元数据，不能当成 0.1.16 的公开发行批准。

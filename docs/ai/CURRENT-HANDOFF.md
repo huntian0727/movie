@@ -2,21 +2,17 @@
 
 更新时间：2026-10-22（北京时间）
 
-## 2026-10-22 最新发布状态：本机门禁通过，待 GitHub CI
+## 2026-10-22 最新发布状态：源码已推送，修复远程 CI 后待复跑
 
-- 用户明确授权将最新源码推送到 GitHub。本次范围是源码/草稿集成，不等于公开二进制发布；不创建 tag 或 GitHub Release。
-- 当前本地分支 ai/per-group-queued-cleanup-button，提交 b1ea4d5（后续发布记录/回归修复会形成新提交）。它包含 v1.5 播放倍速、后台重复项清理和 v1.6「清理本组」等本地未发布改进。
-- MOVIE_MEDIA_VARIANT=lite-candidate npm run test:release-gate 已于 2026-10-22 本机全量 PASS，退出码 0。首次运行发现旧倍速测试仍拒绝 4×，与现有 3×/4×/5× 支持冲突；已改为拒绝 6×，单测 15/15 PASS，之后全量门禁通过。
-- Windows CI 的旧 BtbN 2026-10-05 每日 ZIP 曾返回 HTTP 404；QA job 已改为使用固定的 lite-candidate 输入，正式 source-candidate 锁和审批未改。推送后仍需以 GitHub Actions 实际终态为准。
-- 现有 Draft PR #29 (https://github.com/huntian0727/movie/pull/29) 明确禁止在原生/许可审批和人工验收完成前合并到 main 或发布公开 Release。因此本次只推进该草稿分支/源码备份，不绕过门禁更新 main。
+- 用户明确授权将最新源码推送到 GitHub。本次仅推送源码/草稿集成，不等于公开二进制发布；不创建 tag 或 GitHub Release。
+- 当前分支 ai/per-group-queued-cleanup-button；功能提交 171d36b，首次发布提交 797b852，后续 CI 修复会继续提交并同步到现有 Draft PR #29。
+- 本机 MOVIE_MEDIA_VARIANT=lite-candidate npm run test:release-gate 全量 PASS，退出码 0；npm run test:electron-smoke PASS；候选组 UI/队列测试 66/66，倍速回归 15/15。
+- GitHub Actions 最终提交 797b852 的 Security audit PASS、Electron native/main-process smoke PASS、Dependency review PASS；Node 全量门禁 FAIL，导致 unsigned installer QA 被跳过。失败点不是功能测试断言，而是合成媒体测试找不到 native-bin/media-tools/ffmpeg.exe：lite-candidate 工具此前只在 .tmp/native-media-lite-tools 校验暂存，CI 没复制到合成测试预期目录。
+- 已修复 Windows CI：新增显式步骤，先哈希校验 lite 工具，再复制到测试预期的 native-bin/media-tools；新增 workflow 合约测试。修复的专项测试 tests/scripts/sourceCommunityWorkflow.test.mjs 3/3 PASS。该修复还未推送/触发新的 GitHub Actions，不能标为远端 PASS。
+- 现有 Draft PR #29 (https://github.com/huntian0727/movie/pull/29) 明确禁止在原生/许可审批和人工验收完成前合并到 main 或发布公开 Release。因此只更新该草稿分支，不更新 main、不创建 tag、不发布 Release。
 - 桌面日常包为 release/daily-v1.6/win-unpacked，快捷方式已指向 v1.6；部署时仍有 4 个 v1.5 进程运行，尚未实际通过快捷方式启动 v1.6。真实 CloudDrive/115 删除未执行。
 
 ## 2026-10-21 最新 Windows CI 404 修复（历史记录）
-
-- GitHub PR #29 的 Windows CI run 39627833290：安全审计、Electron 原生安全 smoke、生产依赖核查均 PASS；Node job 仅因旧 BtbN/FFmpeg-Builds 2026-10-05 每日 ZIP 已被上游删除、下载 HTTP 404 而在开始跑测试前失败，后续 NSIS QA 被依赖跳过。绝不能把这一批 CI 写成全绿。
-- 固定改用 .github/workflows/windows-ci.yml 两个 CI QA job 的 MOVIE_MEDIA_VARIANT=lite-candidate，复用仓库旧稳定并经 pin 的 serversideup/ffmpeg-lgpl-builds v8.1.2-27。已复核资产 HTTP 200，13/13 文件哈希及 FFmpeg/FFprobe 真实 SHA PASS。不修改全量测试命令、正式 source-candidate 锁、发行证据或审批。
-- 详见 [CI 问题与修复交接](deliveries/2026-10-21-windows-ci-expired-btbn-qa-pin.md)。原本成功的 MPV 新版 source-candidate 私有绿色包 SHA 75ee4f58...、正式 Release 阻塞及旧审批绑定均保持不变。
-
 - `npm run test:release-gate` 已重新全量 **PASS**（终态 `wc_job_ukbAhzEPnrCjRBLD` 退出码 0），三个历史批准文件未被修改。**真实 MPV 5 种中性编码样片隔离播放 5/5 PASS**（含 H.264/HEVC/VP9、双音轨和字幕，`production-service-test.json` 0 failures）；实际人工听音仍 NOT RUN。源库本批次人工批准及正式公共绿色发行仍未完成。尚未替换日常桌面快捷方式、没有在真实资料库执行删除。详见 [独立交付记录](deliveries/2026-10-21-native-source-candidate-integration.md)。
 
 
