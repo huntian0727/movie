@@ -7,6 +7,13 @@ status: completed
 
 # v0.1.16 绿色 ZIP 发版经验固化
 
+## 快速入口与工具验证
+- 唯一 SOP：`docs/RELEASE_FASTPATH.md`；历史复盘：`docs/ai/deliveries/2026-10-22-release-fastpath-retrospective.md`。
+- 开发时记账：`npm run release:note -- --category safety|performance|feature --text "真实变更" --tests "实际结果"`，记录写入 `docs/releases/NEXT-CHANGES.md`。
+- 只读预检：`npm run release:check -- --version 0.1.17`；Draft 与同 Commit CI 检查：加 `--draft`；公开 Latest 验收：加 `--published`。版本仅为示例。
+- 新增 `tests/scripts/releaseFastpathPreflight.test.mjs` 和 `tests/scripts/releaseRecordChange.test.mjs`，本机实际运行 6/6 PASS；对 v0.1.16 当前文件的预检 19/19 PASS。检查不构建、不改审批、不发布。
+
+
 ## Context
 维护者明确要求下次发版只做必要动作、不重复耗费大量时间。2026-10-22 实际 v0.1.16 已发布 GitHub Latest，正式 ZIP 哈希 `fcf37f55e7c2cab21c051aaad0534560ca2f5007ebf163399648e0d4115fa703`，发布页 `https://github.com/huntian0727/movie/releases/tag/v0.1.16`，绑定 commit `159db20738d4e36243fdcf57cc8997e41fbea818`；Windows CI `39733324623` 和安全审计 `39733324536` 成功，发布工作流 `39734209982` 成功。
 

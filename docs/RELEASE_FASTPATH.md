@@ -1,6 +1,6 @@
 # 拉面影视：极简绿色 ZIP 发版 SOP
 
-> **唯一日常发布入口**。本文件总结 2026-10-22 成功发布 **v0.1.16 Latest** 的实战步骤。只针对 Windows x64 **未签名、免安装的绿色 ZIP**；不用于 NSIS/签名安装器。详细证据和法律核对见 [源码社区版发行路线](SOURCE_COMMUNITY_RELEASE.md)，旧文档中的 v0.1.15“当前版”描述为历史记录，不能覆盖实时 GitHub Release。
+> **唯一日常发布入口**。开发和发布前后都优先按本文件执行；本文件总结 2026-10-22 成功发布 **v0.1.16 Latest** 的实战步骤。只针对 Windows x64 **未签名、免安装的绿色 ZIP**；不用于 NSIS/签名安装器。详细证据和法律核对见 [源码社区版发行路线](SOURCE_COMMUNITY_RELEASE.md)，旧文档中的 v0.1.15“当前版”描述为历史记录，不能覆盖实时 GitHub Release。
 >
 > **核心原则：尽量复用通过验证的字节和证据；不在每次应用小改动时重编整个原生工具链；只有确切的最终构建才允许公开。不能靠修改 approved / distributable 字段假装获得批准。**
 
@@ -36,6 +36,61 @@
 | 只完成 Draft 或 CI，误报“已发布” | 公开后查询 GitHub Release 的 draft/prerelease/Latest/六附件，验收后再向用户报告 |
 | 为了打包重复执行大量质量门禁 | 小版本只复用 CI 已通过的测试和必要的成品验证；变更相关风险才扩大检查范围 |
 | 源码、更新记录散落在多个旧文档 | 这份 SOP 为第一入口；版本变更写一份三分类发行说明，记录到交付文件；历史记录不删除 |
+
+
+## 实用快捷命令（发布时不要重复整套审计）
+
+### 每次开发完成就记录变化
+
+记录即时写入 docs/releases/NEXT-CHANGES.md；发行说明仍统一复制 docs/releases/RELEASE_NOTES_TEMPLATE.md，与 CHANGELOG.md [Unreleased] 保持同步。
+
+    npm run release:note -- --category safety --text "远端结果未知时禁止自动重试" --tests "合成删除专项 PASS"
+    npm run release:note -- --category performance --text "后台任务减少前台等待" --tests "相关回归 PASS"
+    npm run release:note -- --category feature --text "新增播放器高倍速" --tests "播放器专项 PASS"
+
+### 只读阶段检查（prepare → draft → published）
+
+    # 先列出审批、版本和原生证据的失配项；所有 BLOCK 都是具体待办
+    npm run release:check -- --version 0.1.17
+
+    # 当前 Draft 具备六份附件后，用同一 Commit 的 CI/Security/正式构建来核对
+    npm run release:check -- --version 0.1.17 --draft
+
+    # GitHub Release 真正公开后再次确认 Latest、六份附件与 SHA
+    npm run release:check -- --version 0.1.17 --published
+
+以上命令只读取文件和 GitHub，不修改任何 Release、tag、用户数据库或正在运行的程序。0.1.17 是示例，必须替换成真实版本。**--draft / --published 必须在该发行 tag 对应的代码检出目录运行**；如果当前开发分支已经有后续文档或功能提交，检查应提示 Commit 不一致，这不是旧发行失败。
+
+### 私有草稿到 Latest 的官方路径
+
+以下是**分阶段**命令，不能忽略上一条失败继续执行：
+
+    # GitHub main 已安全合入本次代码/发行说明后，创建私有草稿
+    gh release create v0.1.17 --repo huntian0727/movie --draft --title "拉面影视 v0.1.17" --notes-file docs/releases/0.1.17.md --target main
+    gh api repos/huntian0727/movie/releases/tags/v0.1.17 --jq .id
+
+    # 将真实 Draft ID 绑定到本版发行批准；按常规流程提交、让 CI/Security 针对最终 Commit 通过。
+    # tag 可能在创建 Draft 时就生成，发布前必须检查最终 tag ^{} 与 main/源码/批准的 SHA 一致。
+    git rev-parse HEAD
+    git ls-remote --tags origin "refs/tags/v0.1.17^{}"
+
+    # 当前 Commit 对应的应用源码、原生对应源码及 SOURCE-PAIR.json 先上传同一 Draft。
+    # 下列手工 workflow 使用正式的 source-candidate，生成真正的绿色 ZIP 并自动暂存 Draft：
+    gh workflow run source-community-build.yml --repo huntian0727/movie --ref v0.1.17 -f release_class=unsigned-public-release
+    gh run list --repo huntian0727/movie --workflow source-community-build.yml --limit 5
+
+    # 从 GitHub 真实附件 digest 生成 SHA256SUMS.txt 和 RELEASE-VERIFICATION.json，凑齐六件。
+    npm run release:check -- --version 0.1.17 --draft
+
+    # 只在以上全 PASS 且维护者已授权公开时执行
+    gh release edit v0.1.17 --repo huntian0727/movie --draft=false --prerelease=false --latest
+    npm run release:check -- --version 0.1.17 --published
+
+**注意当前架构的 Draft ID → 审批文件 → Commit → tag 顺序。** 公开之前可以在受控流程中核实未发布 tag 与最终 Commit；已经公开的 tag 不得移动，更不能强制推送修正错误发布。原生库字节未变可复用原批准的**该二进制对应源码和许可材料**，不能把 Lite QA 测试工具冒充正式分发运行库。若没做的真实 Windows/网盘验收不可写 PASS。
+
+### 固定最终汇报
+
+相对上个**正式版**的安全类、性能类、功能增加类变化；技术版与左上角界面版；Git main/tag SHA；本版 CI/Security/Source builder 结果；GitHub Latest 下载 ZIP 链接、SHA256、六件附件；未验证事项；家里日常桌面 .lnk 是否另行更新。不把本地源码成功、CI 成功或 Draft 当成公开发行成功。
 
 ## 发布记录与交接格式
 

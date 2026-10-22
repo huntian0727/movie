@@ -55,6 +55,8 @@
     "test:packaged-smoke": "npm run verify:environment && node scripts/run-packaged-smoke.mjs",
     "test:installer-smoke": "npm run verify:environment && node scripts/run-installer-smoke.mjs",
     "release:metadata": "node scripts/write-release-metadata.mjs",
+    "release:check": "node scripts/release-fastpath-preflight.mjs",
+    "release:note": "node scripts/release-record-change.mjs",
     "backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/project-backup.ps1",
     "test:renderer-security-smoke": "node scripts/run-renderer-security-smoke.mjs",
     "prepare:media-tools": "node scripts/prepare-native-media.mjs"
