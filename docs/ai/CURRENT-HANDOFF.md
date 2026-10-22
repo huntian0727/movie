@@ -9,16 +9,14 @@
 - Local verification: release gate, Electron smoke, renderer security smoke, packaged smoke under aliased TEMP, artifact verification, Windows installer build, release metadata, and isolated install/repair/uninstall smoke passed. The pushed Windows CI run remains the authority for remote status.
 - Release boundary: this changes QA infrastructure only and does not change native-runtime approval. Unapproved candidate binaries must not be published as a public release.
 
-## 2026-10-22 最新发布状态：源码已推送，修复远程 CI 后待复跑
+## 2026-10-22 最新状态：CI 修复已推送，公开发行仍被门禁阻塞
 
-- 用户明确授权将最新源码推送到 GitHub。本次仅推送源码/草稿集成，不等于公开二进制发布；不创建 tag 或 GitHub Release。
-- 当前分支 ai/per-group-queued-cleanup-button；功能提交 171d36b，首次发布提交 797b852，后续 CI 修复会继续提交并同步到现有 Draft PR #29。
-- 本机 MOVIE_MEDIA_VARIANT=lite-candidate npm run test:release-gate 全量 PASS，退出码 0；npm run test:electron-smoke PASS；候选组 UI/队列测试 66/66，倍速回归 15/15。
-- GitHub Actions 最终提交 797b852 的 Security audit PASS、Electron native/main-process smoke PASS、Dependency review PASS；Node 全量门禁 FAIL，导致 unsigned installer QA 被跳过。失败点不是功能测试断言，而是合成媒体测试找不到 native-bin/media-tools/ffmpeg.exe：lite-candidate 工具此前只在 .tmp/native-media-lite-tools 校验暂存，CI 没复制到合成测试预期目录。
-- 已修复 Windows CI：新增显式步骤，先哈希校验 lite 工具，再复制到测试预期的 native-bin/media-tools；新增 workflow 合约测试。修复的专项测试 tests/scripts/sourceCommunityWorkflow.test.mjs 3/3 PASS。该修复还未推送/触发新的 GitHub Actions，不能标为远端 PASS。
-- 现有 Draft PR #29 (https://github.com/huntian0727/movie/pull/29) 明确禁止在原生/许可审批和人工验收完成前合并到 main 或发布公开 Release。因此只更新该草稿分支，不更新 main、不创建 tag、不发布 Release。
-- 桌面日常包为 release/daily-v1.6/win-unpacked，快捷方式已指向 v1.6；部署时仍有 4 个 v1.5 进程运行，尚未实际通过快捷方式启动 v1.6。真实 CloudDrive/115 删除未执行。
-
+- 当前 Draft PR #29：https://github.com/huntian0727/movie/pull/29；远端分支 ai/native-runtime-candidate-integration。packaged smoke 修复提交为 a3b7c56e530bb3dc44a94ac792a9fdbbd6938228；当前 HEAD 以 git log 查询为准。
+- 已修复 Windows packaged smoke 60 秒启动超时：规范化 TEMP 下创建的测试数据目录，新增 junction/symlink 回归测试和 create/verify 阶段超时诊断。完整本地 release gate、Electron smoke、renderer security smoke、别名 TEMP 下 packaged smoke、包校验、Windows QA 安装包构建及隔离安装/修复/卸载全部 PASS。
+- GitHub Windows CI run #250：https://github.com/huntian0727/movie/actions/runs/39705876732 与 Security audit run #84：https://github.com/huntian0727/movie/actions/runs/39705876999 均已 SUCCESS，且都绑定修复提交 a3b7c56e530bb3dc44a94ac792a9fdbbd6938228。Windows CI 的 Node/file-safety、Electron/renderer security、dependency review、packaged smoke、unsigned installer build 和 installer smoke 全部通过。
+- 最新私有原生构建 run 39612312642 已 SUCCESS，完整 PE import closure 已验证；但当前 source-candidate 媒体/播放器锁仍为 CANDIDATE_NOT_APPROVED / distributable=false。旧 native-source-approval.json 绑定 run 38134981406 的旧锁和旧源码 ZIP，不覆盖新候选；当前 compiled-source-license-review.json 也仍是 approved=false，引用旧 producer run。
+- 运行 node scripts/audit-release-readiness.mjs 的最新本地结果为 OUTCOME=BLOCKED：历史批准绑定 0.1.15，当前版本 0.1.16；package-lock SHA 不匹配；第三方运行库发行批准未覆盖当前哈希；稳定 Windows 11/标准用户验收未覆盖；Lite 静态 FFmpeg 的 LGPL 重新链接审查未签核。不得手动翻转批准字段或伪造哈希。
+- PR 保持 Draft，不合并 main、不创建公开 tag/Release、不上传公开二进制，直到新候选的源/许可审查、精确哈希批准和必要的人工验收完成。真实 CloudDrive/115 删除验收仍未执行。
 ## 2026-10-21 最新 Windows CI 404 修复（历史记录）
 - `npm run test:release-gate` 已重新全量 **PASS**（终态 `wc_job_ukbAhzEPnrCjRBLD` 退出码 0），三个历史批准文件未被修改。**真实 MPV 5 种中性编码样片隔离播放 5/5 PASS**（含 H.264/HEVC/VP9、双音轨和字幕，`production-service-test.json` 0 failures）；实际人工听音仍 NOT RUN。源库本批次人工批准及正式公共绿色发行仍未完成。尚未替换日常桌面快捷方式、没有在真实资料库执行删除。详见 [独立交付记录](deliveries/2026-10-21-native-source-candidate-integration.md)。
 
@@ -33,10 +31,10 @@
 - `npm run test:release-gate` PASS：149 个测试文件、1,391/1,391 用例；发行工程单测 74/74、媒体候选契约 67/67。
 - 在隔离身份 `unsigned-test-build` 下重新构建私有 QA NSIS 安装包。 `node scripts/verify-packaged-artifact.mjs` PASS（3,469 ASAR 条目、17 份精确许可声明）；`node scripts/write-release-metadata.mjs` PASS；`npm run test:installer-smoke` PASS（安装、修复、拒绝删除应用数据、卸载；合成 SQLite/视频哨兵保留，生产注册信息与快捷方式未变）。安装器 SHA-256：`d70815daaa53ea4e87e487e280767096c14fb89ff84b6ae7d277c0be1a0a0003`。
 - 当前私有安装器路径：`release/unsigned-test-build/拉面影视-0.1.16-x64-unsigned-test-build-Setup.exe`。它不是正式包，不得公开上传；日常版 `release/win-unpacked` 和桌面快捷方式未覆盖。
-- 使用私有 FFmpeg-Lite REVIEW-v2 ZIP 重跑 `audit-release-readiness.mjs`，源码 ZIP 哈希核验 PASS（239,488,121 字节，SHA-256 `6ed202c4e30627624e2678a2a62e7c9c6e347be4a57d9b6af248fd45571b15d4`），但总结果 `OUTCOME=BLOCKED`。除旧审批绑定 0.1.15、package-lock 哈希不匹配、稳定 Windows/标准用户覆盖未获批准外，本轮 ZIP 所用 `source-candidate` 原生媒体锁仍为 `CANDIDATE_NOT_APPROVED`，上游生产 CI 为 FAIL、`originalCiClosureValid=false`；本地打包 smoke 不能覆盖此问题。旧 `lite-candidate` 也仍未批准，静态 LGPL/组件级许可存在待决项。当前私有安装器哈希不在历史 QA 批准记录中；该审计本身不能批准公开包。
+- `audit-release-readiness.mjs` 只审计隔离 unsigned-test-build/Lite QA 包，不能批准 source-candidate 正式包。运行结果为 `OUTCOME=BLOCKED`：批准版本 0.1.15 与当前 0.1.16 不符，package-lock SHA 不符，Lite 静态 FFmpeg LGPL 重新链接审核仍未签核，稳定 Windows/标准用户覆盖不足。该脚本即使验证 REVIEW-v2 ZIP 哈希也不会批准公开发行。
 - 私有 `unsigned-community-qa` 绿色 ZIP 已通过 `dist:zip`、`npm run verify:zip` 和 `npm run release:metadata -- --portable`；229 个文件逐项校验、双阶段 packaged smoke PASS。SHA-256：`4d8f099bf436ed3f1ac46bebe3020672786d66de4c49fb56820f15e848e9e9d1`，构建 commit `bbc1a42ca4784bda1fee788f9ee3256b781900a7`；未签名、`publicReleaseApproved=false`，仅私有 QA。
-- 没有推送 GitHub、创建/推送 tag、上传或发布 Release。没有运行真实 CloudDrive/115 删除；遵守用户要求，将真实远端删除与播放器/字幕人工体验留到最后。
-- 当前本地分支为 `ai/native-source-closure-fix`，基于远端 `ai/traceable-player-runtime` 的 commit `757348117960dc2e184a9c1ad5facbeca2cf2d0f`；本轮修复仅在本地分支提交，不推送。原生构建 run `39598671777` 失败于 MPV/FFmpeg 弃用警告被 `-Werror` 当作错误；本地修复仅对该类警告取消“视为错误”，并修复上游配方吞掉 Meson 失败状态的问题。固定上游配方哈希核验通过，`npm run test:native-source-build` 13+10+6=29 项通过；新代码尚无 CI 重建结果。审批范围澄清：旧 `build/native-source-approval.json` 的 `approved=true` 精确绑定 38134981406 的旧锁/ZIP/源码哈希；不授权 0.1.16 新候选。`build/public-test-approval.json` 仅针对 0.1.15-beta.3，`build/release-approval.json` 仅针对 0.1.15。详见 `docs/legal/NATIVE-SOURCE-APPROVAL-SCOPE-ADDENDUM.md`。完整证据与下一步：`docs/ai/deliveries/2026-10-21-release-candidate-prep.md`。**禁止通过编辑审批文件、改哈希、改名 QA 包来绕过发行阻塞。**
+- 本轮源码修复已推送到 PR #29；没有合并 main、创建公开 tag、上传公开二进制或发布 GitHub Release。没有运行真实 CloudDrive/115 删除；该破坏性验收仍需在隔离文件/明确授权范围完成。
+- 原生源码构建历史：run `39598671777` 因弃用警告被 `-Werror` 中止，随后在 commit `3b73062` 修复定向警告处理和 Meson 失败状态传播；新私有构建 run `39612312642` 已 SUCCESS。当前候选 runtime ZIP SHA-256 `46b7a00a9275da307efc89e320ef0c5c87a846fd020e5d1167f838a0d394447a`，对应源码候选 ZIP SHA-256 `4325dc1a0d216ff89785337ab68833b0a5f6f35fcfd9795370802e1c6c621130`。但 compiled-source-license-review.json 仍标记 approved=false/sourceComplianceApproved=false 且引用旧 producer run 38134981406；build/native-source-approval.json 也仍绑定旧锁哈希 `70ab4d...` / `11ad832...` 和旧源码 ZIP `3e242199...`。不得把构建成功等同许可批准，也不得修改旧批准记录来冒充新候选获批。下一步是针对 run 396123 的确切来源、二进制哈希和组件许可完成独立复核，再由所有者批准当前候选；稳定 Windows/标准用户覆盖与最终人工验收仍需补齐。详见 `docs/legal/NATIVE-SOURCE-APPROVAL-SCOPE-ADDENDUM.md`。
 
 ## 之前的 v1.2 功能 QA 进展
 

@@ -20,7 +20,10 @@
 
 ## 0.1.16 新候选验证
 
-2026-10-21 启动了新的私有原生构建 run：`39598671777`，目标 commit `757348117960dc2e184a9c1ad5facbeca2cf2d0f`。该 run 已结束且为 `FAIL`。失败点不是前一轮 Windows 系统导入分类，而是 MPV 编译时 FFmpeg `AVStream.nb_streams` / `AVStream.streams` 的弃用警告被 `-Werror=deprecated-declarations` 提升为错误；编译中止后，上游 shell 配方没有传播 `meson compile` 的失败状态，打包脚本继续尝试复制不存在的 `libmpv-2.dll`，造成后续错误。
+2026-10-21 的 run `39598671777` 因 MPV 编译时 FFmpeg `AVStream.nb_streams` / `AVStream.streams` 弃用警告被 `-Werror=deprecated-declarations` 提升为错误而失败；上游 shell 配方还未传播 `meson compile` 的失败状态，随后打包器尝试复制未生成的 `libmpv-2.dll`。在 commit `3b73062` 中已做定向修复：只对该类弃用警告取消“视为错误”，并让 Meson 编译失败立即退出；`npm run test:native-source-build` 的专项测试 29/29 通过。
 
-无论该构建是否通过，新的二进制/源码哈希都不会自动继承旧批次批准。当前 `scripts/native-source-media.lock.json` 和 `scripts/native-source-player-runtime.lock.json` 以及两个批准 JSON 均须保留原样，直到新候选完成独立审阅并由所有者明确批准。不得为了通过门禁手动翻转 `approved`、`sourceComplianceApproved`、`distributable` 或哈希字段。
-本地未推送修复位于 `scripts/native-source-build.py`：只给 MPV 构建阶段的 `CFLAGS` 增加 `-Wno-error=deprecated-declarations`，不关闭全局 `werror`；同时要求 `meson compile` 失败立即退出，避免误入打包步骤。已用固定上游配方 SHA-256 `22a98842b121a8a947b1703251bd72b4f553ff4fd91a5894202af156539a3ea2` 验证补丁输入匹配，且验证生成配方同时包含定向警告处理与失败状态传播。`npm run test:native-source-build` 本地通过（13 + 10 + 6 = 29 项）。这只是本地脚本/契约验证；修改尚未由新的 GitHub Actions 构建验证，也没有新的原生二进制。下一步需在获准推送后运行新的私有构建，再核对构建结论、`closureValid`、`unresolvedImports`、候选 ZIP 哈希与源码证据哈希。
+修复后的私有构建 run `39612312642`（commit `3b73062e7008a34c8d1dba78bf09d6edb5ff3666`）已 SUCCESS。新 runtime ZIP SHA-256 为 `46b7a00a9275da307efc89e320ef0c5c87a846fd020e5d1167f838a0d394447a`（39,836,889 字节），对应源码候选 ZIP SHA-256 为 `4325dc1a0d216ff89785337ab68833b0a5f6f35fcfd9795370802e1c6c621130`（254,553,043 字节）；当前候选的完整 PE import closure 已验证。该成功记录不改写 run `38134981406` 的历史 FAIL，也不自动批准新候选。
+
+当前锁文件 `scripts/native-source-media.lock.json` 与 `scripts/native-source-player-runtime.lock.json` 仍为 `CANDIDATE_NOT_APPROVED` / `distributable=false`。它们的锁哈希分别为 `2371799a58b3ecad5d5b493dd82de8aa5378b607be86f1fa3bc70f7f9c6a8d28` 和 `c00527fa8794f331f25d11e7199a3ed7ab298a848a2cb394473ec72d56af206e`；当前 `build/native-source-approval.json` 仍绑定旧锁哈希 `70ab4dac7dfe6c433f26802861f5e1f3b76dcd8997cd2cd313e209a9f2e17fa5` / `11ad832489dabf095b9d06bb0c6011e8144905a5eeac25d69b24c2f76aac532f` 和旧源码证据 ZIP `3e242199da78c68939ebcbc8bb70bae4c2e57102b7aadc5ceb6b54317880e70a`。`.tmp/native-run-39612312642/compiled-source-license-review.json` 仍是 `approved=false` / `sourceComplianceApproved=false`，并引用旧 producer run `38134981406`，因此它不能作为新候选的许可批准。
+
+下一步必须以 run `39612312642` 的实际二进制、对应源码归档、编译日志与依赖通知为对象完成独立审查，更新新的候选审查证据并由所有者明确批准；同时保留旧审批记录不变。禁止手动翻转 `approved`、`sourceComplianceApproved`、`distributable` 或哈希字段来绕过发行门禁。

@@ -42,6 +42,6 @@ Windows runner 的临时目录路径采用 `C:\Users\RUNNER~1\AppData\Local\Temp
 
 ## Risks and follow-up
 
-- GitHub Actions 的失败 run `39701155462` 是修复前提交的历史结果，仍显示失败。由于用户当前只授权本地修复，本轮没有推送源代码；在用户明确授权后，应把修复更新到 PR #29 的候选分支并检查新的 Windows CI 终态。不能把本地 PASS 当成远端 CI 已通过。
+- GitHub Actions 的失败 run `39701155462` 是修复前提交的历史结果，仍显示失败。后续用户授权推送后，修复提交 `a3b7c56e530bb3dc44a94ac792a9fdbbd6938228` 已推送到 PR #29。Windows CI run `39705876732`（#250）和 Security audit run `39705876999`（#84）均已 SUCCESS；其中 Windows CI 的 packaged smoke 与隔离安装/卸载 smoke 通过。旧失败记录保留作历史证据，不代表最新提交失败。
 - 没有合并 PR、创建公开 Release、上传公开二进制或执行真实 CloudDrive/115 删除。
-- 开发前快照：`2026-10-22_01-06-30-505_fix-packaged-smoke-timeout`。项目备份脚本创建 checkpoint 时自动推送了标签 `checkpoint-20261022-090625-adb2337-fix-packaged-smoke-timeout`；没有推送源代码分支或 Release。
+- 开发前快照：`2026-10-22_01-06-30-505_fix-packaged-smoke-timeout`。项目备份脚本创建 checkpoint 时自动推送了标签 `checkpoint-20261022-090625-adb2337-fix-packaged-smoke-timeout`；该标签推送是备份脚本副作用。之后按用户授权另行推送了修复源码到 PR #29；没有合并 main、创建公开发行 tag 或发布 GitHub Release。
