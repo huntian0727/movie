@@ -45,7 +45,7 @@ jobs:
       - run: npm run verify:artifact
       - run: npm run release:metadata
       - run: npm run test:installer-smoke
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-x64-unsigned-test-build
           if-no-files-found: error
@@ -115,7 +115,7 @@ jobs:
       - run: npm run verify:artifact
       - name: Verify actual Authenticode publisher/timestamp and write SHA-256
         run: npm run release:metadata
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-x64-verified-signed-release
           if-no-files-found: error
