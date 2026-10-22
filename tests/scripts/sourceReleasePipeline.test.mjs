@@ -90,12 +90,12 @@ describe("public beta authorization is separate from stable Windows acceptance",
   it("retains the real beta approval and its exact version/dependency/native evidence pins", async () => {
     const approval = JSON.parse(await readFile("build/public-test-approval.json", "utf8"));
     const pkg = JSON.parse(await readFile("package.json", "utf8"));
-    expect(approval).toMatchObject({ approved: true, version: "0.1.15-beta.3", scope: "public-prerelease-portable-only", stableReleaseApproved: false });
+    expect(approval).toMatchObject({ approved: true, version: "0.1.16-beta.1", scope: "public-prerelease-portable-only", stableReleaseApproved: false });
     expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(pkg.version).not.toBe(approval.version);
-    expect(approval.packageLockSha256).toBe("e45ecc4bdd40b0a90f72727cf1becdab349dc65fc84b2474cdceb968aae0addb");
+    expect(approval.packageLockSha256).toBe("277f4b5b3c362901db434618b04d4897a4228b524beddb25d872915df967d865");
     expect(approval.packageLockSha256).not.toBe(await hashFile("package-lock.json"));
-    expect(approval.nativeSourceApprovalSha256).toBe("f8e30e3aa1bee0aa47b3a5c28c7b7f76db7fa8e1f2b99648573f8ee67ec46311");
+    expect(approval.nativeSourceApprovalSha256).toBe("8040e06202843d216d7771d0e4cdaf42380f4d99880575988f37b6515f707dde");
     expect(approval.nativeSourceApprovalSha256).not.toBe(await hashFile("build/native-source-approval.json"));
     expect(approval.decisionEvidenceSha256).toBe(await hashFile(approval.decisionEvidence));
     expect(approval.sandboxEvidenceSha256).toBe(await hashFile(approval.sandboxEvidence));

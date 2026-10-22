@@ -24,3 +24,5 @@ docs/legal/GNU-LGPLv3.txt -text -whitespace
 
 docs/legal/STABLE_PORTABLE_RELEASE_DECISION.md text eol=lf
 docs/legal/STABLE_PORTABLE_WINDOWS_QA.json text eol=lf
+docs/legal/PORTABLE_RELEASE_QA.json text eol=lf
+native/embedded-mpv/NativeHost.cs text eol=lf

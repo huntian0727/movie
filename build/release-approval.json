@@ -50,5 +50,6 @@
   "decisionEvidence": "docs/legal/STABLE_PORTABLE_RELEASE_DECISION.md",
   "decisionEvidenceSha256": "9a9b1b2d0ca01aebad1394e4e17c5445903d3bf6f93c242ca9fbd8ffebc3d7c1",
   "correspondingNativeSourcesSha256": "d7f286b7af10be3f07ca7e13ca7514c24ec15b0d742a673e3f1935e421c3fd75",
-  "qaScope": "owner-accepted-targeted-portable-qa"
+  "qaScope": "owner-accepted-targeted-portable-qa",
+  "productDraftReleaseId": 420326400
 }
