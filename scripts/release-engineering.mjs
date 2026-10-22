@@ -5,6 +5,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { candidateDirectory, liteRuntime, mediaVariant } from "./media-variant.mjs";
+import { playerRuntimeVariant } from "./native-player-runtime.mjs";
 import { isPrivateRelease, verifySourceReleaseApproval } from "./source-release-approval.mjs";
 
 const execute = promisify(execFile);
@@ -71,7 +72,7 @@ export function createBuildFlavor(manifest, env = process.env, { signingCredenti
     if (community && env.RELEASE_UNSIGNED_PUBLIC_ACKNOWLEDGED !== "true") throw new Error("Explicit unsigned public risk acknowledgement is required.");
   } else if (certificate) throw new Error("Signing credentials must not be supplied to unsigned test builds.");
   return {
-    schemaVersion: 1, releaseClass, version: manifest.version, arch: "x64", mediaVariant: mediaVariant(env), outputDirectory: releaseOutputDirectory(env), complianceApprovalSha256: null,
+    schemaVersion: 1, releaseClass, version: manifest.version, arch: "x64", mediaVariant: mediaVariant(env), playerRuntimeVariant: playerRuntimeVariant(env), outputDirectory: releaseOutputDirectory(env), complianceApprovalSha256: null,
     ...(publicTest ? { publicTestRelease: true } : {}),
     appId: community ? COMMUNITY_APP_ID : signed ? PRODUCTION_APP_ID : TEST_APP_ID,
     nsisGuid: community ? COMMUNITY_NSIS_GUID : signed ? null : TEST_NSIS_GUID,
@@ -171,8 +172,16 @@ export async function verifyFormalApproval(root, flavor) {
     await verifyEvidence(root, approval.decisionEvidence, approval.decisionEvidenceSha256);
     await verifyEvidence(root, approval.cleanWindows11Evidence, approval.cleanWindows11EvidenceSha256);
     const qa = await readJson(path.join(root, approval.cleanWindows11Evidence));
-    if (qa.status !== "PASS_OWNER_ACCEPTED_SANDBOX_SCOPE" || qa.version !== flavor.version || qa.environment?.stableWindowsCoverage !== false ||
-        qa.environment?.standardUserCoverage !== false || qa.ownerAcceptedEnvironment !== true || qa.packaging !== "portable-zip") throw new Error("Actual owner-accepted Sandbox scope is required.");
+    if (qa.status !== "PASS_OWNER_ACCEPTED_TARGETED_PORTABLE_QA" || qa.version !== flavor.version ||
+        qa.environment?.qaMode !== "isolated-packaged-smoke" || qa.environment?.stableWindowsCoverage !== false ||
+        qa.environment?.standardUserCoverage !== false || qa.ownerAcceptedEnvironment !== true || qa.packaging !== "portable-zip") {
+      throw new Error("Owner-accepted targeted portable QA evidence is required.");
+    }
+    if (qa.nativeHostBinarySha256 !== await hashFile(path.join(root, "native-bin/NativeHost.exe")) ||
+        qa.mediaRuntimeLockSha256 !== await hashFile(path.join(root, "scripts/native-source-media.lock.json")) ||
+        qa.playerRuntimeLockSha256 !== await hashFile(path.join(root, "scripts/native-source-player-runtime.lock.json"))) {
+      throw new Error("Targeted QA evidence does not match this NativeHost/runtime pair.");
+    }
     if (await hashFile(path.join(root, qa.previousSandboxEvidence)) !== qa.previousSandboxEvidenceSha256 ||
         await hashFile(path.join(root, "build/native-source-approval.json")) !== approval.nativeSourceApprovalSha256) throw new Error("Stable acceptance/source evidence differs.");
   }

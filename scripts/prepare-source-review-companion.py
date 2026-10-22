@@ -43,11 +43,27 @@ def validate_public_test(approval, version, native_approval):
     if native_approval.get("approved") is not True or not native_approval.get("binaries") or any(item.get("sourceComplianceApproved") is not True for item in native_approval["binaries"]):
         raise ValueError("Public source companion lacks native distribution approval")
 
-def prepare(source, output, public_test=False):
+def validate_stable_release(approval, version, native_approval):
+    if (approval.get("approved") is not True or approval.get("ownersConfirmed") is not True or
+        approval.get("manualQaApproved") is not True or approval.get("scope") != "stable-portable-only" or
+        approval.get("version") != version or approval.get("applicationLicense") != "MIT" or
+        approval.get("unsignedAcknowledged") is not True or approval.get("stableWindowsCoverage") is not False or
+        approval.get("standardUserCoverage") is not False):
+        raise ValueError("Stable source companion requires the exact owner-approved portable scope")
+    if (native_approval.get("approved") is not True or len(native_approval.get("binaries", [])) != 39 or
+        any(item.get("sourceComplianceApproved") is not True for item in native_approval["binaries"])):
+        raise ValueError("Stable source companion lacks exact native source approval")
+
+def prepare(source, output, public_test=False, stable_release=False):
     source, output = Path(source).resolve(), Path(output).resolve()
     if output == ROOT or ROOT in output.parents or output.exists() or not output.parent.is_dir():
         raise ValueError("Output must be a NEW external staging directory with existing parent")
+    if public_test and stable_release:
+        raise ValueError("Choose one release scope")
     verify_source_zip(source)
+    native_zip = ROOT / ".tmp/native-source-inputs/native-runtime.zip"
+    if native_zip.is_symlink() or not native_zip.is_file() or native_zip.stat().st_size != 39814033 or digest(native_zip) != NATIVE_SHA256:
+        raise ValueError("Native runtime ZIP differs from the approved fixed producer")
     approvals = [json.loads((ROOT / p).read_text()) for p in ["build/release-approval.json", "build/native-source-approval.json"]]
     if any(type(a.get("approved")) is not bool for a in approvals):
         raise ValueError("Approval records have invalid state")
@@ -73,15 +89,30 @@ def prepare(source, output, public_test=False):
     version = json.loads((ROOT / "package.json").read_text())["version"]
     if public_test:
         validate_public_test(json.loads((ROOT / "build/public-test-approval.json").read_text()), version, approvals[1])
+    if stable_release:
+        validate_stable_release(approvals[0], version, approvals[1])
+        qa = json.loads((ROOT / "docs/legal/PORTABLE_RELEASE_QA.json").read_text())
+        if (qa.get("status") != "PASS_OWNER_ACCEPTED_TARGETED_PORTABLE_QA" or qa.get("version") != version or
+            qa.get("nativeHostBinarySha256") != host["sha256"] or qa.get("ownerAcceptedEnvironment") is not True):
+            raise ValueError("Targeted QA record does not match the approved NativeHost/version")
     if not all(c.isalnum() or c in ".-" for c in version):
         raise ValueError("Unsafe package version")
     output.mkdir()
     application_sources = output / ("Movie-" + version + "-Application-Sources.zip")
     subprocess.run(["git", "archive", "--format=zip", "--output=" + str(application_sources), commit], cwd=ROOT, check=True)
-    bundle = output / ("Movie-" + version + ("-Corresponding-Native-Sources.zip" if public_test else "-Native-Source-Review.zip"))
-    release_assets = ASSETS + (["build/public-test-approval.json", "build/native-source-approval.json", "docs/legal/PUBLIC_TEST_RELEASE_DECISION.md",
-        "THIRD_PARTY_LICENSES.md", "docs/legal/THIRD_PARTY_RELEASE_NOTICES.md", "docs/legal/FFMPEG_BUILD_INFO.md",
-        "docs/legal/FFMPEG_SOURCE_NOTICE.md", "docs/legal/NATIVE_COMPONENTS.md", "docs/legal/MPV_SOURCE_NOTICE.md"] if public_test else [])
+    bundle = output / ("Movie-Native-Runtime-" + version + "-Corresponding-Sources.zip" if stable_release else
+                      "Movie-" + version + ("-Corresponding-Native-Sources.zip" if public_test else "-Native-Source-Review.zip"))
+    public_assets = ["THIRD_PARTY_LICENSES.md", "docs/legal/THIRD_PARTY_RELEASE_NOTICES.md",
+        "docs/legal/FFMPEG_BUILD_INFO.md", "docs/legal/FFMPEG_SOURCE_NOTICE.md",
+        "docs/legal/NATIVE_COMPONENTS.md", "docs/legal/MPV_SOURCE_NOTICE.md"]
+    if public_test:
+        release_assets = ASSETS + ["build/public-test-approval.json", "build/native-source-approval.json",
+            "docs/legal/PUBLIC_TEST_RELEASE_DECISION.md"] + public_assets
+    elif stable_release:
+        release_assets = ASSETS + ["build/native-source-approval.json", "docs/legal/PORTABLE_RELEASE_QA.json",
+            "docs/legal/STABLE_PORTABLE_RELEASE_DECISION.md"] + public_assets
+    else:
+        release_assets = ASSETS
     assets = [{"path": file, "sha256": digest(ROOT / file)} for file in release_assets]
     status = {"schemaVersion": 1, "status": "PRIVATE_REVIEW_NOT_PUBLIC_RELEASE", "approved": False,
               "programIncluded": False, "sourceComplianceApproved": False, "version": version, "commit": commit,
@@ -91,15 +122,24 @@ def prepare(source, output, public_test=False):
     if public_test:
         status.update(status="PUBLIC_PRERELEASE_CORRESPONDING_SOURCES", approved=True, sourceComplianceApproved=True,
                       stableReleaseApproved=False, nativeLicenseElection="LGPL-3.0-or-later")
+    elif stable_release:
+        status.update(status="STABLE_PORTABLE_CORRESPONDING_SOURCES", approved=True, sourceComplianceApproved=True,
+                      stableReleaseApproved=True, scope="stable-portable-only", nativeLicenseElection="LGPL-3.0-or-later",
+                      stableWindowsCoverage=False, standardUserCoverage=False,
+                      nativeHostSha256=host["sha256"])
     with zipfile.ZipFile(bundle, "w") as archive:
         archive.write(source, "retained-native-sources.zip", compress_type=zipfile.ZIP_STORED)
         for file in release_assets:
             archive.write(ROOT / file, "review/" + file, compress_type=zipfile.ZIP_DEFLATED)
         archive.writestr("REVIEW-STATUS.json", json.dumps(status, indent=2), compress_type=zipfile.ZIP_DEFLATED)
-        archive.writestr("README.txt", ("Corresponding sources for the approved public beta; not stable-system certification.\n"
-            "LGPL later-version components are distributed under LGPLv3 compliance conditions.\n"
-            "You may replace compatible shared DLLs and reverse engineer the application to debug modified libraries.\n"
+        archive.writestr("README.txt", (
+            "Corresponding sources for the approved stable portable release; not stable-system certification.\n"
+            if stable_release else
+            "Corresponding sources for the approved public beta; not stable-system certification.\n"
             if public_test else "Private review companion, not a release or legal approval.\n") +
+            ("LGPL later-version components are distributed under LGPLv3 compliance conditions.\n"
+             "You may replace compatible shared DLLs and reverse engineer the application to debug modified libraries.\n"
+             if public_test or stable_release else "") +
             "No application/native executable is included. Original source inputs keep their own licenses.\n"
             "Extract retained-native-sources.zip, then use review/scripts/restore-native-source-inputs.py\n"
             "with its native-source-candidate/evidence directory and a NEW disposable Linux directory.\n"
@@ -124,5 +164,6 @@ if __name__ == "__main__":
     parser.add_argument("--source-zip", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--public-test", action="store_true")
+    parser.add_argument("--stable-release", action="store_true")
     args = parser.parse_args()
-    prepare(args.source_zip, args.output_dir, args.public_test)
+    prepare(args.source_zip, args.output_dir, args.public_test, args.stable_release)

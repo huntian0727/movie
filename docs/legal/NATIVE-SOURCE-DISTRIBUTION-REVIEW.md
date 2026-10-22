@@ -1,6 +1,15 @@
 # 同批共享运行库：发行材料核对
 
-日期：2026-10-13（Asia/Shanghai）。此记录针对原生生产批次 `38134981406`，不适用于旧 Lite、旧 GPL 播放器或其他哈希的运行库。它记录工程核验和发行时拟履行的条件；**不是公开发行批准**。`build/native-source-approval.json` 和总发布批准保持 false。
+日期：第三方运行库审查 2026-10-13；v0.1.16 NativeHost 增量核对 2026-10-22（Asia/Shanghai）。此记录限定于固定原生生产批次 38134981406 的第三方二进制与源码，不适用于旧 Lite、旧 GPL 播放器或其他哈希的运行库。本记录本身不是独立发行授权；本版的二进制批准记录另行绑定当前 NativeHost.exe、源码材料哈希与稳定绿色版范围。
+
+
+## v0.1.16 NativeHost 增量核对（2026-10-22）
+
+- 本版只修改项目自有 NativeHost.cs 的播放速度处理：加载视频时接收速度、处理 speed 命令并回报当前速度；速度值限制在 0.5–5.0。没有新增第三方依赖、DLL 或新的原生导入。
+- NativeHost 属于项目自有 MIT 代码；仍使用已固定的编译器、引用程序集与确定性编译参数。当前源码 SHA-256：c175e5b97799d9157e71568eac74924c51080a6c85745e90549979ad28a18fb4；从该源码构建的 NativeHost.exe SHA-256：d2d3b8065aad06f2409d854e33fe3769dd04e959487fcf454976993504298ace。
+- FFmpeg/MPV 第三方运行库与对应源码继续复用已核验的固定字节：运行库 ZIP SHA-256 3b4b4d22a3cf303b05898dedd470a6f05b0bfaa532c4ca9ab481167cd8f21b99；源码输入 ZIP SHA-256 3e242199da78c68939ebcbc8bb70bae4c2e57102b7aadc5ceb6b54317880e70a。对应两个 lock 文件与既有批准记录完全一致。
+- 因 NativeHost.exe 本次重新编译，不能再声称 39 个 PE 全部字节不变：38 个第三方运行库 PE 位置保持原批准字节，NativeHost 是唯一重新构建的项目自有 PE。v0.1.15 的 GUI/编解码验收仅作为历史证据；本版另行记录自动化测试和最终 ZIP 验证，不声称已重复完成 v0.1.16 Windows Sandbox GUI 全流程。
+
 
 ## 固定输入与实际使用范围
 
@@ -45,15 +54,12 @@ mpv、FFmpeg、libplacebo、FriBidi 的上游授权包含 later-version 选择�
 
 拟公开时同时提供完整对应源码与构建材料：原始 25 份输入、递归源码 revision、实际 configure/recipe、编译器/MinGW 源码和补丁、NativeHost 源码及其固定构建资料。下载页必须在程序旁给出该版本对应源码的免费链接，不能用浮动 upstream/main、私有 GitHub 草稿或仅一份 LICENSE 代替源码访问。[FFmpeg 官方发行清单](https://ffmpeg.org/legal.html)。
 
+
 ## 本次核验范围与最后动作
 
-这次完成固定组件的条款清单、缺少的 mpv 文件级声明补齐和源码/编译对象对应证据。2026-10-13 维护者已选择公开测试版；本批固定 39 个 PE 按本表条款与 LGPLv3 later-version 条件批准配对源码发行，批准记录仍绑定所有二进制、源码输入、材料和审阅文件哈希。最终包必须通过新增声明的逐字节检查，并同时提供对应源码与清楚的授权/替换说明；私有 QA 包的旧哈希不能冒充新增声明已存在。稳定 Windows QA 的正式版批准另行保留关闭。
+本记录覆盖固定第三方运行库、原始源码输入、许可证/通知、构建配方及其哈希。v0.1.16 没有替换 FFmpeg/MPV 第三方二进制；只对项目自有 MIT NativeHost 重新编译，并由独立批准文件绑定新二进制与当前源码。该技术核对不单独授权公开发行；公开范围由 build/release-approval.json、本版 QA 记录和最终 RELEASE-VERIFICATION.json 共同限定。
 
-源代码 ZIP 与最终应用 ZIP 必须在同一公开测试版同时提供。稳定 Windows 11 标准用户覆盖仍未取得；已有本机沙盒是 Insider Preview，其五类声音/画面和绿色数据保留验收记录单独保存。维护者最新公开测试版授权与准确范围见 `PUBLIC_TEST_RELEASE_DECISION.md`，不是稳定系统的验收结论。
-
-## v0.1.16-beta.1 审阅补充（2026-10-22）
-
-本次公开预发布复用此前已核准的同一 FFmpeg/FFprobe 与共享 libmpv 运行库归档；第三方运行库锁、归档字节和对应源码归档均保持原批准批次不变。39 个分发 PE 中，38 个第三方/运行库文件保持批准哈希不变；唯一变化是项目自有 MIT 代码 NativeHost.exe，由对应的 native/embedded-mpv/NativeHost.cs 为播放倍速新增 mpv speed 属性读取/设置。该源码的材料哈希已在下方清单更新；本机和 GitHub Windows CI #251 的确定性构建均得到 SHA-256 d2d3b8065aad06f2409d854e33fe3769dd04e959487fcf454976993504298ace。新包已完成 230 个文件的逐项 ZIP 验证和打包程序 smoke。此次范围仍是公开预发布，不表示稳定 Windows 11、标准用户权限、签名安装/升级或真实 CloudDrive/115 删除行为已验收。
+本版仅发布未签名 Windows x64 绿色 ZIP，不发布 NSIS 安装器。发布时须同时提供精确应用源码、对应原生源码材料、SOURCE-PAIR.json、SHA-256 清单和最终验证记录。当前环境是 Windows 11 Enterprise Insider Preview build 26220；本版不声称稳定系统或标准用户覆盖已认证，也不声称重复完成 v0.1.16 的 Sandbox GUI 全流程。
 
 ## Reviewed material byte hashes
 
