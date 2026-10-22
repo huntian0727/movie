@@ -50,10 +50,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/verify-source-build-ci.mjs
-      - name: Retrieve pinned runtime and retained source archives
+      - name: Retrieve private pinned archives for older beta builds
+        if: contains(github.ref, '-beta.')
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/prepare-source-release-inputs.mjs
+      - name: Retrieve approved previously published public input archives
+        if: inputs.release_class == 'unsigned-public-release' && !contains(github.ref, '-beta.')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/prepare-stable-public-inputs.mjs
       - run: npm install --global npm@10.9.8
       - run: npm ci
       - run: npm audit
