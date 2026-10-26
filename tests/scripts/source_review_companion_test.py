@@ -75,6 +75,11 @@ class CompanionTests(unittest.TestCase):
             module.archive_application_sources(root, second_commit, second_zip)
             self.assertNotEqual(first_commit, second_commit)
             self.assertEqual(module.digest(first_zip), module.digest(second_zip))
+    def test_utf8_json_reader_handles_non_ascii_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "qa.json"
+            path.write_text('{"status":"PASS","note":"本地发行验证通过"}', encoding="utf-8")
+            self.assertEqual(module.read_json(path)["note"], "本地发行验证通过")
     def test_matching_pin_does_not_allow_program_or_traversal(self):
         for name in ["../escape.txt", "/absolute.txt", "host.exe", "player.dll", "compiler.nupkg", "folder\\file.txt"]:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
