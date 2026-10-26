@@ -4,7 +4,18 @@ import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { createSmokeRoot } from "../../scripts/run-packaged-smoke.mjs";
+import { createSmokeRoot, formatSmokeOutputLine } from "../../scripts/run-packaged-smoke.mjs";
+
+describe("packaged smoke diagnostic output", () => {
+  it("labels known diagnostics with phase and output channel", () => {
+    expect(formatSmokeOutputLine("verify", "stderr", "Can't find filter element"))
+      .toBe("[packaged-smoke:verify:stderr] Can't find filter element");
+    expect(formatSmokeOutputLine("create", "stderr", "ERR_UNTRUSTED_IPC_SENDER"))
+      .toBe("[packaged-smoke:create:stderr] ERR_UNTRUSTED_IPC_SENDER");
+    expect(formatSmokeOutputLine("create", "stdout", "normal progress message"))
+      .toBe("normal progress message");
+  });
+});
 
 describe("packaged smoke temporary directory", () => {
   it("canonicalizes a directory created through an aliased temp parent", async () => {

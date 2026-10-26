@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryShell } from "../../src/renderer/components/LibraryShell";
 import displayVersion from "../../src/shared/displayVersion.json";
-import type { DuplicateGroup, DuplicateGroupPageQuery, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
+import type { DirectoryBrowserResult, DuplicateGroup, DuplicateGroupPageQuery, LibraryPage, SourceFolder, VideoManagerApi, VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
 const folder: SourceFolder = {
@@ -349,18 +349,18 @@ describe("LibraryShell", () => {
     render(<LibraryShell videos={[video]} folders={[folder]} navigation={{
       totalVideos: 1, favoriteVideos: 0, pendingDeleteVideos: 0, pendingDeleteBytes: 0,
       pendingMetadataVideos: 304080, failedMetadataVideos: 832,
-      scanFailureCount: 2008, healthIssueCount: 3620, directoryPaths: []
+      scanFailureCount: 2008, healthIssueCount: 3620
     }} />);
     expect(screen.getByRole("button", { name: "查看异常中心" })).toHaveTextContent("3620");
-    expect(screen.getByRole("button", { name: "查看后台元数据任务" })).toHaveTextContent("304080");
-    fireEvent.click(screen.getByRole("button", { name: "查看后台元数据任务" }));
+    expect(screen.getByRole("button", { name: "查看元数据任务" })).toHaveTextContent("304080");
+    fireEvent.click(screen.getByRole("button", { name: "查看元数据任务" }));
     const tabs = screen.getByRole("navigation", { name: "异常类型" });
     expect(within(tabs).getByRole("button", { name: /后台元数据任务/ })).toHaveAttribute("aria-current", "page");
     expect(within(tabs).getByRole("button", { name: /分析失败/ })).not.toHaveAttribute("aria-current");
     fireEvent.click(within(tabs).getByRole("button", { name: /分析失败/ }));
     expect(within(tabs).getByRole("button", { name: /分析失败/ })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "查看异常中心" })).toHaveClass("active");
-    expect(screen.getByRole("button", { name: "查看后台元数据任务" })).not.toHaveClass("active");
+    expect(screen.getByRole("button", { name: "查看元数据任务" })).not.toHaveClass("active");
   });
 
   it("shows a clear placeholder while background metadata analysis is pending", () => {
@@ -420,7 +420,7 @@ describe("LibraryShell", () => {
     render(
       <LibraryShell
         videos={[]}
-        navigation={{ totalVideos: 10, favoriteVideos: 0, pendingDeleteVideos: 2, pendingDeleteBytes: 3072, pendingMetadataVideos: 0, scanFailureCount: 0, healthIssueCount: 0, directoryPaths: [] }}
+        navigation={{ totalVideos: 10, favoriteVideos: 0, pendingDeleteVideos: 2, pendingDeleteBytes: 3072, pendingMetadataVideos: 0, scanFailureCount: 0, healthIssueCount: 0 }}
         onDeleteAllPending={onDeleteAllPending}
       />
     );
@@ -522,6 +522,138 @@ describe("LibraryShell", () => {
     expect(container.querySelectorAll(".video-card").length).toBeLessThan(200);
     await waitFor(() => expect(container.querySelectorAll(".video-card")).toHaveLength(200));
     expect(screen.getByText("clip-200.mp4")).toBeInTheDocument();
+  });
+
+  it("resets scroll as soon as a backend page change starts, before the next page finishes loading", async () => {
+    let resolvePageTwo: ((page: LibraryPage) => void) | undefined;
+    const onLoadVideoPage = vi.fn((query: { page: number; pageSize: number }): Promise<LibraryPage> => {
+      if (query.page === 1) {
+        return Promise.resolve({ videos: [video], page: 1, pageSize: query.pageSize as 30 | 50 | 100 | 200 | 300, totalPages: 2, totalCount: 101 });
+      }
+      return new Promise((resolve) => { resolvePageTwo = resolve; });
+    });
+    const { container } = render(<LibraryShell videos={[]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} />);
+    expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
+
+    const content = container.querySelector(".content") as HTMLElement;
+    const scrollTo = vi.fn();
+    content.scrollTo = scrollTo;
+    content.scrollTop = 480;
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }), "library-main"));
+
+    expect(resolvePageTwo).toBeTypeOf("function");
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+    await act(async () => resolvePageTwo?.({ videos: [nestedVideo], page: 2, pageSize: 100, totalPages: 2, totalCount: 101 }));
+    expect(await screen.findByText("episode-01.mp4")).toBeInTheDocument();
+  });
+
+  it("resets scroll immediately when the filename filter changes on the same backend page", async () => {
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 } satisfies LibraryPage);
+    const { container } = render(<LibraryShell videos={[]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} />);
+    expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
+
+    const content = container.querySelector(".content") as HTMLElement;
+    const scrollTo = vi.fn();
+    content.scrollTo = scrollTo;
+    content.scrollTop = 480;
+    fireEvent.change(screen.getByPlaceholderText("搜索文件名"), { target: { value: "clip" } });
+
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+  });
+
+  it("resets scroll when sort field, sort direction, and page size change", async () => {
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 } satisfies LibraryPage);
+    const { container } = render(<LibraryShell videos={[]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} />);
+    expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
+
+    const content = container.querySelector(".content") as HTMLElement;
+    const scrollTo = vi.fn();
+    content.scrollTo = scrollTo;
+
+    content.scrollTop = 480;
+    fireEvent.change(screen.getByRole("combobox", { name: "排序方式" }), { target: { value: "sizeBytes" } });
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+
+    content.scrollTop = 480;
+    fireEvent.click(screen.getByRole("button", { name: "切换排序方向" }));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+
+    content.scrollTop = 480;
+    const pageSize = screen.getByLabelText("每页视频数量");
+    const nextSize = pageSize instanceof HTMLSelectElement && pageSize.value === "50" ? "100" : "50";
+    fireEvent.change(pageSize, { target: { value: nextSize } });
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+  });
+
+  it("restores directory overview scroll after navigating a deep directory branch and returning", async () => {
+    const onLoadDirectoryBrowser = vi.fn(async (query: Parameters<VideoManagerApi["listDirectoryBrowser"]>[0]): Promise<DirectoryBrowserResult> => {
+      const parentPath = query.parentPath?.replace(/\\/g, "/").toLowerCase();
+      if (parentPath === "d:/movies") {
+        return { items: [{ sourceFolderId: folder.id, path: "D:\\Movies\\Drama", name: "Drama", videoCount: 1, sizeBytes: 1024, modifiedAt: null }], totalCount: 1, truncated: false };
+      }
+      if (parentPath === "d:/movies/drama") {
+        return { items: [{ sourceFolderId: folder.id, path: "D:\\Movies\\Drama\\Season 1", name: "Season 1", videoCount: 1, sizeBytes: 1024, modifiedAt: null }], totalCount: 1, truncated: false };
+      }
+      return { items: [], totalCount: 0, truncated: false };
+    });
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 } satisfies LibraryPage);
+    const { container } = render(<LibraryShell videos={[]} folders={[folder]} onLoadDirectoryBrowser={onLoadDirectoryBrowser} onLoadVideoPage={onLoadVideoPage} />);
+    fireEvent.click(within(container.querySelector(".global-top-menu") as HTMLElement).getByRole("button", { name: /浏览目录/ }));
+    expect(await screen.findByRole("region", { name: "一级目录总览" })).toBeInTheDocument();
+
+    const content = container.querySelector(".content") as HTMLElement;
+    const scrollTo = vi.fn();
+    content.scrollTo = scrollTo;
+    content.scrollTop = 620;
+    fireEvent.scroll(content);
+
+    fireEvent.click(screen.getByRole("button", { name: "打开一级目录 Movies" }));
+    expect(await screen.findByRole("button", { name: "返回资料库目录" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "展开或收起 Drama" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Season 1" }));
+    await waitFor(() => expect(onLoadVideoPage).toHaveBeenLastCalledWith(expect.objectContaining({ directoryPath: "D:\\Movies\\Drama\\Season 1" }), "library-main"));
+
+    fireEvent.click(screen.getByRole("button", { name: "返回资料库目录" }));
+    expect(await screen.findByRole("region", { name: "一级目录总览" })).toBeInTheDocument();
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 620, behavior: "auto" });
+  });
+
+  it("starts the video list at the top after switching to another main view and back", async () => {
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 } satisfies LibraryPage);
+    const { container } = render(<LibraryShell videos={[]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} />);
+    expect(await screen.findByText("clip.mp4")).toBeInTheDocument();
+
+    const content = container.querySelector(".content") as HTMLElement;
+    const scrollTo = vi.fn();
+    content.scrollTo = scrollTo;
+    content.scrollTop = 640;
+    fireEvent.click(screen.getByRole("button", { name: "查看资产中心" }));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+
+    content.scrollTop = 520;
+    fireEvent.click(screen.getByRole("button", { name: "查看所有视频" }));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+  });
+
+  it("resets the main scroll when directory search opens the directory browser", async () => {
+    const onLoadVideoPage = vi.fn().mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 } satisfies LibraryPage);
+    const onLoadDirectoryBrowser = vi.fn().mockResolvedValue({
+      items: [{ sourceFolderId: folder.id, path: `${folder.path}\\Drama`, name: "Drama", videoCount: 1, sizeBytes: 1024, modifiedAt: null }],
+      totalCount: 101,
+      truncated: true,
+    });
+    const { container } = render(<LibraryShell videos={[]} folders={[folder]} onLoadVideoPage={onLoadVideoPage} onLoadDirectoryBrowser={onLoadDirectoryBrowser} />);
+    fireEvent.click(screen.getByRole("button", { name: "展开或收起 Movies" }));
+    expect(await screen.findByRole("button", { name: "仅显示前 100 个，搜索其他目录" })).toBeInTheDocument();
+
+    const content = container.querySelector(".content") as HTMLElement;
+    const scrollTo = vi.fn();
+    content.scrollTo = scrollTo;
+    content.scrollTop = 560;
+    fireEvent.click(screen.getByRole("button", { name: "仅显示前 100 个，搜索其他目录" }));
+
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
   });
 
   it("offers 30 and 50 item page sizes and jumps directly to a validated page", () => {
@@ -800,6 +932,21 @@ describe("LibraryShell", () => {
     expect(restored.container.querySelector(".app-shell")).toHaveStyle({ "--sidebar-width": "310px" });
   });
 
+  it("clamps stored sidebar width and resets it to the default on double click", () => {
+    window.localStorage.setItem("video-manager:sidebar-width", "999");
+    const { container } = render(<LibraryShell videos={[video]} folders={[folder]} />);
+    const resizer = screen.getByRole("separator", { name: "调整侧栏宽度" });
+
+    expect(resizer).toHaveAttribute("aria-valuenow", "460");
+    fireEvent.keyDown(resizer, { key: "ArrowRight" });
+    expect(resizer).toHaveAttribute("aria-valuenow", "460");
+
+    fireEvent.doubleClick(resizer);
+    expect(resizer).toHaveAttribute("aria-valuenow", "300");
+    expect(container.querySelector(".app-shell")).toHaveStyle({ "--sidebar-width": "300px" });
+    expect(window.localStorage.getItem("video-manager:sidebar-width")).toBe("300");
+  });
+
   it("coalesces pointer moves per frame and saves only the final sidebar width", () => {
     let callback: FrameRequestCallback | undefined;
     const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((next) => { callback = next; return 123; });
@@ -984,6 +1131,50 @@ describe("LibraryShell", () => {
       expect(screen.queryByRole("region", { name: "重复文件后台清理状态" })).not.toBeInTheDocument();
       rendered.unmount();
     } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("backs off duplicate-cleanup status polling while idle", async () => {
+    const getReviewedDuplicateBackground = vi.fn().mockResolvedValue(null);
+    const api = { getReviewedDuplicateBackground } as unknown as VideoManagerApi;
+    vi.useFakeTimers();
+    let rendered: ReturnType<typeof render> | undefined;
+    try {
+      rendered = render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]} duplicateCleanupApi={api} />);
+      await act(async () => { await Promise.resolve(); });
+      expect(getReviewedDuplicateBackground).toHaveBeenCalledTimes(1);
+
+      await act(async () => { vi.advanceTimersByTime(9_999); await Promise.resolve(); });
+      expect(getReviewedDuplicateBackground).toHaveBeenCalledTimes(1);
+
+      await act(async () => { vi.advanceTimersByTime(1); await Promise.resolve(); });
+      expect(getReviewedDuplicateBackground).toHaveBeenCalledTimes(2);
+    } finally {
+      rendered?.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries duplicate-cleanup status polling sooner after a transient read failure", async () => {
+    const getReviewedDuplicateBackground = vi.fn()
+      .mockRejectedValueOnce(new Error("temporary status read failure"))
+      .mockResolvedValue(null);
+    const api = { getReviewedDuplicateBackground } as unknown as VideoManagerApi;
+    vi.useFakeTimers();
+    let rendered: ReturnType<typeof render> | undefined;
+    try {
+      rendered = render(<LibraryShell videos={[video, nestedVideo]} folders={[folder]} duplicateCleanupApi={api} />);
+      await act(async () => { await Promise.resolve(); });
+      expect(getReviewedDuplicateBackground).toHaveBeenCalledTimes(1);
+
+      await act(async () => { vi.advanceTimersByTime(4_999); await Promise.resolve(); });
+      expect(getReviewedDuplicateBackground).toHaveBeenCalledTimes(1);
+
+      await act(async () => { vi.advanceTimersByTime(1); await Promise.resolve(); });
+      expect(getReviewedDuplicateBackground).toHaveBeenCalledTimes(2);
+    } finally {
+      rendered?.unmount();
       vi.useRealTimers();
     }
   });
@@ -1446,7 +1637,7 @@ describe("LibraryShell", () => {
       <LibraryShell
         videos={[]}
         folders={[folder]}
-        navigation={{ totalVideos: 101, favoriteVideos: 1, pendingDeleteVideos: 0, pendingDeleteBytes: 0, pendingMetadataVideos: 0, scanFailureCount: 0, healthIssueCount: 0, directoryPaths: ["D:\\Movies", "D:\\Movies\\Drama"] }}
+        navigation={{ totalVideos: 101, favoriteVideos: 1, pendingDeleteVideos: 0, pendingDeleteBytes: 0, pendingMetadataVideos: 0, scanFailureCount: 0, healthIssueCount: 0 }}
         onLoadVideoPage={onLoadVideoPage}
       />
     );

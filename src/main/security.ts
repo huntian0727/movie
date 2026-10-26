@@ -50,7 +50,8 @@ const playerAllowedChannels = new Set<string>([
   IPC_CHANNELS.windowSyncSnapshot,
   IPC_CHANNELS.playerSessionSet,
   IPC_CHANNELS.playerSessionSelect,
-  IPC_CHANNELS.settingsGet
+  IPC_CHANNELS.settingsGet,
+  IPC_CHANNELS.settingsSetHoldFastForwardSpeed
 ]);
 const previewAllowedChannels = new Set<string>([
   IPC_CHANNELS.previewImageLoad, IPC_CHANNELS.previewImageCancel, IPC_CHANNELS.previewImageState

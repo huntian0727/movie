@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { appendFile, lstat, mkdir, readFile, rename } from "node:fs/promises";
@@ -14,10 +14,18 @@ async function verify(p,sha,bytes){
  if(!info.isFile()||info.isSymbolicLink()||info.size!==bytes||digest(await readFile(p))!==sha)throw new Error("Approved pinned input mismatch: "+path.basename(p));
 }
 const gh=(...args)=>execFileSync("gh",args,{encoding:"utf8",windowsHide:true,maxBuffer:4*1024*1024});
+export function assertStablePublicInputContext(env, version, approval){
+ if(env.GITHUB_ACTIONS!=="true"||env.GITHUB_REF!=="refs/tags/v"+version||
+ env.MOVIE_RELEASE_CLASS!=="unsigned-public-release"||!env.GH_TOKEN||
+ approval?.version!==version||approval?.scope!=="stable-portable-only"||approval?.approved!==true||approval?.unsignedAcknowledged!==true)
+ throw new Error("Only exact approved GitHub stable tag may fetch approved public inputs");
+}
 async function main(){
- if(process.env.GITHUB_ACTIONS!=="true"||process.env.GITHUB_REF!=="refs/tags/v0.1.16"||
- process.env.MOVIE_RELEASE_CLASS!=="unsigned-public-release"||!process.env.GH_TOKEN)throw new Error("Only exact approved GitHub stable tag may fetch approved public inputs");
- const root=process.cwd(),pin=JSON.parse(await readFile(path.join(root,"scripts/native-source-inputs.lock.json"),"utf8"));
+ const root=process.cwd();
+ const manifest=JSON.parse(await readFile(path.join(root,"package.json"),"utf8"));
+ const approval=JSON.parse(await readFile(path.join(root,"build/release-approval.json"),"utf8"));
+ assertStablePublicInputContext(process.env,manifest.version,approval);
+ const pin=JSON.parse(await readFile(path.join(root,"scripts/native-source-inputs.lock.json"),"utf8"));
  const expectPins=[["native-runtime.zip",39814033,inputs[0].sha256],["source-evidence.zip",255050585,"3e242199da78c68939ebcbc8bb70bae4c2e57102b7aadc5ceb6b54317880e70a"]];
  if(pin.assets?.length!==2||expectPins.some(([dest,bytes,sha])=>!pin.assets.some(x=>x.destination===dest&&x.bytes===bytes&&x.sha256===sha)))throw new Error("Source locks changed");
  const dir=path.join(root,".tmp/native-source-inputs");

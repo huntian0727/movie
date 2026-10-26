@@ -110,6 +110,19 @@ describe("ScanFailuresPage", () => {
     await waitFor(() => expect(loadPage).toHaveBeenLastCalledWith(expect.objectContaining({ sourceFolderId: folder.id, page: 1 })));
   });
 
+  it("shows an actionable next step for missing-file failures without suggesting disk deletion", async () => {
+    const missingItem = item("unindexed-file");
+    const missingPage: ScanFailureReviewPage = {
+      ...page,
+      items: [{ ...missingItem, failure: { ...missingItem.failure, errorCode: "ENOENT", errorSummary: "no such file or directory" } }],
+      totalCount: 1,
+      counts: { all: 1, video: 0, unindexedFile: 1, directory: 0 }
+    };
+    render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={vi.fn().mockResolvedValue(missingPage)} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);
+    expect(await screen.findByText(/先复查可访问性；若远端确认已不存在/)).toBeInTheDocument();
+    expect(screen.getByText(/文件已不存在/)).toBeInTheDocument();
+  });
+
   it("does not reload merely because the parent passes a new callback instance", async () => {
     const firstLoadPage = vi.fn().mockResolvedValue(page);
     const { rerender } = render(<ScanFailuresPage folders={[folder]} refreshSequence={0} loadPage={firstLoadPage} onRetry={vi.fn()} onDeleteFile={vi.fn()} onOpenLocation={vi.fn()} />);

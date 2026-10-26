@@ -7,6 +7,10 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+export function isCleanWorkingTreeStatus(statusOutput) {
+  return String(statusOutput ?? "").trim().length === 0;
+}
+
 export function parseArgs(argv) {
   let version = "";
   let published = false;
@@ -32,6 +36,13 @@ export async function validateLocal(root, version) {
     report.checks.push(ok ? { check: label, ok: true } : { check: label, ok: false, reason });
     if (!ok) failures.push(label + ": " + (reason || "failed"));
   };
+  try {
+    const status = exec("git", ["status", "--porcelain=v1", "--untracked-files=all"], root);
+    check("clean working tree", isCleanWorkingTreeStatus(status),
+      "uncommitted or untracked files present; prepare release from an isolated clean checkout");
+  } catch {
+    check("clean working tree", false, "could not inspect Git working-tree status");
+  }
   const read = (name) => readFile(path.join(root, name));
   const json = async (name) => JSON.parse((await read(name)).toString("utf8"));
   const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");

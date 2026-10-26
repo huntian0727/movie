@@ -9,7 +9,8 @@ import type {
   MetadataIssuePageQuery,
   ScanFailureReviewPage,
   ScanFailureReviewQuery,
-  SourceFolder
+  SourceFolder,
+  VideoRecord
 } from "../../shared/videoTypes.js";
 import type {
   AssetCenterSourcePage,
@@ -31,6 +32,7 @@ export interface AssetCenterReadService {
   listDirectories(query: DirectoryBrowserQuery, scope?: string): Promise<DirectoryBrowserResult>;
   listDuplicates(query: DuplicateGroupPageQuery, scope?: string): Promise<DuplicateGroupPage>;
   listFolders(): Promise<SourceFolder[]>;
+  listVideosPendingMetadata(limit?: number): Promise<VideoRecord[]>;
   listMetadataIssues(query: MetadataIssuePageQuery, scope?: string): Promise<MetadataIssuePage>;
   listScanFailures(query: ScanFailureReviewQuery, scope?: string): Promise<ScanFailureReviewPage>;
   getLibraryNavigation(): Promise<LibraryNavigationSnapshot>;
@@ -56,12 +58,14 @@ type AssetCenterQueryResult =
   | MetadataIssuePage
   | ScanFailureReviewPage
   | SourceFolder[]
+  | VideoRecord[]
   | string[];
 
 type AssetCenterWorkerOperation =
   | { operation: "directories"; query: DirectoryBrowserQuery }
   | { operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { operation: "folders" }
+  | { operation: "pendingMetadata"; limit: number }
   | { operation: "retainedCachePaths" }
   | { operation: "metadataIssues"; query: MetadataIssuePageQuery }
   | { operation: "scanFailures"; query: ScanFailureReviewQuery }
@@ -95,6 +99,10 @@ export class AssetCenterQueryService implements AssetCenterReadService {
 
   listFolders(): Promise<SourceFolder[]> {
     return this.request<SourceFolder[]>({ operation: "folders" });
+  }
+
+  listVideosPendingMetadata(limit = 1000): Promise<VideoRecord[]> {
+    return this.request<VideoRecord[]>({ operation: "pendingMetadata", limit });
   }
 
   listRetainedCachePaths(): Promise<string[]> {

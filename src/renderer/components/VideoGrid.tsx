@@ -4,6 +4,7 @@ import type { VideoRecord } from "../../shared/videoTypes";
 import { formatBytes, formatDuration } from "./formatters";
 import { PreviewImage } from "./PreviewImage";
 import { useProgressiveRenderCount } from "./useProgressiveRenderCount";
+import { WindowedVideoGridCard } from "./WindowedVideoGridCard";
 import { VideoItemActions } from "./VideoItemActions";
 
 interface VideoGridProps {
@@ -33,6 +34,7 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
   const [resetFailedIds, setResetFailedIds] = useState<Set<string>>(() => new Set());
   const pageKey = videos.map((video) => video.id).join("|");
   const visibleCount = useProgressiveRenderCount(pageKey, videos.length, 48, 40);
+  const windowingEnabled = videos.length > 60;
 
   const retryPreview = async (video: VideoRecord, url: string | null) => {
     if (!onRegenerateCover || resettingIds.has(video.id)) return;
@@ -54,7 +56,7 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
 
   return (
     <div
-      className="video-grid video-grid--masonry"
+      className={"video-grid video-grid--masonry" + (windowingEnabled ? " is-windowed" : "")}
       style={cardWidth ? ({ "--video-card-width": `${cardWidth}px` } as React.CSSProperties) : undefined}
     >
       {videos.slice(0, visibleCount).map((video, index) => {
@@ -62,8 +64,8 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
         const coverUrl = requestedCoverUrl && !failedCoverUrls.has(requestedCoverUrl) ? requestedCoverUrl : null;
         const coverAspectRatio = getAspectRatioValue(video.width, video.height);
 
-        return (
-          <article className={`video-card${selectedIds?.has(video.id) ? " is-selected" : ""}`} key={video.id} onDoubleClick={() => !selectionMode && onOpen(video)}>
+        const card = (
+          <article className={"video-card" + (selectedIds?.has(video.id) ? " is-selected" : "")} key={video.id} onDoubleClick={() => !selectionMode && onOpen(video)}>
             {selectionMode && <label className="video-select"><input type="checkbox" aria-label={`选择 ${video.filename}`} checked={selectedIds?.has(video.id) ?? false} onChange={() => onToggleSelection?.(video)} /></label>}
             <div
               className={`video-cover tone-${index % 6}`}
@@ -128,6 +130,9 @@ export function VideoGrid({ videos, getCoverUrl, onOpen, onViewDetails, onToggle
             </div>
           </article>
         );
+        return windowingEnabled
+          ? <WindowedVideoGridCard key={video.id} initiallyVisible={index < 8} estimatedHeight={estimateVideoCardHeight(video.width, video.height, cardWidth)}>{card}</WindowedVideoGridCard>
+          : card;
       })}
     </div>
   );
@@ -139,4 +144,14 @@ function getAspectRatioValue(width: number | null, height: number | null): strin
   }
 
   return "16 / 9";
+}
+
+
+function estimateVideoCardHeight(width: number | null, height: number | null, cardWidth?: number): number {
+  const widthEstimate = cardWidth && cardWidth > 0 ? cardWidth : 260;
+  const aspectRatio = typeof width === "number" && typeof height === "number" && width > 0 && height > 0
+    ? width / height
+    : 16 / 9;
+  const coverHeight = Math.min(720, Math.max(86, widthEstimate / aspectRatio));
+  return Math.ceil(coverHeight + 132);
 }

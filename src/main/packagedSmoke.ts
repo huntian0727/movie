@@ -144,8 +144,8 @@ async function verifyPackagedPreview(currentDir: string, videoId: string): Promi
     additionalArguments: ["--video-manager-window-role=main", `--video-manager-entry-url=${encodeURIComponent(entryUrl)}`]
   } });
   configureWindowSecurity(window, { role: "main", entryUrl });
-  window.webContents.on("console-message", (_event, _level, message) => {
-    if (message.startsWith("[packaged-smoke]")) console.log(message);
+  window.webContents.on("console-message", (details) => {
+    if (details.message.startsWith("[packaged-smoke]")) console.log(details.message);
   });
   try {
     await window.loadURL(entryUrl);

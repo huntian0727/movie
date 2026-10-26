@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PlayerPage } from "../../src/renderer/components/PlayerPage";
+import type { EmbeddedInput, EmbeddedRequest, EmbeddedState } from "../../src/shared/embeddedPlayback";
 import type { VideoRecord } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
@@ -69,6 +70,145 @@ afterEach(() => {
 });
 
 describe("PlayerPage", () => {
+  it("keeps short forward taps as seeks and temporarily applies the configured speed while holding", () => {
+    vi.useFakeTimers();
+    try {
+      const view = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" holdFastForwardSpeed={3} />);
+      const element = view.container.querySelector("video")!;
+      Object.defineProperty(element, "paused", { configurable: true, get: () => false });
+      Object.defineProperty(element, "playbackRate", { configurable: true, writable: true, value: 1 });
+      act(() => fireEvent.play(element));
+      fireEvent.keyDown(window, { code: "ArrowRight" });
+      act(() => vi.advanceTimersByTime(230));
+      expect(element.playbackRate).toBe(3);
+      expect(screen.getByText("临时快进 3×")).toBeInTheDocument();
+      fireEvent.keyUp(window, { code: "ArrowRight" });
+      expect(element.playbackRate).toBe(1);
+      expect(screen.queryByText(/临时快进/)).not.toBeInTheDocument();
+      fireEvent.keyDown(window, { code: "ArrowRight" });
+      act(() => vi.advanceTimersByTime(100));
+      fireEvent.keyUp(window, { code: "ArrowRight" });
+      expect(element.currentTime).toBe(10);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restores temporary fast-forward when keyup is delivered outside the window target", () => {
+    vi.useFakeTimers();
+    try {
+      const view = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" holdFastForwardSpeed={4} />);
+      const element = view.container.querySelector("video")!;
+      Object.defineProperty(element, "paused", { configurable: true, get: () => false });
+      Object.defineProperty(element, "playbackRate", { configurable: true, writable: true, value: 1 });
+      act(() => fireEvent.play(element));
+      fireEvent.keyDown(window, { code: "ArrowRight" });
+      act(() => vi.advanceTimersByTime(250));
+      expect(element.playbackRate).toBe(4);
+      fireEvent.keyUp(document, { code: "ArrowRight" });
+      expect(element.playbackRate).toBe(1);
+      expect(screen.queryByText(/临时快进/)).not.toBeInTheDocument();
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restores temporary fast-forward if playback pauses before the key is released", () => {
+    vi.useFakeTimers();
+    try {
+      const view = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" holdFastForwardSpeed={3} />);
+      const element = view.container.querySelector("video")!;
+      Object.defineProperty(element, "paused", { configurable: true, get: () => false });
+      Object.defineProperty(element, "playbackRate", { configurable: true, writable: true, value: 1 });
+      act(() => fireEvent.play(element));
+      fireEvent.keyDown(window, { code: "ArrowRight" });
+      act(() => vi.advanceTimersByTime(250));
+      expect(element.playbackRate).toBe(3);
+      fireEvent.pause(element);
+      expect(element.playbackRate).toBe(1);
+      expect(screen.queryByText(/临时快进/)).not.toBeInTheDocument();
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restores embedded playback speed when the native key-up event arrives", async () => {
+    const state: EmbeddedState = { sessionKey: "", phase: "loading", time: 1, duration: 90, paused: false, volume: 20, speed: 1, rotation: 0, fullscreen: false, tracks: [] };
+    const embeddedPlayback = vi.fn(async (request: EmbeddedRequest): Promise<EmbeddedState> => {
+      if (request.op === "start") { state.sessionKey = request.sessionKey; state.phase = "playing"; state.speed = 1; }
+      if (request.op === "speed") state.speed = request.value;
+      return { ...state, sessionKey: request.sessionKey };
+    });
+    let inputListener: ((input: EmbeddedInput) => void) | null = null;
+    const embeddedApi = {
+      embeddedPlayback,
+      subscribeEmbeddedInput: (listener: (input: EmbeddedInput) => void) => { inputListener = listener; return () => { if (inputListener === listener) inputListener = null; }; }
+    };
+    render(<PlayerPage video={video} playbackRoute="embedded" embeddedApi={embeddedApi} holdFastForwardSpeed={3} />);
+    await waitFor(() => expect(inputListener).toBeTypeOf("function"));
+    act(() => inputListener?.({ kind: "key", code: "ArrowRight", control: false, shift: false, alt: false, phase: "down" }));
+    await waitFor(() => expect(embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "speed", value: 3 })), { timeout: 1500 });
+    expect(screen.getByText("临时快进 3×")).toBeInTheDocument();
+    act(() => inputListener?.({ kind: "key", code: "ArrowRight", control: false, shift: false, alt: false, phase: "up" }));
+    await waitFor(() => expect(embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "speed", value: 1 })), { timeout: 1500 });
+    await waitFor(() => expect(screen.queryByText(/临时快进/)).not.toBeInTheDocument());
+  });
+
+  it("offers the long-press speed control on the player page and saves the selection", async () => {
+    const onChange = vi.fn(async () => undefined);
+    render(<PlayerPage video={video} mediaUrl="local-video://media/v1" holdFastForwardSpeed={3} onChangeHoldFastForwardSpeed={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "长按快进设置" }));
+    const speed = screen.getByRole("combobox", { name: "长按快进倍速" });
+    const popover = screen.getByRole("dialog", { name: "长按快进设置" });
+    expect(popover.parentElement).toBe(document.body);
+    expect(popover).toHaveStyle({ position: "fixed" });
+    fireEvent.pointerDown(speed);
+    expect(popover).toBeInTheDocument();
+    expect(speed).toHaveValue("3");
+    fireEvent.change(speed, { target: { value: "2" } });
+    expect(onChange).toHaveBeenCalledWith(2);
+    expect(speed).toHaveValue("2");
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("dialog", { name: "长按快进设置" })).not.toBeInTheDocument();
+  });
+  it("keeps the long-press speed popover inside the visible window bounds", async () => {
+    const widthDescriptor = Object.getOwnPropertyDescriptor(document.documentElement, "clientWidth");
+    const heightDescriptor = Object.getOwnPropertyDescriptor(document.documentElement, "clientHeight");
+    const viewportDescriptor = Object.getOwnPropertyDescriptor(window, "visualViewport");
+    Object.defineProperty(document.documentElement, "clientWidth", { configurable: true, value: 800 });
+    Object.defineProperty(document.documentElement, "clientHeight", { configurable: true, value: 260 });
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: undefined });
+    const makeRect = (left: number, top: number, width: number, height: number) => ({
+      x: left, y: top, left, top, width, height, right: left + width, bottom: top + height, toJSON: () => ({})
+    }) as DOMRect;
+    const view = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" />);
+    try {
+      const trigger = screen.getByRole("button", { name: "长按快进设置" });
+      vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue(makeRect(350, 190, 40, 40));
+      fireEvent.click(trigger);
+      const popover = screen.getByRole("dialog", { name: "长按快进设置" });
+      vi.spyOn(popover, "getBoundingClientRect").mockReturnValue(makeRect(0, 0, 190, 140));
+      fireEvent(window, new Event("resize"));
+      await waitFor(() => expect(Number.parseFloat(popover.style.top)).toBe(112));
+      const left = Number.parseFloat(popover.style.left);
+      const top = Number.parseFloat(popover.style.top);
+      expect(left).toBeGreaterThanOrEqual(8);
+      expect(left + 190).toBeLessThanOrEqual(792);
+      expect(top).toBeGreaterThanOrEqual(8);
+      expect(top + 140).toBeLessThanOrEqual(252);
+    } finally {
+      view.unmount();
+      if (widthDescriptor) Object.defineProperty(document.documentElement, "clientWidth", widthDescriptor);
+      else delete (document.documentElement as unknown as { clientWidth?: number }).clientWidth;
+      if (heightDescriptor) Object.defineProperty(document.documentElement, "clientHeight", heightDescriptor);
+      else delete (document.documentElement as unknown as { clientHeight?: number }).clientHeight;
+      if (viewportDescriptor) Object.defineProperty(window, "visualViewport", viewportDescriptor);
+      else delete (window as unknown as { visualViewport?: VisualViewport }).visualViewport;
+    }
+  });
   it("records changed browser progress periodically and flushes the final position on switch", async () => {
     const saved = vi.fn(async () => undefined);
     const view = render(<PlayerPage video={video} mediaUrl="local-video://media/v1" onSavePosition={saved} />);

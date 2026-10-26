@@ -72,6 +72,36 @@ describe("DuplicateCleanupTasksPanel size-duration review UI", () => {
     expect(rendered.container).toBeEmptyDOMElement();
   });
 
+  it("shows index-refresh warnings and unknown delete outcomes instead of misleading generic labels", async () => {
+    const indexMessage = "源文件已永久删除，但资料库索引更新失败。请重新扫描来源；不要重试删除。详情：synthetic index failure";
+    const unknownMessage = "删除调用返回错误，但原始路径与隔离路径都不存在，无法确认最终结果。系统不会自动重试；请先核对源目录与资料库状态。";
+    const loadItems = vi.fn(async (jobId: string) => jobId === "index-warning"
+      ? itemPage([{
+        id: "index-warning-item", filename: "index-warning.mp4", status: "deleted",
+        outcomeCode: "deleted-index-refresh-failed", message: indexMessage, stagedDeletePath: null,
+        verificationStatus: "verified-identical"
+      } as DuplicateCleanupItemPage["items"][number]])
+      : itemPage([{
+        id: "unknown-item", filename: "unknown-result.mp4", status: "failed",
+        outcomeCode: "delete-outcome-unknown", message: unknownMessage, stagedDeletePath: null,
+        verificationStatus: "unverifiable"
+      } as DuplicateCleanupItemPage["items"][number]]));
+    renderPanel({
+      loadJobs: vi.fn().mockResolvedValue(jobPage([
+        job({ id: "index-warning", phase: "finished", status: "completed", totalItems: 1, successItems: 1 }),
+        job({ id: "unknown-result", phase: "finished", status: "completed_with_errors", totalItems: 1, failedItems: 1 })
+      ])),
+      loadItems
+    });
+
+    await selectTask(/已完成/);
+    expect(await screen.findByText(indexMessage)).toBeInTheDocument();
+    expect(screen.queryByText("已永久删除。")).not.toBeInTheDocument();
+    await selectTask(/完成但有异常/);
+    expect(await screen.findByText(unknownMessage)).toBeInTheDocument();
+    expect(screen.queryByText(/此项未永久删除。删除授权已失效/)).not.toBeInTheDocument();
+  });
+
   it("shows the three verification outcomes and keeps non-identical results out of deletion", async () => {
     renderPanel();
     await selectTask(/等待第二次确认/);

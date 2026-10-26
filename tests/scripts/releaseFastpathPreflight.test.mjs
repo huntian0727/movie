@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseArgs, validatePublishedRelease, validateDraftRelease, validateSameCommitRuns } from "../../scripts/release-fastpath-preflight.mjs";
+import { isCleanWorkingTreeStatus, parseArgs, validatePublishedRelease, validateDraftRelease, validateSameCommitRuns } from "../../scripts/release-fastpath-preflight.mjs";
 
 const version = "0.1.17";
 const names = [
@@ -15,6 +15,11 @@ const release = () => ({
 });
 
 describe("read-only fastpath release preflight", () => {
+  it("fails closed when a release checkout contains modified or untracked files", () => {
+    expect(isCleanWorkingTreeStatus("")).toBe(true);
+    expect(isCleanWorkingTreeStatus("  \r\n")).toBe(true);
+    expect(isCleanWorkingTreeStatus(" M README.md\n?? src/new-file.ts")).toBe(false);
+  });
   it("parses explicit version; never enables publishing or draft modification", () => {
     expect(parseArgs(["--version", "0.1.17"])).toEqual({ version, published: false, draft: false });
     expect(parseArgs(["--version=v0.1.17", "--published"])).toEqual({ version, published: true, draft: false });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { access, mkdir, opendir, readFile, rename, rm, stat, unlink, utimes } from "node:fs/promises";
 import path from "node:path";
 import type { StructuredLogger } from "../logging/logger.js";
+import type { MediaCacheTaskStatus } from "../../shared/videoTypes.js";
 import { ImageGenerationQueue, ImageRequestCancelledError, type ImageRequestOptions } from "./imageGenerationQueue.js";
 import { mediaReadBudget } from "./mediaReadBudget.js";
 
@@ -95,6 +96,9 @@ export class MediaCacheManager {
   private startupMaintenanceTimer: ReturnType<typeof setTimeout> | undefined;
   private lastMaintenanceStartedAt = 0;
   private status: MediaCacheStatus;
+  private maintenanceStartedAt: number | null = null;
+  private lastMaintenanceCompletedAt: string | null = null;
+  private lastMaintenanceError: string | null = null;
 
   constructor(
     root: string,
@@ -119,6 +123,36 @@ export class MediaCacheManager {
 
   getStatus(): MediaCacheStatus {
     return structuredClone(this.status);
+  }
+
+  /** Safe read-only status for the task center; never includes cache paths or raw errors. */
+  getTaskStatus(): MediaCacheTaskStatus {
+    const maintenanceState: MediaCacheTaskStatus["maintenance"]["state"] = this.clearing
+      ? "clearing"
+      : this.maintenance
+        ? "running"
+        : this.stopping
+          ? "stopping"
+          : this.startupMaintenanceTimer
+            ? "scheduled"
+            : "idle";
+    return {
+      generation: this.generationQueue.getStatus(),
+      maintenance: {
+        state: maintenanceState,
+        lastStartedAt: this.maintenanceStartedAt === null ? null : new Date(this.maintenanceStartedAt).toISOString(),
+        lastCompletedAt: this.lastMaintenanceCompletedAt,
+        lastError: this.lastMaintenanceError
+      },
+      cache: {
+        totalBytes: this.status.totalBytes,
+        coverBytes: this.status.coverBytes,
+        timelineBytes: this.status.timelineBytes,
+        itemCount: this.status.itemCount,
+        maxBytes: this.status.maxBytes,
+        lastCleanup: structuredClone(this.status.lastCleanup)
+      }
+    };
   }
 
   setPlaybackPaused(paused: boolean): void {
@@ -184,6 +218,8 @@ export class MediaCacheManager {
     if (this.clearing) return this.clearing;
     const maintenanceAtStart = this.maintenance;
     this.epoch += 1;
+    this.maintenanceStartedAt = this.now();
+    this.lastMaintenanceError = null;
     const operation = (async () => {
       await maintenanceAtStart?.catch(() => undefined);
       await this.generationQueue.whenIdle();
@@ -224,7 +260,11 @@ export class MediaCacheManager {
       );
       return { removedCount: removedPaths.length, reclaimedBytes, failures, status: this.getStatus() };
     })();
-    this.clearing = operation.finally(() => {
+    this.clearing = operation.then(
+      (result) => { this.lastMaintenanceError = null; return result; },
+      (error: unknown) => { this.lastMaintenanceError = "缓存清理失败，详情请查看诊断日志"; throw error; }
+    ).finally(() => {
+      this.lastMaintenanceCompletedAt = new Date(this.now()).toISOString();
       this.clearing = null;
     });
     return this.clearing;
@@ -252,8 +292,14 @@ export class MediaCacheManager {
       return { removedCount: 0, reclaimedBytes: 0, failures: [], status: this.getStatus() };
     }
     this.lastMaintenanceStartedAt = this.now();
+    this.maintenanceStartedAt = this.lastMaintenanceStartedAt;
+    this.lastMaintenanceError = null;
     const operation = this.performMaintenance(reason);
-    this.maintenance = operation.finally(() => {
+    this.maintenance = operation.then(
+      (result) => { this.lastMaintenanceError = null; return result; },
+      (error: unknown) => { this.lastMaintenanceError = "缓存维护失败，详情请查看诊断日志"; throw error; }
+    ).finally(() => {
+      this.lastMaintenanceCompletedAt = new Date(this.now()).toISOString();
       this.maintenance = null;
     });
     return this.maintenance;
@@ -262,6 +308,7 @@ export class MediaCacheManager {
   stop(): void {
     this.stopping = true;
     if (this.startupMaintenanceTimer) clearTimeout(this.startupMaintenanceTimer);
+    this.startupMaintenanceTimer = undefined;
     this.epoch += 1;
   }
 

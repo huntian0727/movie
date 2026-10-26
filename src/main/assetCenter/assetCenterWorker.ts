@@ -56,6 +56,11 @@ function handleRead(request: AssetCenterWorkerRequest): AssetCenterWorkerRespons
     } else if (request.operation === "folders") {
       cachedFolders ??= repository.listSourceFoldersWithStats();
       response = { id: request.id, ok: true, result: cachedFolders };
+    } else if (request.operation === "pendingMetadata") {
+      if (!Number.isSafeInteger(request.limit) || request.limit < 1 || request.limit > 5000) {
+        throw new Error("Pending metadata batch limit must be an integer between 1 and 5000");
+      }
+      response = { id: request.id, ok: true, result: repository.listVideosPendingMetadata(request.limit) };
     } else if (request.operation === "retainedCachePaths") {
       response = { id: request.id, ok: true, result: repository.listRetainedMediaCachePaths() };
     } else if (request.operation === "metadataIssues") {

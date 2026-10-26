@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
+import subprocess
 
 spec = importlib.util.spec_from_file_location("source_companion", Path(__file__).parents[2] / "scripts/prepare-source-review-companion.py")
 module = importlib.util.module_from_spec(spec)
@@ -33,6 +34,47 @@ class CompanionTests(unittest.TestCase):
             with patch.object(module, "SOURCE_BYTES", source.stat().st_size), patch.object(module, "SOURCE_SHA256", module.digest(source)):
                 module.verify_source_zip(source)
 
+    def test_application_archive_has_no_release_approval_hash_cycle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            (root / "build").mkdir()
+            (root / "src").mkdir()
+            (root / ".gitattributes").write_text(
+                "build/release-approval.json export-ignore\n", encoding="utf8"
+            )
+            approval = root / "build/release-approval.json"
+            approval.write_text('{"correspondingNativeSourcesSha256":"first"}\n', encoding="utf8")
+            (root / "src" / "app.js").write_text("export const version = 1;\n", encoding="utf8")
+
+            def git(*args):
+                subprocess.run(["git", *args], cwd=root, check=True,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            git("init", "--quiet")
+            git("config", "user.name", "Release Test")
+            git("config", "user.email", "release-test@example.invalid")
+            git("add", ".")
+            git("commit", "-m", "first approval")
+            first_commit = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            first_zip = Path(directory) / "application-first.zip"
+            module.archive_application_sources(root, first_commit, first_zip)
+            with zipfile.ZipFile(first_zip) as archive:
+                self.assertEqual(archive.comment, b"")
+                self.assertNotIn("build/release-approval.json", archive.namelist())
+
+            approval.write_text('{"correspondingNativeSourcesSha256":"second"}\n', encoding="utf8")
+            git("add", ".")
+            git("commit", "-m", "second approval")
+            second_commit = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            second_zip = Path(directory) / "application-second.zip"
+            module.archive_application_sources(root, second_commit, second_zip)
+            self.assertNotEqual(first_commit, second_commit)
+            self.assertEqual(module.digest(first_zip), module.digest(second_zip))
     def test_matching_pin_does_not_allow_program_or_traversal(self):
         for name in ["../escape.txt", "/absolute.txt", "host.exe", "player.dll", "compiler.nupkg", "folder\\file.txt"]:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:

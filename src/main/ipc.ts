@@ -53,6 +53,7 @@ import type { ScanManager } from "./media/scanManager.js";
 import type { MetadataQueue } from "./media/metadataQueue.js";
 import { registerPreviewMetadataHandlers } from "./media/previewMetadataIpc.js";
 import { registerPreviewImageHandlers } from "./media/previewImageIpc.js";
+import { duplicateGroupPageQuerySchema, registerAssetCenterQueryHandlers } from "./assetCenter/assetCenterQueryIpc.js";
 import { MetadataFileRefreshService } from "./media/metadataFileRefreshService.js";
 import type { DuplicateCleanupService } from "./media/duplicateCleanupService.js";
 import { playWithMpv, waitForMpvStart } from "./media/mpvController.js";
@@ -112,6 +113,7 @@ const loggedIpcChannels = new Set<string>([
   IPC_CHANNELS.videoOpenPlayer,
   IPC_CHANNELS.videoPlayExternal,
   IPC_CHANNELS.settingsSet,
+  IPC_CHANNELS.settingsSetHoldFastForwardSpeed,
   IPC_CHANNELS.cacheClear,
   IPC_CHANNELS.diagnosticsExport
 ]);
@@ -151,6 +153,13 @@ const ipcMain = {
             ? "设置参数无效：CloudDrive 非本机地址必须使用 HTTPS，请检查地址、Token 和超时配置"
             : "设置保存失败，请检查系统安全存储和数据目录权限";
           ipcLogger?.warn({ module: "ipc", event: "settings_save_failed", context: { channel } });
+          throw new Error(message);
+        }
+        if (channel === IPC_CHANNELS.settingsSetHoldFastForwardSpeed) {
+          const message = error instanceof z.ZodError
+            ? "长按快进倍速无效，请选择 1.5、2、3 或 4 倍速"
+            : "长按快进倍速保存失败，请检查数据目录权限";
+          ipcLogger?.warn({ module: "ipc", event: "settings_save_failed", context: { channel, setting: "holdFastForwardSpeed" } });
           throw new Error(message);
         }
         if (channel.startsWith("subtitles:")) {
@@ -196,12 +205,6 @@ const libraryPageQuerySchema = z.object({
   pageSize: z.union([z.literal(30), z.literal(50), z.literal(100), z.literal(200), z.literal(300)])
 }).strict();
 
-const directoryBrowserQuerySchema = z.object({
-  sourceFolderId: z.string().min(1).optional(),
-  parentPath: z.string().min(1).max(32767).optional(),
-  search: z.string().trim().max(500),
-  limit: z.union([z.literal(50), z.literal(100), z.literal(200)])
-}).strict();
 const directoryScanRequestSchema = z.object({
   sourceFolderId: z.string().min(1),
   directoryPath: z.string().min(1).max(32767),
@@ -214,15 +217,6 @@ const cloudDriveSourceSelectionSchema = z.object({
   remotePath: z.string().min(1).max(32767)
 }).strict();
 
-const assetCenterSourceQuerySchema = z.object({
-  page: z.number().int().min(1).max(1_000_000),
-  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)]),
-  search: z.string().trim().max(500),
-  type: z.enum(["all", "localOrMounted", "nas", "clouddrive"]),
-  availability: z.enum(["all", "reachable", "offline", "checkFailed", "unknown", "disabled"]),
-  sort: z.enum(["path", "videoCount", "sizeBytes", "lastScannedAt", "issueCount"]),
-  direction: z.enum(["asc", "desc"])
-}).strict();
 const playbackDiagnosticSearchQuerySchema = z.object({
   search: z.string().trim().min(1).max(500),
   page: z.number().int().min(1).max(1_000_000),
@@ -234,29 +228,12 @@ const missingVideoPageQuerySchema = z.object({
   page: z.number().int().min(1).max(1_000_000),
   pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
 }).strict();
-const metadataIssuePageQuerySchema = z.object({
-  sourceFolderId: z.string().min(1).optional(),
-  status: z.enum(["all", "automatic", "deferred", "failed"]),
-  zeroBytesOnly: z.boolean(),
-  search: z.string().trim().max(500),
-  page: z.number().int().min(1).max(1_000_000),
-  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
-}).strict();
 const videoIdsSchema = z.array(z.string().min(1)).min(1).max(500);
 const playerSessionSchema = videoIdSchema.extend({
   queueIds: z.array(z.string().min(1)).min(1).max(MAX_PLAYER_QUEUE_ITEMS),
   startPositionMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional()
 });
 const batchMoveSchema = z.object({ videoIds: videoIdsSchema, targetDirectory: z.string().min(1), addTargetToLibrary: z.boolean() }).strict();
-const duplicateGroupPageQuerySchema = z.object({
-  page: z.number().int().min(1),
-  pageSize: z.union([z.literal(10), z.literal(20), z.literal(50), z.literal(100), z.literal(200), z.literal(300), z.literal(500)]),
-  sortField: z.enum(["reclaimableBytes", "sizeBytes", "duplicateCount", "durationMs"]).default("sizeBytes"),
-  sortDirection: z.enum(["asc", "desc"]),
-  preferredDirectoryPath: z.string().min(1).optional(),
-  preferredDirectoryPaths: z.array(z.string().min(1)).max(100).optional(),
-  filterDirectoryPath: z.string().min(1).optional()
-}).strict();
 const duplicateResolvePlanSchema = z
   .object({
     groups: z.array(
@@ -313,11 +290,13 @@ const shortcutSettingsSchema = z.object({
   return new Set(libraryBindings).size === libraryBindings.length
     && new Set(playerBindings).size === playerBindings.length;
 }, "Shortcut bindings must be unique within each window");
+const holdFastForwardSpeedSchema = z.union([z.literal(1.5), z.literal(2), z.literal(3), z.literal(4)]);
 const settingsSchema = z.object({
   defaultRecursiveScan: z.boolean(),
   startupSync: z.boolean(),
   autoPlayOnOpen: z.boolean(),
   seekStepSeconds: z.number().int().min(1).max(120),
+  holdFastForwardSpeed: holdFastForwardSpeedSchema,
   coverFrameTimeSeconds: z.union([z.literal(0), z.literal(3), z.literal(5), z.literal(10), z.literal(15)]),
   playbackPreference: z.enum(["auto", "native-first", "mpv-first", "embedded-first"]),
   cloudDrive: z.object({
@@ -353,12 +332,6 @@ const scanFailureBatchSubmitSchema = z.object({
       }).strict()
     }).strict()
   ])
-}).strict();
-const scanFailureReviewQuerySchema = z.object({
-  sourceFolderId: z.string().min(1).optional(),
-  kind: z.enum(["all", "video", "unindexed-file", "directory"]),
-  page: z.number().int().min(1),
-  pageSize: z.union([z.literal(30), z.literal(50), z.literal(100)])
 }).strict();
 
 
@@ -489,6 +462,10 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   registerPreviewMetadataHandlers(ipcMain, repo, dependencies.metadataQueue);
   registerPreviewImageHandlers(ipcMain, (url, options) =>
     loadPreviewImage(repo, dependencies.cacheManager, url, dependencies.settings.get().coverFrameTimeSeconds, options));
+  registerAssetCenterQueryHandlers(ipcMain, {
+    assetCenterQueries: dependencies.assetCenterQueries,
+    metadataQueue: dependencies.metadataQueue
+  }, readScope);
   let legacyCloudDriveBindingInFlight: Promise<Awaited<ReturnType<typeof bindLegacyCloudDriveDuplicateCandidates>>> | null = null;
   let legacyCloudDriveBindingAbortController: AbortController | null = null;
   let legacyCloudDriveBindingStatus: CloudDriveLegacyBindingProgress = {
@@ -540,14 +517,6 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   ipcMain.handle(IPC_CHANNELS.libraryPage, (event, query, purpose) =>
     dependencies.libraryPageQueries.page(libraryPageQuerySchema.parse(query), readScope(event, "library-page", purpose))
   );
-  ipcMain.handle(IPC_CHANNELS.libraryDirectoryBrowser, (event, query, purpose) =>
-    dependencies.assetCenterQueries.listDirectories(directoryBrowserQuerySchema.parse(query), readScope(event, "directories", purpose))
-  );
-  ipcMain.handle(IPC_CHANNELS.libraryNavigation, () => dependencies.assetCenterQueries.getLibraryNavigation());
-  ipcMain.handle(IPC_CHANNELS.assetCenterSummary, () => dependencies.assetCenterQueries.getSummary());
-  ipcMain.handle(IPC_CHANNELS.assetCenterSources, (event, query, purpose) =>
-    dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query), readScope(event, "sources", purpose))
-  );
   ipcMain.handle(IPC_CHANNELS.playbackDiagnosticSearch, (_event, query) =>
     dependencies.playbackDiagnosticQueries.search(playbackDiagnosticSearchQuerySchema.parse(query))
   );
@@ -580,16 +549,7 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return result;
   });
   ipcMain.handle(IPC_CHANNELS.libraryMissingPage, (_event, query) => repo.listMissingVideoPage(missingVideoPageQuerySchema.parse(query)));
-  ipcMain.handle(IPC_CHANNELS.libraryMetadataIssuePage, async (event, query, purpose) => {
-    const page = await dependencies.assetCenterQueries.listMetadataIssues(metadataIssuePageQuerySchema.parse(query), readScope(event, "metadata-issues", purpose));
-    const queueStatus = dependencies.metadataQueue.getStatus();
-    return {
-      ...page,
-      items: page.items.map((item) => ({ ...item, queueState: dependencies.metadataQueue.getVideoState(item.video.id) })),
-      queuedCount: queueStatus.queued,
-      activeCount: queueStatus.active
-    };
-  });
+  ipcMain.handle(IPC_CHANNELS.metadataQueueStatus, () => dependencies.metadataQueue.getStatus());
   ipcMain.handle(IPC_CHANNELS.libraryMetadataRefreshSizes, (_event, videoIds) =>
     metadataFileRefresh.refreshZeroByteFiles(videoIdsSchema.parse(videoIds))
   );
@@ -618,9 +578,6 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   });
   ipcMain.handle(IPC_CHANNELS.videoListByIds, (_event, videoIds) => repo.listVideosByIds(z.array(z.string().min(1)).max(300).parse(videoIds)));
 
-  ipcMain.handle(IPC_CHANNELS.duplicateList, (event, query, purpose) =>
-    dependencies.assetCenterQueries.listDuplicates(duplicateGroupPageQuerySchema.parse(query), readScope(event, "duplicates", purpose))
-  );
 
   ipcMain.handle(IPC_CHANNELS.duplicatePreviewResolve, async (_event, payload) => {
     const result = await previewDuplicateResolveSafely(
@@ -886,9 +843,6 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
   );
   ipcMain.handle(IPC_CHANNELS.folderScanFailureList, (_event, folderId: unknown) =>
     repo.listScanFailures(z.string().min(1).parse(folderId))
-  );
-  ipcMain.handle(IPC_CHANNELS.scanFailureReviewPage, (event, query, purpose) =>
-    dependencies.assetCenterQueries.listScanFailures(scanFailureReviewQuerySchema.parse(query), readScope(event, "scan-failures", purpose))
   );
   ipcMain.handle(IPC_CHANNELS.scanFailureReviewRetry, (_event, payload) => {
     const { failureId } = scanFailureIdSchema.parse(payload);
@@ -1243,11 +1197,20 @@ export function registerIpcHandlers(repo: VideoRepository, dependencies: IpcDepe
     return toPublicSettings(settings);
   });
 
+  // The sandboxed player may update this one preference, but must not receive the full settings-write API.
+  ipcMain.handle(IPC_CHANNELS.settingsSetHoldFastForwardSpeed, (_event, rawSpeed) => {
+    const holdFastForwardSpeed = holdFastForwardSpeedSchema.parse(rawSpeed);
+    const settings = dependencies.settings.set({ holdFastForwardSpeed });
+    dependencies.domainEvents.publish({ type: "settings:changed", videoIds: [] });
+    return toPublicSettings(settings);
+  });
+
   ipcMain.handle(IPC_CHANNELS.cacheClear, async () => {
     const result = await dependencies.cacheManager.clear();
     repo.resetMediaCacheState();
     return result;
   });
+  ipcMain.handle(IPC_CHANNELS.mediaCacheTaskStatus, () => dependencies.cacheManager.getTaskStatus());
 }
 
 function publishRemovedVideos(

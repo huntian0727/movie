@@ -54,6 +54,10 @@ def validate_stable_release(approval, version, native_approval):
         any(item.get("sourceComplianceApproved") is not True for item in native_approval["binaries"])):
         raise ValueError("Stable source companion lacks exact native source approval")
 
+def archive_application_sources(root, commit, output):
+    tree = subprocess.check_output(["git", "rev-parse", commit + "^{tree}"], cwd=root, text=True).strip()
+    subprocess.run(["git", "archive", "--format=zip", "--output=" + str(output), tree], cwd=root, check=True)
+
 def prepare(source, output, public_test=False, stable_release=False):
     source, output = Path(source).resolve(), Path(output).resolve()
     if output == ROOT or ROOT in output.parents or output.exists() or not output.parent.is_dir():
@@ -99,7 +103,7 @@ def prepare(source, output, public_test=False, stable_release=False):
         raise ValueError("Unsafe package version")
     output.mkdir()
     application_sources = output / ("Movie-" + version + "-Application-Sources.zip")
-    subprocess.run(["git", "archive", "--format=zip", "--output=" + str(application_sources), commit], cwd=ROOT, check=True)
+    archive_application_sources(ROOT, commit, application_sources)
     bundle = output / ("Movie-Native-Runtime-" + version + "-Corresponding-Sources.zip" if stable_release else
                       "Movie-" + version + ("-Corresponding-Native-Sources.zip" if public_test else "-Native-Source-Review.zip"))
     public_assets = ["THIRD_PARTY_LICENSES.md", "docs/legal/THIRD_PARTY_RELEASE_NOTICES.md",
@@ -115,7 +119,7 @@ def prepare(source, output, public_test=False, stable_release=False):
         release_assets = ASSETS
     assets = [{"path": file, "sha256": digest(ROOT / file)} for file in release_assets]
     status = {"schemaVersion": 1, "status": "PRIVATE_REVIEW_NOT_PUBLIC_RELEASE", "approved": False,
-              "programIncluded": False, "sourceComplianceApproved": False, "version": version, "commit": commit,
+              "programIncluded": False, "sourceComplianceApproved": False, "version": version, "applicationCommitBoundExternally": True,
               "inputApprovalStates": [a["approved"] for a in approvals], "nativeRuntimeInputSha256": NATIVE_SHA256,
               "nativeSourceInputSha256": SOURCE_SHA256, "nativeSourceInputBytes": SOURCE_BYTES,
               "applicationSourcesSha256": digest(application_sources), "assets": assets}

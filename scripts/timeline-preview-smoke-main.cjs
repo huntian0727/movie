@@ -1,5 +1,9 @@
 // Isolated real-Electron test: no user library, media, settings or playback changes.
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, protocol } = require("electron");
+protocol.registerSchemesAsPrivileged([
+  { scheme: "app-ui", privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: "local-video", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
+]);
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -11,8 +15,14 @@ app.whenReady().then(async () => {
   app.on("browser-window-created", (_event, window) => {
     window.webContents.on("did-fail-load", (_event, code, message) => console.error("Preview fixture load failure:", code, message));
     window.webContents.on("preload-error", (_event, _file, error) => console.error("Preview fixture preload failure:", error));
-    window.webContents.on("console-message", (_event, level, message) => { if (level >= 2) console.error("Preview fixture renderer:", message); });
+    window.webContents.on("console-message", (details) => {
+      if (details.level === "warning" || details.level === "error") {
+        console.error("Preview fixture renderer:", details.message);
+      }
+    });
   });
+  const { registerRendererProtocol } = await import("../dist-main/main/rendererProtocol.js");
+  registerRendererProtocol(protocol, path.resolve("dist-renderer"));
   const { PlayerTimelinePreview } = await import("../dist-main/main/playerTimelinePreview.js");
   const { IPC_CHANNELS } = await import("../dist-main/shared/videoTypes.js");
   const { assertTrustedIpcSender, getAllowedIpcRoles } = await import("../dist-main/main/security.js");
@@ -25,7 +35,8 @@ app.whenReady().then(async () => {
     });
   }
   const parent = new BrowserWindow({ width: 640, height: 480 });
-  await parent.loadURL("data:text/html,<body style='background:blue'>isolated fixture</body>");
+  const parentHtml = "<!doctype html><html><head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\"></head><body style=\"background:blue\">isolated fixture</body></html>";
+  await parent.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(parentHtml));
   parent.show(); parent.focus();
   for (let attempt = 0; attempt < 30 && !parent.isFocused(); attempt++) await new Promise(resolve => setTimeout(resolve, 100));
   const preview = new PlayerTimelinePreview(parent, {

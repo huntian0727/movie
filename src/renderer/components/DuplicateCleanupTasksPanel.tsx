@@ -221,6 +221,12 @@ function itemResultLabel(item: DuplicateCleanupItemPage["items"][number]): strin
   if (code === "already-missing") return "远端文件已不存在，本地索引已清理。";
   if (code === "provider-identity-changed") return "远端身份或缓存版本已变化，本次已跳过。";
   if (code === "clouddrive-api-delete-failed") return item.message || "CloudDrive API删除失败，可重试。";
+  if (code === "deleted-index-refresh-failed") {
+    return item.message || "源文件已永久删除，但资料库索引更新失败。请重新扫描来源；不要重试删除。";
+  }
+  if (code === "delete-outcome-unknown") {
+    return item.message || "删除结果未知，系统不会自动重试。请先核对源目录与资料库索引。";
+  }
   if (item.status === "deleted" || code === "deleted") return "已永久删除。";
   if (["content-different", "unverifiable", "cancelled"].includes(code)) return verificationLabel(item.verificationStatus);
   if (code === "legacy-safety-blocked") {

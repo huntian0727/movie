@@ -15,6 +15,14 @@ type Job = {
   interrupted: boolean;
 };
 
+export interface ImageGenerationQueueStatus {
+  queued: number;
+  active: number;
+  interrupted: number;
+  playbackPaused: boolean;
+  stopped: boolean;
+}
+
 /** Shared work is cancelled only when its last consumer leaves. */
 export class ImageGenerationQueue {
   private readonly jobs = new Map<string, Job>();
@@ -58,6 +66,22 @@ export class ImageGenerationQueue {
     });
     this.pump();
     return result;
+  }
+
+  /** Aggregate-only snapshot; deliberately omits job keys and source paths. */
+  getStatus(): ImageGenerationQueueStatus {
+    let queued = 0;
+    let active = 0;
+    let interrupted = 0;
+    for (const job of this.jobs.values()) {
+      if (job.active) {
+        if (job.interrupted) interrupted += 1;
+        else active += 1;
+      } else if (job.subscribers.size > 0) {
+        queued += 1;
+      }
+    }
+    return { queued, active, interrupted, playbackPaused: this.playbackPaused, stopped: this.stopped };
   }
 
   whenIdle(): Promise<void> {

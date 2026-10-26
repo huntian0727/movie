@@ -14,6 +14,9 @@ describe("embedded trial contracts", () => {
     expect(embeddedInputSchema.safeParse({ kind: "pointer-move", x: 1, y: 2 }).success).toBe(true);
     for (const x of [-1, 1.5, 16385, NaN]) expect(embeddedInputSchema.safeParse({ kind: "pointer-move", x, y: 2 }).success).toBe(false);
     expect(embeddedInputSchema.safeParse({ kind: "pointer-move", path: "file" }).success).toBe(false);
+    const keyUp = { kind: "key", code: "ArrowRight", control: false, shift: false, alt: false, phase: "up" };
+    expect(embeddedInputSchema.safeParse(keyUp).success).toBe(true);
+    expect(embeddedInputSchema.safeParse({ ...keyUp, phase: "repeat" }).success).toBe(false);
   });
   it("accepts the opt-in but preserves the automatic default", () => {
     expect(normalizeSettings({}).playbackPreference).toBe("auto");

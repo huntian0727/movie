@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkedDirectory, materializePinnedFiles, readPinnedZip, sha256, validateArchiveName, verifyPackage } from "../../scripts/native-player-toolchain.mjs";
+import { checkedDirectory, checkedFile, materializePinnedFiles, readPinnedZip, sha256, validateArchiveName, verifyPackage } from "../../scripts/native-player-toolchain.mjs";
 import { compilerArguments, toolchain } from "../../scripts/build-native-player.mjs";
 
 const roots = [];
@@ -48,9 +48,32 @@ describe("pinned NativeHost toolchain trust boundaries", () => {
   });
   it("refuses junction cache escape and unrelated output directories", () => {
     const root = temporary(), owned = path.join(root, "owned"), outside = path.join(root, "outside");
-    mkdirSync(owned); mkdirSync(outside); symlinkSync(outside, path.join(owned, "link"), "junction");
+    mkdirSync(owned); mkdirSync(outside); symlinkSync(outside, path.join(owned, "link"), process.platform === "win32" ? "junction" : "dir");
     expect(() => checkedDirectory(owned, path.join(owned, "link", "child"))).toThrow(/Reparse/);
     expect(() => checkedDirectory(owned, outside)).toThrow(/escapes/);
+  });
+  it("allows only the explicitly configured project .tmp junction to use external D-drive storage", () => {
+    const root = temporary(), owned = path.join(root, "owned"), storage = path.join(root, "external-storage");
+    mkdirSync(owned); mkdirSync(storage);
+    symlinkSync(storage, path.join(owned, ".tmp"), process.platform === "win32" ? "junction" : "dir");
+    const previous = process.env.MOVIE_TEMP_ROOT;
+    process.env.MOVIE_TEMP_ROOT = storage;
+    try {
+      const cache = path.join(owned, ".tmp", "native-player-toolchain");
+      expect(checkedDirectory(owned, cache)).toBe(cache);
+      const file = path.join(cache, "pinned.bin");
+      writeFileSync(file, "pinned");
+      expect(checkedDirectory(owned, path.dirname(file))).toBe(path.dirname(file));
+      expect(checkedFile(owned, file)).toBe(file);
+      expect(readFileSync(file, "utf8")).toBe("pinned");
+      const unrelatedTarget = path.join(root, "unrelated-target"), unrelated = path.join(owned, "link");
+      mkdirSync(unrelatedTarget);
+      symlinkSync(unrelatedTarget, unrelated, process.platform === "win32" ? "junction" : "dir");
+      expect(() => checkedDirectory(owned, path.join(unrelated, "child"))).toThrow(/Reparse/);
+    } finally {
+      if (previous === undefined) delete process.env.MOVIE_TEMP_ROOT;
+      else process.env.MOVIE_TEMP_ROOT = previous;
+    }
   });
   it("rejects tampered cached dependencies and extra adjacent code without overwriting them", () => {
     const root = temporary(), destination = path.join(root, "compiler"), pinned = new Map([["tasks/net472/csc.exe", Buffer.from("reviewed")]]);
@@ -62,6 +85,29 @@ describe("pinned NativeHost toolchain trust boundaries", () => {
     writeFileSync(executable, "reviewed"); writeFileSync(path.join(destination, "tasks/net472/injected.dll"), "extra");
     expect(() => materializePinnedFiles(root, destination, pinned)).toThrow(/Unexpected/);
   });
+  it("forwards native key-up separately and does not misclassify its previous-key-state bit as auto-repeat", () => {
+    const host = readFileSync(new URL("../../native/embedded-mpv/NativeHost.cs", import.meta.url), "utf8");
+    expect(host).toContain("bool keyDown=msg==0x100||msg==0x104;");
+    expect(host).toContain("bool keyUp=msg==0x101||msg==0x105;");
+    expect(host).toContain("if(!keyDown&&!keyUp)return false;");
+    expect(host).toContain("if(keyDown&&(lparam.ToInt64()&(1L<<30))!=0)return true;");
+    expect(host).toContain("phase=keyUp?\"up\":\"down\"");
+  });
+
+  it("suppresses persistent focus outlines on the embedded playback surface without disabling control focus styles", () => {
+    const css = readFileSync(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
+    expect(css).toContain(".player-page .player-stage video:focus-visible,");
+    expect(css).toContain(".player-page.uses-embedded-engine .player-stage:focus-visible,");
+    expect(css).toContain(".player-page.uses-embedded-engine .player-embedded-surface:focus-visible {");
+    expect(css).toContain("outline: none !important;");
+    expect(css).toContain("box-shadow: none !important;");
+    const focusRuleStart = css.indexOf("/* Keyboard shortcuts can focus either the HTML video element or the native playback host;");
+    const focusRuleEnd = css.indexOf(".player-embedded-surface {", focusRuleStart);
+    expect(focusRuleStart).toBeGreaterThanOrEqual(0);
+    expect(focusRuleEnd).toBeGreaterThan(focusRuleStart);
+    expect(css.slice(focusRuleStart, focusRuleEnd)).not.toContain("button");
+  });
+
   it("pins C#5, x64, deterministic output, explicit refs, encoding and mapped paths without machine response defaults", () => {
     const root = temporary(), source = path.join(root, "source with spaces", "NativeHost.cs"), stage = path.join(root, "stage");
     const references = [path.join(root, "mscorlib.dll"), path.join(root, "System.dll")];

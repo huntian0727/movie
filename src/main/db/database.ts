@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { LATEST_SCHEMA_VERSION, migrations } from "./migrations/index.js";
 import { listColumns, listTables, requireColumns, requireTables } from "./migrations/types.js";
@@ -9,6 +10,8 @@ export type DatabaseConnection = Database.Database;
 
 export interface MigrationHooks {
   beforeBackup?(db: DatabaseConnection, backupPath: string): void;
+  /** Test-only fault injection after VACUUM INTO writes the staging snapshot. */
+  afterBackupSnapshot?(db: DatabaseConnection, temporaryBackupPath: string): void;
   beforeMigration?(version: number, db: DatabaseConnection): void;
 }
 
@@ -17,6 +20,8 @@ export interface CreateDatabaseOptions {
   now?: () => Date;
   /** Latest-schema databases can skip the expensive full-table integrity pass on a known-clean startup. */
   verifyExistingIntegrity?: boolean;
+  /** Optional absolute directory for pre-migration snapshots. Defaults to the database-adjacent .backups directory. */
+  migrationBackupDirectory?: string;
 }
 
 export class DatabaseMigrationError extends Error {
@@ -173,27 +178,88 @@ function createMigrationBackup(
   fromVersion: number,
   options: CreateDatabaseOptions
 ): string {
-  const backupDirectory = `${dbPath}.backups`;
-  mkdirSync(backupDirectory, { recursive: true });
+  const configuredBackupDirectory = options.migrationBackupDirectory;
+  if (configuredBackupDirectory !== undefined && !path.isAbsolute(configuredBackupDirectory)) {
+    throw new DatabaseMigrationError(
+      "Migration backup directory must be an absolute path; migration was not started.",
+      dbPath
+    );
+  }
+  const backupDirectory = configuredBackupDirectory
+    ? path.resolve(configuredBackupDirectory)
+    : dbPath + ".backups";
   const timestamp = (options.now?.() ?? new Date()).toISOString().replaceAll(":", "-");
-  const backupPath = path.join(backupDirectory, `${path.basename(dbPath)}.v${fromVersion}.${timestamp}.sqlite`);
+  const backupPath = path.join(
+    backupDirectory,
+    path.basename(dbPath) + ".v" + fromVersion + "." + timestamp + ".sqlite"
+  );
+  // Never write VACUUM INTO directly to a filename that users could mistake for a valid restore point.
+  // If the process is interrupted, only a uniquely named .partial artifact can remain.
+  const temporaryBackupPath = path.join(
+    backupDirectory,
+    "." + path.basename(backupPath) + "." + randomUUID() + ".partial"
+  );
 
   try {
+    mkdirSync(backupDirectory, { recursive: true });
+    if (existsSync(backupPath)) {
+      throw new Error("A migration backup with this timestamp already exists; refusing to overwrite it.");
+    }
     options.migrationHooks?.beforeBackup?.(db, backupPath);
-    db.prepare("VACUUM INTO ?").run(backupPath);
-    const backup = new Database(backupPath, { readonly: true, fileMustExist: true });
+    db.prepare("VACUUM INTO ?").run(temporaryBackupPath);
+    options.migrationHooks?.afterBackupSnapshot?.(db, temporaryBackupPath);
+
+    const backup = new Database(temporaryBackupPath, { readonly: true, fileMustExist: true });
     try {
       validateIntegrity(backup);
     } finally {
       backup.close();
     }
+
+    const sidecars = [
+      temporaryBackupPath + "-journal",
+      temporaryBackupPath + "-wal",
+      temporaryBackupPath + "-shm"
+    ];
+    const remainingSidecars = sidecars.filter((sidecarPath) => existsSync(sidecarPath));
+    if (remainingSidecars.length > 0) {
+      throw new Error(
+        "Temporary migration backup has SQLite sidecar files: " +
+        remainingSidecars.map((sidecarPath) => path.basename(sidecarPath)).join(", ")
+      );
+    }
+    if (existsSync(backupPath)) {
+      throw new Error("A migration backup with this timestamp appeared during creation; refusing to overwrite it.");
+    }
+
+    // Same-directory rename publishes the validated snapshot atomically under its final restore-point name.
+    renameSync(temporaryBackupPath, backupPath);
     return backupPath;
   } catch (error: unknown) {
+    const cleanupErrors: unknown[] = [];
+    for (const artifactPath of [
+      temporaryBackupPath,
+      temporaryBackupPath + "-journal",
+      temporaryBackupPath + "-wal",
+      temporaryBackupPath + "-shm"
+    ]) {
+      try {
+        rmSync(artifactPath, { force: true });
+      } catch (cleanupError: unknown) {
+        cleanupErrors.push(cleanupError);
+      }
+    }
+    const cause = cleanupErrors.length === 0
+      ? error
+      : new AggregateError([error, ...cleanupErrors], "Backup creation failed and temporary artifacts could not all be removed.");
+    const cleanupMessage = cleanupErrors.length === 0
+      ? ""
+      : " Incomplete temporary artifacts may remain near " + temporaryBackupPath + ".";
     throw new DatabaseMigrationError(
-      "Database backup failed; migration was not started and the original database was preserved.",
+      "Database backup failed; migration was not started and the original database was preserved." + cleanupMessage,
       dbPath,
-      backupPath,
-      { cause: error }
+      undefined,
+      { cause }
     );
   }
 }

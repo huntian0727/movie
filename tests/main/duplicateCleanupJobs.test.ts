@@ -32,6 +32,47 @@ describe("size-duration duplicate cleanup authorization", () => {
     expect(jobs.listItems(accepted.jobId, 1, 20).items[0]).toMatchObject({ verificationStatus: "pending" });
   });
 
+  it("reserves keep and delete videos across overlapping cleanup plans and releases them after cancellation", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, keepVideo, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const secondDelete = await createVideo(repo, keepVideo.sourceFolderId,
+      path.join(path.dirname(keepVideo.path), "delete-second.mp4"), 1, deleteVideo.sizeBytes);
+    const groupKey = plan.groups[0]!.groupKey;
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const deleteFile = vi.fn(async (filePath: string) => rm(filePath, { force: true }));
+    const service = createService(jobs, repo, { deleteFile });
+    const accepted = service.submit({ requestId: "reservation-primary", plan });
+    await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
+
+    const sharedKeepPlan: DuplicateResolvePlan = {
+      groups: [{ groupKey, keepVideoId: keepVideo.id, deleteVideoIds: [secondDelete.id] }]
+    };
+    const sharedTargetAsKeepPlan: DuplicateResolvePlan = {
+      groups: [{ groupKey, keepVideoId: deleteVideo.id, deleteVideoIds: [secondDelete.id] }]
+    };
+    const sharedTargetPlan: DuplicateResolvePlan = {
+      groups: [{ groupKey, keepVideoId: secondDelete.id, deleteVideoIds: [deleteVideo.id] }]
+    };
+
+    expect(() => service.submit({ requestId: "reservation-shared-keep", plan: sharedKeepPlan })).toThrow(/reserved/);
+    expect(() => service.submit({ requestId: "reservation-target-as-keep", plan: sharedTargetAsKeepPlan })).toThrow(/reserved/);
+    expect(() => service.submit({ requestId: "reservation-shared-target", plan: sharedTargetPlan })).toThrow(/reserved/);
+    expect(jobs.listJobs(1, 20).totalItems).toBe(1);
+    expect(deleteFile).not.toHaveBeenCalled();
+    expect((await stat(deleteVideo.path)).isFile()).toBe(true);
+    expect((await stat(secondDelete.path)).isFile()).toBe(true);
+
+    expect(service.cancel(accepted.jobId)).toMatchObject({ status: "cancelled", phase: "finished" });
+    const replacement = service.submit({ requestId: "reservation-after-cancel", plan: sharedKeepPlan });
+    expect(replacement.status).toBe("queued");
+    await waitFor(jobs, replacement.jobId, (job) => job.phase === "awaiting_confirmation");
+    service.cancel(replacement.jobId);
+    expect(deleteFile).not.toHaveBeenCalled();
+    expect((await stat(deleteVideo.path)).isFile()).toBe(true);
+    expect((await stat(secondDelete.path)).isFile()).toBe(true);
+    service.stop();
+  });
+
   it("never deletes after successful verification until a separate exact confirmation authorizes it", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
@@ -547,6 +588,57 @@ describe("size-duration duplicate cleanup authorization", () => {
     first.stop();
   });
 
+  it("continues the FIFO after an unexpected task error and persists that task as interrupted", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const repo = new VideoRepository(db);
+    const plans: DuplicateResolvePlan[] = [];
+    const targets: VideoRecord[] = [];
+    for (const [name, sizeBytes] of [["first", 64], ["second", 128]] as const) {
+      const directory = path.join(tempDir, name);
+      await mkdir(directory, { recursive: true });
+      const folder = repo.addSourceFolder(directory, true);
+      const keep = await createVideo(repo, folder.id, path.join(directory, "keep.mp4"), 1, sizeBytes);
+      const target = await createVideo(repo, folder.id, path.join(directory, "delete.mp4"), 1, sizeBytes);
+      const group = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" }).groups
+        .find((candidate) => candidate.items.some((item) => item.video.id === target.id))!;
+      plans.push({ groups: [{ groupKey: group.groupKey, keepVideoId: keep.id, deleteVideoIds: [target.id] }] });
+      targets.push(target);
+    }
+
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const originalProgress = jobs.progress.bind(jobs);
+    let firstJobId = "";
+    let injected = false;
+    vi.spyOn(jobs, "progress").mockImplementation((jobId) => {
+      if (jobId === firstJobId && !injected) {
+        injected = true;
+        throw new Error("synthetic progress persistence fault");
+      }
+      return originalProgress(jobId);
+    });
+    const deleteFile = vi.fn(async (filePath: string) => rm(filePath, { force: true }));
+    const service = createService(jobs, repo, { deleteFile });
+    const first = service.submit({ requestId: "pump-error-first", plan: plans[0]! });
+    firstJobId = first.jobId;
+    const second = service.submit({ requestId: "pump-error-second", plan: plans[1]! });
+
+    const firstVerified = await waitFor(jobs, first.jobId, (job) => job.phase === "awaiting_confirmation");
+    const secondVerified = await waitFor(jobs, second.jobId, (job) => job.phase === "awaiting_confirmation");
+    service.confirm({ jobId: first.jobId, verificationRevision: firstVerified.verificationRevision!, confirmation: "DELETE" });
+    service.confirm({ jobId: second.jobId, verificationRevision: secondVerified.verificationRevision!, confirmation: "DELETE" });
+
+    const interrupted = await waitFor(jobs, first.jobId, (job) => job.status === "interrupted");
+    const completed = await waitFor(jobs, second.jobId, (job) => job.phase === "finished");
+    expect(injected).toBe(true);
+    expect(interrupted).toMatchObject({ status: "interrupted", phase: "deletion", authorizedRevision: null });
+    expect(jobs.listItems(first.jobId, 1, 20).items[0]).toMatchObject({ status: "deleted" });
+    await expect(stat(targets[0]!.path)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(completed).toMatchObject({ status: "completed", successItems: 1 });
+    expect(jobs.listItems(second.jobId, 1, 20).items[0]).toMatchObject({ status: "deleted" });
+    await expect(stat(targets[1]!.path)).rejects.toMatchObject({ code: "ENOENT" });
+    service.stop();
+  });
+
   it("clears terminal records but refuses to clear active tasks", async () => {
     ({ tempDir, db } = await fixtureRoot());
     const { repo, plan } = await duplicateFixture(db, tempDir, true);
@@ -583,8 +675,56 @@ describe("size-duration duplicate cleanup authorization", () => {
     expect(deleteFile).not.toHaveBeenCalled();
     expect(item.outcomeCode).toBe("isolated-target-mismatch");
     expect(item.stagedDeletePath).toBeTruthy();
+    expect(path.dirname(item.stagedDeletePath!)).toBe(path.dirname(deleteVideo.path)); // stage beside source: rename never crosses volumes
     expect(await stat(item.stagedDeletePath!)).toBeTruthy();
     await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
+    service.stop();
+  });
+
+  it("keeps the confirmed deletion result when refreshing the video index fails", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const removeVideo = vi.spyOn(repo, "removeVideo").mockImplementation(() => {
+      throw new Error("synthetic index refresh failure");
+    });
+    const service = createService(jobs, repo);
+    const accepted = service.submit({ requestId: "delete-index-refresh-failure", plan });
+    const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
+    service.confirm({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
+
+    const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+    const item = jobs.listItems(accepted.jobId, 1, 20).items[0]!;
+    expect(finished.status).toBe("completed");
+    expect(item).toMatchObject({ status: "deleted", outcomeCode: "deleted-index-refresh-failed" });
+    expect(item.message).toMatch(/源文件已永久删除，但资料库索引更新失败/);
+    expect(item.message).toMatch(/重新扫描来源/);
+    expect(removeVideo).toHaveBeenCalledWith(deleteVideo.id);
+    await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
+    service.stop();
+  });
+
+  it("records an unknown outcome if the delete call errors after the isolated path disappears", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const deleteFile = vi.fn(async (filePath: string) => {
+      await rm(filePath, { force: true });
+      throw new Error("synthetic ambiguous delete result");
+    });
+    const service = createService(jobs, repo, { deleteFile });
+    const accepted = service.submit({ requestId: "ambiguous-local-delete", plan });
+    const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
+    service.confirm({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
+
+    const finished = await waitFor(jobs, accepted.jobId, (job) => job.phase === "finished");
+    const item = jobs.listItems(accepted.jobId, 1, 20).items[0]!;
+    expect(finished.status).toBe("completed_with_errors");
+    expect(item).toMatchObject({ status: "failed", outcomeCode: "delete-outcome-unknown", stagedDeletePath: null });
+    expect(item.message).toMatch(/系统不会自动重试/);
+    expect(item.message).not.toMatch(/隔离文件仍可能位于/);
+    await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(deleteFile).toHaveBeenCalledTimes(1);
     service.stop();
   });
 
@@ -708,6 +848,211 @@ describe("size-duration duplicate cleanup authorization", () => {
     expect((await stat(deleteVideo.path)).isFile()).toBe(true);
     expect((await stat(stagedPath)).isFile()).toBe(true);
     expect(() => restarted.resume(accepted.jobId)).toThrow(/isolated file still requires recovery/);
+    restarted.stop();
+  });
+
+  it("accepts another cleanup queue while a prior job is deleting and keeps each job isolated in FIFO order", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const repo = new VideoRepository(db);
+    const plans: DuplicateResolvePlan[] = [];
+    const keepTargets: VideoRecord[] = [];
+    const deleteTargets: VideoRecord[] = [];
+    for (const [name, sizeBytes] of [["first-queue", 64], ["second-queue", 128]] as const) {
+      const directory = path.join(tempDir, name);
+      await mkdir(directory, { recursive: true });
+      const folder = repo.addSourceFolder(directory, true);
+      const keep = await createVideo(repo, folder.id, path.join(directory, "keep.mp4"), 1, sizeBytes);
+      const target = await createVideo(repo, folder.id, path.join(directory, "delete.mp4"), 1, sizeBytes);
+      const group = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" }).groups
+        .find((candidate) => candidate.items.some((item) => item.video.id === target.id))!;
+      plans.push({ groups: [{ groupKey: group.groupKey, keepVideoId: keep.id, deleteVideoIds: [target.id] }] });
+      keepTargets.push(keep);
+      deleteTargets.push(target);
+    }
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    let releaseFirstDelete!: () => void;
+    const firstDeleteGate = new Promise<void>((resolve) => { releaseFirstDelete = resolve; });
+    const deleteFile = vi.fn(async (filePath: string) => {
+      if (path.dirname(filePath) === path.dirname(deleteTargets[0]!.path)) await firstDeleteGate;
+      await rm(filePath, { force: true });
+    });
+    const service = createService(jobs, repo, { deleteFile });
+    const first = service.submit({ requestId: "independent-queue-first", plan: plans[0]! });
+    const second = service.submit({ requestId: "independent-queue-second", plan: plans[1]! });
+    const firstVerified = await waitFor(jobs, first.jobId, (job) => job.phase === "awaiting_confirmation");
+    const secondVerified = await waitFor(jobs, second.jobId, (job) => job.phase === "awaiting_confirmation");
+    service.confirm({ jobId: first.jobId, verificationRevision: firstVerified.verificationRevision!, confirmation: "DELETE" });
+    await waitUntil(() => deleteFile.mock.calls.length === 1 && jobs.getJob(first.jobId).status === "running");
+    service.confirm({ jobId: second.jobId, verificationRevision: secondVerified.verificationRevision!, confirmation: "DELETE" });
+    await waitUntil(() => jobs.getJob(second.jobId).status === "queued");
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    expect((await stat(deleteFile.mock.calls[0]![0])).isFile()).toBe(true);
+    await expect(stat(deleteTargets[0]!.path)).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await stat(deleteTargets[1]!.path)).isFile()).toBe(true);
+    releaseFirstDelete();
+    const firstFinished = await waitFor(jobs, first.jobId, (job) => job.phase === "finished");
+    expect(firstFinished).toMatchObject({ status: "completed", successItems: 1, failedItems: 0 });
+    const secondFinished = await waitFor(jobs, second.jobId, (job) => job.phase === "finished");
+    expect(secondFinished).toMatchObject({ status: "completed", successItems: 1, failedItems: 0 });
+    expect(deleteFile).toHaveBeenCalledTimes(2);
+    for (const target of deleteTargets) await expect(stat(target.path)).rejects.toMatchObject({ code: "ENOENT" });
+    for (const keep of keepTargets) expect((await stat(keep.path)).isFile()).toBe(true);
+    service.stop();
+  });
+
+  it("fails closed and leaves later queued jobs untouched when interrupted state cannot be persisted", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const repo = new VideoRepository(db);
+    const plans: DuplicateResolvePlan[] = [];
+    const targets: VideoRecord[] = [];
+    for (const [name, sizeBytes] of [["first", 64], ["second", 128]] as const) {
+      const directory = path.join(tempDir, name);
+      await mkdir(directory, { recursive: true });
+      const folder = repo.addSourceFolder(directory, true);
+      const keep = await createVideo(repo, folder.id, path.join(directory, "keep.mp4"), 1, sizeBytes);
+      const target = await createVideo(repo, folder.id, path.join(directory, "delete.mp4"), 1, sizeBytes);
+      const group = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" }).groups
+        .find((candidate) => candidate.items.some((item) => item.video.id === target.id))!;
+      plans.push({ groups: [{ groupKey: group.groupKey, keepVideoId: keep.id, deleteVideoIds: [target.id] }] });
+      targets.push(target);
+    }
+
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const originalProgress = jobs.progress.bind(jobs);
+    let firstJobId = "";
+    let injected = false;
+    vi.spyOn(jobs, "progress").mockImplementation((jobId) => {
+      if (jobId === firstJobId && !injected) {
+        injected = true;
+        throw new Error("synthetic progress failure before queue recovery");
+      }
+      return originalProgress(jobId);
+    });
+    vi.spyOn(jobs, "interruptJob").mockImplementation(() => {
+      throw new Error("synthetic interrupted-state persistence failure");
+    });
+    const deleteFile = vi.fn(async (filePath: string) => rm(filePath, { force: true }));
+    const service = createService(jobs, repo, { deleteFile });
+    const first = service.submit({ requestId: "fail-closed-first", plan: plans[0]! });
+    firstJobId = first.jobId;
+    const second = service.submit({ requestId: "fail-closed-second", plan: plans[1]! });
+    const firstVerified = await waitFor(jobs, first.jobId, (job) => job.phase === "awaiting_confirmation");
+    const secondVerified = await waitFor(jobs, second.jobId, (job) => job.phase === "awaiting_confirmation");
+    service.confirm({ jobId: first.jobId, verificationRevision: firstVerified.verificationRevision!, confirmation: "DELETE" });
+    service.confirm({ jobId: second.jobId, verificationRevision: secondVerified.verificationRevision!, confirmation: "DELETE" });
+
+    await waitUntil(() => injected && jobs.getJob(second.jobId).status === "queued");
+    expect(jobs.getJob(first.jobId).status).toBe("running");
+    expect(jobs.getJob(second.jobId).status).toBe("queued");
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    await expect(stat(targets[0]!.path)).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await stat(targets[1]!.path)).isFile()).toBe(true);
+    service.stop();
+  });
+
+  it("records an unknown outcome after the delete succeeds but persisting its result fails", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const originalUpdateItem = jobs.updateItem.bind(jobs);
+    let failOnce = true;
+    const updateItem = vi.spyOn(jobs, "updateItem").mockImplementation((itemId, status, outcomeCode, message) => {
+      if (failOnce && status === "deleted" && outcomeCode === "deleted") {
+        failOnce = false;
+        throw new Error("synthetic delete-result persistence failure");
+      }
+      return originalUpdateItem(itemId, status, outcomeCode, message);
+    });
+    const deleteFile = vi.fn(async (filePath: string) => rm(filePath, { force: true }));
+    const service = createService(jobs, repo, { deleteFile });
+    const accepted = service.submit({ requestId: "delete-result-record-failure", plan });
+    const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
+    service.confirm({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
+
+    const interrupted = await waitFor(jobs, accepted.jobId, (job) => job.status === "interrupted");
+    const afterFailure = jobs.listItems(accepted.jobId, 1, 20).items[0]!;
+    expect(interrupted.status).toBe("interrupted");
+    expect(afterFailure.status).toBe("pending");
+    expect(afterFailure.stagedDeletePath).not.toBeNull();
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
+    const stagedPath = afterFailure.stagedDeletePath!;
+    await expect(stat(stagedPath)).rejects.toMatchObject({ code: "ENOENT" });
+    service.stop();
+
+    const restarted = createService(jobs, repo, { deleteFile });
+    await waitUntil(() => jobs.listItems(accepted.jobId, 1, 20).items[0]?.outcomeCode === "isolation-recovery-required");
+    const recovered = jobs.listItems(accepted.jobId, 1, 20).items[0]!;
+    expect(recovered.status).toBe("failed");
+    expect(recovered.message).toMatch(/The deletion outcome cannot be confirmed/);
+    expect(recovered.message).toMatch(/no automatic retry will occur/);
+    expect((await jobs.getJob(accepted.jobId)).status).toBe("interrupted");
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    expect(updateItem).toHaveBeenCalled();
+    restarted.stop();
+  });
+
+  it("clears a stale isolation marker after a confirmed delete when marker cleanup initially fails", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const originalClearIsolation = jobs.clearIsolation.bind(jobs);
+    let failOnce = true;
+    const clearIsolation = vi.spyOn(jobs, "clearIsolation").mockImplementation((itemId) => {
+      if (failOnce) {
+        failOnce = false;
+        throw new Error("synthetic isolation marker cleanup failure");
+      }
+      return originalClearIsolation(itemId);
+    });
+    const deleteFile = vi.fn(async (filePath: string) => rm(filePath, { force: true }));
+    const service = createService(jobs, repo, { deleteFile });
+    const accepted = service.submit({ requestId: "stale-marker-after-delete", plan });
+    const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
+    service.confirm({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
+
+    const interrupted = await waitFor(jobs, accepted.jobId, (job) => job.status === "interrupted");
+    const afterFailure = jobs.listItems(accepted.jobId, 1, 20).items[0]!;
+    expect(interrupted.status).toBe("interrupted");
+    expect(afterFailure).toMatchObject({ status: "deleted", outcomeCode: "deleted" });
+    expect(afterFailure.stagedDeletePath).not.toBeNull();
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
+    service.stop();
+
+    const restarted = createService(jobs, repo, { deleteFile });
+    await waitUntil(() => jobs.listStagedItems().length === 0);
+    const recovered = jobs.listItems(accepted.jobId, 1, 20).items[0]!;
+    expect(recovered).toMatchObject({ status: "deleted", outcomeCode: "deleted", stagedDeletePath: null });
+    expect((await jobs.getJob(accepted.jobId)).status).toBe("interrupted");
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    expect(clearIsolation).toHaveBeenCalledTimes(2);
+    restarted.stop();
+  });
+
+  it("does not claim an isolated file remains when both original and staged paths are missing", async () => {
+    ({ tempDir, db } = await fixtureRoot());
+    const { repo, plan, deleteVideo } = await duplicateFixture(db, tempDir, true);
+    const jobs = new DuplicateCleanupRepository(db, repo);
+    const verifier = createService(jobs, repo);
+    const accepted = verifier.submit({ requestId: "startup-both-paths-missing", plan });
+    const verified = await waitFor(jobs, accepted.jobId, (job) => job.phase === "awaiting_confirmation");
+    verifier.stop();
+    jobs.authorizeDeletion({ jobId: accepted.jobId, verificationRevision: verified.verificationRevision!, confirmation: "DELETE" });
+    expect(jobs.start(accepted.jobId)).toBe(true);
+    const item = jobs.listDeletionWorkItems(accepted.jobId)[0]!;
+    const stagedPath = path.join(path.dirname(deleteVideo.path), ".startup-both-paths-missing-stage");
+    expect(jobs.prepareIsolation(accepted.jobId, item.id, stagedPath)).toBe(true);
+    await rename(deleteVideo.path, stagedPath);
+    await rm(stagedPath, { force: true });
+
+    const restarted = createService(jobs, repo);
+    await waitUntil(() => jobs.listItems(accepted.jobId, 1, 20).items[0]?.outcomeCode === "isolation-recovery-required");
+    const recovered = jobs.listItems(accepted.jobId, 1, 20).items[0]!;
+    expect(recovered.message).toMatch(/Neither the original path nor the recorded isolated path exists/);
+    expect(recovered.message).not.toMatch(/remains at/);
+    await expect(stat(deleteVideo.path)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(stagedPath)).rejects.toMatchObject({ code: "ENOENT" });
     restarted.stop();
   });
 });

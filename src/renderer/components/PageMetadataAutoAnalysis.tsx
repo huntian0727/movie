@@ -4,6 +4,7 @@ import type { VideoRecord } from "../../shared/videoTypes";
 const PAGE_ANALYSIS_WORKERS = 2;
 
 type FailedRetryBatch = { pageIdentity: string; ids: string[] };
+type PageProgress = { pageIdentity: string; total: number; processed: number };
 
 /**
  * Only owns requests created by this page. Cancelling an old page must never
@@ -21,9 +22,12 @@ export function PageMetadataAutoAnalysis({
   const [documentVisible, setDocumentVisible] = useState(() => !document.hidden);
   const [activeIds, setActiveIds] = useState<string[]>([]);
   const [retryingIds, setRetryingIds] = useState<string[]>([]);
+  const [queueStates, setQueueStates] = useState<Record<string, "queued" | "active">>({});
   const [retryBatch, setRetryBatch] = useState<FailedRetryBatch | null>(null);
   const [attemptedVersion, setAttemptedVersion] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<PageProgress>({ pageIdentity: "", total: 0, processed: 0 });
+  const [retryProgress, setRetryProgress] = useState<PageProgress>({ pageIdentity: "", total: 0, processed: 0 });
   const attemptedRef = useRef<{ pageIdentity: string; ids: Record<string, boolean> }>({ pageIdentity: "", ids: {} });
   const api = window.videoManager;
   const eligibleIds = useMemo(() => videos.filter((video) =>
@@ -34,6 +38,12 @@ export function PageMetadataAutoAnalysis({
   ), [videos]);
   const pageIds = videos.map((video) => video.id).join("|");
   const pageIdentity = `${scopeKey}\u0000${pageIds}`;
+  const currentAnalysisProgress = analysisProgress.pageIdentity === pageIdentity
+    ? analysisProgress
+    : { pageIdentity, total: enabled ? eligibleIds.length : 0, processed: 0 };
+  const currentRetryProgress = retryProgress.pageIdentity === pageIdentity
+    ? retryProgress
+    : { pageIdentity, total: 0, processed: 0 };
   // Reset synchronously when the user navigates to a different page/scope.
   if (attemptedRef.current.pageIdentity !== pageIdentity) {
     attemptedRef.current = { pageIdentity, ids: {} };
@@ -42,6 +52,8 @@ export function PageMetadataAutoAnalysis({
     [eligibleIds, attemptedVersion, pageIdentity]);
   const completed = videos.filter((video) => video.metadataStatus === "ready").length;
   const unanalysableCount = videos.filter((video) => video.isMissing || video.sizeBytes <= 0).length;
+  const queueQueuedCount = Object.values(queueStates).filter((state) => state === "queued").length;
+  const queueActiveCount = Object.values(queueStates).filter((state) => state === "active").length;
   const canRun = enabled && active && !pageLoading && documentVisible && Boolean(api?.loadPreviewMetadata);
   const retryBatchCurrent = retryBatch?.pageIdentity === pageIdentity;
   const retryBusy = retryBatchCurrent && retryingIds.length > 0;
@@ -58,12 +70,14 @@ export function PageMetadataAutoAnalysis({
   useEffect(() => {
     if (!canRun || !api || candidates.length === 0) {
       setActiveIds([]);
+      setQueueStates({});
       return;
     }
 
     let disposed = false;
     let nextIndex = 0;
     const requestIds = new Set<string>();
+    const pollTimers = new Set<number>();
     const workerCount = Math.min(PAGE_ANALYSIS_WORKERS, candidates.length);
 
     const worker = async () => {
@@ -73,12 +87,40 @@ export function PageMetadataAutoAnalysis({
 
         const requestId = crypto.randomUUID();
         requestIds.add(requestId);
+        let requestFinished = false;
+        let pollTimer: number | undefined;
+        const pollState = async () => {
+          try {
+            const next = await api.getPreviewMetadataState(requestId);
+            if (!disposed && !requestFinished && next) {
+              setQueueStates((current) => current[videoId] === next ? current : { ...current, [videoId]: next });
+            }
+          } catch {
+            // A transient state read must not turn a successful metadata request into a failure.
+          }
+          if (!disposed && !requestFinished) {
+            pollTimer = window.setTimeout(() => {
+              if (pollTimer) pollTimers.delete(pollTimer);
+              pollTimer = undefined;
+              void pollState();
+            }, 1000);
+            pollTimers.add(pollTimer);
+          }
+        };
+        setQueueStates((current) => ({ ...current, [videoId]: "queued" }));
+        void pollState();
         setActiveIds((current) => current.includes(videoId) ? current : [...current, videoId]);
         try {
           const video = await api.loadPreviewMetadata({ requestId, videoId, retry: false });
           if (disposed) return;
           attemptedRef.current.ids[videoId] = true;
           setAttemptedVersion((version) => version + 1);
+          setAnalysisProgress((current) => {
+            const base = current.pageIdentity === pageIdentity
+              ? current
+              : { pageIdentity, total: candidates.length, processed: 0 };
+            return { ...base, processed: Math.min(base.total, base.processed + 1) };
+          });
           if (!video || video.metadataStatus === "pending") {
             setNotice("部分文件未完成分析，可稍后重试");
           }
@@ -86,10 +128,28 @@ export function PageMetadataAutoAnalysis({
           if (disposed) return;
           attemptedRef.current.ids[videoId] = true;
           setAttemptedVersion((version) => version + 1);
+          setAnalysisProgress((current) => {
+            const base = current.pageIdentity === pageIdentity
+              ? current
+              : { pageIdentity, total: candidates.length, processed: 0 };
+            return { ...base, processed: Math.min(base.total, base.processed + 1) };
+          });
           setNotice(error instanceof Error ? error.message : "当前视频分析请求失败");
         } finally {
+          requestFinished = true;
+          if (pollTimer) {
+            window.clearTimeout(pollTimer);
+            pollTimers.delete(pollTimer);
+          }
           requestIds.delete(requestId);
-          if (!disposed) setActiveIds((current) => current.filter((id) => id !== videoId));
+          if (!disposed) {
+            setActiveIds((current) => current.filter((id) => id !== videoId));
+            setQueueStates((current) => {
+              const next = { ...current };
+              delete next[videoId];
+              return next;
+            });
+          }
         }
       }
     };
@@ -105,6 +165,8 @@ export function PageMetadataAutoAnalysis({
     return () => {
       disposed = true;
       window.clearTimeout(timer);
+      for (const pollTimer of pollTimers) window.clearTimeout(pollTimer);
+      pollTimers.clear();
       for (const requestId of requestIds) {
         void api.cancelPreviewMetadata(requestId).catch(() => undefined);
       }
@@ -127,6 +189,7 @@ export function PageMetadataAutoAnalysis({
     let lastError: string | null = null;
     const ids = [...new Set(retryBatch.ids)];
     const requestIds = new Set<string>();
+    const pollTimers = new Set<number>();
     const workerCount = Math.min(PAGE_ANALYSIS_WORKERS, ids.length);
 
     const worker = async () => {
@@ -135,6 +198,28 @@ export function PageMetadataAutoAnalysis({
         if (!videoId) return;
         const requestId = crypto.randomUUID();
         requestIds.add(requestId);
+        let requestFinished = false;
+        let pollTimer: number | undefined;
+        const pollState = async () => {
+          try {
+            const next = await api.getPreviewMetadataState(requestId);
+            if (!disposed && !requestFinished && next) {
+              setQueueStates((current) => current[videoId] === next ? current : { ...current, [videoId]: next });
+            }
+          } catch {
+            // Keep the retry request authoritative if a queue-state read temporarily fails.
+          }
+          if (!disposed && !requestFinished) {
+            pollTimer = window.setTimeout(() => {
+              if (pollTimer) pollTimers.delete(pollTimer);
+              pollTimer = undefined;
+              void pollState();
+            }, 1000);
+            pollTimers.add(pollTimer);
+          }
+        };
+        setQueueStates((current) => ({ ...current, [videoId]: "queued" }));
+        void pollState();
         setRetryingIds((current) => current.includes(videoId) ? current : [...current, videoId]);
         try {
           const video = await api.loadPreviewMetadata({ requestId, videoId, retry: true });
@@ -144,16 +229,40 @@ export function PageMetadataAutoAnalysis({
           attempted += 1;
           if (video?.metadataStatus === "ready") completedCount += 1;
           else unresolvedCount += 1;
+          setRetryProgress((current) => {
+            const base = current.pageIdentity === pageIdentity
+              ? current
+              : { pageIdentity, total: ids.length, processed: 0 };
+            return { ...base, processed: Math.min(base.total, base.processed + 1) };
+          });
         } catch (error: unknown) {
           if (disposed) return;
           attemptedRef.current.ids[videoId] = true;
           setAttemptedVersion((version) => version + 1);
           attempted += 1;
           unresolvedCount += 1;
+          setRetryProgress((current) => {
+            const base = current.pageIdentity === pageIdentity
+              ? current
+              : { pageIdentity, total: ids.length, processed: 0 };
+            return { ...base, processed: Math.min(base.total, base.processed + 1) };
+          });
           lastError = error instanceof Error ? error.message : "请求失败";
         } finally {
+          requestFinished = true;
+          if (pollTimer) {
+            window.clearTimeout(pollTimer);
+            pollTimers.delete(pollTimer);
+          }
           requestIds.delete(requestId);
-          if (!disposed) setRetryingIds((current) => current.filter((id) => id !== videoId));
+          if (!disposed) {
+            setRetryingIds((current) => current.filter((id) => id !== videoId));
+            setQueueStates((current) => {
+              const next = { ...current };
+              delete next[videoId];
+              return next;
+            });
+          }
         }
       }
     };
@@ -174,6 +283,8 @@ export function PageMetadataAutoAnalysis({
     return () => {
       disposed = true;
       window.clearTimeout(timer);
+      for (const pollTimer of pollTimers) window.clearTimeout(pollTimer);
+      pollTimers.clear();
       for (const requestId of requestIds) {
         void api.cancelPreviewMetadata(requestId).catch(() => undefined);
       }
@@ -184,6 +295,7 @@ export function PageMetadataAutoAnalysis({
     setNotice(null);
     setActiveIds([]);
     setRetryingIds([]);
+    setQueueStates({});
     setRetryBatch(null);
   }, [scopeKey, pageIds]);
 
@@ -191,22 +303,32 @@ export function PageMetadataAutoAnalysis({
   return <div className="batch-toolbar page-metadata-auto" role="region" aria-label="本页自动分析"
     style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: "8px 12px" }}>
     <button type="button" aria-pressed={enabled} onClick={() => {
+      const nextEnabled = !enabled;
       attemptedRef.current.ids = {};
       setAttemptedVersion((version) => version + 1);
-      setEnabled((value) => !value);
+      setAnalysisProgress({ pageIdentity, total: nextEnabled ? eligibleIds.length : 0, processed: 0 });
+      setEnabled(nextEnabled);
     }}>
       {enabled ? "关闭本页自动分析" : "开启本页自动分析"}
     </button>
     <span role="status">
       本页 {videos.length} 部 · 已就绪 {completed} · 待分析 {eligibleIds.length} · 缺失/0B不可分析 {unanalysableCount} · 失败可重试 {retryableFailedVideos.length}
       {enabled ? pageLoading ? " · 等待页面加载" : !documentVisible ? " · 窗口暂不可见" :
-        activeIds.length ? ` · 正在处理 ${activeIds.length} 部` : candidates.length === 0 ? " · 本页处理完毕" : " · 等待排队" : " · 默认关闭"}
-      {retryBusy ? ` · 正在重试 ${retryingIds.length} 部失败视频` : ""}
+        activeIds.length ? ` · 本页请求中 ${activeIds.length} 部（实际执行 ${queueActiveCount} · 排队 ${queueQueuedCount}）` : candidates.length === 0 ? " · 本页处理完毕" : " · 等待排队" : " · 默认关闭"}
+      {enabled && currentAnalysisProgress.total > 0 ? ` · 分析进度 ${currentAnalysisProgress.processed}/${currentAnalysisProgress.total}` : ""}
+      {retryBusy ? ` · 重试请求 ${retryingIds.length} 部（实际执行 ${queueActiveCount} · 排队 ${queueQueuedCount}）` : ""}
+      {retryBatchCurrent && currentRetryProgress.total > 0 ? ` · 重试进度 ${currentRetryProgress.processed}/${currentRetryProgress.total}` : ""}
     </span>
+    {enabled && currentAnalysisProgress.total > 0 && <progress className="page-metadata-progress" max={currentAnalysisProgress.total}
+      value={Math.min(currentAnalysisProgress.processed, currentAnalysisProgress.total)} aria-label="本页分析进度" style={{ width: 160, height: 8 }} />}
+    {retryBatchCurrent && currentRetryProgress.total > 0 && <progress className="page-metadata-progress" max={currentRetryProgress.total}
+      value={Math.min(currentRetryProgress.processed, currentRetryProgress.total)} aria-label="本页重试进度" style={{ width: 160, height: 8 }} />}
     <button type="button" disabled={retryDisabled} title="仅重试当前页中存在且大小有效的分析失败视频"
       onClick={() => {
         setNotice(null);
-        setRetryBatch({ pageIdentity, ids: retryableFailedVideos.map((video) => video.id) });
+        const ids = retryableFailedVideos.map((video) => video.id);
+        setRetryProgress({ pageIdentity, total: ids.length, processed: 0 });
+        setRetryBatch({ pageIdentity, ids });
       }}>
       {retryBatch ? "正在重试失败项…" : `重试本页失败项（${retryableFailedVideos.length}）`}
     </button>

@@ -30,6 +30,19 @@ const EMPTY_PAGE: ScanFailureReviewPage = {
   counts: { all: 0, video: 0, unindexedFile: 0, directory: 0 }
 };
 
+function scanFailureNextStep(category: ReturnType<typeof classifyScanFailureForCleanup>["category"]): string {
+  switch (category) {
+    case "confirmed-corrupt":
+      return "已通过独立复核确认损坏；可先标记为待删除，确认后再永久删除。";
+    case "missing":
+      return "先复查可访问性；若远端确认已不存在，再清理本地记录（不会删除云端文件）。";
+    case "transient":
+      return "先检查网络、网盘挂载、权限或文件占用；恢复后再重试，不要按损坏文件清理。";
+    case "manual-review":
+      return "先打开位置并尝试播放或查看详情；未独立确认损坏前不要删除。";
+  }
+}
+
 export function ScanFailuresPage({
   folders, initialSourceFolderId, refreshSequence, loadPage, onRetry, onDeleteFile, onCleanup, onSubmitBatch, onGetBatch, onCancelBatch, onListBatchHistory,
   onOpenLocation, onOpenVideo, onShowDetails, onTogglePendingDelete, getCoverUrl
@@ -385,6 +398,7 @@ export function ScanFailuresPage({
               {video && <span>{formatBytes(video.sizeBytes)} · {formatDuration(video.durationMs)}</span>}
               <div className="scan-failure-error"><AlertTriangle size={16} /><span>{failure.errorSummary}</span></div>
               <span className={`scan-failure-classification ${classification.category}`} title={classification.reason}>{classification.label}</span>
+              <small className="scan-failure-next-step"><strong>建议下一步：</strong>{scanFailureNextStep(classification.category)}</small>
               <small>阶段：{failure.failureStage} · 错误码：{failure.errorCode ?? "未知"} · 最近失败：{formatDate(failure.lastFailedAt)} · 重试 {failure.retryCount} 次</small>
             </div>
             <div className="scan-failure-actions">

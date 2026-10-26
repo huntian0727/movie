@@ -41,8 +41,4 @@ export function ReadState({ loading, error, empty, loadingText, emptyTitle, empt
   return <div className="read-state"><Info size={28} /><strong>{emptyTitle}</strong>{emptyText && <span>{emptyText}</span>}{onRetry && <button type="button" onClick={onRetry}>重新读取</button>}</div>;
 }
 
-export function operationErrorMessage(cause: unknown): string {
-  const raw = cause instanceof Error ? cause.message : typeof cause === "string" ? cause : "操作失败，请稍后重试";
-  // Keep the actual backend refusal (including deletion safety rules), not Electron's wrapper.
-  return raw.replace(/^Error invoking remote method ['"][^'"]+['"]:\s*/i, "").replace(/^Error:\s*/i, "").trim() || "操作失败，请稍后重试";
-}
+export { operationErrorMessage } from "./operationErrorMessage";

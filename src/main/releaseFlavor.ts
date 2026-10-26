@@ -14,6 +14,7 @@ export type ReleaseFlavor = {
   [Class in keyof typeof identities]: {
     releaseClass: Class;
     userDataDirectoryName: typeof identities[Class]["profile"];
+    migrationBackupDirectory?: string;
   }
 }[keyof typeof identities];
 
@@ -30,7 +31,19 @@ export function readReleaseFlavor(resourcesPath: string, version: string): Relea
       value.appId !== appId || value.userDataDirectoryName !== profile) {
     throw new Error("Packaged release identity does not match this application");
   }
-  return { releaseClass, userDataDirectoryName: profile } as ReleaseFlavor;
+  const migrationBackupDirectory = value.migrationBackupDirectory;
+  if (migrationBackupDirectory !== undefined &&
+      (releaseClass !== "local-development" || typeof migrationBackupDirectory !== "string" ||
+       !(path.isAbsolute(migrationBackupDirectory) || path.win32.isAbsolute(migrationBackupDirectory)))) {
+    throw new Error("Invalid migration backup directory in packaged release identity");
+  }
+  return {
+    releaseClass,
+    userDataDirectoryName: profile,
+    ...(releaseClass === "local-development" && typeof migrationBackupDirectory === "string"
+      ? { migrationBackupDirectory }
+      : {})
+  } as ReleaseFlavor;
 }
 
 // Program folders may move; each validated release identity keeps its own AppData profile.

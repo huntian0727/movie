@@ -142,14 +142,14 @@ describe("private community QA and exact source release approval", () => {
     expect(() => createBuildFlavor(manifest, { MOVIE_RELEASE_CLASS: "unsigned-community-qa", CSC_LINK: "synthetic" })).toThrow();
     expect(() => createBuildFlavor(manifest, { ...publicEnv, MOVIE_PLAYER_VARIANT: "legacy-candidate" })).toThrow();
   });
-  it("binds v0.1.16 to the previously approved third-party runtime and rebuilt NativeHost", async () => {
+  it("binds v0.1.17 to the previously approved third-party runtime and rebuilt NativeHost", async () => {
     const media = JSON.parse(await readFile("scripts/native-source-media.lock.json", "utf8"));
     const player = JSON.parse(await readFile("scripts/native-source-player-runtime.lock.json", "utf8"));
     const approval = JSON.parse(await readFile("build/native-source-approval.json", "utf8"));
     expect(approval.approved).toBe(true); expect(approval.binaries).toHaveLength(39);
     expect(approval.binaries.every(item => item.sourceComplianceApproved === true)).toBe(true);
     const stable = JSON.parse(await readFile("build/release-approval.json", "utf8"));
-    expect(stable).toMatchObject({ approved: true, manualQaApproved: true, scope: "stable-portable-only", version: "0.1.16", stableWindowsCoverage: false, standardUserCoverage: false, legacyUpgradeApproved: false, qaScope: "owner-accepted-targeted-portable-qa" });
+    expect(stable).toMatchObject({ approved: true, manualQaApproved: true, scope: "stable-portable-only", version: "0.1.17", stableWindowsCoverage: false, standardUserCoverage: false, legacyUpgradeApproved: false, qaScope: "owner-accepted-targeted-portable-qa" });
     expect(media.status).toBe("CANDIDATE_NOT_APPROVED"); expect(media.distributable).toBe(false);
     expect(player.status).toBe("CANDIDATE_NOT_APPROVED"); expect(player.distributable).toBe(false);
     expect(media.producerCiConclusion).toBe("FAIL"); expect(media.originalCiClosureValid).toBe(false);
@@ -158,7 +158,7 @@ describe("private community QA and exact source release approval", () => {
     expect(approval.binaries.map(({ path, sha256 }) => ({ path, sha256 }))).toEqual(sourceBinaryRecords(media, player, host.sha256));
     expect(approval.mediaRuntimeLockSha256).toBe(await hashFile("scripts/native-source-media.lock.json"));
     expect(approval.playerRuntimeLockSha256).toBe(await hashFile("scripts/native-source-player-runtime.lock.json"));
-    expect(host.sha256).toBe("d2d3b8065aad06f2409d854e33fe3769dd04e959487fcf454976993504298ace");
+    expect(host.sha256).toBe("61aa3328dfd98ec29fd75beb88e5630fec2769670f41f930da18cf8166446b07");
     expect(approval.nativeHostSourceSha256).toMatch(/^[a-f0-9]{64}$/);
   });
   it("accepts a fully approved synthetic pair and binds both approval manifests", async () => {

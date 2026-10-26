@@ -246,9 +246,9 @@ export class EmbeddedPlayer {
       });
       w.webContents.on("before-input-event", (_event, input) => {
         // A Chromium HWND can have OS focus without a focused DOM control after
-        // native playback. Deliver one typed event to the original shortcut UI.
-        if (!this.child || input.type !== "keyDown" || input.isAutoRepeat || input.meta) return;
-        const parsed = embeddedInputSchema.safeParse({ kind: "key", code: getShortcutCode(input), control: input.control, shift: input.shift, alt: input.alt });
+        // native playback. Forward key-up as well so press-and-hold shortcuts can restore state.
+        if (!this.child || (input.type !== "keyDown" && input.type !== "keyUp") || (input.type === "keyDown" && input.isAutoRepeat) || input.meta) return;
+        const parsed = embeddedInputSchema.safeParse({ kind: "key", code: getShortcutCode(input), control: input.control, shift: input.shift, alt: input.alt, phase: input.type === "keyUp" ? "up" : "down" });
         if (parsed.success && !(input.alt && input.code === "F4")) {
           w.webContents.send("player:embedded-input", parsed.data);
         }

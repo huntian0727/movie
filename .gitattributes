@@ -26,3 +26,5 @@ docs/legal/STABLE_PORTABLE_RELEASE_DECISION.md text eol=lf
 docs/legal/STABLE_PORTABLE_WINDOWS_QA.json text eol=lf
 docs/legal/PORTABLE_RELEASE_QA.json text eol=lf
 native/embedded-mpv/NativeHost.cs text eol=lf
+# Approval binds the native source archive digest; exclude it from application-source ZIPs to avoid a self-referential hash cycle.
+build/release-approval.json export-ignore

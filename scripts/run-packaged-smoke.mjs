@@ -62,9 +62,11 @@ function spawnAndWait(command, args, environment, timeout, phase) {
       cwd: process.cwd(),
       env: environment,
       shell: false,
-      stdio: "inherit",
+      stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true
     });
+    pipeSmokeOutput(child.stdout, process.stdout, phase, "stdout");
+    pipeSmokeOutput(child.stderr, process.stderr, phase, "stderr");
     const timer = setTimeout(() => {
       child.kill();
       reject(new Error(`Packaged smoke ${phase} phase timed out after ${timeout} ms: ${command}`));
@@ -73,12 +75,32 @@ function spawnAndWait(command, args, environment, timeout, phase) {
       clearTimeout(timer);
       reject(error);
     });
-    child.on("exit", (code, signal) => {
+    child.on("close", (code, signal) => {
       clearTimeout(timer);
       if (signal) reject(new Error(`${command} exited with signal ${signal}`));
       else if (code !== 0) reject(new Error(`${command} exited with code ${code}`));
       else resolve();
     });
+  });
+}
+
+export function formatSmokeOutputLine(phase, channel, line) {
+  return /Can't find filter element|ERR_UNTRUSTED_IPC_SENDER|iCCP|deprecated/i.test(line)
+    ? "[packaged-smoke:" + phase + ":" + channel + "] " + line
+    : line;
+}
+
+function pipeSmokeOutput(stream, destination, phase, channel) {
+  let pending = "";
+  stream.setEncoding("utf8");
+  const writeLine = (line) => destination.write(formatSmokeOutputLine(phase, channel, line) + "\n");
+  stream.on("data", (chunk) => {
+    const lines = (pending + chunk).split(/\r?\n/);
+    pending = lines.pop() ?? "";
+    for (const line of lines) writeLine(line);
+  });
+  stream.on("end", () => {
+    if (pending) writeLine(pending);
   });
 }
 

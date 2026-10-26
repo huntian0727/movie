@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
-import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, ExternalLink, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
-import type { LibraryPage, PlaybackRoute, ShortcutSettings, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
+import { createPortal } from "react-dom";
+import { ArrowLeft, BookmarkX, ChevronLeft, ChevronRight, Expand, ExternalLink, FastForward, Heart, Info, ListVideo, Pause, Play, RotateCcw, RotateCw, Trash2, Volume2, VolumeX, X } from "lucide-react";
+import type { HoldFastForwardSpeed, LibraryPage, PlaybackRoute, ShortcutSettings, VideoManagerApi, VideoRecord } from "../../shared/videoTypes";
 import { useEmbeddedEngine } from "./useEmbeddedEngine";
 import { PLAYBACK_SPEED_OPTIONS } from "../../shared/embeddedPlayback";
 import { usePlayerWindowFullscreen } from "./usePlayerWindowFullscreen";
@@ -15,6 +16,7 @@ import { useSavedSubtitles } from "./useSavedSubtitles";
 
 const FULLSCREEN_CONTROLS_HIDE_DELAY_MS = 2200;
 const VOLUME_KEYBOARD_STEP = 0.05;
+const HOLD_FAST_FORWARD_LONG_PRESS_MS = 230;
 
 interface PlayerPageProps {
   subtitleApi?: PlayerSubtitleApi;
@@ -22,6 +24,8 @@ interface PlayerPageProps {
   mediaUrl?: string;
   autoPlayOnOpen?: boolean;
   seekStepSeconds?: number;
+  holdFastForwardSpeed?: HoldFastForwardSpeed;
+  onChangeHoldFastForwardSpeed?(speed: HoldFastForwardSpeed): void | Promise<unknown>;
   shortcuts?: ShortcutSettings;
   hasPrevious?: boolean;
   hasNext?: boolean;
@@ -50,6 +54,7 @@ export function PlayerPage({
   mediaUrl,
   autoPlayOnOpen = false,
   seekStepSeconds = 10,
+  holdFastForwardSpeed: initialHoldFastForwardSpeed = 3,
   shortcuts = DEFAULT_SHORTCUTS,
   hasPrevious = true,
   hasNext = true,
@@ -64,6 +69,7 @@ export function PlayerPage({
   onToggleFavorite,
   onTogglePendingDelete,
   onDelete,
+  onChangeHoldFastForwardSpeed,
   onPlayExternal,
   getTimelinePreviewUrl,
   getCoverUrl,
@@ -85,6 +91,20 @@ export function PlayerPage({
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [holdFastForwardSpeedValue, setHoldFastForwardSpeedValue] = useState<HoldFastForwardSpeed>(initialHoldFastForwardSpeed);
+  const [holdSpeedSettingsOpen, setHoldSpeedSettingsOpen] = useState(false);
+  const [holdSpeedPopoverPosition, setHoldSpeedPopoverPosition] = useState<{ left: number; top: number; maxHeight: number } | null>(null);
+  const [holdSpeedSaveError, setHoldSpeedSaveError] = useState<string | null>(null);
+  const [temporaryFastForward, setTemporaryFastForward] = useState(false);
+  const holdSpeedSettingsRef = useRef<HTMLDivElement>(null);
+  const holdSpeedPopoverRef = useRef<HTMLDivElement>(null);
+  const fastForwardHoldRef = useRef<{ code: string; timer: number; triggered: boolean; originalSpeed: number } | null>(null);
+  const playbackSpeedRef = useRef(playbackSpeed); playbackSpeedRef.current = playbackSpeed;
+  const playingRef = useRef(playing); playingRef.current = playing;
+  const holdSpeedRef = useRef<HoldFastForwardSpeed>(holdFastForwardSpeedValue); holdSpeedRef.current = holdFastForwardSpeedValue;
+  const updatePlaybackSpeedRef = useRef<(speed: number) => void>(() => undefined);
+  const finishFastForwardHoldRef = useRef<(performShortSeek: boolean) => void>(() => undefined);
+  const cancelFastForwardHoldRef = useRef<() => void>(() => undefined);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const [dragTime, setDragTime] = useState<number | null>(null);
@@ -98,6 +118,83 @@ export function PlayerPage({
   const [subtitleAdvanced, setSubtitleAdvanced] = useState(false);
   const subtitles = useSavedSubtitles(subtitleApi, video.id, subtitleVideoKey(video));
   useEffect(() => { setSubtitleOpen(false); setSubtitleAdvanced(false); }, [subtitleVideoKey(video)]);
+  useEffect(() => { setHoldFastForwardSpeedValue(initialHoldFastForwardSpeed); }, [initialHoldFastForwardSpeed]);
+  useEffect(() => {
+    if (!holdSpeedSettingsOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !holdSpeedSettingsRef.current?.contains(event.target) && !holdSpeedPopoverRef.current?.contains(event.target)) setHoldSpeedSettingsOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setHoldSpeedSettingsOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [holdSpeedSettingsOpen]);
+  useEffect(() => {
+    if (!holdSpeedSettingsOpen) {
+      setHoldSpeedPopoverPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const trigger = holdSpeedSettingsRef.current?.querySelector("button");
+      const popover = holdSpeedPopoverRef.current;
+      if (!trigger || !popover) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const popoverRect = popover.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const viewportWidth = Math.max(1, viewport?.width || document.documentElement.clientWidth || window.innerWidth);
+      const viewportHeight = Math.max(1, viewport?.height || document.documentElement.clientHeight || window.innerHeight);
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const margin = 8;
+      const gap = 8;
+      const maxHeight = Math.max(72, viewportHeight - margin * 2);
+      const popoverWidth = Math.min(popoverRect.width || 190, Math.max(1, viewportWidth - margin * 2));
+      const popoverHeight = Math.min(popoverRect.height || 112, maxHeight);
+      const minLeft = viewportLeft + margin;
+      const maxLeft = Math.max(minLeft, viewportLeft + viewportWidth - popoverWidth - margin);
+      const leftCandidate = triggerRect.left - popoverWidth - gap;
+      const rightCandidate = triggerRect.right + gap;
+      const rightEdge = viewportLeft + viewportWidth - margin;
+      let left: number;
+      if (leftCandidate >= minLeft) {
+        left = leftCandidate;
+      } else if (rightCandidate + popoverWidth <= rightEdge) {
+        left = rightCandidate;
+      } else {
+        left = triggerRect.left + triggerRect.width / 2 - popoverWidth / 2;
+      }
+      left = Math.min(maxLeft, Math.max(minLeft, left));
+      const minTop = viewportTop + margin;
+      const maxTop = Math.max(minTop, viewportTop + viewportHeight - popoverHeight - margin);
+      const top = Math.min(maxTop, Math.max(minTop, triggerRect.top + triggerRect.height / 2 - popoverHeight / 2));
+      setHoldSpeedPopoverPosition((current) => current && Math.abs(current.left - left) < 0.5 && Math.abs(current.top - top) < 0.5 && current.maxHeight === maxHeight
+        ? current
+        : { left, top, maxHeight });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", updatePosition);
+    viewport?.addEventListener("scroll", updatePosition);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      viewport?.removeEventListener("resize", updatePosition);
+      viewport?.removeEventListener("scroll", updatePosition);
+    };
+  }, [holdSpeedSettingsOpen, holdSpeedSaveError]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const windowFullscreen = usePlayerWindowFullscreen(embeddedApi, setIsFullscreen);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -170,8 +267,10 @@ export function PlayerPage({
       }
       else if (input.kind === "double-click") handleStageDoubleClick();
       else if (input.kind === "key") {
+        const phase = input.phase ?? "down";
+        const event = new KeyboardEvent(phase === "up" ? "keyup" : "keydown", { code: input.code, ctrlKey: input.control, shiftKey: input.shift, altKey: input.alt });
+        if (phase === "up") { window.dispatchEvent(event); return; }
         const focused = document.activeElement;
-        const event = new KeyboardEvent("keydown", { code: input.code, ctrlKey: input.control, shiftKey: input.shift, altKey: input.alt });
         if (focused instanceof HTMLElement && (blocksPlayerShortcut(focused, event, shortcuts) || focused.closest("[role='dialog']"))) return;
         if (input.code === "KeyF" && !input.control && !input.alt) void toggleFullscreen();
         else if (input.code === "Escape" && isFullscreen && !playlistOpen) void toggleFullscreen();
@@ -344,7 +443,7 @@ export function PlayerPage({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (subtitleOpen) return;
+      if (holdSpeedSettingsOpen || subtitleOpen) return;
       if (deleteConfirmOpen) {
         if (event.code === "Escape") {
           event.preventDefault();
@@ -407,12 +506,40 @@ export function PlayerPage({
       }
       if (!isExternalPlayback && matchesShortcut(event, shortcuts.playerSeekForward)) {
         event.preventDefault();
-        seekBy(seekStepSeconds);
+        if (event.repeat || fastForwardHoldRef.current) return;
+        const hold = { code: event.code, timer: 0, triggered: false, originalSpeed: playbackSpeedRef.current };
+        fastForwardHoldRef.current = hold;
+        hold.timer = window.setTimeout(() => {
+          if (fastForwardHoldRef.current !== hold) return;
+          hold.triggered = true;
+          if (!playingRef.current) return;
+          setTemporaryFastForward(true);
+          updatePlaybackSpeedRef.current(holdSpeedRef.current);
+        }, HOLD_FAST_FORWARD_LONG_PRESS_MS);
       }
     };
+    const onKeyUp = (event: KeyboardEvent) => {
+      const hold = fastForwardHoldRef.current;
+      if (!hold || hold.code !== event.code) return;
+      event.preventDefault();
+      finishFastForwardHoldRef.current(true);
+    };
+    const onWindowBlur = () => cancelFastForwardHoldRef.current();
+    const onVisibilityChange = () => { if (document.hidden) cancelFastForwardHoldRef.current(); };
+    // Capture keyup before player/embedded handlers can stop propagation; a lost release must never leave temporary speed active.
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [subtitleOpen, deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, isEmbeddedPlayback, isFullscreen, playing, currentTime, onDelete, playlistOpen, seekStepSeconds, shortcuts, volume]);
+    window.addEventListener("keyup", onKeyUp, true);
+    document.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("blur", onWindowBlur);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp, true);
+      document.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("blur", onWindowBlur);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [holdSpeedSettingsOpen, subtitleOpen, deleteConfirmOpen, deletePending, detailsOpen, isExternalPlayback, isEmbeddedPlayback, isFullscreen, playing, currentTime, onDelete, playlistOpen, seekStepSeconds, shortcuts, volume]);
 
   const launchExternalPlayback = async () => {
     if (!onPlayExternal || externalLaunching) return;
@@ -493,6 +620,52 @@ export function PlayerPage({
     if (isEmbeddedPlayback) void embedded.send({ op: "speed", value: speed });
     else if (videoRef.current) videoRef.current.playbackRate = speed;
   };
+  updatePlaybackSpeedRef.current = updatePlaybackSpeed;
+
+  const finishFastForwardHold = (performShortSeek: boolean) => {
+    const hold = fastForwardHoldRef.current;
+    if (!hold) return;
+    window.clearTimeout(hold.timer);
+    fastForwardHoldRef.current = null;
+    if (hold.triggered) {
+      setTemporaryFastForward(false);
+      setPlaybackSpeed(hold.originalSpeed);
+      if (isEmbeddedPlayback) {
+        if (embedded.state && !["idle", "loading", "failed", "ended"].includes(embedded.state.phase)) {
+          void embedded.send({ op: "speed", value: hold.originalSpeed });
+        }
+      } else if (!isExternalPlayback && videoRef.current) {
+        videoRef.current.playbackRate = hold.originalSpeed;
+      }
+    } else if (performShortSeek) {
+      seekBy(seekStepSeconds);
+    }
+  };
+  finishFastForwardHoldRef.current = finishFastForwardHold;
+  cancelFastForwardHoldRef.current = () => finishFastForwardHold(false);
+
+  const handleHoldFastForwardSpeedChange = async (rawValue: string) => {
+    const value = Number(rawValue);
+    if (value !== 1.5 && value !== 2 && value !== 3 && value !== 4) return;
+    const nextSpeed = value as HoldFastForwardSpeed;
+    const previousSpeed = holdFastForwardSpeedValue;
+    setHoldFastForwardSpeedValue(nextSpeed);
+    setHoldSpeedSaveError(null);
+    try {
+      await onChangeHoldFastForwardSpeed?.(nextSpeed);
+    } catch {
+      setHoldFastForwardSpeedValue(previousSpeed);
+      setHoldSpeedSaveError("保存失败，请稍后重试");
+    }
+  };
+
+  useEffect(() => () => cancelFastForwardHoldRef.current(), [video.id]);
+  useEffect(() => {
+    if (detailsOpen || deleteConfirmOpen || playlistOpen || subtitleOpen || isExternalPlayback || holdSpeedSettingsOpen) {
+      cancelFastForwardHoldRef.current();
+    }
+  }, [detailsOpen, deleteConfirmOpen, playlistOpen, subtitleOpen, isExternalPlayback, holdSpeedSettingsOpen]);
+
 
   const toggleMute = () => {
     if (isEmbeddedPlayback) void embedded.send({ op: "volume", value: muted ? volume * 100 : 0 });
@@ -798,7 +971,7 @@ export function PlayerPage({
               }
             }}
             onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
+            onPause={() => { cancelFastForwardHoldRef.current(); setPlaying(false); }}
             onTimeUpdate={(event) => {
               const seconds = event.currentTarget.currentTime; setCurrentTime(seconds);
               const p = nativePosition.current; p.positionMs = Math.max(0, Math.trunc(seconds * 1000));
@@ -813,6 +986,7 @@ export function PlayerPage({
               setMuted(event.currentTarget.muted);
             }}
             onEnded={() => {
+              cancelFastForwardHoldRef.current();
               setPlaying(false);
               void navigate(onNext);
             }}
@@ -841,6 +1015,7 @@ export function PlayerPage({
           </button>
         )}
         {!isEmbeddedPlayback && (playbackError || windowFullscreen.error) && <div className="player-error" role="alert">{playbackError || windowFullscreen.error}</div>}
+        {temporaryFastForward && <div className="player-temporary-fast-forward" role="status"><FastForward size={18} /><span>临时快进 {holdFastForwardSpeedValue}×</span></div>}
       </div>
 
       {playlistOpen && (
@@ -1032,6 +1207,24 @@ export function PlayerPage({
                 {PLAYBACK_SPEED_OPTIONS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
               </select>
             </label>
+            <div className="player-hold-speed-settings" ref={holdSpeedSettingsRef}>
+              <button
+                className={holdSpeedSettingsOpen ? "player-hold-speed-button player-hold-speed-trigger-button is-active" : "player-hold-speed-button player-hold-speed-trigger-button"}
+                aria-label="长按快进设置"
+                title="长按快进设置"
+                aria-expanded={holdSpeedSettingsOpen}
+                onClick={() => {
+                  cancelFastForwardHoldRef.current();
+                  setHoldSpeedSaveError(null);
+                  setHoldSpeedSettingsOpen((open) => !open);
+                  setControlsVisible(true);
+                  clearControlsHideTimeout();
+                }}
+              >
+                <span className="player-hold-speed-trigger-label">快</span>
+              </button>
+
+            </div>
             <button
               className={playlistOpen ? "is-active" : undefined}
               aria-label="播放列表"
@@ -1049,6 +1242,34 @@ export function PlayerPage({
         {subtitleApi && subtitles.state?.selectedId && <SubtitleQuickControls key={subtitleVideoKey(video)} api={subtitleApi} state={subtitles.state} onState={subtitles.update} onSwitch={() => { showControls(); setPlaylistOpen(false); setSubtitleOpen(true); }} />}
       </footer>
 
+      {holdSpeedSettingsOpen && createPortal(
+        <div
+          className="player-hold-speed-popover player-hold-speed-popover-compact"
+          ref={holdSpeedPopoverRef}
+          role="dialog"
+          aria-label="长按快进设置"
+          style={{
+            position: "fixed",
+            left: holdSpeedPopoverPosition?.left ?? 8,
+            top: holdSpeedPopoverPosition?.top ?? 8,
+            maxHeight: holdSpeedPopoverPosition ? String(holdSpeedPopoverPosition.maxHeight) + "px" : "calc(100dvh - 16px)",
+            visibility: holdSpeedPopoverPosition ? "visible" : "hidden"
+          }}
+        >
+          <strong>长按快进倍速</strong>
+          <label htmlFor="player-hold-fast-forward-speed">长按时的临时速度</label>
+          <select id="player-hold-fast-forward-speed" aria-label="长按快进倍速" value={holdFastForwardSpeedValue}
+            onChange={(event) => void handleHoldFastForwardSpeedChange(event.target.value)}>
+            <option value="1.5">1.5 倍速</option>
+            <option value="2">2 倍速</option>
+            <option value="3">3 倍速</option>
+            <option value="4">4 倍速</option>
+          </select>
+          <small>长按 {formatShortcutBinding(shortcuts.playerSeekForward)} 约 0.23 秒触发，松开恢复。</small>
+          {holdSpeedSaveError && <small className="player-hold-speed-error" role="alert">{holdSpeedSaveError}</small>}
+        </div>,
+        document.body
+      )}
       {(subtitles.error || embedded.state?.subtitleError) && <div className="player-subtitle-status" role="status">{subtitles.error || embedded.state?.subtitleError}</div>}
       {subtitleApi && <SubtitleDialog key={subtitleVideoKey(video)} open={subtitleOpen} quick onAdvancedChange={setSubtitleAdvanced} video={video} api={subtitleApi} state={subtitles.state} stateError={subtitles.error} onRetryState={() => void subtitles.refresh()} onState={subtitles.update} onClose={() => setSubtitleOpen(false)} external={isExternalPlayback} />}
       {detailsOpen && <VideoDetailsDialog video={video} onClose={() => setDetailsOpen(false)} />}

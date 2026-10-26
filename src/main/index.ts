@@ -188,10 +188,24 @@ app.whenReady().then(async () => {
     entryUrl: rendererEntryUrl
   });
   const verifyExistingIntegrity = existsSync(uncleanShutdownMarkerPath);
-  database = createDatabase(databasePath, { verifyExistingIntegrity });
+  database = createDatabase(databasePath, {
+    verifyExistingIntegrity,
+    migrationBackupDirectory: releaseFlavor?.releaseClass === "local-development"
+      ? releaseFlavor.migrationBackupDirectory
+      : undefined
+  });
   writeFileSync(uncleanShutdownMarkerPath, new Date().toISOString(), "utf8");
   databaseOpened = true;
   const repo = new VideoRepository(database);
+  const recoveredScanTasks = repo.recoverInterruptedScanTasks();
+  if (recoveredScanTasks.recoveredCount > 0) {
+    logger.warn({
+      module: "library.scan",
+      event: "interrupted_scan_tasks_recovered",
+      message: "Marked scan tasks left running by a previous process as interrupted; no scan was restarted automatically.",
+      context: recoveredScanTasks
+    });
+  }
   assetCenterQueries = new AssetCenterQueryService(databasePath);
   playbackDiagnosticQueries = new PlaybackDiagnosticQueryService(databasePath);
   videoDataQueries = new VideoDataService(databasePath);
@@ -226,7 +240,10 @@ app.whenReady().then(async () => {
     3,
     logger,
     (videoId) => domainEvents.publish({ type: "video:updated", videoIds: [videoId] }),
-    () => domainEvents.publish({ type: "source-folder:updated", videoIds: [] })
+    () => domainEvents.publish({ type: "source-folder:updated", videoIds: [] }),
+    undefined,
+    undefined,
+    (limit) => assetCenterQueries!.listVideosPendingMetadata(limit)
   );
   const scanManager = new ScanManager(repo, undefined, metadataQueue, logger);
   const duplicateCleanupJobs = new DuplicateCleanupRepository(database, repo);
@@ -323,7 +340,7 @@ app.whenReady().then(async () => {
     void (async () => {
       try {
         await scanManager.scanAll(repo.listSourceFolders());
-        metadataQueue?.enqueuePending();
+        void metadataQueue?.enqueuePending();
         domainEvents.publish({ type: "library:rescanned", videoIds: [] });
       } finally {
         metadataQueue?.resume();
@@ -337,7 +354,7 @@ app.whenReady().then(async () => {
       });
     });
   } else {
-    metadataQueue.enqueuePending();
+    void metadataQueue.enqueuePending();
   }
 
   app.on("activate", () => {

@@ -202,6 +202,30 @@ describe("CloudDrive mounted scanner", () => {
     expect(elapsedMs).toBeLessThan(350);
   });
 
+  it("reports aggregate scan phase timings without exposing paths", async () => {
+    const { repo, source } = createRepository();
+    const cloud = directorySource({ [ROOT]: [providerFile("profiled.mp4", 123, MODIFIED)] });
+    const result = await scanSourceFolder(repo, source, {
+      cloudDirectorySource: async () => cloud,
+      onMetadataPending: vi.fn()
+    });
+
+    expect(result).toMatchObject({ state: "completed", totalFiles: 1, failureCount: 0 });
+    expect(result.performance).toMatchObject({
+      directoryReadCount: 1,
+      directoryEntryCount: 1,
+      cloudDirectoryReadCount: 1,
+      cloudDirectoryCacheHits: 0,
+      existingVideoLookupCount: 1,
+      writeBatchCount: 2,
+      missingReconciliationCount: 1,
+      snapshotWriteCount: 1
+    });
+    expect(result.performance?.cloudDirectoryReadDurationMs).toBeGreaterThanOrEqual(0);
+    expect(result.performance?.cloudDirectoryReadWallDurationMs).toBeGreaterThanOrEqual(0);
+    expect(JSON.stringify(result.performance)).not.toContain(ROOT);
+  });
+
   it("keeps small API directory imports in one video transaction and one final snapshot transaction", async () => {
     const { repo, source } = createRepository();
     const transaction = vi.spyOn(repo, "runInTransaction");
@@ -209,6 +233,8 @@ describe("CloudDrive mounted scanner", () => {
     const cloud = directorySource({
       [ROOT]: [providerFile("one.mp4", 100, MODIFIED), providerFile("two.mp4", 200, MODIFIED)]
     });
+    const sourceFolderReads = vi.spyOn(repo, "listSourceFolders");
+    const upsertWithoutReadback = vi.spyOn(repo, "upsertVideoWithoutReadback");
 
     const result = await scanSourceFolder(repo, source, {
       cloudDirectorySource: async () => cloud,
@@ -219,6 +245,8 @@ describe("CloudDrive mounted scanner", () => {
     expect(result).toMatchObject({ state: "completed", totalFiles: 2, failureCount: 0 });
     expect(transaction).toHaveBeenCalledTimes(2);
     expect(readMetadata).not.toHaveBeenCalled();
+    expect(upsertWithoutReadback).toHaveBeenCalledTimes(2);
+    expect(sourceFolderReads).toHaveBeenCalledTimes(1);
     expect(repo.getVideoByPath(`${ROOT}\\one.mp4`)).toMatchObject({
       metadataStatus: "pending",
       providerFileId: "id-one.mp4",
@@ -268,6 +296,38 @@ describe("CloudDrive mounted scanner", () => {
     expect(repo.getDirectorySnapshot(source.id, ROOT)).toMatchObject({ isComplete: true, directVideoCount: 1 });
   });
 
+  it("batch-loads existing CloudDrive paths in bounded windows and preserves update behavior", async () => {
+    const { repo, source } = createRepository();
+    let files = Array.from({ length: 500 }, (_, index) => providerFile(`bulk-${String(index).padStart(4, "0")}.mp4`, 100 + index, MODIFIED));
+    const cloud: MountedCloudDriveDirectorySource = { readDirectory: async () => listing(files) };
+    const lookup = vi.spyOn(repo, "getVideosByPaths");
+
+    const first = await scanSourceFolder(repo, source, { cloudDirectorySource: async () => cloud, onMetadataPending: vi.fn() });
+
+    expect(first.counters?.addedVideos).toBe(500);
+    const firstLookupCalls = lookup.mock.calls.map(([paths]) => paths.length);
+    expect(firstLookupCalls.reduce((sum, count) => sum + count, 0)).toBe(500);
+    expect(Math.max(...firstLookupCalls)).toBeLessThanOrEqual(128);
+    expect(firstLookupCalls.length).toBeLessThan(10);
+    const requestedPaths = lookup.mock.calls.flatMap(([paths]) => [...paths]);
+    expect(new Set(requestedPaths).size).toBe(500);
+
+    lookup.mockClear();
+    files = files.map((entry, index) => index === 0 ? providerFile("bulk-0000.mp4", 999, MODIFIED) : entry);
+    const second = await scanSourceFolder(repo, source, { cloudDirectorySource: async () => cloud, onMetadataPending: vi.fn() });
+
+    expect(second.counters).toMatchObject({ updatedVideos: 1, skippedVideos: 499 });
+    expect(repo.getVideoByPath(`${ROOT}\\bulk-0000.mp4`)?.sizeBytes).toBe(999);
+    const secondLookupCalls = lookup.mock.calls.map(([paths]) => paths.length);
+    expect(secondLookupCalls.reduce((sum, count) => sum + count, 0)).toBe(500);
+    expect(Math.max(...secondLookupCalls)).toBeLessThanOrEqual(128);
+    expect(secondLookupCalls.length).toBeLessThan(10);
+
+    const allPaths = files.map((entry) => `${ROOT}\\${entry.name}`);
+    const loaded = repo.getVideosByPaths(allPaths);
+    expect(loaded.size).toBe(500);
+    expect(loaded.get(allPaths[0]!)?.sizeBytes).toBe(999);
+  });
   it("includes cloud metadata in snapshot identity so same-name changes are processed", async () => {
     const { repo, source } = createRepository();
     let size = 100;

@@ -18,7 +18,7 @@ export const embeddedRequestSchema = z.discriminatedUnion("op", [
 ]);
 export type EmbeddedRequest = z.infer<typeof embeddedRequestSchema>;
 export const embeddedInputSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("key"), code: z.string().regex(/^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2])|Space|Escape|Enter|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown)$/), control: z.boolean(), shift: z.boolean(), alt: z.boolean() }).strict(),
+  z.object({ kind: z.literal("key"), code: z.string().regex(/^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2])|Space|Escape|Enter|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown)$/), control: z.boolean(), shift: z.boolean(), alt: z.boolean(), phase: z.enum(["down", "up"]).optional() }).strict(),
   z.object({ kind: z.enum(["click", "double-click"]) }).strict(),
   z.object({ kind: z.literal("pointer-move"), x: z.number().int().min(0).max(16384).optional(), y: z.number().int().min(0).max(16384).optional() }).strict()
 ]);

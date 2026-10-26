@@ -56,6 +56,17 @@ describe("AssetCenterQueryService", () => {
     await expect(navigation).resolves.toEqual(NAVIGATION);
   });
 
+  it("routes pending metadata batches through the read-only worker", async () => {
+    const worker = new FakeQueryWorker();
+    service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => worker });
+
+    const result = service.listVideosPendingMetadata(1000);
+    expect(worker.messages).toEqual([{ id: 1, operation: "pendingMetadata", limit: 1000 }]);
+
+    worker.emitMessage({ id: 1, ok: true, result: [] });
+    await expect(result).resolves.toEqual([]);
+  });
+
   it("routes metadata issue pages through the read-only worker", async () => {
     const worker = new FakeQueryWorker();
     service = new AssetCenterQueryService("C:\\library.sqlite", { workerFactory: () => worker });
@@ -257,8 +268,7 @@ const NAVIGATION: LibraryNavigationSnapshot = {
   pendingDeleteBytes: 0,
   pendingMetadataVideos: 1,
   scanFailureCount: 0,
-  healthIssueCount: 1,
-  directoryPaths: ["F:\\library"]
+  healthIssueCount: 1
 };
 
 const METADATA_PAGE: MetadataIssuePage = {

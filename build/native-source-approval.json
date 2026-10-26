@@ -7,283 +7,283 @@
   "sourceEvidenceZipSha256": "3e242199da78c68939ebcbc8bb70bae4c2e57102b7aadc5ceb6b54317880e70a",
   "sourceEvidenceZipBytes": 255050585,
   "reviewEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-  "reviewEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043",
+  "reviewEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908",
   "binaries": [
     {
       "path": "media-tools/avcodec-63.dll",
       "sha256": "965f5f41bbfcba40eb4b476043e6055fba1cc5e544bc1b967a35208881ff0f3a",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/avdevice-63.dll",
       "sha256": "cb695b427070b247b4d494699b0ed482729e401f667f90d1ecbfbb8760e4acaa",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/avfilter-12.dll",
       "sha256": "b7ce2d905ba8951b9be49e1d4c53b94844abef95043e47c3ac0312dac4b93271",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/avformat-63.dll",
       "sha256": "68ec6a3a0eaec48f19af76d93017efc61b950bf51e9c595fcb349e78e67e8d8e",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/avutil-61.dll",
       "sha256": "f88a2fd281aa3934fb90918d9c3c33514702679e5682838f211c8f03264f98e4",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/ffmpeg.exe",
       "sha256": "e170e238f838f37715b774ffc81eec357d4ae057b54ad7ebe92c2b97f68b34bd",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/ffprobe.exe",
       "sha256": "561a9ead113619263fd6e643295edc8389f88150ffac191fe9b8ae92d4860609",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/libdav1d.dll",
       "sha256": "7c3769e3deeb95c7e460835a85fe6ee24fe2a1f9b5fe2ef0bdb8f3b3c2487433",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/libgcc_s_seh-1.dll",
       "sha256": "306983c483d96a6d08a2df044e360f0962e21dac021baf8311d3c0cb3b2c9def",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/libssp-0.dll",
       "sha256": "0b4cf4b0a5f4ceb08bc2b95e7837b72ce24c2a5e906c93edd2661facbcfe5173",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/libwinpthread-1.dll",
       "sha256": "fc9f14551f6609dd51801daec2c194579d35345551ef84fe465cbdb3339c2a6f",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/libzlib1.dll",
       "sha256": "6e487d82c38f35e87443125b72a2b97a7c4ba5b5f58223147e4e760509f3fe4a",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/swresample-7.dll",
       "sha256": "a2008a02c74a544fe0798cf19a1cef1b7112da142db111d65d4521c6029ad4c9",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "media-tools/swscale-10.dll",
       "sha256": "e07146f977f5e94121764768b93f28262aeae9a0ba49d37fa5f2dcc56ce4df6c",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/avcodec-63.dll",
       "sha256": "965f5f41bbfcba40eb4b476043e6055fba1cc5e544bc1b967a35208881ff0f3a",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/avdevice-63.dll",
       "sha256": "cb695b427070b247b4d494699b0ed482729e401f667f90d1ecbfbb8760e4acaa",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/avfilter-12.dll",
       "sha256": "b7ce2d905ba8951b9be49e1d4c53b94844abef95043e47c3ac0312dac4b93271",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/avformat-63.dll",
       "sha256": "68ec6a3a0eaec48f19af76d93017efc61b950bf51e9c595fcb349e78e67e8d8e",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/avutil-61.dll",
       "sha256": "f88a2fd281aa3934fb90918d9c3c33514702679e5682838f211c8f03264f98e4",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libass-9.dll",
       "sha256": "60ed2aaf0d1e642f0cfc19f49be76922d83bdb107c64e58ab2c5000be2c5f923",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libcurl.dll",
       "sha256": "ca113334a3af0fa446cdeeb4188ee4bcdde6c2790361ddee137f624acc3cfcab",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libdav1d.dll",
       "sha256": "7c3769e3deeb95c7e460835a85fe6ee24fe2a1f9b5fe2ef0bdb8f3b3c2487433",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libfreetype-6.dll",
       "sha256": "b9c54a11a6cfa02b55b569f6d1fa0d2c229a1c5a9a5340cb0994baa6d0bfb3a4",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libfribidi-0.dll",
       "sha256": "900c3def0eac6e9fdf0fc6e4e45f57a1cf1c5c900aa46082416c3442ecd7c877",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libgcc_s_seh-1.dll",
       "sha256": "306983c483d96a6d08a2df044e360f0962e21dac021baf8311d3c0cb3b2c9def",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libharfbuzz-0.dll",
       "sha256": "93aeabbe6d54f6fd340a7653fc2f4a955ab6b225982872b62bf62b4e09ef59a6",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/liblcms2.dll",
       "sha256": "fb43a4cff6f051b0a43a54755911f5bd6e10b117de0db6b824ce2e3def1a0ad9",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libmpv-2.dll",
       "sha256": "53b32ae12a71733ba31374fcb2bab1d987f9aa266374a00215ce829210fc441d",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libplacebo-375.dll",
       "sha256": "df143d587f4c2979a79223fb23fde30a1dc0ea9bc50e2dda3588a76d31f2a9a7",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libshaderc_shared.dll",
       "sha256": "28b6bea937755e73a623948f5d20a0f8cb3f106f1eef8bc29c9d2c3deede9ab1",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libspirv-cross-c-shared.dll",
       "sha256": "fc999063ed008cbd6630a994f0cd2b46ae8a4766d602f6a7085693723f132d45",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libssp-0.dll",
       "sha256": "0b4cf4b0a5f4ceb08bc2b95e7837b72ce24c2a5e906c93edd2661facbcfe5173",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libstdc++-6.dll",
       "sha256": "dc04a17d6e9fe93bcb0639e93aca2811ad53c81c523e1909a2c24daf827fd2cd",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libwinpthread-1.dll",
       "sha256": "fc9f14551f6609dd51801daec2c194579d35345551ef84fe465cbdb3339c2a6f",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/libzlib1.dll",
       "sha256": "6e487d82c38f35e87443125b72a2b97a7c4ba5b5f58223147e4e760509f3fe4a",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/NativeHost.exe",
-      "sha256": "d2d3b8065aad06f2409d854e33fe3769dd04e959487fcf454976993504298ace",
+      "sha256": "61aa3328dfd98ec29fd75beb88e5630fec2769670f41f930da18cf8166446b07",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/swresample-7.dll",
       "sha256": "a2008a02c74a544fe0798cf19a1cef1b7112da142db111d65d4521c6029ad4c9",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/swscale-10.dll",
       "sha256": "e07146f977f5e94121764768b93f28262aeae9a0ba49d37fa5f2dcc56ce4df6c",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     },
     {
       "path": "native-player/vulkan-1.dll",
       "sha256": "52199b2c852ce7c40cca2fa4a207411f128ce1bd0d4c9c35377fa7af146b6e7f",
       "sourceComplianceApproved": true,
       "sourceEvidence": "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
-      "sourceEvidenceSha256": "e9c40cd52f4b0449a63e00e0ed6dc6b053503875c0507983d6a524638b7d1043"
+      "sourceEvidenceSha256": "fce9d77ec8649c427ee4bbaa952a0a3d4ad94f1a12f8d7800f19f6f9c101c908"
     }
   ],
   "nativeLicenseElection": "LGPL-3.0-or-later",
-  "approvedForVersion": "0.1.16",
-  "nativeHostSourceSha256": "c175e5b97799d9157e71568eac74924c51080a6c85745e90549979ad28a18fb4"
+  "approvedForVersion": "0.1.17",
+  "nativeHostSourceSha256": "d400593cb9afbc305de6f651d3d3564d5e9d75544a995e890cb6357998779069"
 }

@@ -65,6 +65,13 @@ mpv、FFmpeg、libplacebo、FriBidi 的上游授权包含 later-version 选择�
 
 Owned text/code hashes canonicalize CRLF to LF; upstream TXT bytes remain exact.
 
+## v0.1.17 NativeHost 增量核对（2026-10-26）
+
+- 本版项目自有 NativeHost.cs 修复键盘释放事件：转发 WM_KEYUP / WM_SYSKEYUP；自动重复位过滤仅作用于 key-down；通过 IPC 明确传递 up/down 阶段。该变化用于修复长按临时快进松开后不恢复原速度的问题，不新增全局键盘钩子。
+- 当前 NativeHost.cs 原始 SHA-256 为 d400593cb9afbc305de6f651d3d3564d5e9d75544a995e890cb6357998779069。使用固定编译器、引用程序集与确定性参数重建成功，NativeHost.exe SHA-256 为 61aa3328dfd98ec29fd75beb88e5630fec2769670f41f930da18cf8166446b07；该二进制与已核验 v1.43 日常程序及 D 盘比较基线中的 NativeHost 文件字节一致。
+- 未新增第三方依赖、DLL 或原生导入。第三方运行库和对应源码输入继续固定为 runtime ZIP SHA-256 3b4b4d22a3cf303b05898dedd470a6f05b0bfaa532c4ca9ab481167cd8f21b99、源码输入 ZIP SHA-256 3e242199da78c68939ebcbc8bb70bae4c2e57102b7aadc5ceb6b54317880e70a。38 个第三方 PE 位置与字节保持既有批准记录；NativeHost 是唯一更新的项目自有 PE。
+- NativeHost 仍为项目自有 MIT 代码。本次仅申请 Windows x64 未签名绿色 ZIP；不声明稳定 Windows、标准用户权限、4K/HDR、长时间压力或真实 CloudDrive/115 永久删除回归已覆盖。
+
 material-sha256 67a5adfb62bada52970413032afa8c5dce450e09c32d5abe99b472c16f2d4e72 LICENSE
 material-sha256 6b3589755c6e11d4699763fd57923b86b1a25dd2260181a7a18992d95817496c THIRD_PARTY_LICENSES.md
 material-sha256 7c46c0d0fe254c71a48e435554c7cb0444dad540719fcf0be407f065d893f7cf docs/legal/THIRD_PARTY_RELEASE_NOTICES.md
@@ -81,7 +88,7 @@ material-sha256 5af705f2dfaac18d8e89133d32538ef1c8955e5713a4f4950e54a52c2e8feea5
 material-sha256 92f3039a098d5251ed5604bcc2a5dcdb7344d0afd5652990bd11680c080f5956 docs/legal/NATIVE-SOURCE-COMPILE-REVIEW.json
 material-sha256 8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903 docs/legal/GNU-GPLv3.txt
 material-sha256 da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768 docs/legal/GNU-LGPLv3.txt
-material-sha256 c175e5b97799d9157e71568eac74924c51080a6c85745e90549979ad28a18fb4 native/embedded-mpv/NativeHost.cs
-material-sha256 0ecf25f02be8f93810ab2e4ef34edc4a4406a1ed93cf4e2e6bbe50b6462f27f8 scripts/build-native-player.mjs
-material-sha256 fd71a9a4fb90fa06ec62ff1e8aba276e25929db9326da6735c2406da59cf1f09 scripts/native-player-toolchain.mjs
+material-sha256 d400593cb9afbc305de6f651d3d3564d5e9d75544a995e890cb6357998779069 native/embedded-mpv/NativeHost.cs
+material-sha256 889359432d910649253eafd0624a0d98e148188c471cea032f06d922608b6a30 scripts/build-native-player.mjs
+material-sha256 58297072c7fa661fdeea64d6a9dce85b1eff8a7a6d90a73091c5dbef802fe179 scripts/native-player-toolchain.mjs
 material-sha256 dbc59c9a468f0671b6f422a02da1d1fa46acd17acfd6123f309c926f8a8b73b8 scripts/native-player-toolchain.lock.json

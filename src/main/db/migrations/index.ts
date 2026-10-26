@@ -14,6 +14,9 @@ import { metadataIssuePerformanceMigration } from "./013-metadata-issue-performa
 import { queryCacheRevisionsMigration } from "./014-query-cache-revisions.js";
 import { cloudDriveCleanupBindingMigration } from "./015-clouddrive-cleanup-binding.js";
 import { scanFailureBatchHistoryMigration } from "./016-scan-failure-batch-history.js";
+import { videoSortDateIndexesMigration } from "./017-video-sort-date-indexes.js";
+import { videoDataSortIndexesMigration } from "./018-video-data-sort-indexes.js";
+import { videoFilenameSortIndexMigration } from "./019-video-filename-sort-index.js";
 
 export const migrations = [
   coreLibraryMigration,
@@ -31,7 +34,10 @@ export const migrations = [
   metadataIssuePerformanceMigration,
   queryCacheRevisionsMigration,
   cloudDriveCleanupBindingMigration,
-  scanFailureBatchHistoryMigration
+  scanFailureBatchHistoryMigration,
+  videoSortDateIndexesMigration,
+  videoDataSortIndexesMigration,
+  videoFilenameSortIndexMigration
 ] as const;
 
-export const LATEST_SCHEMA_VERSION = 16;
+export const LATEST_SCHEMA_VERSION = 19;

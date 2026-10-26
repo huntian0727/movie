@@ -62,6 +62,19 @@ describe("CloudDrive IPC and preload security", () => {
     expect(s.connectionGuard).not.toHaveBeenCalled();
     expect(s.settings.getCloudDriveToken()).toBe("fixture-original-value");
   });
+  it("allows a trusted player to persist only the supported long-press speeds", async () => {
+    const s = setup(); const player = event("player");
+    for (const speed of [1.5, 2, 3, 4] as const) {
+      const saved = await s.invoke(IPC_CHANNELS.settingsSetHoldFastForwardSpeed, player, speed);
+      expect(saved.holdFastForwardSpeed).toBe(speed);
+      expect(s.settings.get().holdFastForwardSpeed).toBe(speed);
+    }
+    await expect(s.invoke(IPC_CHANNELS.settingsSetHoldFastForwardSpeed, player, 2.5)).rejects.toThrow(/长按快进倍速无效/);
+    expect(s.settings.get().holdFastForwardSpeed).toBe(4);
+    expect(s.publish).toHaveBeenCalledWith({ type: "settings:changed", videoIds: [] });
+    expect(() => s.invoke(IPC_CHANNELS.settingsSet, player, getDefaultSettings())).toThrow("ERR_UNTRUSTED_IPC_SENDER");
+  });
+
   it("settings:get and settings:set never disclose a saved token to either trusted window role", async () => {
     const s = setup(); const main = event("main"); const player = event("player");
     const saved = await s.invoke(IPC_CHANNELS.settingsSet, main, {
@@ -134,7 +147,8 @@ describe("CloudDrive IPC and preload security", () => {
   it.each(["main", "player"])("%s preload reads only public settings and has no credential getter", async (role) => {
     let exposed: any;
     const settings = { ...getDefaultSettings(), cloudDrive: { ...getDefaultSettings().cloudDrive, configured: true, apiToken: "bridge-security-value" } };
-    const ipcRenderer = { invoke: vi.fn(async () => ({ settings, cacheLocation: "test-cache", cacheStatus: {} })), on: vi.fn(), removeListener: vi.fn() };
+    const ipcRenderer = { invoke: vi.fn(async (channel: string) => channel === IPC_CHANNELS.settingsGet
+      ? ({ settings, cacheLocation: "test-cache", cacheStatus: {} }) : settings), on: vi.fn(), removeListener: vi.fn() };
     const source = readFileSync(new URL("../../src/main/preload.cts", import.meta.url), "utf8");
     const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     new Script(compiled).runInNewContext({ exports: {}, URL, Set,
@@ -148,6 +162,9 @@ describe("CloudDrive IPC and preload security", () => {
     expect(result.settings.cloudDrive.configured).toBe(true);
     expect(JSON.stringify(result)).not.toContain("bridge-security-value");
     expect(Object.keys(exposed).filter((key) => /token|secret|credential|invoke/i.test(key))).toEqual([]);
+    expect(typeof exposed.setHoldFastForwardSpeed).toBe("function");
+    await exposed.setHoldFastForwardSpeed(2);
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.settingsSetHoldFastForwardSpeed, 2);
     if (role === "player") expect(exposed.setSettings).toBeUndefined();
     else {
       ipcRenderer.invoke.mockResolvedValue(settings as never);

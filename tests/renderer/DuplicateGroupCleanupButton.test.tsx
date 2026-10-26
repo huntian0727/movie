@@ -23,11 +23,11 @@ const group: DuplicateGroup = {
 const baseProps = () => ({ groups: [group], onOpen: vi.fn(), onViewDetails: vi.fn() });
 
 describe("group cleanup button", () => {
-  it("requires confirmation before submitting the group to the background queue", async () => {
+  it("allows a new confirmed group queue while another background cleanup is running", async () => {
     const accepted = { id: "group-task", status: "running" as const, total: 2, processed: 0, successCount: 0, failureCount: 0, uncertainCount: 0, unsubmittedCount: 2, queuedVideoIds: ["copy-one", "copy-two"], reclaimedBytes: 0, recycledCount: 0, failures: [], message: "accepted", createdAt: "2026-10-22", updatedAt: "2026-10-22" };
     const submit = vi.fn().mockResolvedValue(accepted);
     const acceptedCallback = vi.fn();
-    render(<DuplicateGroupsPage {...baseProps()} onStartReviewedBackground={submit} onBackgroundAccepted={acceptedCallback} onPreviewResolve={vi.fn()} />);
+    render(<DuplicateGroupsPage {...baseProps()} backgroundRunning onStartReviewedBackground={submit} onBackgroundAccepted={acceptedCallback} onPreviewResolve={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "清理本组" }));
     const dialog = screen.getByRole("alertdialog", { name: "确认清理本候选组？" });
     expect(dialog).toHaveTextContent("本组共 3 份");

@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2, ChevronRight, Cloud, Database, FileQuestion, FolderOpen, LoaderCircle, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AssetCenterSummary, LibraryNavigationSnapshot, SourceFolder } from "../../shared/videoTypes";
+import type { AssetCenterSummary, LibraryNavigationSnapshot, MetadataQueueStatus, SourceFolder } from "../../shared/videoTypes";
 import { formatDateTime } from "./formatters";
 
 interface HealthOverviewPageProps {
@@ -8,6 +8,7 @@ interface HealthOverviewPageProps {
   navigation?: LibraryNavigationSnapshot;
   refreshSequence: number;
   loadSummary?(): Promise<AssetCenterSummary>;
+  loadMetadataQueueStatus?(): Promise<MetadataQueueStatus>;
   onOpenScanFailures(sourceFolderId?: string): void;
   onOpenMissingVideos(): void;
   onOpenMetadataIssues(status: "deferred" | "failed"): void;
@@ -28,6 +29,7 @@ export function HealthOverviewPage({
   navigation,
   refreshSequence,
   loadSummary,
+  loadMetadataQueueStatus,
   onOpenScanFailures,
   onOpenMissingVideos,
   onOpenMetadataIssues,
@@ -36,13 +38,22 @@ export function HealthOverviewPage({
   const [summary, setSummary] = useState<AssetCenterSummary | null>(null);
   const [loading, setLoading] = useState(Boolean(loadSummary));
   const [error, setError] = useState<string | null>(null);
+  const [metadataQueue, setMetadataQueue] = useState<MetadataQueueStatus | null>(null);
+  const [metadataQueueLoading, setMetadataQueueLoading] = useState(Boolean(loadMetadataQueueStatus));
+  const [metadataQueueUnavailable, setMetadataQueueUnavailable] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const loadSummaryRef = useRef(loadSummary);
+  const loadMetadataQueueStatusRef = useRef(loadMetadataQueueStatus);
   const requestRef = useRef(0);
+  const metadataQueueRequestRef = useRef(0);
 
   useEffect(() => {
     loadSummaryRef.current = loadSummary;
   }, [loadSummary]);
+
+  useEffect(() => {
+    loadMetadataQueueStatusRef.current = loadMetadataQueueStatus;
+  }, [loadMetadataQueueStatus]);
 
   useEffect(() => {
     if (!loadSummaryRef.current) {
@@ -64,6 +75,35 @@ export function HealthOverviewPage({
       });
     return () => { requestRef.current += 1; };
   }, [refreshSequence, refreshVersion, Boolean(loadSummary)]);
+
+  // Read the actual in-memory queue only when this page opens or the user refreshes.
+  // Do not poll: the library-wide pending count can include items intentionally deferred from the queue.
+  useEffect(() => {
+    const loader = loadMetadataQueueStatusRef.current;
+    if (!loader) {
+      setMetadataQueue(null);
+      setMetadataQueueLoading(false);
+      setMetadataQueueUnavailable(false);
+      return;
+    }
+    const request = ++metadataQueueRequestRef.current;
+    setMetadataQueueLoading(true);
+    setMetadataQueueUnavailable(false);
+    void loader()
+      .then((next) => {
+        if (request === metadataQueueRequestRef.current) setMetadataQueue(next);
+      })
+      .catch(() => {
+        if (request === metadataQueueRequestRef.current) {
+          setMetadataQueue(null);
+          setMetadataQueueUnavailable(true);
+        }
+      })
+      .finally(() => {
+        if (request === metadataQueueRequestRef.current) setMetadataQueueLoading(false);
+      });
+    return () => { metadataQueueRequestRef.current += 1; };
+  }, [refreshSequence, refreshVersion, Boolean(loadMetadataQueueStatus)]);
 
   const sourceAlerts = useMemo(
     () => folders.filter((folder) => folder.enabled && Boolean(folder.scanError)),
@@ -91,9 +131,9 @@ export function HealthOverviewPage({
           <h1>异常中心</h1>
           <p>先处理来源问题，再处理单个文件。正常等待分析的任务会单独显示，不会混进异常数量。</p>
         </div>
-        <button type="button" className="health-overview-refresh" disabled={loading || !loadSummary} onClick={() => setRefreshVersion((current) => current + 1)}>
-          <RefreshCw size={16} className={loading ? "spin" : undefined} />
-          {loading ? "读取中" : "刷新统计"}
+        <button type="button" className="health-overview-refresh" disabled={loading || metadataQueueLoading || (!loadSummary && !loadMetadataQueueStatus)} onClick={() => setRefreshVersion((current) => current + 1)}>
+          <RefreshCw size={16} className={loading || metadataQueueLoading ? "spin" : undefined} />
+          {loading || metadataQueueLoading ? "读取中" : "刷新统计"}
         </button>
       </header>
 
@@ -198,11 +238,22 @@ export function HealthOverviewPage({
         <article className="health-overview-background-card">
           <div className="health-overview-issue-icon"><LoaderCircle size={20} /></div>
           <div className="health-overview-issue-copy">
-            <h3>等待分析 / 暂缓分析</h3>
-            <strong>{pendingMetadataCount === null ? "—" : pendingMetadataCount.toLocaleString("zh-CN")} 条任务</strong>
-            <p>只有分析失败需要优先排查；等待中的任务可以按需查看，不必逐条处理。</p>
+            <h3>等待分析 / 按需暂缓</h3>
+            <strong>资料库待分析总量：{pendingMetadataCount === null ? "—" : pendingMetadataCount.toLocaleString("zh-CN")} 条</strong>
+            {metadataQueueLoading ? (
+              <p role="status">正在读取实际后台队列…</p>
+            ) : metadataQueue ? (
+              <div className="health-overview-metadata-queue" role="group" aria-label="实际后台队列">
+                <span>实际后台队列</span>
+                <span>正在处理 <strong>{metadataQueue.active.toLocaleString("zh-CN")}</strong></span>
+                <span>等待开始 <strong>{metadataQueue.queued.toLocaleString("zh-CN")}</strong></span>
+              </div>
+            ) : metadataQueueUnavailable ? (
+              <p role="status">实际后台队列状态暂不可用；资料库待分析总量仍可查看，但不代表当前排队量。</p>
+            ) : null}
+            <p>资料库待分析总量不等于实际排队量，可能包含按需暂缓或当前不可分析的记录。云盘非重复尺寸候选不会自动整库探测；需要时可按页分析或手动重试。</p>
           </div>
-          <button type="button" onClick={() => onOpenMetadataIssues("deferred")}>查看暂缓任务 <ChevronRight size={16} /></button>
+          <button type="button" onClick={() => onOpenMetadataIssues("deferred")}>查看待分析 / 暂缓明细 <ChevronRight size={16} /></button>
         </article>
       </section>
       <footer className="health-overview-footer">

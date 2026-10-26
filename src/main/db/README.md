@@ -39,11 +39,12 @@ files from disk.
 ## 迁移与备份行为
 
 - 新库在单个事务内依次执行 v1–v10，不需要升级备份。
-- 旧库升级前使用 SQLite `VACUUM INTO` 创建包含 WAL 当前一致视图的独立备份，再运行迁移事务。
-- 备份目录为 `<library.sqlite>.backups`，文件名为 `library.sqlite.v<旧版本>.<UTC 时间>.sqlite`。
-- 每一步都执行前置断言、DDL、后置断言并更新 `user_version`；任一步失败会回滚整个升级序列。
-- 提交后执行 `foreign_key_check` 和 `quick_check`。失败时连接关闭、主界面不创建，错误框显示原库与可用备份路径。
-- 备份失败时迁移根本不会开始。原数据库永远不会因迁移失败被删除或自动替换。
+- 旧库升级前使用 SQLite VACUUM INTO 创建包含 WAL 当前一致视图的独立备份，再运行迁移事务。
+- 备份先写入带唯一标识的 .partial 临时文件；只有只读打开、完整性检查通过且无残留 SQLite sidecar 后，才通过同目录原子重命名发布为正式 .sqlite 恢复点。
+- 正式备份目录为 <library.sqlite>.backups，文件名为 library.sqlite.v<旧版本>.<UTC 时间>.sqlite。进程若在备份过程中被中断，遗留文件仍带 .partial 后缀，不会被误认为有效恢复点。
+- 每一步都执行前置断言、DDL、后置断言并更新 user_version；任一步失败会回滚整个升级序列。
+- 提交后执行 foreign_key_check 和 quick_check。失败时连接关闭、主界面不创建；只有已验证的正式备份路径才会显示为恢复点。
+- 备份失败时迁移根本不会开始。应用会清理正常失败路径中的临时文件；异常终止遗留的 .partial 文件须先独立检查，不能直接用于恢复。原数据库永远不会因迁移失败被删除或自动替换。
 
 ## 新增迁移的规则
 
