@@ -27,6 +27,53 @@ afterEach(async () => {
 }, 30_000);
 
 describe("MediaCacheManager", () => {
+
+  it("reports deferred maintenance and shutdown states", async () => {
+    const root = await createRoot();
+    const manager = new MediaCacheManager(root, generousLimits);
+    await manager.initialize({ deferMaintenance: true });
+    manager.scheduleStartupMaintenance(60_000);
+    expect(manager.getTaskStatus().maintenance.state).toBe("scheduled");
+    manager.stop();
+    expect(manager.getTaskStatus().maintenance.state).toBe("stopping");
+  });
+
+  it("reports maintenance lifecycle and aggregate cache metrics without exposing paths", async () => {
+    const root = await createRoot();
+    const entered = deferred<void>();
+    const release = deferred<void>();
+    const manager = new MediaCacheManager(root, generousLimits, {
+      getRetainedCachePaths: async () => { entered.resolve(); await release.promise; return new Set<string>(); }
+    });
+    const operation = manager.runMaintenance("automatic", true);
+    await entered.promise;
+    const running = manager.getTaskStatus();
+    expect(running.maintenance.state).toBe("running");
+    expect(running.maintenance.lastStartedAt).not.toBeNull();
+    expect(running.cache.maxBytes).toBe(generousLimits.totalBytes);
+    expect(JSON.stringify(running)).not.toContain(root);
+    release.resolve();
+    await operation;
+    const completed = manager.getTaskStatus();
+    expect(completed.maintenance.state).toBe("idle");
+    expect(completed.maintenance.lastCompletedAt).not.toBeNull();
+    expect(completed.maintenance.lastError).toBeNull();
+    expect(completed.cache.lastCleanup?.reason).toBe("automatic");
+    manager.stop();
+  });
+
+  it("sanitizes maintenance errors before exposing task status", async () => {
+    const root = await createRoot();
+    const manager = new MediaCacheManager(root, generousLimits, {
+      getRetainedCachePaths: async () => { throw new Error("private cache path: " + root); }
+    });
+    await expect(manager.runMaintenance("automatic", true)).rejects.toThrow("private cache path");
+    const status = manager.getTaskStatus();
+    expect(status.maintenance.lastError).toBe("缓存维护失败，详情请查看诊断日志");
+    expect(JSON.stringify(status)).not.toContain(root);
+    expect(status.maintenance.lastCompletedAt).not.toBeNull();
+    manager.stop();
+  });
   it("defers the catalog read and complete sweep until after window startup", async () => {
     const root = await createRoot();
     const retained = vi.fn(() => new Set<string>());

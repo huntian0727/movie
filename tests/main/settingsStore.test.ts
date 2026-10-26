@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getDefaultSettings, normalizeSettings } from "../../src/main/settings/settingsStore";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
+import type { HoldFastForwardSpeed } from "../../src/shared/videoTypes";
 
 describe("settingsStore", () => {
   it("returns conservative first-version defaults", () => {
@@ -9,6 +10,7 @@ describe("settingsStore", () => {
       startupSync: true,
       autoPlayOnOpen: true,
       seekStepSeconds: 10,
+      holdFastForwardSpeed: 3,
       coverFrameTimeSeconds: 5,
       playbackPreference: "auto",
       cloudDrive: {
@@ -24,6 +26,8 @@ describe("settingsStore", () => {
   it("normalizes invalid values back to defaults", () => {
     expect(normalizeSettings({ seekStepSeconds: 0 }).seekStepSeconds).toBe(10);
     expect(normalizeSettings({ seekStepSeconds: 9.5 }).seekStepSeconds).toBe(10);
+    expect(normalizeSettings({ holdFastForwardSpeed: 2 }).holdFastForwardSpeed).toBe(2);
+    expect(normalizeSettings({ holdFastForwardSpeed: 2.5 as unknown as HoldFastForwardSpeed }).holdFastForwardSpeed).toBe(3);
     expect(normalizeSettings({ coverFrameTimeSeconds: 15 }).coverFrameTimeSeconds).toBe(15);
     expect(normalizeSettings({ coverFrameTimeSeconds: 7 as 5 }).coverFrameTimeSeconds).toBe(5);
     expect(normalizeSettings({ playbackPreference: "invalid" as "auto" }).playbackPreference).toBe("auto");

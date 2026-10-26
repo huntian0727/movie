@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type {
   AssetCenterSourceAvailability,
+  AssetCenterLatestScan,
   AssetCenterSourcePage,
   AssetCenterSourcePageSize,
   AssetCenterSourceQuery,
@@ -200,14 +201,21 @@ export function AssetCenterPage({
               <p className="asset-panel-empty">当前没有扫描任务。</p>
             )}
             <div className="asset-latest-scan">
-              <span>最近完成</span><strong>{summary?.latestCompletedScan ? formatDateTime(summary.latestCompletedScan.completedAt) : "暂无记录"}</strong>
+              <span>最近扫描</span><strong>{summary?.latestCompletedScan ? formatDateTime(summary.latestCompletedScan.completedAt) : "暂无记录"}</strong>
               {summary?.latestCompletedScan && (
-                <div>
-                  <span>新增 <b>{summary.latestCompletedScan.addedVideos.toLocaleString("zh-CN")}</b></span>
-                  <span>更新 <b>{summary.latestCompletedScan.updatedVideos.toLocaleString("zh-CN")}</b></span>
-                  <span>缺失 <b>{summary.latestCompletedScan.missingVideos.toLocaleString("zh-CN")}</b></span>
-                  <span>失败 <b>{summary.latestCompletedScan.failureCount.toLocaleString("zh-CN")}</b></span>
-                </div>
+                <>
+                  <div className="asset-latest-scan__status" role="status">
+                    <strong>{latestScanStatusLabel(summary.latestCompletedScan.status)}</strong>
+                    <span>{latestScanRecoveryHint(summary.latestCompletedScan.status)}</span>
+                    {summary.latestCompletedScan.errorSummary && <span>{summary.latestCompletedScan.errorSummary}</span>}
+                  </div>
+                  <div>
+                    <span>新增 <b>{summary.latestCompletedScan.addedVideos.toLocaleString("zh-CN")}</b></span>
+                    <span>更新 <b>{summary.latestCompletedScan.updatedVideos.toLocaleString("zh-CN")}</b></span>
+                    <span>缺失 <b>{summary.latestCompletedScan.missingVideos.toLocaleString("zh-CN")}</b></span>
+                    <span>失败 <b>{summary.latestCompletedScan.failureCount.toLocaleString("zh-CN")}</b></span>
+                  </div>
+                </>
               )}
             </div>
             <button className="asset-panel-link" type="button" onClick={() => onNavigate("scanFailures")}>
@@ -221,7 +229,7 @@ export function AssetCenterPage({
             <HealthRow
               label="元数据待处理"
               value={summary?.metadataIssueCount ?? null}
-              note={summary ? `待分析 ${summary.metadataPendingCount.toLocaleString("zh-CN")} · 分析失败 ${summary.metadataFailedCount.toLocaleString("zh-CN")}` : "待分析与分析失败分开统计"}
+              note={summary ? `待处理（含暂缓） ${summary.metadataPendingCount.toLocaleString("zh-CN")} · 分析失败 ${summary.metadataFailedCount.toLocaleString("zh-CN")}` : "待处理（含暂缓）与分析失败分开统计"}
               onClick={() => onOpenMetadata()}
             />
             <HealthRow label="重复候选" value={summary?.duplicateCandidateGroupCount ?? null} note="按文件大小和整数秒时长匹配" onClick={() => onNavigate("duplicates")} />
@@ -337,6 +345,20 @@ function formatScanState(status: FolderScanStatus): string {
   if (status.phase === "comparing-snapshots") return "正在比较变化";
   if (status.phase === "processing") return "正在处理媒体信息";
   return "正在扫描";
+}
+
+function latestScanStatusLabel(status: AssetCenterLatestScan["status"]): string {
+  if (status === "completed") return "扫描完成";
+  if (status === "completed-with-errors") return "完成但有异常";
+  if (status === "offline") return "源目录暂时离线";
+  return "扫描未正常结束";
+}
+
+function latestScanRecoveryHint(status: AssetCenterLatestScan["status"]): string {
+  if (status === "completed") return "本次扫描已完成。";
+  if (status === "completed-with-errors") return "打开扫描异常查看失败项，修复原因后再重新扫描。";
+  if (status === "offline") return "检查磁盘或网盘连接恢复后，再手动重新扫描。";
+  return "核对源目录和资料库状态后手动重新扫描；应用不会自动续跑上次未完成的扫描。";
 }
 
 function formatAssetBytes(bytes: number): string {

@@ -20,6 +20,24 @@ describe("packaged identity before opening user data", () => {
     expect(flavor.releaseClass).toBe("local-development");
     expect(releaseUserDataPath("C:\\QA", flavor)).toBe(path.join("C:\\QA", "local-video-manager"));
   });
+  it("accepts an absolute migration backup directory only for the local development flavor", () => {
+    const directory = "D:\\MovieProjectBackups\\movie-project\\database-migrations";
+    const flavor = readReleaseFlavor(fixture({
+      releaseClass: "local-development",
+      appId: "com.local.video.manager.development",
+      userDataDirectoryName: "local-video-manager",
+      migrationBackupDirectory: directory
+    }), "0.1.15");
+    expect(flavor.releaseClass).toBe("local-development");
+    expect(flavor.migrationBackupDirectory).toBe(directory);
+  });
+  it.each([
+    { releaseClass: "unsigned-test-build", migrationBackupDirectory: "D:\\MovieProjectBackups\\database-migrations" },
+    { releaseClass: "local-development", appId: "com.local.video.manager.development",
+      userDataDirectoryName: "local-video-manager", migrationBackupDirectory: "relative\\database-migrations" }
+  ])("rejects unsafe migration backup directory metadata %j", (changes) => {
+    expect(() => readReleaseFlavor(fixture(changes), "0.1.15")).toThrow(/migration backup directory/);
+  });
   it("isolates a valid unsigned build", () => expect(readReleaseFlavor(fixture(), "0.1.15"))
     .toEqual({ releaseClass: "unsigned-test-build", userDataDirectoryName: "local-video-manager-unsigned-test" }));
   it("retains the legacy profile only for a consistent formal identity", () => expect(readReleaseFlavor(fixture({

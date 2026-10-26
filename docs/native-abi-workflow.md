@@ -1,12 +1,12 @@
 # Node / Electron Native ABI 工作流
 
-`better-sqlite3` 13.0.3 使用 N-API；官方 npm 包的 `prebuilds/win32-x64.node` 已在 Node 22.23.1 和 Electron 44.7.0 中实际读写 SQLite。旧版 11 的 `build/Release/better_sqlite3.node` 有不同 ABI，不能复用。原生模块加载错误不代表用户数据库损坏，禁止删除 `library.sqlite` 来修复。
+`better-sqlite3` 13.0.3 使用 N-API；官方 npm 包的 `prebuilds/win32-x64.node` 已在 Node 22.23.1 和 Electron 44.9.3 中实际读写 SQLite。旧版 11 的 `build/Release/better_sqlite3.node` 有不同 ABI，不能复用。原生模块加载错误不代表用户数据库损坏，禁止删除 `library.sqlite` 来修复。
 
 ## 固定版本
 
 - Node：22.23.1 LTS
 - npm：10.9.8（Node 22.23.1 官方源码标签内置版本）
-- Electron：由 `package-lock.json` 固定；当前解析为 44.7.0，native ABI 由真实 Electron smoke 报告，不沿用旧 ABI 130。
+- Electron：由 `package-lock.json` 固定；当前解析为 44.9.3，native ABI 由真实 Electron smoke 报告，不沿用旧 ABI 130。
 
 版本来源：[Node 22.23.1 官方发布页](https://nodejs.org/en/blog/release/v22.23.1)、[该版本内置 npm package.json](https://raw.githubusercontent.com/nodejs/node/v22.23.1/deps/npm/package.json)。升级 Node 或 npm 时必须同时修改 `package.json`、lockfile、`.nvmrc`、`.node-version`、Volta 配置、环境检查测试和 CI cache key。
 
@@ -49,8 +49,8 @@ Node tests、Electron smoke、packaged build 必须是独立 checkout/job。建�
 
 ```text
 <os>-node-22.23.1-npm-10.9.8-<lockfile-hash>-abi-node
-<os>-node-22.23.1-npm-10.9.8-electron-44.7.0-<lockfile-hash>-abi-electron
-<os>-node-22.23.1-npm-10.9.8-electron-44.7.0-<lockfile-hash>-abi-packaged
+<os>-node-22.23.1-npm-10.9.8-electron-44.9.3-<lockfile-hash>-abi-electron
+<os>-node-22.23.1-npm-10.9.8-electron-44.9.3-<lockfile-hash>-abi-packaged
 ```
 
 不得在三个 job 间缓存或传递完整 `node_modules`。可以缓存 npm 下载缓存，但 key 中仍需包含 OS、Node、npm、Electron、lockfile hash 和 ABI 目标。

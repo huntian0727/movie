@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { DatabaseConnection } from "../../src/main/db/database";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
 
@@ -48,6 +48,27 @@ function createVideo(repo: VideoRepository, folderId: string, overrides: Partial
 }
 
 describe("VideoRepository", () => {
+  it("recovers only scan tasks left running after an unclean process exit", () => {
+    const { repo, folderId } = createRepo();
+    repo.createScanTask("stale-old", folderId, "scan-all");
+    repo.createScanTask("stale-new", folderId, "current-folder");
+    repo.createScanTask("already-done", folderId, "scan-all");
+    db!.prepare("UPDATE scan_tasks SET status = 'completed', completed_at = ?, counters_json = '{}' WHERE id = ?")
+      .run("2026-10-20T10:00:00.000Z", "already-done");
+    db!.prepare("UPDATE scan_tasks SET started_at = ? WHERE id = ?").run("2026-08-01T09:00:00.000Z", "stale-old");
+    db!.prepare("UPDATE scan_tasks SET started_at = ? WHERE id = ?").run("2026-10-17T17:00:00.000Z", "stale-new");
+
+    const recovered = repo.recoverInterruptedScanTasks(new Date("2026-10-24T11:00:00.000Z"));
+    expect(recovered).toEqual({ recoveredCount: 2, oldestStartedAt: "2026-08-01T09:00:00.000Z" });
+    expect(db!.prepare("SELECT status, completed_at, error_summary FROM scan_tasks WHERE id = 'stale-old'").get()).toEqual({
+      status: "error",
+      completed_at: "2026-10-24T11:00:00.000Z",
+      error_summary: "应用上次退出时扫描未正常结束；本次启动不会自动继续扫描，请手动重新发起。"
+    });
+    expect((db!.prepare("SELECT status FROM scan_tasks WHERE id = 'stale-new'").get() as { status: string }).status).toBe("error");
+    expect((db!.prepare("SELECT status FROM scan_tasks WHERE id = 'already-done'").get() as { status: string }).status).toBe("completed");
+    expect(repo.recoverInterruptedScanTasks(new Date("2026-10-24T12:00:00.000Z"))).toEqual({ recoveredCount: 0, oldestStartedAt: null });
+  });
   it("marks the storyboard ready only after all baseline frames match the current file identity", () => {
     const { repo, folderId } = createRepo();
     const video = createVideo(repo, folderId);
@@ -125,8 +146,7 @@ describe("VideoRepository", () => {
     expect(favorites.videos.map((video) => video.id)).toEqual([favorite!.id]);
     expect(repo.getLibraryNavigation()).toMatchObject({
       totalVideos: 35,
-      favoriteVideos: 1,
-      directoryPaths: ["D:\\Movies", "D:\\Movies\\Series"]
+      favoriteVideos: 1
     });
     expect(repo.listVideosByIds([favorite!.id, firstPage.videos[0].id]).map((video) => video.id)).toEqual([favorite!.id, firstPage.videos[0].id]);
   });
@@ -781,6 +801,34 @@ describe("VideoRepository", () => {
     });
   });
 
+  it("preserves natural path tie-breaking when choosing a recommended keep without sorting the whole group", () => {
+    const { repo, folderId } = createRepo();
+    const clip10 = createVideo(repo, folderId, {
+      path: "D:\\Movies\\clip-10.mp4",
+      directory: "D:\\Movies",
+      filename: "clip-10.mp4",
+      basename: "clip-10",
+      modifiedAt: "2026-07-09T00:00:00.000Z",
+
+    });
+    const clip2 = createVideo(repo, folderId, {
+      path: "D:\\Movies\\clip-2.mp4",
+      directory: "D:\\Movies",
+      filename: "clip-2.mp4",
+      basename: "clip-2",
+      modifiedAt: "2026-07-09T00:00:00.000Z",
+
+    });
+
+    db!.prepare("UPDATE videos SET imported_at = ? WHERE id IN (?, ?)").run("2026-07-09T00:00:00.000Z", clip10.id, clip2.id);
+
+    const page = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" });
+
+    expect(page.groups).toHaveLength(1);
+    expect(page.groups[0]?.items.map((item) => item.video.id)).toEqual([clip10.id, clip2.id]);
+    expect(page.groups[0]?.recommendedKeepVideoId).toBe(clip2.id);
+  });
+
   it("does not group same-size videos when cached durations differ", () => {
     const { repo, folderId } = createRepo();
     const first = createVideo(repo, folderId);
@@ -1285,6 +1333,75 @@ describe("VideoRepository", () => {
     expect(repo.getSourceFolderByPath("z:\\cloud")?.scanError).toBe("network unavailable");
   });
 
+  it("upserts without readback when the caller only needs persistence", () => {
+    const { repo, folderId } = createRepo();
+    const original = createVideo(repo, folderId);
+    const getVideo = vi.spyOn(repo, "getVideo");
+
+    repo.upsertVideoWithoutReadback({
+      sourceFolderId: folderId,
+      path: original.path,
+      directory: original.directory,
+      filename: original.filename,
+      basename: original.basename,
+      extension: original.extension,
+      sizeBytes: original.sizeBytes + 1,
+      durationMs: null,
+      width: null,
+      height: null,
+      format: null,
+      modifiedAt: "2026-07-10T00:00:00.000Z",
+      metadataStatus: "pending",
+      providerFileId: "remote-id",
+      providerPath: "/115/clip.mp4",
+      durationSource: "unknown"
+    });
+
+    expect(getVideo).not.toHaveBeenCalled();
+    const row = db!.prepare("SELECT size_bytes, provider_file_id, provider_path FROM videos WHERE id = ?").get(original.id) as {
+      size_bytes: number;
+      provider_file_id: string | null;
+      provider_path: string | null;
+    };
+    expect(row).toMatchObject({ size_bytes: original.sizeBytes + 1, provider_file_id: "remote-id", provider_path: "/115/clip.mp4" });
+  });
+
+  it("reconciles a directory by filename without marking nested or sibling videos missing", () => {
+    const { repo, folderId } = createRepo();
+    const keep = createVideo(repo, folderId, {
+      path: "D:\\Movies\\keep.mp4",
+      directory: "D:\\Movies",
+      filename: "keep.mp4",
+      basename: "keep"
+    });
+    const gone = createVideo(repo, folderId, {
+      path: "D:\\Movies\\gone.mp4",
+      directory: "D:\\Movies",
+      filename: "gone.mp4",
+      basename: "gone"
+    });
+    const nested = createVideo(repo, folderId, {
+      path: "D:\\Movies\\Series\\episode.mp4",
+      directory: "D:\\Movies\\Series",
+      filename: "episode.mp4",
+      basename: "episode"
+    });
+    const sibling = createVideo(repo, folderId, {
+      path: "D:\\Movies-Backup\\keep.mp4",
+      directory: "D:\\Movies-Backup",
+      filename: "keep.mp4",
+      basename: "keep"
+    });
+
+    function* names(): IterableIterator<string> {
+      yield "keep.mp4";
+    }
+    expect(repo.reconcileDirectoryMissingByFilenames(folderId, "d:\\movies", names())).toBe(1);
+    expect(repo.getVideo(keep.id).isMissing).toBe(false);
+    expect(repo.getVideo(gone.id).isMissing).toBe(true);
+    expect(repo.getVideo(nested.id).isMissing).toBe(false);
+    expect(repo.getVideo(sibling.id).isMissing).toBe(false);
+  });
   it("reconciles only a completely enumerated direct directory or confirmed subtree", () => {
     const { repo, folderId } = createRepo();
     const direct = createVideo(repo, folderId);

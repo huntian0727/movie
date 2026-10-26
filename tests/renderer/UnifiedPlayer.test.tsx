@@ -516,7 +516,10 @@ describe("original player UI with embedded engine", () => {
     const b = bridge(), next = vi.fn();
     const view = render(<PlayerPage video={video} embeddedApi={b.api} playbackRoute="embedded" onNext={next} />);
     await waitFor(() => expect(screen.getByText(/00:30/)).toBeInTheDocument());
-    act(() => b.input({ kind: "key", code: "ArrowRight", control: false, alt: false, shift: false }));
+    act(() => {
+      b.input({ kind: "key", code: "ArrowRight", control: false, alt: false, shift: false, phase: "down" });
+      b.input({ kind: "key", code: "ArrowRight", control: false, alt: false, shift: false, phase: "up" });
+    });
     expect(b.api.embeddedPlayback).toHaveBeenCalledWith(expect.objectContaining({ op: "seek", value: 40 }));
     b.update({ phase: "ended" }); await waitFor(() => expect(next).toHaveBeenCalledOnce());
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 300)); }); expect(next).toHaveBeenCalledOnce();

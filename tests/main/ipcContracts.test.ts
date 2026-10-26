@@ -29,6 +29,7 @@ describe("IPC_CHANNELS", () => {
       libraryMissingRecheck: "library:missing-recheck",
       libraryMissingForget: "library:missing-forget",
       libraryMetadataIssuePage: "library:metadata-issue-page",
+      metadataQueueStatus: "metadata-queue:status",
       libraryMetadataRefreshSizes: "library:metadata-refresh-sizes",
       videoListByIds: "video:list-by-ids",
       folderList: "folder:list",
@@ -113,15 +114,26 @@ describe("IPC_CHANNELS", () => {
       diagnosticsPreview: "diagnostics:preview",
       diagnosticsExport: "diagnostics:export",
       cacheClear: "cache:clear",
+      mediaCacheTaskStatus: "media-cache:task-status",
       storageGet: "storage:get",
       storageOpen: "storage:open",
       storageChoose: "storage:choose",
       storageMigrate: "storage:migrate",
       settingsGet: "settings:get",
-      settingsSet: "settings:set"
+      settingsSet: "settings:set",
+      settingsSetHoldFastForwardSpeed: "settings:set-hold-fast-forward-speed"
     });
   });
 
+  it("accepts all supported long-press fast-forward speeds in the strict settings IPC schema", () => {
+    const projectRoot = path.resolve(import.meta.dirname, "../..");
+    const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
+    expect(ipc).toMatch(/const holdFastForwardSpeedSchema = z\.union\(\[z\.literal\(1\.5\),\s*z\.literal\(2\),\s*z\.literal\(3\),\s*z\.literal\(4\)\]\)/);
+    expect(ipc).toContain("holdFastForwardSpeed: holdFastForwardSpeedSchema,");
+    expect(ipc).toContain("settingsSetHoldFastForwardSpeed");
+    expect(ipc).toContain("const settingsSchema = z.object({");
+    expect(ipc).toContain("}).strict();");
+  });
   it("does not expose or register the ambiguous legacy folder retry API", () => {
     expect("folderScanRetry" in IPC_CHANNELS).toBe(false);
     const projectRoot = path.resolve(import.meta.dirname, "../..");
@@ -138,11 +150,12 @@ describe("IPC_CHANNELS", () => {
     const preload = readFileSync(path.join(projectRoot, "src/main/preload.cts"), "utf8");
     const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
 
+    const queryIpc = readFileSync(path.join(projectRoot, "src/main/assetCenter/assetCenterQueryIpc.ts"), "utf8");
     expect(preload).toContain("getAssetCenterSummary: () => ipcRenderer.invoke(channels.assetCenterSummary)");
     expect(preload).toContain("listAssetCenterSources: (query: AssetCenterSourceQuery, purpose?: string) => ipcRenderer.invoke(channels.assetCenterSources, query, purpose)");
-    expect(ipc).toMatch(/const assetCenterSourceQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
-    expect(ipc).toContain('dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query), readScope(event, "sources", purpose))');
-    expect(ipc).toContain("dependencies.assetCenterQueries.getSummary()");
+    expect(queryIpc).toMatch(/export const assetCenterSourceQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
+    expect(queryIpc).toContain('dependencies.assetCenterQueries.listSources(assetCenterSourceQuerySchema.parse(query), readScope(event, "sources", purpose))');
+    expect(queryIpc).toContain("dependencies.assetCenterQueries.getSummary()");
   });
 
   it("keeps large folder and navigation aggregates off the Electron main thread", () => {
@@ -150,7 +163,8 @@ describe("IPC_CHANNELS", () => {
     const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
     const worker = readFileSync(path.join(projectRoot, "src/main/assetCenter/assetCenterWorker.ts"), "utf8");
 
-    expect(ipc).toContain("dependencies.assetCenterQueries.getLibraryNavigation()");
+    const queryIpc = readFileSync(path.join(projectRoot, "src/main/assetCenter/assetCenterQueryIpc.ts"), "utf8");
+    expect(queryIpc).toContain("dependencies.assetCenterQueries.getLibraryNavigation()");
     expect(ipc).toContain("dependencies.assetCenterQueries.listFolders()");
     expect(ipc).not.toContain("IPC_CHANNELS.libraryNavigation, () => repo.getLibraryNavigation()");
     expect(ipc).not.toContain("IPC_CHANNELS.folderList, () => repo.listSourceFoldersWithStats()");
@@ -192,17 +206,19 @@ describe("IPC_CHANNELS", () => {
     const preload = readFileSync(path.join(projectRoot, "src/main/preload.cts"), "utf8");
     const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
 
+    const queryIpc = readFileSync(path.join(projectRoot, "src/main/assetCenter/assetCenterQueryIpc.ts"), "utf8");
     expect(preload).toContain("listMetadataIssuePage: (query: MetadataIssuePageQuery, purpose?: string) => ipcRenderer.invoke(channels.libraryMetadataIssuePage, query, purpose)");
     expect(preload).toContain("refreshMetadataFileSizes: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMetadataRefreshSizes, videoIds)");
-    expect(ipc).toMatch(/const metadataIssuePageQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
-    expect(ipc).toContain('dependencies.assetCenterQueries.listMetadataIssues(metadataIssuePageQuerySchema.parse(query), readScope(event, "metadata-issues", purpose))');
+    expect(queryIpc).toMatch(/export const metadataIssuePageQuerySchema = z\.object\([\s\S]+?\)\.strict\(\);/);
+    expect(queryIpc).toContain('dependencies.assetCenterQueries.listMetadataIssues(metadataIssuePageQuerySchema.parse(query), readScope(event, "metadata-issues", purpose))');
     expect(ipc).toContain("metadataFileRefresh.refreshZeroByteFiles(videoIdsSchema.parse(videoIds))");
   });
 
   it("routes scan failure review paging through the worker instead of main-thread SQL", () => {
     const projectRoot = path.resolve(import.meta.dirname, "../..");
     const ipc = readFileSync(path.join(projectRoot, "src/main/ipc.ts"), "utf8");
-    expect(ipc).toContain('dependencies.assetCenterQueries.listScanFailures(scanFailureReviewQuerySchema.parse(query), readScope(event, "scan-failures", purpose))');
+    const queryIpc = readFileSync(path.join(projectRoot, "src/main/assetCenter/assetCenterQueryIpc.ts"), "utf8");
+    expect(queryIpc).toContain('dependencies.assetCenterQueries.listScanFailures(scanFailureReviewQuerySchema.parse(query), readScope(event, "scan-failures", purpose))');
     expect(ipc).not.toContain("repo.listScanFailureReviewPage(scanFailureReviewQuerySchema.parse(query))");
   });
 });

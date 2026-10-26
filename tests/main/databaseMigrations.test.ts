@@ -11,6 +11,8 @@ import {
 import { LATEST_SCHEMA_VERSION, migrations } from "../../src/main/db/migrations/index.js";
 import { legacyScanErrorsMigration } from "../../src/main/db/migrations/006-legacy-scan-errors.js";
 import { cloudDriveCleanupBindingMigration } from "../../src/main/db/migrations/015-clouddrive-cleanup-binding.js";
+import { videoDataSortIndexesMigration } from "../../src/main/db/migrations/018-video-data-sort-indexes.js";
+import { videoFilenameSortIndexMigration } from "../../src/main/db/migrations/019-video-filename-sort-index.js";
 import { VideoRepository } from "../../src/main/db/videoRepository.js";
 import { retryScanFailures } from "../../src/main/media/libraryScanner.js";
 
@@ -101,9 +103,19 @@ describe("versioned database migrations", () => {
       expect(indexes.map((row) => row.name)).toEqual(expect.arrayContaining([
         "idx_videos_size_bytes", "idx_videos_fingerprint_status", "idx_videos_is_pending_delete",
         "idx_videos_library_modified", "idx_videos_library_size", "idx_videos_library_duration",
+        "idx_videos_imported_at_id", "idx_videos_modified_at_id", "idx_videos_duration_ms_id", "idx_videos_filename_nocase_id",
         "idx_videos_cover_cache_path", "idx_timeline_previews_cache_path",
         "idx_scan_failures_active_object_path"
       ]));
+      const sizeIndexColumns = (db.prepare('PRAGMA index_xinfo("idx_videos_size_bytes")').all() as Array<{ name: string | null; desc: number; key: number }>)
+        .filter((column) => column.key === 1).map((column) => ({ name: column.name, descending: column.desc === 1 }));
+      expect(sizeIndexColumns).toEqual([{ name: "size_bytes", descending: true }, { name: "id", descending: false }]);
+      const durationIndexColumns = (db.prepare('PRAGMA index_xinfo("idx_videos_duration_ms_id")').all() as Array<{ name: string | null; desc: number; key: number }>)
+        .filter((column) => column.key === 1).map((column) => ({ name: column.name, descending: column.desc === 1 }));
+      expect(durationIndexColumns).toEqual([{ name: "duration_ms", descending: true }, { name: "id", descending: false }]);
+      const filenameIndexColumns = (db.prepare('PRAGMA index_xinfo("idx_videos_filename_nocase_id")').all() as Array<{ name: string | null; desc: number; key: number; coll: string }>)
+        .filter((column) => column.key === 1).map((column) => ({ name: column.name, descending: column.desc === 1, collation: column.coll }));
+      expect(filenameIndexColumns).toEqual([{ name: "filename", descending: true, collation: "NOCASE" }, { name: "id", descending: false, collation: "BINARY" }]);
       const defaultRow = db.prepare(`
         SELECT dflt_value FROM pragma_table_info('videos') WHERE name = 'is_pending_delete'
       `).get() as { dflt_value: string };
@@ -144,7 +156,64 @@ describe("versioned database migrations", () => {
     }
   });
 
-  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]) {
+  it("writes schema migration snapshots to the configured external directory", () => {
+    const dbPath = createTempDatabasePath();
+    const fixture = createVersionFixture(dbPath, 16);
+    insertVersionOneData(fixture);
+    fixture.close();
+    const crossVolumeBackupRoot = process.env.MOVIE_MIGRATION_TEST_BACKUP_ROOT;
+    const backupDirectory = crossVolumeBackupRoot
+      ? path.join(path.resolve(crossVolumeBackupRoot), path.basename(path.dirname(dbPath)))
+      : path.join(path.dirname(dbPath), "external-migration-backups");
+    if (crossVolumeBackupRoot) tempDirectories.push(backupDirectory);
+
+    const db = createDatabase(dbPath, {
+      migrationBackupDirectory: backupDirectory,
+      now: () => new Date("2026-10-22T15:16:17.000Z")
+    });
+    try {
+      expect(db.pragma("user_version", { simple: true })).toBe(19);
+      expect(db.prepare("SELECT filename FROM videos WHERE id = ?").pluck().get("video-1")).toBe("sample.mp4");
+      expect(db.prepare("SELECT name FROM sqlite_master").pluck().all()).toContain("idx_videos_imported_at_id");
+      expect(db.prepare("SELECT name FROM sqlite_master").pluck().all()).toContain("idx_videos_duration_ms_id");
+      expect(db.prepare("SELECT name FROM sqlite_master").pluck().all()).toContain("idx_videos_filename_nocase_id");
+    } finally {
+      db.close();
+    }
+
+    const backupFiles = readdirSync(backupDirectory);
+    expect(backupFiles).toEqual(["library.sqlite.v16.2026-10-22T15-16-17.000Z.sqlite"]);
+    expect(() => readdirSync(dbPath + ".backups")).toThrow();
+    const backup = new Database(path.join(backupDirectory, backupFiles[0]), { readonly: true, fileMustExist: true });
+    try {
+      expect(backup.pragma("user_version", { simple: true })).toBe(16);
+      expect(backup.prepare("SELECT filename FROM videos WHERE id = ?").pluck().get("video-1")).toBe("sample.mp4");
+      expect(backup.prepare("SELECT name FROM sqlite_master").pluck().all()).not.toContain("idx_videos_imported_at_id");
+      expect(backup.prepare("SELECT name FROM sqlite_master").pluck().all()).not.toContain("idx_videos_duration_ms_id");
+      expect(backup.prepare("SELECT name FROM sqlite_master").pluck().all()).not.toContain("idx_videos_filename_nocase_id");
+      expect(backup.pragma("quick_check", { simple: true })).toBe("ok");
+    } finally {
+      backup.close();
+    }
+  });
+
+  it("refuses to migrate when the configured migration backup directory is not absolute", () => {
+    const dbPath = createTempDatabasePath();
+    createVersionFixture(dbPath, 16).close();
+
+    expect(() => createDatabase(dbPath, { migrationBackupDirectory: "relative-migration-backups" }))
+      .toThrow(/absolute path/);
+
+    const preserved = new Database(dbPath);
+    try {
+      expect(preserved.pragma("user_version", { simple: true })).toBe(16);
+      expect(preserved.prepare("SELECT name FROM sqlite_master").pluck().all()).not.toContain("idx_videos_imported_at_id");
+    } finally {
+      preserved.close();
+    }
+  });
+
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]) {
     it(`upgrades schema version ${version} to the latest version`, () => {
       const dbPath = createTempDatabasePath();
       createVersionFixture(dbPath, version).close();
@@ -158,7 +227,7 @@ describe("versioned database migrations", () => {
     });
   }
 
-  for (const failedVersion of [1, 2, 3, 4, 5, 6, 7, 8, 9, 15]) {
+  for (const failedVersion of [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 18, 19]) {
     it(`rolls back completely when migration ${failedVersion} fails`, () => {
       const dbPath = createTempDatabasePath();
       const startingVersion = failedVersion - 1;
@@ -168,8 +237,10 @@ describe("versioned database migrations", () => {
 
       expect(() => createDatabase(dbPath, {
         migrationHooks: {
-          beforeMigration(version) {
+          beforeMigration(version, migrationDb) {
             if (version === failedVersion) {
+              if (version === 18) videoDataSortIndexesMigration.up(migrationDb);
+              if (version === 19) videoFilenameSortIndexMigration.up(migrationDb);
               throw new Error(`injected migration ${version} failure`);
             }
           }
@@ -197,6 +268,21 @@ describe("versioned database migrations", () => {
           expect(listColumns(db, "videos")).not.toContain("codec_probe_status");
         } else if (failedVersion === 15) {
           expect(listColumns(db, "duplicate_cleanup_jobs")).not.toContain("cloud_connection_binding");
+        } else if (failedVersion === 17) {
+          const indexNames = db.prepare("SELECT name FROM sqlite_master").pluck().all() as string[];
+          expect(indexNames).not.toContain("idx_videos_imported_at_id");
+          expect(indexNames).not.toContain("idx_videos_modified_at_id");
+        } else if (failedVersion === 18) {
+          const indexNames = db.prepare("SELECT name FROM sqlite_master").pluck().all() as string[];
+          expect(indexNames).toContain("idx_videos_size_bytes");
+          expect(indexNames).not.toContain("idx_videos_duration_ms_id");
+          const sizeIndexColumns = (db.prepare('PRAGMA index_xinfo("idx_videos_size_bytes")').all() as Array<{ name: string | null; desc: number; key: number }>)
+            .filter((column) => column.key === 1).map((column) => ({ name: column.name, descending: column.desc === 1 }));
+          expect(sizeIndexColumns).toEqual([{ name: "size_bytes", descending: false }]);
+        } else if (failedVersion === 19) {
+          const indexNames = db.prepare("SELECT name FROM sqlite_master").pluck().all() as string[];
+          expect(indexNames).toContain("idx_videos_filename");
+          expect(indexNames).not.toContain("idx_videos_filename_nocase_id");
         }
       } finally {
         db.close();
@@ -441,13 +527,56 @@ describe("versioned database migrations", () => {
     const dbPath = createTempDatabasePath();
     createVersionFixture(dbPath, 2).close();
 
-    expect(() => createDatabase(dbPath, {
-      migrationHooks: {
-        beforeBackup() {
-          throw new Error("simulated read-only directory or full disk");
+    let failure: unknown;
+    try {
+      createDatabase(dbPath, {
+        migrationHooks: {
+          beforeBackup() {
+            throw new Error("simulated read-only directory or full disk");
+          }
         }
-      }
-    })).toThrow(/backup failed/);
+      });
+    } catch (error: unknown) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(DatabaseMigrationError);
+    expect((failure as DatabaseMigrationError).backupPath).toBeUndefined();
+    expect(readdirSync(dbPath + ".backups")).toEqual([]);
+
+    const reopened = new Database(dbPath);
+    try {
+      expect(reopened.pragma("user_version", { simple: true })).toBe(2);
+      expect(listColumns(reopened, "videos")).not.toContain("content_fingerprint");
+    } finally {
+      reopened.close();
+    }
+  });
+
+  it("does not publish or retain a staging snapshot when post-snapshot validation fails", () => {
+    const dbPath = createTempDatabasePath();
+    createVersionFixture(dbPath, 2).close();
+
+    let failure: unknown;
+    let temporaryBackupPath: string | undefined;
+    try {
+      createDatabase(dbPath, {
+        now: () => new Date("2026-07-25T03:04:05.000Z"),
+        migrationHooks: {
+          afterBackupSnapshot(_database, stagingPath) {
+            temporaryBackupPath = stagingPath;
+            throw new Error("simulated interruption after VACUUM INTO");
+          }
+        }
+      });
+    } catch (error: unknown) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(DatabaseMigrationError);
+    expect((failure as DatabaseMigrationError).backupPath).toBeUndefined();
+    expect(path.basename(temporaryBackupPath ?? "")).toMatch(/^\..+\.partial$/);
+    expect(readdirSync(dbPath + ".backups")).toEqual([]);
 
     const reopened = new Database(dbPath);
     try {
@@ -475,9 +604,10 @@ describe("versioned database migrations", () => {
     }
 
     const backupPath = path.join(
-      `${dbPath}.backups`,
+      dbPath + ".backups",
       "library.sqlite.v2.2026-07-25T03-04-05.000Z.sqlite"
     );
+    expect(readdirSync(dbPath + ".backups")).toEqual([path.basename(backupPath)]);
     const backup = new Database(backupPath, { readonly: true, fileMustExist: true });
     try {
       expect(backup.pragma("user_version", { simple: true })).toBe(2);
@@ -487,7 +617,6 @@ describe("versioned database migrations", () => {
       backup.close();
     }
   });
-
   it("refuses a concurrent locked migration without changing the old schema", () => {
     const dbPath = createTempDatabasePath();
     const fixture = createVersionFixture(dbPath, 2);

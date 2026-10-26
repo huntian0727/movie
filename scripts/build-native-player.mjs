@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, renameSync, rmSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { acquirePackage, assertX64ManagedExecutable, checkedDirectory, checkedFile, materializePinnedFiles, readPinnedZip, sha256 } from "./native-player-toolchain.mjs";
@@ -50,7 +50,23 @@ export async function buildNativePlayer(options = {}) {
     const bytes = readFileSync(built);
     assertX64ManagedExecutable(bytes);
     checkedFile(repositoryRoot, output);
-    renameSync(built, output);
+
+    // The build staging directory may resolve through a junction onto D:, while
+    // native-bin intentionally stays on C:. Windows rename across volumes fails
+    // with EXDEV, so copy to a short-lived same-volume staging directory, verify
+    // the copied bytes, and only then atomically replace the published helper.
+    const publishStage = mkdtempSync(path.join(outputDirectory, ".nativehost-publish-"));
+    try {
+      const stagedOutput = path.join(publishStage, "NativeHost.exe");
+      copyFileSync(built, stagedOutput);
+      const stagedBytes = readFileSync(stagedOutput);
+      assertX64ManagedExecutable(stagedBytes);
+      if (sha256(stagedBytes) !== sha256(bytes)) throw new Error("NativeHost publish copy SHA-256 mismatch");
+      renameSync(stagedOutput, output);
+    } finally {
+      rmSync(publishStage, { recursive: true, force: true });
+    }
+
     return { output, bytes: bytes.length, sha256: sha256(bytes), sourceSha256: sha256(readFileSync(source)),
       compiler: { version: toolchain.compiler.version, sha256: toolchain.compiler.executableSha256, packageSha256: toolchain.compiler.sha256 },
       references: toolchain.references.assemblies, referencePackageVersion: toolchain.references.version };

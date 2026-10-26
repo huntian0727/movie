@@ -38,6 +38,9 @@ export interface CloudDriveDirectoryEntry {
 export interface CloudDriveDirectoryListing {
   entries: CloudDriveDirectoryEntry[];
   directoryMtime: string;
+  /** Per-call timings are intentionally not retained in the directory cache. */
+  readDurationMs?: number;
+  cacheHit?: boolean;
 }
 
 export interface MountedCloudDriveDirectorySource {
@@ -575,7 +578,8 @@ function createDirectorySource(
       const remoteDirectory = joinRemotePath(mapping.remoteRoot, relative);
       const cacheKey = `${sharedClientKey}\n${normalizeRemotePath(remoteDirectory)}`;
       const cached = directoryListingCache.get(cacheKey);
-      if (!forceRefresh && cached) return cached;
+      if (!forceRefresh && cached) return { ...cached, readDurationMs: 0, cacheHit: true };
+      const readStartedAt = performance.now();
       const entries: CloudDriveDirectoryEntry[] = [];
       const entryNames = new Set<string>();
       let directoryMtime = EPOCH;
@@ -606,7 +610,7 @@ function createDirectorySource(
       }
       const listing = { entries, directoryMtime };
       directoryListingCache.set(cacheKey, listing, Date.now() + DIRECTORY_CACHE_TTL_MS, entries.length);
-      return listing;
+      return { ...listing, readDurationMs: performance.now() - readStartedAt, cacheHit: false };
     }
   };
 }

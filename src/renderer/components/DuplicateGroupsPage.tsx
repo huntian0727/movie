@@ -28,9 +28,12 @@ import { formatBytes, formatDate, formatDuration } from "./formatters";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { DuplicateDirectoryRanking } from "./DuplicateDirectoryRanking";
 import { WindowedDuplicateGroups } from "./WindowedDuplicateGroups";
+import { WindowedDuplicateItems } from "./WindowedDuplicateItems";
 import { DuplicateCleanupTasksPanel } from "./DuplicateCleanupTasksPanel";
 import { DuplicateCleanupButton } from "./DuplicateCleanupButton";
 import { OperationFeedback, ReadState, operationErrorMessage } from "./OperationFeedback";
+import { filterAndSortDirectoryOptions, type DuplicateDirectoryFilterPreset, type DuplicateDirectorySortMode } from "./duplicateDirectoryOptions";
+import { changeTypeLabel, formatRemainingTime, isCleanupJobFinished, normalizeDirectoryForComparison, planVideoIds, toDuplicateActionMessage } from "./duplicatePageHelpers";
 
 interface DuplicateGroupsPageProps {
   groups: DuplicateGroup[];
@@ -92,10 +95,6 @@ interface DuplicateGroupsPageProps {
   cleanupRefreshSequence?: number;
 }
 
-type DuplicateDirectorySortMode = "space" | "files" | "groups" | "path";
-type DuplicateDirectoryFilterPreset = "all" | "files-10" | "files-100" | "space-10gb" | "space-100gb" | "space-1tb";
-
-const GIBIBYTE = 1024 ** 3;
 const MAX_REVIEWED_DELETE_TASK_ITEMS = 500;
 
 export function DuplicateGroupsPage({
@@ -200,10 +199,10 @@ export function DuplicateGroupsPage({
   const sortDirection = controlledSortDirection ?? internalSortDirection;
   const legacyResolveEnabled: boolean = false;
   const previewFileCount = useMemo(() => new Set(planVideoIds(groups, manualKeepByGroup)).size, [groups, manualKeepByGroup]);
-  const rankedDirectoryOptions = useMemo(() => directoryOptions
-    .filter((option) => matchesDirectoryFilter(option, directoryFilterPreset))
-    .sort((left, right) => compareDirectoryOptions(left, right, directorySortMode)),
-  [directoryFilterPreset, directoryOptions, directorySortMode]);
+  const rankedDirectoryOptions = useMemo(
+    () => filterAndSortDirectoryOptions(directoryOptions, directoryFilterPreset, directorySortMode),
+    [directoryFilterPreset, directoryOptions, directorySortMode]
+  );
   const directoryPickerOptions = useMemo(() => rankedDirectoryOptions.map((option) => ({
     ...option,
     meta: `候选清理 ${option.estimatedCleanupFileCount.toLocaleString()} 个 · ${option.groupCount.toLocaleString()} 组 · 释放 ${formatBytes(option.estimatedReclaimableBytes)}`
@@ -1277,11 +1276,15 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
           <button type="button" className="danger duplicate-group-cleanup-button" title={group.items.length - 1 > MAX_REVIEWED_DELETE_TASK_ITEMS ? "本组超过后台单个任务 500 个待清理文件的上限" : group.items.some((item) => item.video.isPendingDelete) ? "本组已有文件处于待删除状态，请刷新后再操作" : "保留当前计划保留项，其余文件加入后台清理队列"} disabled={cleanupDisabled || group.items.length < 2 || group.items.length - 1 > MAX_REVIEWED_DELETE_TASK_ITEMS || group.items.some((item) => item.video.isPendingDelete)} onClick={() => onQueueGroupCleanup(group, keepVideoId)}><Trash2 size={16} />清理本组</button>
         </div>}
       </header>
-      <div className="duplicate-group-items">
-        {sortedItems.map((item) => {
+      <WindowedDuplicateItems
+        items={sortedItems}
+        getKey={(item) => item.video.id}
+        threshold={40}
+        estimatedHeight={124}
+        renderItem={(item) => {
           const isKeeping = item.video.id === keepVideoId;
           return (
-            <article className={`duplicate-item${isKeeping ? " is-keeping" : ""}`} key={item.video.id}>
+            <article className={"duplicate-item" + (isKeeping ? " is-keeping" : "")} key={item.video.id}>
               <div className="duplicate-item-main">
                 <div className="duplicate-item-heading">
                   <strong>{item.video.filename}</strong>
@@ -1292,7 +1295,7 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
                 </div>
                 <p className="duplicate-path" title={item.video.path}>{item.video.path}</p>
                 <p className="duplicate-meta">
-                  <span>{item.video.width && item.video.height ? `${item.video.width}×${item.video.height}` : "分辨率未知"}</span>
+                  <span>{item.video.width && item.video.height ? item.video.width + "×" + item.video.height : "分辨率未知"}</span>
                   <i />
                   <span>{formatBytes(item.video.sizeBytes)}</span>
                   <i />
@@ -1305,86 +1308,15 @@ const DuplicateGroupCard = memo(function DuplicateGroupCard({
               </div>
               <div className="duplicate-item-actions">
                 <button type="button" className={isKeeping ? "primary" : undefined} onClick={() => onSetKeep(group.groupKey, item.video.id)}>设为计划保留</button>
-                <button type="button" aria-label={`优先保留 ${item.video.directory} 及其所有子目录（来自 ${item.video.filename}）`} title="筛选包含此目录树文件的候选组，并优先计划保留目录树中的文件" onClick={() => onPreferDirectory?.(item.video.directory)}><FolderOpen size={16} />优先保留此目录</button>
-                <button type="button" aria-label={`播放 ${item.video.filename}`} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
-                <button type="button" aria-label={`查看 ${item.video.filename} 详情`} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
-                <button type="button" aria-label={`打开 ${item.video.filename} 所在文件夹`} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
-                {onDeleteCandidate && <button type="button" className="danger" aria-label={`删除 ${item.video.filename}`} title="确认后执行单文件删除；删除前自动核对文件大小、时长和状态" disabled={cleanupDisabled} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>}
+                <button type="button" aria-label={"优先保留 " + item.video.directory + " 及其所有子目录（来自 " + item.video.filename + "）"} title="筛选包含此目录树的候选组，并优先计划保留目录树中的文件" onClick={() => onPreferDirectory?.(item.video.directory)}><FolderOpen size={16} />优先保留此目录</button>
+                <button type="button" aria-label={"播放 " + item.video.filename} onClick={() => onOpen(item.video, groupVideos)}><Play size={16} /></button>
+                <button type="button" aria-label={"查看 " + item.video.filename + " 详情"} onClick={() => onViewDetails(item.video)}><Info size={16} /></button>
+                <button type="button" aria-label={"打开 " + item.video.filename + " 所在文件夹"} onClick={() => void onRevealInFolder?.(item.video)}><FolderOpen size={16} /></button>
+                {onDeleteCandidate && <button type="button" className="danger" aria-label={"删除 " + item.video.filename} title="确认后执行单文件删除；删除前自动核对文件大小、时长和状态" disabled={cleanupDisabled} onClick={() => onDeleteCandidate(group, keepVideoId, item.video.id)}><Trash2 size={16} /></button>}
               </div>
             </article>
           );
-        })}
-      </div>
-    </section>
+        }}
+      />    </section>
   );
 });
-
-function planVideoIds(groups: DuplicateGroup[], selectedKeepByGroup: Record<string, string>): string[] {
-  return groups.flatMap((group) => {
-    const keepVideoId = selectedKeepByGroup[group.groupKey] ?? group.recommendedKeepVideoId;
-    return [keepVideoId, ...group.items.map((item) => item.video.id).filter((videoId) => videoId !== keepVideoId)];
-  });
-}
-
-function compareDirectoryOptions(left: DuplicateDirectoryOption, right: DuplicateDirectoryOption, mode: DuplicateDirectorySortMode): number {
-  if (mode === "files") {
-    return right.estimatedCleanupFileCount - left.estimatedCleanupFileCount ||
-      right.estimatedReclaimableBytes - left.estimatedReclaimableBytes ||
-      right.groupCount - left.groupCount ||
-      left.path.localeCompare(right.path, "zh-CN", { numeric: true });
-  }
-  if (mode === "groups") {
-    return right.groupCount - left.groupCount ||
-      right.estimatedReclaimableBytes - left.estimatedReclaimableBytes ||
-      right.estimatedCleanupFileCount - left.estimatedCleanupFileCount ||
-      left.path.localeCompare(right.path, "zh-CN", { numeric: true });
-  }
-  if (mode === "path") return left.path.localeCompare(right.path, "zh-CN", { numeric: true });
-  return right.estimatedReclaimableBytes - left.estimatedReclaimableBytes ||
-    right.estimatedCleanupFileCount - left.estimatedCleanupFileCount ||
-    right.groupCount - left.groupCount ||
-    left.path.localeCompare(right.path, "zh-CN", { numeric: true });
-}
-
-function matchesDirectoryFilter(option: DuplicateDirectoryOption, preset: DuplicateDirectoryFilterPreset): boolean {
-  if (preset === "files-10") return option.estimatedCleanupFileCount >= 10;
-  if (preset === "files-100") return option.estimatedCleanupFileCount >= 100;
-  if (preset === "space-10gb") return option.estimatedReclaimableBytes >= 10 * GIBIBYTE;
-  if (preset === "space-100gb") return option.estimatedReclaimableBytes >= 100 * GIBIBYTE;
-  if (preset === "space-1tb") return option.estimatedReclaimableBytes >= 1024 * GIBIBYTE;
-  return true;
-}
-
-function isCleanupJobFinished(job: DuplicateCleanupJob): boolean {
-  return ["cancelled", "completed", "completed_with_errors"].includes(job.status);
-}
-
-function normalizeDirectoryForComparison(directoryPath: string): string {
-  return directoryPath.replace(/\//g, "\\").replace(/\\+$/, "").toLocaleLowerCase();
-}
-
-function changeTypeLabel(changeType: DuplicateResolveChangedItem["changeType"]): string {
-  if (changeType === "missing") return "文件不存在";
-  if (changeType === "size-changed") return "文件大小变化";
-  if (changeType === "mtime-changed") return "修改时间变化";
-  if (changeType === "size-and-mtime-changed") return "大小和修改时间变化";
-  return "文件无法访问";
-}
-
-function formatRemainingTime(milliseconds: number | null): string {
-  if (milliseconds === null || !Number.isFinite(milliseconds)) return "计算中";
-  const seconds = Math.max(0, Math.ceil(milliseconds / 1_000));
-  if (seconds < 60) return `${seconds} 秒`;
-  const minutes = Math.ceil(seconds / 60);
-  if (minutes < 60) return `${minutes} 分钟`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours} 小时 ${minutes % 60} 分钟`;
-}
-
-function toDuplicateActionMessage(cause: unknown): string {
-  const message = operationErrorMessage(cause);
-  if (/duplicate:preview-resolve|duplicate:resolve/i.test(message)) {
-    return "候选项检查失败，请刷新候选项后重试。";
-  }
-  return message;
-}

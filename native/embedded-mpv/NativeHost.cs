@@ -114,8 +114,11 @@ class NativeHost : Form, IMessageFilter {
             else {clicked=true;clickTimer.Start();Native.SetFocus(Handle);Emit(new {type="input",input=new {kind="click"}});}
             return false;
         }
-        if(msg!=0x100&&msg!=0x104)return false;
-        if((lparam.ToInt64()&(1L<<30))!=0)return true;
+        bool keyDown=msg==0x100||msg==0x104;
+        bool keyUp=msg==0x101||msg==0x105;
+        if(!keyDown&&!keyUp)return false;
+        // Bit 30 indicates auto-repeat only for key-down messages; on key-up it is normally set.
+        if(keyDown&&(lparam.ToInt64()&(1L<<30))!=0)return true;
         Keys key=(Keys)wparam.ToInt32();string code=null;
         if(key>=Keys.A&&key<=Keys.Z)code="Key"+key.ToString();
         else if(key>=Keys.D0&&key<=Keys.D9)code="Digit"+((int)key-(int)Keys.D0).ToString();
@@ -127,7 +130,7 @@ class NativeHost : Form, IMessageFilter {
         // Alt+F4 must retain the normal close-window behavior.
         bool control=Native.GetKeyState((int)Keys.ControlKey)<0,shift=Native.GetKeyState((int)Keys.ShiftKey)<0,alt=Native.GetKeyState((int)Keys.Menu)<0;
         if(key==Keys.F4&&alt)return false;
-        Emit(new {type="input",input=new {kind="key",code=code,control=control,shift=shift,alt=alt}});
+        Emit(new {type="input",input=new {kind="key",code=code,control=control,shift=shift,alt=alt,phase=keyUp?"up":"down"}});
         return true;
     }
     void ObservePointer(){

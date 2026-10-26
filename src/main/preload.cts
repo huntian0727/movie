@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { AppSettings, SettingsSnapshot, AssetCenterSourceQuery, DirectoryBrowserQuery, DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, MetadataIssuePageQuery, MissingVideoPageQuery, PlaybackDiagnosticSearchQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
+import type { AppSettings, HoldFastForwardSpeed, SettingsSnapshot, AssetCenterSourceQuery, DirectoryBrowserQuery, DomainEvent, DuplicateGroupPageQuery, IPC_CHANNELS as SharedIpcChannels, LibraryPageQuery, LibraryQuery, MetadataIssuePageQuery, MissingVideoPageQuery, PlaybackDiagnosticSearchQuery, ScanFailureReviewQuery, VideoManagerApi } from "../shared/videoTypes.js";
 
 // Sandboxed preloads cannot load local modules, so keep a type-checked copy of the public channel names here.
 const channels: typeof SharedIpcChannels = {
@@ -20,6 +20,7 @@ const channels: typeof SharedIpcChannels = {
   libraryMissingRecheck: "library:missing-recheck",
   libraryMissingForget: "library:missing-forget",
   libraryMetadataIssuePage: "library:metadata-issue-page",
+  metadataQueueStatus: "metadata-queue:status",
   libraryMetadataRefreshSizes: "library:metadata-refresh-sizes",
   videoListByIds: "video:list-by-ids",
   duplicateList: "duplicate:list",
@@ -104,6 +105,7 @@ const channels: typeof SharedIpcChannels = {
   diagnosticsPreview: "diagnostics:preview",
   diagnosticsExport: "diagnostics:export",
   cacheClear: "cache:clear",
+  mediaCacheTaskStatus: "media-cache:task-status",
   subtitleConfigGet: "subtitles:config-get",
   subtitleWebsite: "subtitles:website",
   subtitleConfigSave: "subtitles:config-save",
@@ -115,7 +117,8 @@ const channels: typeof SharedIpcChannels = {
   storageChoose: "storage:choose",
   storageMigrate: "storage:migrate",
   settingsGet: "settings:get",
-  settingsSet: "settings:set"
+  settingsSet: "settings:set",
+  settingsSetHoldFastForwardSpeed: "settings:set-hold-fast-forward-speed"
 };
 
 const mainApi: VideoManagerApi = {
@@ -146,6 +149,7 @@ const mainApi: VideoManagerApi = {
   recheckMissingVideos: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMissingRecheck, videoIds),
   forgetMissingVideos: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMissingForget, videoIds),
   listMetadataIssuePage: (query: MetadataIssuePageQuery, purpose?: string) => ipcRenderer.invoke(channels.libraryMetadataIssuePage, query, purpose),
+  getMetadataQueueStatus: () => ipcRenderer.invoke(channels.metadataQueueStatus),
   refreshMetadataFileSizes: (videoIds: string[]) => ipcRenderer.invoke(channels.libraryMetadataRefreshSizes, videoIds),
   listVideosByIds: (videoIds: string[]) => ipcRenderer.invoke(channels.videoListByIds, videoIds),
   listDuplicateGroups: (query: DuplicateGroupPageQuery, purpose?: string) => ipcRenderer.invoke(channels.duplicateList, query, purpose),
@@ -228,8 +232,8 @@ const mainApi: VideoManagerApi = {
         if (input.x === undefined && input.y === undefined) listener({ kind: input.kind });
         else if ([input.x, input.y].every(v => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 16384)) listener({ kind: input.kind, x: input.x, y: input.y });
       }
-      else if (input.kind === "key" && /^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2])|Space|Escape|Enter|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown)$/.test(input.code) && [input.control, input.shift, input.alt].every(v => typeof v === "boolean")) {
-        listener({ kind: "key", code: input.code, control: input.control, shift: input.shift, alt: input.alt });
+      else if (input.kind === "key" && /^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2])|Space|Escape|Enter|Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown)$/.test(input.code) && [input.control, input.shift, input.alt].every(v => typeof v === "boolean") && (input.phase === undefined || input.phase === "down" || input.phase === "up")) {
+        listener({ kind: "key", code: input.code, control: input.control, shift: input.shift, alt: input.alt, ...(input.phase === undefined ? {} : { phase: input.phase }) });
       }
     };
     ipcRenderer.on("player:embedded-input", handler);
@@ -258,6 +262,8 @@ const mainApi: VideoManagerApi = {
     return { settings: publicSettings(snapshot.settings), cacheLocation: snapshot.cacheLocation, cacheStatus: snapshot.cacheStatus };
   },
   setSettings: async (settings) => publicSettings(await ipcRenderer.invoke(channels.settingsSet, settings)),
+  setHoldFastForwardSpeed: async (speed: HoldFastForwardSpeed) => publicSettings(await ipcRenderer.invoke(channels.settingsSetHoldFastForwardSpeed, speed)),
+  getMediaCacheTaskStatus: () => ipcRenderer.invoke(channels.mediaCacheTaskStatus),
   clearCache: () => ipcRenderer.invoke(channels.cacheClear)
 };
 
@@ -268,6 +274,7 @@ function publicSettings(settings: AppSettings): AppSettings {
     startupSync: settings.startupSync,
     autoPlayOnOpen: settings.autoPlayOnOpen,
     seekStepSeconds: settings.seekStepSeconds,
+    holdFastForwardSpeed: settings.holdFastForwardSpeed,
     coverFrameTimeSeconds: settings.coverFrameTimeSeconds,
     playbackPreference: settings.playbackPreference,
     shortcuts: settings.shortcuts,
@@ -310,7 +317,8 @@ const playerApi = {
   setPlayerSession: mainApi.setPlayerSession,
   selectPlayerVideo: mainApi.selectPlayerVideo,
   subscribeDomainEvents: mainApi.subscribeDomainEvents,
-  getSettings: mainApi.getSettings
+  getSettings: mainApi.getSettings,
+  setHoldFastForwardSpeed: mainApi.setHoldFastForwardSpeed
 } satisfies Partial<VideoManagerApi> & Pick<VideoManagerApi, "embeddedPlayback" | "subscribeEmbeddedKeys" | "subscribeEmbeddedInput">;
 
 const roleArgument = process.argv.find((argument) => argument.startsWith("--video-manager-window-role="));

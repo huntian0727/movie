@@ -19,6 +19,9 @@ ASSETS = ["LICENSE", "package-lock.json", "scripts/native-source-media.lock.json
           "docs/legal/NATIVE-SOURCE-COMPILE-REVIEW.json", "docs/legal/NATIVE-SOURCE-DISTRIBUTION-REVIEW.md",
           "docs/legal/GNU-GPLv3.txt", "docs/legal/GNU-LGPLv3.txt"]
 
+def read_json(file):
+    return json.loads(Path(file).read_text(encoding="utf-8"))
+
 def digest(file):
     with Path(file).open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -54,6 +57,10 @@ def validate_stable_release(approval, version, native_approval):
         any(item.get("sourceComplianceApproved") is not True for item in native_approval["binaries"])):
         raise ValueError("Stable source companion lacks exact native source approval")
 
+def archive_application_sources(root, commit, output):
+    tree = subprocess.check_output(["git", "rev-parse", commit + "^{tree}"], cwd=root, text=True).strip()
+    subprocess.run(["git", "archive", "--format=zip", "--mtime=2000-01-01T00:00:00Z", "--output=" + str(output), tree], cwd=root, check=True)
+
 def prepare(source, output, public_test=False, stable_release=False):
     source, output = Path(source).resolve(), Path(output).resolve()
     if output == ROOT or ROOT in output.parents or output.exists() or not output.parent.is_dir():
@@ -64,10 +71,10 @@ def prepare(source, output, public_test=False, stable_release=False):
     native_zip = ROOT / ".tmp/native-source-inputs/native-runtime.zip"
     if native_zip.is_symlink() or not native_zip.is_file() or native_zip.stat().st_size != 39814033 or digest(native_zip) != NATIVE_SHA256:
         raise ValueError("Native runtime ZIP differs from the approved fixed producer")
-    approvals = [json.loads((ROOT / p).read_text()) for p in ["build/release-approval.json", "build/native-source-approval.json"]]
+    approvals = [read_json(ROOT / p) for p in ["build/release-approval.json", "build/native-source-approval.json"]]
     if any(type(a.get("approved")) is not bool for a in approvals):
         raise ValueError("Approval records have invalid state")
-    media, player = [json.loads((ROOT / p).read_text()) for p in ["scripts/native-source-media.lock.json", "scripts/native-source-player-runtime.lock.json"]]
+    media, player = [read_json(ROOT / p) for p in ["scripts/native-source-media.lock.json", "scripts/native-source-player-runtime.lock.json"]]
     if any(lock.get("archiveSha256") != NATIVE_SHA256 or lock.get("sourceEvidenceZipSha256") != SOURCE_SHA256 for lock in [media, player]) or approvals[1].get("nativeArchiveSha256") != NATIVE_SHA256:
         raise ValueError("Review inputs do not match the exact runtime pair")
     host = next((b for b in approvals[1]["binaries"] if b["path"] == "native-player/NativeHost.exe"), None)
@@ -77,7 +84,7 @@ def prepare(source, output, public_test=False, stable_release=False):
         p = ROOT / file
         if p.is_symlink() or not p.is_file():
             raise ValueError("Review material missing or linked: " + file)
-    review = json.loads((ROOT / "docs/legal/NATIVE-SOURCE-COMPILE-REVIEW.json").read_text())
+    review = read_json(ROOT / "docs/legal/NATIVE-SOURCE-COMPILE-REVIEW.json")
     if review["approved"] is not False or len(review["compiledSources"]) != 244 or review["gplOnlyCompiledSources"]:
         raise ValueError("Compilation review differs")
     if digest(ROOT / "docs/legal/NATIVE-SOURCE-COMPILED-NOTICES.txt") != review["noticeFileSha256"]:
@@ -86,12 +93,12 @@ def prepare(source, output, public_test=False, stable_release=False):
     # Avoid presenting a dirty source snapshot as a committed version.
     if subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT):
         raise ValueError("Commit reviewed files before companion staging")
-    version = json.loads((ROOT / "package.json").read_text())["version"]
+    version = read_json(ROOT / "package.json")["version"]
     if public_test:
-        validate_public_test(json.loads((ROOT / "build/public-test-approval.json").read_text()), version, approvals[1])
+        validate_public_test(read_json(ROOT / "build/public-test-approval.json"), version, approvals[1])
     if stable_release:
         validate_stable_release(approvals[0], version, approvals[1])
-        qa = json.loads((ROOT / "docs/legal/PORTABLE_RELEASE_QA.json").read_text())
+        qa = read_json(ROOT / "docs/legal/PORTABLE_RELEASE_QA.json")
         if (qa.get("status") != "PASS_OWNER_ACCEPTED_TARGETED_PORTABLE_QA" or qa.get("version") != version or
             qa.get("nativeHostBinarySha256") != host["sha256"] or qa.get("ownerAcceptedEnvironment") is not True):
             raise ValueError("Targeted QA record does not match the approved NativeHost/version")
@@ -99,7 +106,7 @@ def prepare(source, output, public_test=False, stable_release=False):
         raise ValueError("Unsafe package version")
     output.mkdir()
     application_sources = output / ("Movie-" + version + "-Application-Sources.zip")
-    subprocess.run(["git", "archive", "--format=zip", "--output=" + str(application_sources), commit], cwd=ROOT, check=True)
+    archive_application_sources(ROOT, commit, application_sources)
     bundle = output / ("Movie-Native-Runtime-" + version + "-Corresponding-Sources.zip" if stable_release else
                       "Movie-" + version + ("-Corresponding-Native-Sources.zip" if public_test else "-Native-Source-Review.zip"))
     public_assets = ["THIRD_PARTY_LICENSES.md", "docs/legal/THIRD_PARTY_RELEASE_NOTICES.md",
@@ -115,7 +122,7 @@ def prepare(source, output, public_test=False, stable_release=False):
         release_assets = ASSETS
     assets = [{"path": file, "sha256": digest(ROOT / file)} for file in release_assets]
     status = {"schemaVersion": 1, "status": "PRIVATE_REVIEW_NOT_PUBLIC_RELEASE", "approved": False,
-              "programIncluded": False, "sourceComplianceApproved": False, "version": version, "commit": commit,
+              "programIncluded": False, "sourceComplianceApproved": False, "version": version, "applicationCommitBoundExternally": True,
               "inputApprovalStates": [a["approved"] for a in approvals], "nativeRuntimeInputSha256": NATIVE_SHA256,
               "nativeSourceInputSha256": SOURCE_SHA256, "nativeSourceInputBytes": SOURCE_BYTES,
               "applicationSourcesSha256": digest(application_sources), "assets": assets}

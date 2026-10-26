@@ -51,9 +51,9 @@ if (existsSync(previousFlavorPath)) {
 }
 await writeJson(path.join(staging, "build-flavor.json"), flavor);
 const offline = process.env.MOVIE_ELECTRON_DIST_ZIP;
-if (offline && (path.basename(offline).toLowerCase() !== "electron-v44.7.0-win32-x64.zip" ||
-    await hashFile(offline) !== "eee30dc8fa1f5ea95490e59f44e46ea68dd24c6e93d22facf70fe5c2d4c2665c")) {
-  throw new Error("Local Electron runtime differs from the pinned official Electron 44.7.0 archive.");
+if (offline && (path.basename(offline).toLowerCase() !== "electron-v44.9.3-win32-x64.zip" ||
+    await hashFile(offline) !== "41a1ffa0541cb0f2c9b9fe920dd2cef1793ad0ea2ada1a9582958880f4d1b23c")) {
+  throw new Error("Local Electron runtime differs from the pinned official Electron 44.9.3 archive.");
 }
 const config = {
   extends: path.join(root, "electron-builder.yml"), appId: flavor.appId, forceCodeSigning: false,

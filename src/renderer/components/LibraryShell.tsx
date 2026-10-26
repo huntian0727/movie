@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type FormEvent, type PointerEvent as ReactPointerEvent, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { AlertTriangle, BookmarkX, CircleGauge, Clock3, Cloud, CopyMinus, Database, FileQuestion, FolderInput, FolderPlus, FolderSearch, HardDrive, Heart, Library, ListChecks, LoaderCircle, MoreHorizontal, Pause, PieChart, Play, PlaySquare, RotateCw, Server, Settings, Trash2 } from "lucide-react";
-import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, ReviewedDeleteBackgroundJob, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, MetadataIssueStatusFilter, PlaybackPreference, ScanFailure, ScanFailureBatchJob, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
+import type { AssetCenterSummary, BatchDeleteResult, BatchMovePreview, BatchMoveResult, DuplicateGroup, DuplicateGroupPage, DuplicateGroupPageQuery, DuplicateGroupSortField, DuplicatePageSize, DuplicatePreferredDirectory, DuplicateResolvePlan, DuplicateResolvePreviewResult, DuplicateResolveResult, ReviewedDeleteBackgroundJob, FolderScanStatus, LibraryNavigationSnapshot, LibraryPage, LibraryPageQuery, LibraryView, MetadataIssuePage, MetadataIssuePageQuery, MetadataIssueStatusFilter, MetadataQueueStatus, PlaybackPreference, ScanFailure, ScanFailureBatchJob, ScanFailureReviewPage, ScanFailureReviewQuery, ScanFailureSummary, ShortcutSettings, SortDirection, SortField, SourceFolder, SourceFolderRemovalPreview, VideoManagerApi, VideoRecord, ViewMode } from "../../shared/videoTypes";
 import { DEFAULT_SHORTCUTS, matchesShortcut } from "../../shared/shortcuts";
 import displayVersion from "../../shared/displayVersion.json";
 import { DuplicateGroupsPage } from "./DuplicateGroupsPage";
@@ -12,6 +12,7 @@ import { PlaybackDiagnosticPage } from "./PlaybackDiagnosticPage";
 import { ScanFailuresPage } from "./ScanFailuresPage";
 import { MissingVideosPage } from "./MissingVideosPage";
 import { MetadataIssuesPage } from "./MetadataIssuesPage";
+import { BackgroundTaskCenter } from "./BackgroundTaskCenter";
 import { HealthOverviewPage } from "./HealthOverviewPage";
 import { DirectoryBrowserPage } from "./DirectoryBrowserPage";
 import { DirectoryFilterTree } from "./DirectoryFilterTree";
@@ -24,16 +25,13 @@ import { VideoGrid } from "./VideoGrid";
 import { VideoTable } from "./VideoTable";
 import { PageMetadataAutoAnalysis } from "./PageMetadataAutoAnalysis";
 import { formatBytes } from "./formatters";
+import { DEFAULT_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, useSidebarResize } from "../hooks/useSidebarResize";
 
 const PAGE_SIZE_OPTIONS = [30, 50, 100, 200, 300] as const;
 const GRID_CARD_WIDTH_OPTIONS = [180, 220, 260, 320, 400] as const;
 const GRID_CARD_WIDTH_STORAGE_KEY = "video-manager:grid-card-width";
 const PAGE_SIZE_STORAGE_KEY = "video-manager:library-page-size";
-const SIDEBAR_WIDTH_STORAGE_KEY = "video-manager:sidebar-width";
 const RECENT_DIRECTORY_PATHS_STORAGE_KEY = "video-manager:recent-directory-paths";
-const DEFAULT_SIDEBAR_WIDTH = 300;
-const MIN_SIDEBAR_WIDTH = 250;
-const MAX_SIDEBAR_WIDTH = 460;
 const EMPTY_FOLDERS: SourceFolder[] = [];
 const EMPTY_DUPLICATE_GROUPS: DuplicateGroup[] = [];
 const EMPTY_RECENT_VIDEO_IDS: string[] = [];
@@ -66,6 +64,8 @@ interface LibraryShellProps {
   onRecheckMissingVideos?: VideoManagerApi["recheckMissingVideos"];
   onForgetMissingVideos?: VideoManagerApi["forgetMissingVideos"];
   onLoadMetadataIssuePage?(query: MetadataIssuePageQuery): Promise<MetadataIssuePage>;
+  onLoadMetadataQueueStatus?: VideoManagerApi["getMetadataQueueStatus"];
+  onLoadMediaCacheTaskStatus?: VideoManagerApi["getMediaCacheTaskStatus"];
   onRefreshMetadataFileSizes?: VideoManagerApi["refreshMetadataFileSizes"];
   onRetryScanFailure?(failureId: string): Promise<unknown>;
   onDeleteScanFailureFile?(failureId: string): Promise<unknown>;
@@ -139,6 +139,8 @@ export function LibraryShell({
   onRecheckMissingVideos,
   onForgetMissingVideos,
   onLoadMetadataIssuePage,
+  onLoadMetadataQueueStatus,
+  onLoadMediaCacheTaskStatus,
   onRefreshMetadataFileSizes,
   onRetryScanFailure,
   onDeleteScanFailureFile,
@@ -181,6 +183,7 @@ export function LibraryShell({
 }: LibraryShellProps) {
   const [view, setView] = useState<LibraryView>(() => onLoadAssetCenterSummary && onLoadAssetCenterSources ? "assetCenter" : "all");
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
+  const [backgroundTaskCenterOpen, setBackgroundTaskCenterOpen] = useState(false);
   const [directoryBrowserSourceId, setDirectoryBrowserSourceId] = useState<string | undefined>();
   const [directoryBrowserFocusSequence, setDirectoryBrowserFocusSequence] = useState(0);
   const [directoryOverviewSearch, setDirectoryOverviewSearch] = useState("");
@@ -222,8 +225,7 @@ export function LibraryShell({
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(readStoredPageSize);
   const [page, setPage] = useState(1);
   const [gridCardWidth, setGridCardWidth] = useState<(typeof GRID_CARD_WIDTH_OPTIONS)[number]>(readStoredGridCardWidth);
-  const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth);
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const { sidebarWidth, isResizingSidebar, startSidebarResize, resetSidebarWidth, handleSidebarResizeKeyDown } = useSidebarResize();
   const [duplicatePageNumber, setDuplicatePageNumber] = useState(1);
   const [duplicatePageSize, setDuplicatePageSize] = useState<DuplicatePageSize>(20);
   const [duplicateSortField, setDuplicateSortField] = useState<DuplicateGroupSortField>("sizeBytes");
@@ -256,7 +258,6 @@ export function LibraryShell({
   const [batchMovePreview, setBatchMovePreview] = useState<BatchMovePreview | null>(null);
   const [batchResult, setBatchResult] = useState<BatchDeleteResult | BatchMoveResult | null>(null);
   const contentRef = useRef<HTMLElement>(null);
-  const sidebarResizeStartRef = useRef<{ pointerX: number; width: number } | null>(null);
   const scanStatusByFolder = useMemo(() => new Map(scanStatuses.map((status) => [status.folderId, status])), [scanStatuses]);
 
   const visibleVideos = useMemo(() => {
@@ -340,54 +341,6 @@ export function LibraryShell({
     }
   }, [pageSize]);
 
-  useEffect(() => {
-    if (isResizingSidebar) return;
-    try {
-      window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth));
-    } catch {
-      // Renderer storage can be unavailable in hardened or test environments.
-    }
-  }, [sidebarWidth, isResizingSidebar]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(RECENT_DIRECTORY_PATHS_STORAGE_KEY, JSON.stringify(recentDirectoryPaths));
-    } catch {
-      // Renderer storage can be unavailable in hardened or test environments.
-    }
-  }, [recentDirectoryPaths]);
-
-  useEffect(() => {
-    if (!isResizingSidebar) return;
-    let frame: number | undefined;
-    let pendingWidth: number | undefined;
-    const onPointerMove = (event: PointerEvent) => {
-      const start = sidebarResizeStartRef.current;
-      if (!start) return;
-      pendingWidth = clampSidebarWidth(start.width + event.clientX - start.pointerX);
-      if (frame !== undefined) return;
-      frame = window.requestAnimationFrame(() => {
-        frame = undefined;
-        if (pendingWidth !== undefined) setSidebarWidth(pendingWidth);
-      });
-    };
-    const stopResizing = () => {
-      if (frame !== undefined) window.cancelAnimationFrame(frame);
-      frame = undefined;
-      if (pendingWidth !== undefined) setSidebarWidth(pendingWidth);
-      sidebarResizeStartRef.current = null;
-      setIsResizingSidebar(false);
-    };
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", stopResizing);
-    window.addEventListener("pointercancel", stopResizing);
-    return () => {
-      if (frame !== undefined) window.cancelAnimationFrame(frame);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", stopResizing);
-      window.removeEventListener("pointercancel", stopResizing);
-    };
-  }, [isResizingSidebar]);
 
   useEffect(() => {
     const openDirectoryLauncher = (event: KeyboardEvent) => {
@@ -474,28 +427,41 @@ export function LibraryShell({
     const read = duplicateCleanupApi?.getReviewedDuplicateBackground;
     if (!read) return;
     let stopped = false;
+    let timer: number | null = null;
     const update = async () => {
+      let nextDelayMs = 10_000;
       try {
         const current = await read();
         if (stopped) return;
-        if (!current && (backgroundStatusRef.current === "running" || backgroundStatusRef.current === "queued")) return;
-        setBackgroundReviewedJob(current);
-        if (current?.status === "running" || current?.status === "queued") {
-          setQueuedVisualJob(current);
+        const wasActive = backgroundStatusRef.current === "running" || backgroundStatusRef.current === "queued";
+        const isActive = current?.status === "running" || current?.status === "queued";
+        if (!current && wasActive) {
+          nextDelayMs = 1_500;
+          return;
         }
-        if ((backgroundStatusRef.current === "running" || backgroundStatusRef.current === "queued") &&
-            ((current?.status !== "running" && current?.status !== "queued") ||
-              (backgroundJobIdRef.current && current?.id !== backgroundJobIdRef.current))) {
+        setBackgroundReviewedJob(current);
+        if (isActive) {
+          setQueuedVisualJob(current);
+          nextDelayMs = 1_500;
+        }
+        if (wasActive && (!isActive || (backgroundJobIdRef.current && current?.id !== backgroundJobIdRef.current))) {
           setDuplicateRefreshVersion((version) => version + 1);
           setVideoPageRefreshVersion((version) => version + 1);
         }
         backgroundStatusRef.current = current?.status ?? null;
         backgroundJobIdRef.current = current?.id ?? null;
-      } catch { /* Keep previous known state; next poll can recover. */ }
+      } catch {
+        // Keep the last known state; retry sooner after a transient read failure.
+        nextDelayMs = 5_000;
+      } finally {
+        if (!stopped) timer = window.setTimeout(() => void update(), nextDelayMs);
+      }
     };
     void update();
-    const timer = window.setInterval(() => void update(), 1500);
-    return () => { stopped = true; window.clearInterval(timer); };
+    return () => {
+      stopped = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
   }, [duplicateCleanupApi]);
 
   const visibleDuplicatePage = useMemo(() => hideQueuedDuplicateVideos(duplicatePage.groups, queuedVisualJob), [duplicatePage.groups, queuedVisualJob]);
@@ -529,7 +495,7 @@ export function LibraryShell({
 
   useEffect(() => {
     contentRef.current?.scrollTo?.({ top: view === "libraryDirectories" ? directoryOverviewScroll.current : 0, behavior: "auto" });
-  }, [currentPage, folderScope, pageSize, selectedFolderPath, view]);
+  }, [folderScope, page, pageSize, querySearch, search, selectedFolderPath, sortDirection, sortField, view]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -736,12 +702,6 @@ export function LibraryShell({
     setActionPending(true);
     try { setBatchResult(await onBatchMove(selectedVideos, batchMovePreview.targetDirectory, true)); setBatchMovePreview(null); exitSelection(); } catch (cause) { setActionError(cause instanceof Error ? cause.message : String(cause)); } finally { setActionPending(false); }
   };
-  const startSidebarResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
-    sidebarResizeStartRef.current = { pointerX: event.clientX, width: sidebarWidth };
-    setIsResizingSidebar(true);
-    event.preventDefault();
-  };
   return (
     <main
       className={`app-shell${isResizingSidebar ? " is-resizing-sidebar" : ""}`}
@@ -756,9 +716,12 @@ export function LibraryShell({
           </div>
         </div>
         <nav className="primary-nav" aria-label="视频库导航">
-          <SidebarMenuGroup id="overview" title="概览" active={view === "assetCenter"}>
+          <SidebarMenuGroup id="overview" title="概览" active={view === "assetCenter" || backgroundTaskCenterOpen}>
           <button aria-label="查看资产中心" className={view === "assetCenter" ? "active" : undefined} onClick={() => { setView("assetCenter"); setSelectedFolderPath(null); }}>
             <PieChart size={18} /><span>资产中心</span>
+          </button>
+          <button aria-label="打开后台任务中心" className={backgroundTaskCenterOpen ? "active" : undefined} onClick={() => setBackgroundTaskCenterOpen(true)}>
+            <ListChecks size={18} /><span>任务中心</span>
           </button>
           </SidebarMenuGroup>
           <SidebarMenuGroup id="library" title="资料库" active={["all", "videoData", "favorites", "recent", "directoryBrowser", "folder"].includes(view)}>
@@ -782,8 +745,8 @@ export function LibraryShell({
           <button aria-label="查看异常中心" className={isIssueCenterView ? "active" : undefined} onClick={() => { setView("healthOverview"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); setMissingVideoSourceFolderId(undefined); setMetadataIssueSourceFolderId(undefined); }}>
             <AlertTriangle size={18} /><span>需要处理</span><em>{healthIssueCount}</em>
           </button>
-          <button aria-label="查看后台元数据任务" className={isBackgroundMetadataView ? "active" : undefined} onClick={() => { setMetadataIssueInitialStatus("deferred"); setMetadataIssueSourceFolderId(undefined); setView("metadataIssues"); setSelectedFolderPath(null); }}>
-            <Database size={18} /><span>后台任务</span><em>{navigation?.pendingMetadataVideos ?? 0}</em>
+          <button aria-label="查看元数据任务" className={isBackgroundMetadataView ? "active" : undefined} onClick={() => { setMetadataIssueInitialStatus("deferred"); setMetadataIssueSourceFolderId(undefined); setView("metadataIssues"); setSelectedFolderPath(null); }}>
+            <Database size={18} /><span>元数据任务</span><em>{navigation?.pendingMetadataVideos ?? 0}</em>
           </button>
           <button aria-label="查看待删除视频" className={view === "pendingDelete" ? "active" : undefined} onClick={() => { setView("pendingDelete"); setSelectedFolderPath(null); }}>
             <BookmarkX size={18} /><span>待删除</span><em>{pendingDeleteCount}</em>
@@ -845,12 +808,8 @@ export function LibraryShell({
           tabIndex={0}
           title="拖动调整宽度，双击恢复默认宽度"
           onPointerDown={startSidebarResize}
-          onDoubleClick={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)}
-          onKeyDown={(event) => {
-            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-            setSidebarWidth((current) => clampSidebarWidth(current + (event.key === "ArrowRight" ? 10 : -10)));
-            event.preventDefault();
-          }}
+          onDoubleClick={resetSidebarWidth}
+          onKeyDown={handleSidebarResizeKeyDown}
         />
       </aside>
 
@@ -1005,6 +964,7 @@ export function LibraryShell({
             navigation={navigation}
             refreshSequence={refreshSequence}
             loadSummary={onLoadAssetCenterSummary}
+            loadMetadataQueueStatus={onLoadMetadataQueueStatus}
             onOpenScanFailures={(sourceFolderId) => {
               setScanFailureSourceFolderId(sourceFolderId);
               setView("scanFailures");
@@ -1481,6 +1441,25 @@ export function LibraryShell({
           </section>
         </div>
       )}
+      {backgroundTaskCenterOpen && (
+        <BackgroundTaskCenter
+          open={backgroundTaskCenterOpen}
+          onClose={() => setBackgroundTaskCenterOpen(false)}
+          folders={folders ?? EMPTY_FOLDERS}
+          scanStatuses={scanStatuses ?? EMPTY_SCAN_STATUSES}
+          pendingMetadataVideos={navigation?.pendingMetadataVideos ?? 0}
+          loadMetadataQueueStatus={onLoadMetadataQueueStatus}
+          loadDuplicateCleanupJobs={duplicateCleanupApi?.listDuplicateCleanupJobs}
+          loadReviewedDeleteBackground={duplicateCleanupApi?.getReviewedDuplicateBackground}
+          loadScanFailureBatches={onListScanFailureBatches}
+          loadMediaCacheTaskStatus={onLoadMediaCacheTaskStatus}
+          onOpenCacheSettings={() => onOpenSettings?.()}
+          onOpenAssetCenter={() => { setView("assetCenter"); setSelectedFolderPath(null); }}
+          onOpenMetadataTasks={() => { setMetadataIssueInitialStatus("deferred"); setMetadataIssueSourceFolderId(undefined); setView("metadataIssues"); setSelectedFolderPath(null); }}
+          onOpenDuplicateCleanup={() => { setView("duplicates"); setSelectedFolderPath(null); setDuplicatePageNumber(1); }}
+          onOpenScanFailures={() => { setView("scanFailures"); setSelectedFolderPath(null); setScanFailureSourceFolderId(undefined); }}
+        />
+      )}
     </main>
   );
 }
@@ -1567,18 +1546,6 @@ function readStoredPageSize(): (typeof PAGE_SIZE_OPTIONS)[number] {
   return 100;
 }
 
-function readStoredSidebarWidth(): number {
-  try {
-    const storedValue = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
-    if (storedValue === null) return DEFAULT_SIDEBAR_WIDTH;
-    const value = Number(storedValue);
-    if (Number.isFinite(value)) return clampSidebarWidth(value);
-  } catch {
-    // Fall through to the default when storage is unavailable.
-  }
-  return DEFAULT_SIDEBAR_WIDTH;
-}
-
 function readStoredRecentDirectoryPaths(): string[] {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(RECENT_DIRECTORY_PATHS_STORAGE_KEY) ?? "[]") as unknown;
@@ -1586,10 +1553,6 @@ function readStoredRecentDirectoryPaths(): string[] {
   } catch {
     return [];
   }
-}
-
-function clampSidebarWidth(value: number): number {
-  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(value)));
 }
 
 function folderName(folderPath: string): string {

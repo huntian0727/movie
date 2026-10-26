@@ -249,7 +249,14 @@ export class DuplicateCleanupService {
   }
 
   private enqueue(jobId: string): void {
-    if (this.stopped || this.pendingJobs.includes(jobId) || this.currentJobId === jobId) return;
+    if (this.stopped || this.pendingJobs.includes(jobId)) return;
+    // A job may be re-enqueued immediately after verification/confirmation while
+    // the pump is still unwinding its previous phase. Only suppress a duplicate
+    // enqueue when this job is still actively executing, not merely currentJobId.
+    if (this.currentJobId === jobId) {
+      const current = this.jobs.getJob(jobId);
+      if (current.status === "running" || current.status === "cancelling") return;
+    }
     this.pendingJobs.push(jobId);
     queueMicrotask(() => void this.pump());
   }
@@ -262,22 +269,57 @@ export class DuplicateCleanupService {
       while (!this.stopped) {
         const jobId = this.pendingJobs.shift();
         if (!jobId) break;
-        // Belt-and-suspenders: even a stale queued task must never start the
-        // metadata-only deletion worker after the public-safe default is enabled.
-        if (this.jobs.getJob(jobId).workflowVersion === 3) continue;
-        if (!this.jobs.start(jobId)) continue;
-        this.currentJobId = jobId;
-        this.publish(jobId);
-        const job = this.jobs.getJob(jobId);
-        if (job.workflowVersion === 3) await this.runFastDeletion(jobId);
-        else if (job.phase === "verification") await this.runVerification(jobId, job.verificationRevision!);
-        else if (job.phase === "deletion") await this.runDeletion(jobId);
-        this.currentJobId = null;
+        try {
+          // Belt-and-suspenders: even a stale queued task must never start the
+          // metadata-only deletion worker after the public-safe default is enabled.
+          if (this.jobs.getJob(jobId).workflowVersion === 3) continue;
+          if (!this.jobs.start(jobId)) continue;
+          this.currentJobId = jobId;
+          this.publish(jobId);
+          const job = this.jobs.getJob(jobId);
+          if (job.workflowVersion === 3) await this.runFastDeletion(jobId);
+          else if (job.phase === "verification") await this.runVerification(jobId, job.verificationRevision!);
+          else if (job.phase === "deletion") await this.runDeletion(jobId);
+        } catch (error: unknown) {
+          // One unexpected task error must not strand unrelated jobs already in
+          // the in-memory FIFO. Persist this task as interrupted before continuing.
+          console.error("[duplicate-cleanup] task execution failed; interrupting this task before continuing the queue.", {
+            jobId, error: toMessage(error)
+          });
+          try {
+            this.jobs.interruptJob(jobId,
+              `Task execution stopped unexpectedly. Review this task before resuming. ${toMessage(error)}`);
+          } catch (interruptError: unknown) {
+            // If we cannot persist a safe interrupted state, fail closed and do
+            // not start another destructive task in this service instance.
+            console.error("[duplicate-cleanup] could not persist interrupted state; stopping the queue.", {
+              jobId, error: toMessage(interruptError)
+            });
+            this.stopped = true;
+            continue;
+          }
+          try { this.publish(jobId, true); }
+          catch (publishError: unknown) {
+            console.error("[duplicate-cleanup] unable to publish interrupted task state.", {
+              jobId, error: toMessage(publishError)
+            });
+          }
+        } finally {
+          if (this.currentJobId === jobId) this.currentJobId = null;
+          this.currentVerificationAbort = null;
+        }
       }
+    } catch (error: unknown) {
+      // Startup recovery must succeed before any queued cleanup can run.
+      console.error("[duplicate-cleanup] startup recovery failed; automatic processing stopped.", toMessage(error));
+      this.stopped = true;
     } finally {
       this.currentVerificationAbort = null;
       this.currentJobId = null;
       this.pumping = false;
+      // An enqueue can race with the final turn of the pump: its microtask may
+      // observe pumping=true and return. Drain any accepted work after unlocking.
+      if (!this.stopped && this.pendingJobs.length > 0) queueMicrotask(() => void this.pump());
     }
   }
 
@@ -575,14 +617,39 @@ export class DuplicateCleanupService {
           { code: "final-isolated-target-changed" });
       }
       await this.deleteFile(stagedPath);
-      this.jobs.clearIsolation(item.id);
-      this.videos.removeVideo(item.delete_video_id);
-      this.jobs.updateItem(item.id, "deleted", "deleted", null);
-      this.domainEvents.publish({ type: "video:removed", videoIds: [item.delete_video_id] });
     } catch (error: unknown) {
+      const stagedExists = await this.pathExists(stagedPath);
+      const originalExists = await this.pathExists(item.delete_path);
+      if (!stagedExists && !originalExists) {
+        this.jobs.clearIsolation(item.id);
+        this.jobs.updateItem(item.id, "failed", "delete-outcome-unknown",
+          `删除调用返回错误，但原始路径与隔离路径都不存在，无法确认最终结果。系统不会自动重试；请先核对源目录与资料库状态。详情：${toMessage(error)}`);
+        return;
+      }
       const restored = await this.restoreStagedFile(item.id, stagedPath, item.delete_path);
       this.jobs.updateItem(item.id, "failed", getErrorCode(error),
-        `${toMessage(error)}${restored ? "" : ` 隔离文件可能仍保留在 ${stagedPath}；自动恢复失败，需要人工恢复。`}`);
+        `${toMessage(error)}${restored ? "" : ` 隔离文件仍可能位于 ${stagedPath}；自动恢复未完成，需要人工核对。`}`);
+      return;
+    }
+
+    // The irreversible file operation has succeeded. Persist that fact before
+    // index maintenance; never attempt to restore a file after a successful delete.
+    this.jobs.updateItem(item.id, "deleted", "deleted", null);
+    this.jobs.clearIsolation(item.id);
+    try {
+      this.videos.removeVideo(item.delete_video_id);
+    } catch (error: unknown) {
+      console.error("[duplicate-cleanup] file was deleted but the video index could not be refreshed.", {
+        itemId: item.id, error: toMessage(error)
+      });
+      this.jobs.updateItem(item.id, "deleted", "deleted-index-refresh-failed",
+        `源文件已永久删除，但资料库索引更新失败。请重新扫描来源；不要重试删除。详情：${toMessage(error)}`);
+    }
+    try { this.domainEvents.publish({ type: "video:removed", videoIds: [item.delete_video_id] }); }
+    catch (error: unknown) {
+      console.error("[duplicate-cleanup] file deletion was recorded, but the UI refresh event failed.", {
+        itemId: item.id, error: toMessage(error)
+      });
     }
   }
 
@@ -689,10 +756,26 @@ export class DuplicateCleanupService {
     for (const item of this.jobs.listStagedItems()) {
       const stagedPath = item.staged_delete_path!;
       if (await this.restoreStagedFile(item.id, stagedPath, item.delete_path)) continue;
+      const stagedExists = await this.pathExists(stagedPath);
       const originalExists = await this.pathExists(item.delete_path);
-      const reason = originalExists
-        ? `Original path is occupied; no file was overwritten. Isolated media or its identity requires manual recovery: ${stagedPath}.`
-        : `Automatic no-overwrite recovery could not safely restore the recorded object (including unsupported hard links). Isolated media is retained for manual recovery: ${stagedPath}.`;
+      if (!stagedExists && !originalExists && item.status === "deleted") {
+        // The successful delete was persisted, but clearing its staging marker
+        // failed. There is no media to restore; remove only the stale marker.
+        try { this.jobs.clearIsolation(item.id); }
+        catch (error: unknown) {
+          console.error("[duplicate-cleanup] could not clear stale staging metadata for a recorded deletion.", {
+            itemId: item.id, error: toMessage(error)
+          });
+        }
+        continue;
+      }
+      const reason = stagedExists
+        ? originalExists
+          ? `Original path is occupied; no file was overwritten. Isolated media remains at ${stagedPath} and requires manual recovery.`
+          : `Automatic no-overwrite recovery could not safely restore the recorded object. Isolated media remains at ${stagedPath} and requires manual recovery.`
+        : originalExists
+          ? `The recorded isolated path is missing and the original path is occupied. No file was overwritten; verify the original file identity and resolve the recovery record manually.`
+          : `Neither the original path nor the recorded isolated path exists. The deletion outcome cannot be confirmed; no automatic retry will occur. Verify the source and index manually.`;
       this.jobs.recordIsolationRecoveryFailure(item.id, reason);
     }
   }

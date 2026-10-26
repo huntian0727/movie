@@ -9,7 +9,8 @@ import type {
   MetadataIssuePageQuery,
   ScanFailureReviewPage,
   ScanFailureReviewQuery,
-  SourceFolder
+  SourceFolder,
+  VideoRecord
 } from "../../shared/videoTypes.js";
 import type { DuplicateGroupPage, DuplicateGroupPageQuery } from "../../shared/videoTypes.js";
 
@@ -17,6 +18,7 @@ export type AssetCenterWorkerRequest =
   | { id: number; operation: "directories"; query: DirectoryBrowserQuery }
   | { id: number; operation: "duplicates"; query: DuplicateGroupPageQuery }
   | { id: number; operation: "folders" }
+  | { id: number; operation: "pendingMetadata"; limit: number }
   | { id: number; operation: "retainedCachePaths" }
   | { id: number; operation: "metadataIssues"; query: MetadataIssuePageQuery }
   | { id: number; operation: "scanFailures"; query: ScanFailureReviewQuery }
@@ -38,6 +40,7 @@ export type AssetCenterWorkerResponse =
         | MetadataIssuePage
         | ScanFailureReviewPage
         | SourceFolder[]
+        | VideoRecord[]
         | string[];
     }
   | { id: number; ok: false; error: { name: string; message: string; stack?: string } };

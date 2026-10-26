@@ -8,6 +8,7 @@ import { createDatabase } from "../../src/main/db/database";
 import { VideoRepository } from "../../src/main/db/videoRepository";
 import { describeMetadataFailure, MetadataQueue } from "../../src/main/media/metadataQueue";
 import type { VideoRecord } from "../../src/shared/videoTypes";
+import type { StructuredLogger } from "../../src/main/logging/logger";
 
 describe("MetadataQueue", () => {
   it("finishes an active analysis without marking it failed while deferring new analyses", async () => {
@@ -48,7 +49,7 @@ describe("MetadataQueue", () => {
     const duration = vi.fn().mockResolvedValue(600_000);
     const fullReader = vi.fn();
     const queue = new MetadataQueue(repo.value, fullReader, 1, undefined, undefined, undefined, duration);
-    expect(queue.enqueuePending()).toBe(0);
+    await expect(queue.enqueuePending()).resolves.toBe(0);
     expect(await queue.requestVisible(video.id, new AbortController().signal)).toMatchObject({ durationMs: 600_000, metadataStatus: "ready" });
     expect(duration).toHaveBeenCalledOnce();
     expect(fullReader).not.toHaveBeenCalled();
@@ -273,13 +274,14 @@ describe("MetadataQueue", () => {
     expect(repo.markMetadataReady).not.toHaveBeenCalled();
   });
 
-  it("marks a matching pending record failed when FFprobe rejects", async () => {
+  it("marks a matching pending record failed once without entering an automatic retry loop", async () => {
     const video = createVideo("v1", "Z:\\Cloud\\broken.mp4");
     const repo = createRepo(new Map([[video.id, video]]));
     const onSourceFolderUpdated = vi.fn();
+    const reader = vi.fn(async () => { throw new Error("ffprobe failed"); });
     const queue = new MetadataQueue(
       repo.value,
-      async () => { throw new Error("ffprobe failed"); },
+      reader,
       1,
       undefined,
       undefined,
@@ -289,6 +291,9 @@ describe("MetadataQueue", () => {
     queue.enqueue(video.id);
     await queue.whenIdle();
 
+    expect(reader).toHaveBeenCalledOnce();
+    expect(queue.getStatus()).toEqual({ queued: 0, active: 0 });
+    expect(queue.getVideoState(video.id)).toBeNull();
     expect(repo.markMetadataFailed).toHaveBeenCalledWith(video.id, video.path, video.sizeBytes, video.modifiedAt);
     expect(repo.recordScanFailure).toHaveBeenCalledWith(expect.objectContaining({
       sourceFolderId: video.sourceFolderId,
@@ -367,12 +372,126 @@ describe("MetadataQueue", () => {
     repo.listVideosPendingMetadata.mockReturnValueOnce([video]).mockReturnValue([]);
     const queue = new MetadataQueue(repo.value, async () => ({ durationMs: null, width: null, height: null, format: null }));
 
-    expect(queue.enqueuePending()).toBe(1);
+    await expect(queue.enqueuePending()).resolves.toBe(1);
     await queue.whenIdle();
 
     expect(repo.markMetadataReady).toHaveBeenCalledOnce();
   });
+  it("coalesces overlapping pending-metadata batch loads", async () => {
+    const repo = createRepo(new Map());
+    let finish!: (videos: VideoRecord[]) => void;
+    const loader = vi.fn(() => new Promise<VideoRecord[]>((resolve) => { finish = resolve; }));
+    const queue = new MetadataQueue(repo.value, undefined, 1, undefined, undefined, undefined, undefined, undefined, loader);
 
+    const first = queue.enqueuePending(10);
+    const second = queue.enqueuePending(20);
+    expect(second).toBe(first);
+    await Promise.resolve();
+    expect(loader).toHaveBeenCalledOnce();
+    expect(loader).toHaveBeenCalledWith(10);
+    finish([]);
+    await expect(first).resolves.toBe(0);
+    await queue.whenIdle();
+    expect(loader).toHaveBeenCalledOnce();
+  });
+
+  it("does not spin-retry a failed pending-metadata query", async () => {
+    const repo = createRepo(new Map());
+    const warn = vi.fn();
+    const logger = { warn } as unknown as StructuredLogger;
+    const loader = vi.fn().mockRejectedValue(new Error("worker unavailable"));
+    const queue = new MetadataQueue(repo.value, undefined, 1, logger, undefined, undefined, undefined, undefined, loader);
+
+    await expect(queue.enqueuePending()).resolves.toBe(0);
+    await queue.whenIdle();
+    await Promise.resolve();
+    expect(loader).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(expect.objectContaining({
+      module: "media.metadata",
+      event: "pending_batch_load_failed",
+      context: { error: "worker unavailable" }
+    }));
+  });
+
+  it("waits for an in-flight pending query to settle after stop", async () => {
+    const video = createVideo("stopped", "Z:\\Cloud\\stopped.mp4");
+    const repo = createRepo(new Map([[video.id, video]]));
+    let finish!: (videos: VideoRecord[]) => void;
+    const loader = vi.fn(() => new Promise<VideoRecord[]>((resolve) => { finish = resolve; }));
+    const reader = vi.fn(async () => ({ durationMs: 1000, width: 1280, height: 720, format: "mp4" }));
+    const queue = new MetadataQueue(repo.value, reader, 1, undefined, undefined, undefined, undefined, undefined, loader);
+
+    const pending = queue.enqueuePending();
+    await Promise.resolve();
+    const idle = queue.whenIdle();
+    queue.stop();
+    let idleResolved = false;
+    void idle.then(() => { idleResolved = true; });
+    await Promise.resolve();
+    expect(idleResolved).toBe(false);
+    finish([video]);
+    await expect(pending).resolves.toBe(0);
+    await idle;
+    expect(idleResolved).toBe(true);
+    expect(reader).not.toHaveBeenCalled();
+  });
+
+  it("cancels a metadata read waiting for the shared budget when its queue stops", async () => {
+    type ProbeResult = { durationMs: number; width: number; height: number; format: string };
+    const firstVideo = createVideo("budget-first", "Z:\\Cloud\\budget-first.mp4");
+    const secondVideo = createVideo("budget-second", "Z:\\Cloud\\budget-second.mp4");
+    const queuedVideo = createVideo("budget-queued", "Z:\\Cloud\\budget-queued.mp4");
+    let finishFirst!: (metadata: ProbeResult) => void;
+    let finishSecond!: (metadata: ProbeResult) => void;
+    const firstReader = vi.fn(() => new Promise<ProbeResult>((resolve) => { finishFirst = resolve; }));
+    const secondReader = vi.fn(() => new Promise<ProbeResult>((resolve) => { finishSecond = resolve; }));
+    const queuedReader = vi.fn(async () => ({ durationMs: 1000, width: 1280, height: 720, format: "mp4" }));
+    const firstQueue = new MetadataQueue(createRepo(new Map([[firstVideo.id, firstVideo]])).value, firstReader, 1);
+    const secondQueue = new MetadataQueue(createRepo(new Map([[secondVideo.id, secondVideo]])).value, secondReader, 1);
+    const queuedQueue = new MetadataQueue(createRepo(new Map([[queuedVideo.id, queuedVideo]])).value, queuedReader, 1);
+
+    firstQueue.enqueue(firstVideo.id);
+    secondQueue.enqueue(secondVideo.id);
+    await vi.waitFor(() => {
+      expect(firstReader).toHaveBeenCalledOnce();
+      expect(secondReader).toHaveBeenCalledOnce();
+    });
+    queuedQueue.enqueue(queuedVideo.id);
+    expect(queuedReader).not.toHaveBeenCalled();
+
+    queuedQueue.stop();
+    await queuedQueue.whenIdle();
+    expect(queuedReader).not.toHaveBeenCalled();
+    expect(queuedQueue.getStatus()).toEqual({ queued: 0, active: 0 });
+
+    finishFirst({ durationMs: 1000, width: 1280, height: 720, format: "mp4" });
+    finishSecond({ durationMs: 1000, width: 1280, height: 720, format: "mp4" });
+    await Promise.all([firstQueue.whenIdle(), secondQueue.whenIdle()]);
+    expect(firstQueue.getStatus()).toEqual({ queued: 0, active: 0 });
+    expect(secondQueue.getStatus()).toEqual({ queued: 0, active: 0 });
+  });
+
+  it("yields to the event loop while draining immediately-resolving metadata reads", async () => {
+    const videos = new Map<string, VideoRecord>();
+    for (let index = 0; index < 2000; index += 1) {
+      const video = createVideo("yield-" + index, "Z:\\yield-" + index + ".mp4");
+      videos.set(video.id, video);
+    }
+    const repo = createRepo(videos);
+    const reader = vi.fn(async () => ({ durationMs: 1000, width: 1280, height: 720, format: "mp4" }));
+    const queue = new MetadataQueue(repo.value, reader, 3);
+    let timerTicks = 0;
+    const timer = setInterval(() => { timerTicks += 1; }, 0);
+    try {
+      for (const video of videos.values()) queue.enqueue(video.id);
+      await queue.whenIdle();
+    } finally {
+      clearInterval(timer);
+    }
+    expect(reader).toHaveBeenCalledTimes(videos.size);
+    expect(timerTicks).toBeGreaterThan(0);
+    expect(queue.getStatus()).toEqual({ queued: 0, active: 0 });
+  });
   it("can hold queued work until a startup folder scan finishes", async () => {
     const video = createVideo("v1", "Z:\\Cloud\\delayed.mp4");
     const repo = createRepo(new Map([[video.id, video]]));

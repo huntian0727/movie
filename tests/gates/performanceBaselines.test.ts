@@ -11,6 +11,7 @@ const LIBRARY_SIZE = 10_000;
 const DUPLICATE_FILE_COUNT = 2_000;
 const DUPLICATE_GROUP_COUNT = 12_000;
 const QUERY_BUDGET_MS = 10_000;
+const LARGE_DUPLICATE_GROUP_BUDGET_MS = 1_000;
 const DUPLICATE_PAGE_BUDGET_MS = 3_000;
 let db: DatabaseConnection | undefined;
 let tempDirectory: string | undefined;
@@ -42,6 +43,7 @@ describe("release performance baselines", () => {
     expect(page).toMatchObject({ page: 100, pageSize: 100, totalPages: 100, totalCount: LIBRARY_SIZE });
     expect(page.videos).toHaveLength(100);
     expect(elapsedMs).toBeLessThan(QUERY_BUDGET_MS);
+    console.info(`Video page 10k/page 100: ${elapsedMs.toFixed(2)} ms`);
   }, 30_000);
 
   it("lists a 2,000-file verified duplicate group within the release budget", () => {
@@ -57,7 +59,67 @@ describe("release performance baselines", () => {
     });
     expect(page.groups[0]?.items).toHaveLength(DUPLICATE_FILE_COUNT);
     expect(elapsedMs).toBeLessThan(QUERY_BUDGET_MS);
+    console.info(`Duplicate group 2k files: ${elapsedMs.toFixed(2)} ms`);
   }, 30_000);
+
+  it("lists a 10,000-file verified duplicate group within the release budget", () => {
+    const duplicateFileCount = 10_000;
+    const repo = createPopulatedRepository(duplicateFileCount, duplicateFileCount);
+    const startedAt = performance.now();
+    const page = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" });
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(page).toMatchObject({
+      totalGroups: 1,
+      totalCandidateGroups: 1,
+      totalCandidateFiles: duplicateFileCount
+    });
+    expect(page.groups[0]?.items).toHaveLength(duplicateFileCount);
+    expect(elapsedMs).toBeLessThan(LARGE_DUPLICATE_GROUP_BUDGET_MS);
+    console.info(`Duplicate group 10k files: ${elapsedMs.toFixed(2)} ms`);
+  }, 60_000);
+
+  it("builds a 10,000-file duplicate resolve plan without quadratic reservation checks", () => {
+    const duplicateFileCount = 10_000;
+    const repo = createPopulatedRepository(duplicateFileCount, duplicateFileCount);
+    db!.prepare("UPDATE videos SET provider_file_id = 'synthetic-' || id, provider_path = path WHERE id LIKE 'video-%'").run();
+
+    const startedAt = performance.now();
+    const entries = repo.buildDuplicateResolveEntriesForQuery({ page: 1, pageSize: 20, sortDirection: "desc" });
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.deleteVideos).toHaveLength(duplicateFileCount - 1);
+    expect(elapsedMs).toBeLessThan(LARGE_DUPLICATE_GROUP_BUDGET_MS);
+    console.info(`Duplicate resolve plan 10k files: ${elapsedMs.toFixed(2)} ms`);
+  }, 60_000);
+
+  it("keeps a 10,000-file duplicate group fast with 1,000 unrelated active reservations", () => {
+    const duplicateFileCount = 10_000;
+    const reservationCount = 1_000;
+    const repo = createPopulatedRepository(duplicateFileCount + reservationCount, duplicateFileCount);
+    const timestamp = "2026-10-26T00:00:00.000Z";
+    db!.prepare(`INSERT INTO duplicate_cleanup_jobs
+      (id, request_id, status, total_groups, total_items, created_at, updated_at)
+      VALUES (?, ?, 'running', 1, ?, ?, ?)`).run("synthetic-reservation-job", "synthetic-reservation-request", reservationCount, timestamp, timestamp);
+    const insertReservation = db!.prepare(`INSERT INTO duplicate_cleanup_reservations
+      (id, job_id, video_id, role, created_at, released_at)
+      VALUES (?, ?, ?, 'delete', ?, NULL)`);
+    db!.transaction(() => {
+      for (let index = duplicateFileCount; index < duplicateFileCount + reservationCount; index += 1) {
+        insertReservation.run(`synthetic-reservation-${index}`, "synthetic-reservation-job", `video-${index}`, timestamp);
+      }
+    })();
+
+    const startedAt = performance.now();
+    const page = repo.listDuplicateGroupsPage({ page: 1, pageSize: 20, sortDirection: "desc" });
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(page).toMatchObject({ totalGroups: 1, totalCandidateGroups: 1, totalCandidateFiles: duplicateFileCount });
+    expect(page.groups[0]?.items).toHaveLength(duplicateFileCount);
+    expect(elapsedMs).toBeLessThan(LARGE_DUPLICATE_GROUP_BUDGET_MS);
+    console.info(`Duplicate group 10k files with 1k unrelated reservations: ${elapsedMs.toFixed(2)} ms`);
+  }, 60_000);
 
   it("pages a large set of duplicate groups without rescanning every directory option", () => {
     const repo = createDuplicateGroupsRepository(DUPLICATE_GROUP_COUNT);
@@ -78,6 +140,7 @@ describe("release performance baselines", () => {
     expect(secondPage.groups).toHaveLength(20);
     expect(firstElapsedMs).toBeLessThan(DUPLICATE_PAGE_BUDGET_MS);
     expect(secondElapsedMs).toBeLessThan(DUPLICATE_PAGE_BUDGET_MS);
+    console.info(`Duplicate groups 12k: page 1 ${firstElapsedMs.toFixed(2)} ms; page 2 ${secondElapsedMs.toFixed(2)} ms`);
   }, 45_000);
 });
 

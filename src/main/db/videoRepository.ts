@@ -584,22 +584,51 @@ export class VideoRepository {
 
   reconcileDirectoryMissing(sourceFolderId: string, directoryPath: string, currentPaths: string[]): number {
     return this.db.transaction(() => {
-      const current = new Set(currentPaths.map(normalizeManagedPath));
+      const current = new Set<string>();
+      for (const currentPath of currentPaths) current.add(normalizeManagedPath(currentPath));
       let changed = 0;
-      const rows = this.db.prepare(`
-        SELECT * FROM videos
-        WHERE source_folder_id = ? AND directory = ? COLLATE NOCASE
-      `).all(sourceFolderId, path.win32.normalize(directoryPath)) as VideoRow[];
-      for (const video of rows.map(mapVideo)) {
+      const rows = this.db.prepare("SELECT * FROM videos WHERE source_folder_id = ? AND directory = ? COLLATE NOCASE").iterate(sourceFolderId, path.win32.normalize(directoryPath)) as IterableIterator<VideoRow>;
+      const pendingChanges: Array<{ id: string; missing: boolean }> = [];
+      const missingPaths: string[] = [];
+      // Do not issue writes while the SQLite row iterator is active.
+      for (const video of rows) {
         const shouldBeMissing = !current.has(normalizeManagedPath(video.path));
-        if (video.isMissing !== shouldBeMissing) {
-          this.markMissing(video.id, shouldBeMissing);
-          changed += 1;
-        }
-        if (shouldBeMissing) {
-          this.resolveScanFailuresForObject(sourceFolderId, video.path);
-        }
+        if (Boolean(video.is_missing) !== shouldBeMissing) pendingChanges.push({ id: video.id, missing: shouldBeMissing });
+        if (shouldBeMissing) missingPaths.push(video.path);
       }
+      for (const change of pendingChanges) {
+        this.markMissing(change.id, change.missing);
+        changed += 1;
+      }
+      for (const missingPath of missingPaths) this.resolveScanFailuresForObject(sourceFolderId, missingPath);
+      return changed;
+    })();
+  }
+
+  reconcileDirectoryMissingByFilenames(
+    sourceFolderId: string,
+    directoryPath: string,
+    currentFilenames: Iterable<string>
+  ): number {
+    return this.db.transaction(() => {
+      const current = new Set<string>();
+      for (const filename of currentFilenames) current.add(normalizeManagedPath(filename));
+      let changed = 0;
+      const rows = this.db.prepare("SELECT * FROM videos WHERE source_folder_id = ? AND directory = ? COLLATE NOCASE").iterate(sourceFolderId, path.win32.normalize(directoryPath)) as IterableIterator<VideoRow>;
+      const pendingChanges: Array<{ id: string; missing: boolean }> = [];
+      const missingPaths: string[] = [];
+      // Filenames are sufficient inside this direct directory; stream rows and
+      // defer writes until the cursor is closed to avoid retaining all SQLite rows.
+      for (const video of rows) {
+        const shouldBeMissing = !current.has(normalizeManagedPath(video.filename));
+        if (Boolean(video.is_missing) !== shouldBeMissing) pendingChanges.push({ id: video.id, missing: shouldBeMissing });
+        if (shouldBeMissing) missingPaths.push(video.path);
+      }
+      for (const change of pendingChanges) {
+        this.markMissing(change.id, change.missing);
+        changed += 1;
+      }
+      for (const missingPath of missingPaths) this.resolveScanFailuresForObject(sourceFolderId, missingPath);
       return changed;
     })();
   }
@@ -1165,6 +1194,25 @@ export class VideoRepository {
     `).run(status, new Date().toISOString(), JSON.stringify(counters), errorSummary, id);
   }
 
+  /** Recover scan rows left running after a previous process exited unexpectedly.
+   * Call only during startup after the single-instance lock is acquired and before scans can start. */
+  recoverInterruptedScanTasks(now = new Date()): { recoveredCount: number; oldestStartedAt: string | null } {
+    return this.db.transaction(() => {
+      const summary = this.db.prepare(`
+        SELECT COUNT(*) AS count, MIN(started_at) AS oldest_started_at
+        FROM scan_tasks WHERE status = 'running'
+      `).get() as { count: number; oldest_started_at: string | null };
+      if (summary.count === 0) return { recoveredCount: 0, oldestStartedAt: null };
+      const result = this.db.prepare(`
+        UPDATE scan_tasks
+        SET status = 'error', completed_at = ?,
+            error_summary = COALESCE(NULLIF(error_summary, ''), ?)
+        WHERE status = 'running'
+      `).run(now.toISOString(), "应用上次退出时扫描未正常结束；本次启动不会自动继续扫描，请手动重新发起。");
+      return { recoveredCount: result.changes, oldestStartedAt: summary.oldest_started_at };
+    })();
+  }
+
   upsertScanFailureBatchJob(job: ScanFailureBatchJob): void {
     const updatedAt = new Date().toISOString();
     this.db.prepare(`
@@ -1219,6 +1267,17 @@ export class VideoRepository {
   }
 
   upsertVideo(input: UpsertVideoInput): VideoRecord {
+    return this.upsertVideoInternal(input, true);
+  }
+
+  /** Write without the post-write SELECT/map when the caller only needs persistence. */
+  upsertVideoWithoutReadback(input: UpsertVideoInput, sourceFolders?: SourceFolder[]): void {
+    this.upsertVideoInternal(input, false, sourceFolders);
+  }
+
+  private upsertVideoInternal(input: UpsertVideoInput, returnRecord: true, sourceFolders?: SourceFolder[]): VideoRecord;
+  private upsertVideoInternal(input: UpsertVideoInput, returnRecord: false, sourceFolders?: SourceFolder[]): void;
+  private upsertVideoInternal(input: UpsertVideoInput, returnRecord: boolean, sourceFolders?: SourceFolder[]): VideoRecord | void {
     const now = new Date().toISOString();
     const existing = this.db
       .prepare(`
@@ -1247,7 +1306,8 @@ export class VideoRepository {
         WHERE path = ?
       `)
       .get(input.path) as ExistingVideoRow | undefined;
-    const sourceFolderId = findMostSpecificSourceFolder(input.path, input.directory, this.listSourceFolders().filter((folder) => folder.enabled))?.id ?? input.sourceFolderId;
+    const sourceFolderCandidates = sourceFolders ?? this.listSourceFolders().filter((folder) => folder.enabled);
+    const sourceFolderId = findMostSpecificSourceFolder(input.path, input.directory, sourceFolderCandidates)?.id ?? input.sourceFolderId;
     const id = existing?.id ?? crypto.randomUUID();
     const importedAt = existing?.imported_at ?? now;
     const isFavorite = existing?.is_favorite ?? 0;
@@ -1356,7 +1416,7 @@ export class VideoRepository {
         durationSource
       });
 
-    return this.getVideo(id);
+    if (returnRecord) return this.getVideo(id);
   }
 
   getVideo(id: string): VideoRecord {
@@ -1372,6 +1432,23 @@ export class VideoRepository {
   getVideoByPath(filePath: string): VideoRecord | null {
     const row = this.db.prepare("SELECT * FROM videos WHERE path = ?").get(filePath) as VideoRow | undefined;
     return row ? mapVideo(row) : null;
+  }
+  /** Batch-load existing videos for a bounded set of scanner paths. */
+  getVideosByPaths(filePaths: readonly string[]): Map<string, VideoRecord> {
+    const uniquePaths = [...new Set(filePaths)];
+    const videosByPath = new Map<string, VideoRecord>();
+    const batchSize = 400;
+    for (let start = 0; start < uniquePaths.length; start += batchSize) {
+      const batch = uniquePaths.slice(start, start + batchSize);
+      if (batch.length === 0) continue;
+      const placeholders = batch.map(() => "?").join(", ");
+      const rows = this.db.prepare(`SELECT * FROM videos WHERE path IN (${placeholders})`).all(...batch) as VideoRow[];
+      for (const row of rows) {
+        const video = mapVideo(row);
+        videosByPath.set(video.path, video);
+      }
+    }
+    return videosByPath;
   }
 
   updateVideoProviderIdentityIfVersion(
@@ -1526,9 +1603,7 @@ export class VideoRepository {
          WHERE is_missing = 0`
       )
       .get() as LibraryNavigationRow;
-    const directoryPaths = (this.db
-      .prepare("SELECT DISTINCT directory FROM videos WHERE is_missing = 0 ORDER BY directory COLLATE NOCASE ASC")
-      .all() as Array<{ directory: string }>).map((row) => row.directory);
+
 
     return {
       totalVideos: counts.total_videos,
@@ -1538,8 +1613,7 @@ export class VideoRepository {
       pendingMetadataVideos: counts.pending_metadata_videos,
       failedMetadataVideos: counts.failed_metadata_videos,
       scanFailureCount: counts.scan_failure_count,
-      healthIssueCount: counts.health_issue_count,
-      directoryPaths
+      healthIssueCount: counts.health_issue_count
     };
   }
 
@@ -2307,7 +2381,13 @@ export class VideoRepository {
       params.filterDirectoryPrefix = `${escapeLikePattern(trimTrailingSeparators(filterDirectoryPath))}\\%`;
     }
     const rows = this.db.prepare(`
-      WITH scoped_identities AS (
+      WITH active_reserved_identities AS MATERIALIZED (
+        SELECT DISTINCT reserved_video.size_bytes,
+               ((reserved_video.duration_ms + 500) / 1000) AS duration_seconds
+        FROM duplicate_cleanup_reservations reservation
+        JOIN videos reserved_video ON reserved_video.id = reservation.video_id
+        WHERE reservation.released_at IS NULL
+      ), scoped_identities AS (
         SELECT DISTINCT size_bytes, ((duration_ms + 500) / 1000) AS duration_seconds
         FROM videos
         WHERE is_missing = 0
@@ -2323,11 +2403,9 @@ export class VideoRepository {
           AND videos.duration_ms IS NOT NULL
           AND videos.duration_ms > 0
           AND NOT EXISTS (
-            SELECT 1 FROM duplicate_cleanup_reservations active_reservation
-            JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
-            WHERE active_reservation.released_at IS NULL
-              AND reserved_video.size_bytes = videos.size_bytes
-              AND ((reserved_video.duration_ms + 500) / 1000) = ((videos.duration_ms + 500) / 1000)
+            SELECT 1 FROM active_reserved_identities reserved
+            WHERE reserved.size_bytes = videos.size_bytes
+              AND reserved.duration_seconds = ((videos.duration_ms + 500) / 1000)
           )
           AND (videos.size_bytes, ((videos.duration_ms + 500) / 1000)) IN (SELECT * FROM scoped_identities)
         GROUP BY videos.size_bytes, duration_seconds
@@ -2659,6 +2737,13 @@ export class VideoRepository {
     const rows = this.db
       .prepare(
         `
+          WITH active_reserved_identities AS MATERIALIZED (
+            SELECT DISTINCT reserved_video.size_bytes,
+                   ((reserved_video.duration_ms + 500) / 1000) AS duration_seconds
+            FROM duplicate_cleanup_reservations reservation
+            JOIN videos reserved_video ON reserved_video.id = reservation.video_id
+            WHERE reservation.released_at IS NULL
+          )
           SELECT *
           FROM videos
           WHERE is_missing = 0
@@ -2666,11 +2751,9 @@ export class VideoRepository {
             AND metadata_status = 'ready'
             AND ((duration_ms + 500) / 1000) = ?
             AND NOT EXISTS (
-              SELECT 1 FROM duplicate_cleanup_reservations active_reservation
-              JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
-              WHERE active_reservation.released_at IS NULL
-                AND reserved_video.size_bytes = videos.size_bytes
-                AND ((reserved_video.duration_ms + 500) / 1000) = ((videos.duration_ms + 500) / 1000)
+              SELECT 1 FROM active_reserved_identities reserved
+              WHERE reserved.size_bytes = videos.size_bytes
+                AND reserved.duration_seconds = ((videos.duration_ms + 500) / 1000)
             )
           ORDER BY filename ASC
         `
@@ -2689,7 +2772,7 @@ export class VideoRepository {
       ? preferredLocalKeepCandidates
       : preferredDirectoryVideos.length > 0 ? preferredDirectoryVideos
       : localKeepCandidates.length > 0 ? localKeepCandidates : videos;
-    const recommendedKeep = [...keepCandidates].sort(compareDuplicateKeepCandidates)[0];
+    const recommendedKeep = selectRecommendedKeepCandidate(keepCandidates);
     const keepReason = preferredDirectoryVideos.length > 0
       ? `选中目录优先；${getKeepReason(recommendedKeep, keepCandidates)}`
       : getKeepReason(recommendedKeep, videos);
@@ -2720,6 +2803,21 @@ export class VideoRepository {
 
       const duplicateGroup = this.buildDuplicateGroup(group.groupKey);
       if (!duplicateGroup) {
+        // Candidate browsing intentionally hides any duplicate group with an active cleanup reservation.
+        // Preserve that safety boundary while returning a useful conflict instead of "group not found".
+        const identity = parseSizeDurationGroupKey(group.groupKey);
+        if (identity) {
+          const reserved = this.db.prepare(`
+            SELECT 1
+            FROM duplicate_cleanup_reservations active_reservation
+            JOIN videos reserved_video ON reserved_video.id = active_reservation.video_id
+            WHERE active_reservation.released_at IS NULL
+              AND reserved_video.size_bytes = ?
+              AND ((reserved_video.duration_ms + 500) / 1000) = ?
+            LIMIT 1
+          `).get(identity.sizeBytes, Math.round(identity.durationMs / 1000));
+          if (reserved) throw new Error("Duplicate group is reserved by a verification or deletion task.");
+        }
         throw new Error(`Duplicate group not found: ${group.groupKey}`);
       }
 
@@ -2923,7 +3021,7 @@ function buildDuplicateGroupFromVideos(
     ? preferredLocalKeepCandidates
     : preferredDirectoryVideos.length > 0 ? preferredDirectoryVideos
     : localKeepCandidates.length > 0 ? localKeepCandidates : videos;
-  const recommendedKeep = [...keepCandidates].sort(compareDuplicateKeepCandidates)[0];
+  const recommendedKeep = selectRecommendedKeepCandidate(keepCandidates);
   const keepReason = preferredDirectoryVideos.length > 0
     ? `优先保留目录；${getKeepReason(recommendedKeep, keepCandidates)}`
     : getKeepReason(recommendedKeep, videos);
@@ -2983,6 +3081,8 @@ function isStrictSourceFolderDescendant(folder: SourceFolder, parent: SourceFold
   return folderPath !== parentPath && isManagedPathWithin(folder.path, parent.path);
 }
 
+const duplicateKeepPathCollator = new Intl.Collator("zh-CN", { numeric: true });
+
 function compareDuplicateKeepCandidates(left: VideoRecord, right: VideoRecord): number {
   const leftResolution = (left.width ?? 0) * (left.height ?? 0);
   const rightResolution = (right.width ?? 0) * (right.height ?? 0);
@@ -3002,7 +3102,23 @@ function compareDuplicateKeepCandidates(left: VideoRecord, right: VideoRecord): 
   if (left.importedAt !== right.importedAt) {
     return left.importedAt.localeCompare(right.importedAt);
   }
-  return left.path.localeCompare(right.path, "zh-CN", { numeric: true });
+  return duplicateKeepPathCollator.compare(left.path, right.path);
+}
+
+function selectRecommendedKeepCandidate(videos: readonly VideoRecord[]): VideoRecord {
+  const first = videos[0];
+  if (!first) {
+    throw new Error("Cannot select a recommended video from an empty duplicate group.");
+  }
+
+  let best = first;
+  for (let index = 1; index < videos.length; index += 1) {
+    const candidate = videos[index];
+    if (candidate && compareDuplicateKeepCandidates(candidate, best) < 0) {
+      best = candidate;
+    }
+  }
+  return best;
 }
 
 function getKeepReason(video: VideoRecord, videos: VideoRecord[]): string {

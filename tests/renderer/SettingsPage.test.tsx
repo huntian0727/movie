@@ -4,7 +4,7 @@ import { SettingsPage } from "../../src/renderer/components/SettingsPage";
 import type { AppSettings, AppSettingsUpdate, MediaCacheStatus } from "../../src/shared/videoTypes";
 import { DEFAULT_SHORTCUTS } from "../../src/shared/shortcuts";
 
-const settings: AppSettings = { defaultRecursiveScan: true, startupSync: true, autoPlayOnOpen: true, seekStepSeconds: 10, coverFrameTimeSeconds: 5, playbackPreference: "auto", cloudDrive: { endpoint: "http://127.0.0.1:19798", configured: true, timeoutMs: 20_000, mountMapJson: "" }, shortcuts: { ...DEFAULT_SHORTCUTS } };
+const settings: AppSettings = { defaultRecursiveScan: true, startupSync: true, autoPlayOnOpen: true, seekStepSeconds: 10, holdFastForwardSpeed: 3, coverFrameTimeSeconds: 5, playbackPreference: "auto", cloudDrive: { endpoint: "http://127.0.0.1:19798", configured: true, timeoutMs: 20_000, mountMapJson: "" }, shortcuts: { ...DEFAULT_SHORTCUTS } };
 const cacheStatus: MediaCacheStatus = {
   totalBytes: 1536,
   coverBytes: 512,

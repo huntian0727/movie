@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { HealthOverviewPage } from "../../src/renderer/components/HealthOverviewPage";
-import type { AssetCenterSummary, LibraryNavigationSnapshot, SourceFolder } from "../../src/shared/videoTypes";
+import type { AssetCenterSummary, LibraryNavigationSnapshot, MetadataQueueStatus, SourceFolder } from "../../src/shared/videoTypes";
 
 const fixture = (id: number, scanError: string | null): SourceFolder => ({
   id: "source-" + id, path: "D:\\Synthetic\\" + id,
@@ -13,18 +13,47 @@ const makeSummary = (offlineSourceCount = 0, checkFailedSourceCount = 0) => ({
   missingVideoCount: 299, metadataFailedCount: 5, metadataPendingCount: 10,
   generatedAt: "2026-10-19T06:00:00.000Z"
 } as AssetCenterSummary);
-function mount(folders: SourceFolder[], summary: AssetCenterSummary) {
+function mount(
+  folders: SourceFolder[],
+  summary: AssetCenterSummary,
+  loadMetadataQueueStatus: () => Promise<MetadataQueueStatus> = vi.fn().mockResolvedValue({ queued: 0, active: 0 })
+) {
   const onOpenAssetCenter = vi.fn();
+  const onOpenMetadataIssues = vi.fn();
   render(<HealthOverviewPage
     folders={folders} navigation={{ healthIssueCount: 120_000 } as LibraryNavigationSnapshot}
-    refreshSequence={0} loadSummary={vi.fn().mockResolvedValue(summary)}
+    refreshSequence={0} loadSummary={vi.fn().mockResolvedValue(summary)} loadMetadataQueueStatus={loadMetadataQueueStatus}
     onOpenScanFailures={vi.fn()} onOpenMissingVideos={vi.fn()}
-    onOpenMetadataIssues={vi.fn()} onOpenAssetCenter={onOpenAssetCenter}
+    onOpenMetadataIssues={onOpenMetadataIssues} onOpenAssetCenter={onOpenAssetCenter}
   />);
-  return { onOpenAssetCenter };
+  return { onOpenAssetCenter, onOpenMetadataIssues, loadMetadataQueueStatus };
 }
 
 describe("HealthOverviewPage source-level count semantics", () => {
+  it("distinguishes library-wide pending metadata from the actual in-memory queue", async () => {
+    const loadQueue = vi.fn().mockResolvedValue({ queued: 0, active: 0 });
+    const summary = { ...makeSummary(), metadataPendingCount: 304_713 } as AssetCenterSummary;
+    const { onOpenMetadataIssues } = mount([fixture(1, null)], summary, loadQueue);
+
+    expect(await screen.findByText("资料库待分析总量：304,713 条")).toBeInTheDocument();
+    const queue = screen.getByRole("group", { name: "实际后台队列" });
+    expect(queue).toHaveTextContent("正在处理 0");
+    expect(queue).toHaveTextContent("等待开始 0");
+    expect(screen.getByText(/总量不等于实际排队量/)).toBeInTheDocument();
+    expect(loadQueue).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /查看待分析 \/ 暂缓明细/ }));
+    expect(onOpenMetadataIssues).toHaveBeenCalledWith("deferred");
+  });
+
+  it("keeps the pending total visible when the actual queue status cannot be read", async () => {
+    const summary = { ...makeSummary(), metadataPendingCount: 304_713 } as AssetCenterSummary;
+    mount([fixture(1, null)], summary, vi.fn().mockRejectedValue(new Error("queue unavailable")));
+
+    expect(await screen.findByText("资料库待分析总量：304,713 条")).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent("实际后台队列状态暂不可用");
+    expect(screen.getByText(/总量不等于实际排队量/)).toBeInTheDocument();
+  });
   it("counts recorded source-level errors even when the latest accessibility report says zero", async () => {
     const folders = [1, 2, 3].map(id => fixture(id, "12 unresolved scan issue(s): network timeout"));
     mount(folders, makeSummary());

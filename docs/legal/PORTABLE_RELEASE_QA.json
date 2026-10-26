@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "status": "PASS_OWNER_ACCEPTED_TARGETED_PORTABLE_QA",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "packaging": "portable-zip",
   "ownerAcceptedEnvironment": true,
-  "decisionDate": "2026-10-22",
+  "decisionDate": "2026-10-26",
   "timezone": "Asia/Shanghai",
   "environment": {
     "qaMode": "isolated-packaged-smoke",
-    "implementation": "Windows 11 host with isolated release worktree and temporary packaged-smoke profile",
+    "implementation": "Windows 11 host with an isolated release worktree and temporary packaged-smoke profile",
     "guiEdition": "Microsoft Windows 11 Enterprise Insider Preview",
     "build": "26220",
     "architecture": "AMD64",
@@ -16,11 +16,11 @@
     "stableWindowsCoverage": false,
     "standardUserCoverage": false
   },
-  "testedApplicationCommit": "d39e3a3073f172394bed7224cfd68ba48446f089",
-  "windowsCiRun": "39707398042",
-  "securityAuditRun": "39707398151",
-  "nativeHostSourceSha256": "c175e5b97799d9157e71568eac74924c51080a6c85745e90549979ad28a18fb4",
-  "nativeHostBinarySha256": "d2d3b8065aad06f2409d854e33fe3769dd04e959487fcf454976993504298ace",
+  "testedApplicationCommit": "PENDING_FINAL_TAG_VALIDATION",
+  "windowsCiRun": null,
+  "securityAuditRun": null,
+  "nativeHostSourceSha256": "d400593cb9afbc305de6f651d3d3564d5e9d75544a995e890cb6357998779069",
+  "nativeHostBinarySha256": "61aa3328dfd98ec29fd75beb88e5630fec2769670f41f930da18cf8166446b07",
   "mediaRuntimeLockSha256": "70ab4dac7dfe6c433f26802861f5e1f3b76dcd8997cd2cd313e209a9f2e17fa5",
   "playerRuntimeLockSha256": "11ad832489dabf095b9d06bb0c6011e8144905a5eeac25d69b24c2f76aac532f",
   "thirdPartyRuntimeArchiveSha256": "3b4b4d22a3cf303b05898dedd470a6f05b0bfaa532c4ca9ab481167cd8f21b99",
@@ -30,19 +30,24 @@
     "projectOwnedNativeHostRebuilt": true
   },
   "acceptedTests": [
-    "Windows CI run 39707398042 passed on the v0.1.16 application commit",
-    "Security audit run 39707398151 passed on the v0.1.16 application commit",
-    "NativeHost rebuilt deterministically from current NativeHost.cs using the pinned toolchain",
-    "Exact previously approved third-party runtime and source archive hashes reverified"
+    "PASS: deterministic NativeHost rebuild and binary SHA-256 matched the verified v1.43 baseline",
+    "PASS: npm run test:fast — 24 files / 363 tests; TypeScript typecheck passed",
+    "PASS: source companion archive-cycle regression suite — 8 tests; deterministic ZIP bytes verified across approval-only commits",
+    "PASS: npm run test:release-gate — exit code 0 (lint, build, Windows file safety, migrations, performance, Node, media candidate and native source build)",
+    "PASS: npm run test:electron-smoke — Electron 44.9.3, native ABI 149, app startup, isolated SQLite/DPAPI/data-directory smoke",
+    "PASS: npm run test:renderer-security-smoke — Electron 44.9.3, bridge, media origin, external files/scripts/network denial",
+    "PASS: npm audit — full dependency tree, 0 known vulnerabilities after Electron/Zod/fast-uri/undici security updates",
+    "PASS: package-lock.json remains LF-only so the approval SHA-256 is identical on Windows and GitHub runners"
   ],
   "requiredFinalArtifactChecks": [
     "Build unsigned-public-release portable ZIP on GitHub Actions",
-    "Run focused playback, duplicate-cleanup, data-storage and renderer-security tests",
-    "Verify ZIP extraction, packaged startup smoke, exact commit and SHA-256",
-    "Publish current application sources, corresponding native sources, SOURCE-PAIR.json and final verification record"
+    "Run exact final-tag Windows CI and Security audit",
+    "Verify final ZIP extraction, packaged startup smoke, exact commit and SHA-256",
+    "Publish current application sources, corresponding native sources, SOURCE-PAIR.json and final verification record",
+    "Verify all six formal release assets and promote the existing Draft to Latest only after every gate passes"
   ],
   "notPerformed": [
-    "Full v0.1.16 Windows Sandbox GUI acceptance",
+    "Full v0.1.17 Windows Sandbox GUI acceptance",
     "Stable Windows 11 non-Insider certification",
     "Standard-user policy certification",
     "Real remote/cloud permanent-delete regression against user media"

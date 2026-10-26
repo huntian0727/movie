@@ -20,15 +20,36 @@ function validateOfficialSource(pin) {
     || url.pathname !== `/v3-flatcontainer/${pin.id}/${pin.version}/${pin.id}.${pin.version}.nupkg`) throw new Error("Non-official toolchain source rejected");
 }
 
+function approvedTempAlias(root, target) {
+  const base = realpathSync(root);
+  const alias = path.join(base, ".tmp");
+  const resolved = path.resolve(target);
+  const relative = path.relative(alias, resolved);
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return null;
+  const configured = process.env.MOVIE_TEMP_ROOT;
+  if (!configured) return null;
+  let actualAlias;
+  try { actualAlias = realpathSync(alias); } catch { return null; }
+  if (actualAlias !== path.resolve(configured)) return null;
+  return { alias, actualRoot: actualAlias };
+}
+
 export function checkedDirectory(root, target) {
   const base = realpathSync(root), resolved = path.resolve(target), relative = path.relative(base, resolved);
-  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("Toolchain path escapes owned repository");
+  const tempAlias = approvedTempAlias(root, resolved);
+  if ((relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) && !tempAlias) {
+    throw new Error("Toolchain path escapes owned repository");
+  }
   let current = base;
   for (const component of relative.split(path.sep).filter(Boolean)) {
     current = path.join(current, component);
     let info;
     try { info = lstatSync(current); }
     catch (error) { if (error.code !== "ENOENT") throw error; mkdirSync(current); info = lstatSync(current); }
+    if (tempAlias && current === tempAlias.alias && info.isSymbolicLink() && realpathSync(current) === tempAlias.actualRoot) {
+      current = tempAlias.actualRoot;
+      continue;
+    }
     if (info.isSymbolicLink() || !info.isDirectory() || realpathSync(current) !== current) throw new Error("Reparse or non-directory toolchain path rejected");
   }
   return resolved;
@@ -38,7 +59,11 @@ export function checkedFile(root, target) {
   checkedDirectory(root, path.dirname(target));
   try {
     const info = lstatSync(target);
-    if (info.isSymbolicLink() || !info.isFile() || realpathSync(target) !== path.resolve(target)) throw new Error("Reparse or non-file toolchain path rejected");
+    const resolved = path.resolve(target);
+    const tempAlias = approvedTempAlias(root, resolved);
+    const actual = realpathSync(target);
+    const allowedTempFile = tempAlias && actual.startsWith(tempAlias.actualRoot + path.sep);
+    if (info.isSymbolicLink() || !info.isFile() || (actual !== resolved && !allowedTempFile)) throw new Error("Reparse or non-file toolchain path rejected");
   } catch (error) { if (error.code !== "ENOENT") throw error; }
   return target;
 }

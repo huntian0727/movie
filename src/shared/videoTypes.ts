@@ -279,6 +279,40 @@ export interface MetadataSizeRefreshResult {
   items: MetadataSizeRefreshItem[];
 }
 
+export interface MetadataQueueStatus {
+  queued: number;
+  active: number;
+}
+
+export interface MediaCacheTaskStatus {
+  generation: {
+    queued: number;
+    active: number;
+    interrupted: number;
+    playbackPaused: boolean;
+    stopped: boolean;
+  };
+  maintenance: {
+    state: "idle" | "scheduled" | "running" | "clearing" | "stopping";
+    lastStartedAt: string | null;
+    lastCompletedAt: string | null;
+    lastError: string | null;
+  };
+  cache: {
+    totalBytes: number;
+    coverBytes: number;
+    timelineBytes: number;
+    itemCount: number;
+    maxBytes: number;
+    lastCleanup: {
+      reason: "startup" | "automatic" | "manual";
+      removedCount: number;
+      reclaimedBytes: number;
+      failureCount: number;
+    } | null;
+  };
+}
+
 export type ScanFailureBatchOperation = "recheck-accessibility" | "analyze-metadata" | "permanent-delete" | "remove-missing-record";
 export type ScanFailureBatchJobStatus = "queued" | "running" | "cancelling" | "cancelled" | "completed" | "completed-with-errors" | "interrupted";
 
@@ -792,7 +826,6 @@ export interface LibraryNavigationSnapshot {
   scanFailureCount: number;
   /** Unique actionable incidents. Normal waiting/deferred metadata tasks are excluded. */
   healthIssueCount: number;
-  directoryPaths: string[];
 }
 
 export interface DirectoryBrowserQuery {
@@ -817,11 +850,14 @@ export interface DirectoryBrowserResult {
   truncated: boolean;
 }
 
+export type HoldFastForwardSpeed = 1.5 | 2 | 3 | 4;
+
 export interface AppSettings {
   defaultRecursiveScan: boolean;
   startupSync: boolean;
   autoPlayOnOpen: boolean;
   seekStepSeconds: number;
+  holdFastForwardSpeed: HoldFastForwardSpeed;
   coverFrameTimeSeconds: 0 | 3 | 5 | 10 | 15;
   playbackPreference: PlaybackPreference;
   cloudDrive: CloudDrivePublicSettings;
@@ -1064,6 +1100,7 @@ export const IPC_CHANNELS = {
   libraryMissingRecheck: "library:missing-recheck",
   libraryMissingForget: "library:missing-forget",
   libraryMetadataIssuePage: "library:metadata-issue-page",
+  metadataQueueStatus: "metadata-queue:status",
   libraryMetadataRefreshSizes: "library:metadata-refresh-sizes",
   videoListByIds: "video:list-by-ids",
   folderList: "folder:list",
@@ -1148,12 +1185,14 @@ export const IPC_CHANNELS = {
   diagnosticsPreview: "diagnostics:preview",
   diagnosticsExport: "diagnostics:export",
   cacheClear: "cache:clear",
+  mediaCacheTaskStatus: "media-cache:task-status",
   storageGet: "storage:get",
   storageOpen: "storage:open",
   storageChoose: "storage:choose",
   storageMigrate: "storage:migrate",
   settingsGet: "settings:get",
-  settingsSet: "settings:set"
+  settingsSet: "settings:set",
+  settingsSetHoldFastForwardSpeed: "settings:set-hold-fast-forward-speed"
 } as const;
 
 export interface VideoManagerApi extends SubtitleApi, DataStorageApi {
@@ -1174,6 +1213,7 @@ export interface VideoManagerApi extends SubtitleApi, DataStorageApi {
   recheckMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
   forgetMissingVideos(videoIds: string[]): Promise<MissingVideoActionResult>;
   listMetadataIssuePage(query: MetadataIssuePageQuery, purpose?: string): Promise<MetadataIssuePage>;
+  getMetadataQueueStatus(): Promise<MetadataQueueStatus>;
   refreshMetadataFileSizes(videoIds: string[]): Promise<MetadataSizeRefreshResult>;
   listVideosByIds(videoIds: string[]): Promise<VideoRecord[]>;
   listDuplicateGroups(query: DuplicateGroupPageQuery, purpose?: string): Promise<DuplicateGroupPage>;
@@ -1262,6 +1302,8 @@ export interface VideoManagerApi extends SubtitleApi, DataStorageApi {
   exportDiagnostics(includeFullPaths: boolean): Promise<DiagnosticsExportResult>;
   getSettings(): Promise<SettingsSnapshot>;
   setSettings(settings: AppSettingsUpdate): Promise<AppSettings>;
+  setHoldFastForwardSpeed(speed: HoldFastForwardSpeed): Promise<AppSettings>;
+  getMediaCacheTaskStatus(): Promise<MediaCacheTaskStatus>;
   clearCache(): Promise<MediaCacheCleanupResult>;
 }
 

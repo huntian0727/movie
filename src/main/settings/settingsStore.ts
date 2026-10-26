@@ -19,6 +19,7 @@ export function getDefaultSettings(): AppSettings {
     startupSync: true,
     autoPlayOnOpen: true,
     seekStepSeconds: 10,
+    holdFastForwardSpeed: 3,
     coverFrameTimeSeconds: 5,
     playbackPreference: "auto",
     cloudDrive: {
@@ -38,6 +39,7 @@ export function normalizeSettings(input: Partial<AppSettings>): AppSettings {
     startupSync: typeof input.startupSync === "boolean" ? input.startupSync : defaults.startupSync,
     autoPlayOnOpen: typeof input.autoPlayOnOpen === "boolean" ? input.autoPlayOnOpen : defaults.autoPlayOnOpen,
     seekStepSeconds: Number.isInteger(input.seekStepSeconds) && (input.seekStepSeconds ?? 0) >= 1 && (input.seekStepSeconds ?? 0) <= 120 ? input.seekStepSeconds! : defaults.seekStepSeconds,
+    holdFastForwardSpeed: input.holdFastForwardSpeed === 1.5 || input.holdFastForwardSpeed === 2 || input.holdFastForwardSpeed === 3 || input.holdFastForwardSpeed === 4 ? input.holdFastForwardSpeed : defaults.holdFastForwardSpeed,
     coverFrameTimeSeconds: input.coverFrameTimeSeconds === 0 || input.coverFrameTimeSeconds === 3 || input.coverFrameTimeSeconds === 5 || input.coverFrameTimeSeconds === 10 || input.coverFrameTimeSeconds === 15 ? input.coverFrameTimeSeconds : defaults.coverFrameTimeSeconds,
     playbackPreference: input.playbackPreference === "embedded-first" || input.playbackPreference === "native-first" || input.playbackPreference === "mpv-first" || input.playbackPreference === "auto" ? input.playbackPreference : defaults.playbackPreference,
     cloudDrive: {

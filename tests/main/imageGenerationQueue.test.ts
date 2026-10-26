@@ -9,6 +9,26 @@ function deferred() {
 }
 
 describe("current-page image generation queue", () => {
+  it("reports aggregate queued, active, interrupted, paused and stopped state without job keys", async () => {
+    const queue = new ImageGenerationQueue(1);
+    const gate = deferred();
+    const active = queue.run("private-source-path-active", () => gate.promise);
+    const queued = queue.run("private-source-path-queued", async () => undefined);
+
+    expect(queue.getStatus()).toEqual({ queued: 1, active: 1, interrupted: 0, playbackPaused: false, stopped: false });
+    queue.setPlaybackPaused(true);
+    const paused = queue.getStatus();
+    expect(paused).toEqual({ queued: 1, active: 0, interrupted: 1, playbackPaused: true, stopped: false });
+    expect(JSON.stringify(paused)).not.toContain("private-source-path");
+
+    queue.setPlaybackPaused(false);
+    gate.resolve();
+    await Promise.all([active, queued]);
+    expect(queue.getStatus()).toEqual({ queued: 0, active: 0, interrupted: 0, playbackPaused: false, stopped: false });
+    queue.stop();
+    expect(queue.getStatus().stopped).toBe(true);
+  });
+
   it("preserves FIFO ties and reprioritizes a shared job when its highest-priority consumer leaves", async () => {
     const queue = new ImageGenerationQueue(1);
     queue.setPlaybackPaused(true);

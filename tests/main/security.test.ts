@@ -61,8 +61,11 @@ describe("Electron security policy", () => {
       expect(isTrustedRendererUrl(value, trusted)).toBe(false);
     }
   });
-  it("restricts subtitle account writes to main and exposes only typed actions to players", () => {
+  it("restricts subtitle account writes and cache task status to the main window", () => {
     expect(getAllowedIpcRoles(IPC_CHANNELS.subtitleConfigSave)).toEqual(["main"]);
+    expect(getAllowedIpcRoles(IPC_CHANNELS.mediaCacheTaskStatus)).toEqual(["main"]);
+    expect(getAllowedIpcRoles(IPC_CHANNELS.settingsSet)).toEqual(["main"]);
+    expect(getAllowedIpcRoles(IPC_CHANNELS.settingsSetHoldFastForwardSpeed)).toEqual(["main", "player"]);
     for (const channel of [IPC_CHANNELS.subtitleConfigGet, IPC_CHANNELS.subtitleWebsite, IPC_CHANNELS.subtitleSearch, IPC_CHANNELS.subtitleState, IPC_CHANNELS.subtitleAction]) expect(getAllowedIpcRoles(channel)).toEqual(["main", "player"]);
   });
   it("limits the preview renderer to image queue IPC and only players may position it", () => {

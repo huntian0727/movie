@@ -321,27 +321,46 @@ export class DuplicateCleanupRepository {
     return row.directory;
   }
 
+  interruptJob(jobId: string, errorSummary = "Task execution stopped unexpectedly; verify task state before resuming."): DuplicateCleanupJob {
+    const now = new Date().toISOString();
+    return this.db.transaction(() => {
+      const row = this.db.prepare("SELECT phase, workflow_version, status FROM duplicate_cleanup_jobs WHERE id = ?")
+        .get(jobId) as { phase: string; workflow_version: number; status: string } | undefined;
+      if (!row) throw new Error("Duplicate cleanup task does not exist.");
+      if (row.workflow_version === 2 && ["queued", "running", "cancelling"].includes(row.status)) {
+        this.interruptJobWithinTransaction(jobId, row.phase, now, errorSummary);
+      }
+      return this.getJob(jobId);
+    })();
+  }
+
   interruptActiveJobs(): number {
     const now = new Date().toISOString();
     return this.db.transaction(() => {
       const active = this.db.prepare(`SELECT id, phase FROM duplicate_cleanup_jobs
         WHERE workflow_version = 2 AND status IN ('queued','running','cancelling')`).all() as Array<{ id: string; phase: string }>;
       for (const job of active) {
-        if (job.phase === "verification") {
-          this.db.prepare(`UPDATE duplicate_cleanup_items SET verification_status = 'pending', keep_sha256 = NULL,
-            delete_sha256 = NULL, keep_file_identity = NULL, delete_file_identity = NULL,
-            verified_at = NULL, verification_error = NULL, authorized_revision = NULL,
-            updated_at = ? WHERE job_id = ? AND status <> 'deleted'`).run(now, job.id);
-        } else if (job.phase === "deletion") {
-          this.db.prepare(`UPDATE duplicate_cleanup_items SET status = CASE WHEN status = 'deleted' THEN status ELSE 'pending' END,
-            authorized_revision = NULL, updated_at = ? WHERE job_id = ?`).run(now, job.id);
-        }
-        this.db.prepare(`UPDATE duplicate_cleanup_jobs SET status = 'interrupted', authorized_revision = NULL,
-          authorized_at = NULL, updated_at = ?, error_summary = 'Application exited; verify again before any remaining delete.'
-          WHERE id = ?`).run(now, job.id);
+        this.interruptJobWithinTransaction(job.id, job.phase, now,
+          "Application exited; verify again before any remaining delete.");
       }
       return active.length;
     })();
+  }
+
+  private interruptJobWithinTransaction(jobId: string, phase: string, now: string, errorSummary: string): void {
+    if (phase === "verification") {
+      this.db.prepare(`UPDATE duplicate_cleanup_items SET verification_status = 'pending', keep_sha256 = NULL,
+        delete_sha256 = NULL, keep_file_identity = NULL, delete_file_identity = NULL,
+        verified_at = NULL, verification_error = NULL, authorized_revision = NULL,
+        updated_at = ? WHERE job_id = ? AND status <> 'deleted'`).run(now, jobId);
+    } else if (phase === "deletion") {
+      this.db.prepare(`UPDATE duplicate_cleanup_items SET status = CASE WHEN status = 'deleted' THEN status ELSE 'pending' END,
+        authorized_revision = NULL, updated_at = ? WHERE job_id = ?`).run(now, jobId);
+    }
+    this.db.prepare(`UPDATE duplicate_cleanup_jobs SET status = 'interrupted', authorized_revision = NULL,
+      authorized_at = NULL, updated_at = ?, error_summary = ?
+      WHERE id = ? AND workflow_version = 2 AND status IN ('queued','running','cancelling')`)
+      .run(now, errorSummary, jobId);
   }
 
   recoverFastJobs(): string[] {

@@ -4,10 +4,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
 import { expect, it } from "vitest";
+const VIDEO_COUNT = Number(process.env.MOVIE_PERF_VIDEO_COUNT ?? 320_000);
+if (!Number.isSafeInteger(VIDEO_COUNT) || VIDEO_COUNT < 10_000 || VIDEO_COUNT > 500_000) throw new Error("MOVIE_PERF_VIDEO_COUNT must be an integer between 10000 and 500000");
 import { createDatabase } from "../../src/main/db/database.js";
 import { VideoRepository } from "../../src/main/db/videoRepository.js";
 
-it("keeps the event loop responsive while loading a 320k library overview", async () => {
+it("keeps the event loop responsive while loading a " + VIDEO_COUNT + " library overview", async () => {
   const temp = mkdtempSync(path.join(tmpdir(), "library-overview-perf-"));
   const databasePath = path.join(temp, "library.sqlite");
   const database = createDatabase(databasePath);
@@ -39,7 +41,7 @@ it("keeps the event loop responsive while loading a 320k library overview", asyn
       return `seed.${column}`;
     }).join(",");
     database.exec(`WITH RECURSIVE numbers(n) AS (
-      VALUES(1) UNION ALL SELECT n + 1 FROM numbers WHERE n < 319999
+      VALUES(1) UNION ALL SELECT n + 1 FROM numbers WHERE n < ${VIDEO_COUNT - 1}
     ) INSERT INTO videos (${columns.join(",")})
       SELECT ${select} FROM numbers CROSS JOIN (SELECT * FROM videos LIMIT 1) seed`);
 
@@ -69,10 +71,12 @@ it("keeps the event loop responsive while loading a 320k library overview", asyn
     const folderResponse = responses.get(1);
     const navigationResponse = responses.get(2);
     expect(folderResponse?.ok).toBe(true);
-    expect(folderResponse?.result[0]?.videoCount).toBe(320_000);
+    expect(folderResponse?.result[0]?.videoCount).toBe(VIDEO_COUNT);
     expect(navigationResponse?.ok).toBe(true);
-    expect(navigationResponse?.result.totalVideos).toBe(320_000);
-    expect(navigationResponse?.result.directoryPaths).toHaveLength(25_000);
+    expect(navigationResponse?.result.totalVideos).toBe(VIDEO_COUNT);
+    expect(navigationResponse?.result).not.toHaveProperty("directoryPaths");
+    const navigationPayloadBytes = Buffer.byteLength(JSON.stringify(navigationResponse?.result ?? {}));
+    expect(navigationPayloadBytes).toBeLessThan(2_000);
     expect(elapsed).toBeLessThan(5_000);
     expect(maxGap).toBeLessThan(150);
 
@@ -101,9 +105,10 @@ it("keeps the event loop responsive while loading a 320k library overview", asyn
       worker!.postMessage({ id: 3, operation: "navigation" });
     });
     expect(refreshedNavigation.ok).toBe(true);
-    expect(refreshedNavigation.result.totalVideos).toBe(320_001);
-    expect(refreshedNavigation.result.directoryPaths).toHaveLength(25_001);
-    console.info(`Library overview 320k worker: ${elapsed.toFixed(2)} ms; main-loop gap: ${maxGap.toFixed(2)} ms`);
+    expect(refreshedNavigation.result.totalVideos).toBe(VIDEO_COUNT + 1);
+    expect(refreshedNavigation.result).not.toHaveProperty("directoryPaths");
+    expect(Buffer.byteLength(JSON.stringify(refreshedNavigation.result))).toBeLessThan(2_000);
+    console.info("Library overview " + VIDEO_COUNT + " worker: " + elapsed.toFixed(2) + " ms; main-loop gap: " + maxGap.toFixed(2) + " ms; navigation payload: " + navigationPayloadBytes + " bytes");
   } finally {
     if (timer) clearInterval(timer);
     await worker?.terminate();

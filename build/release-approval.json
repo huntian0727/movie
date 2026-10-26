@@ -4,11 +4,11 @@
   "ownersConfirmed": true,
   "applicationLicense": "MIT",
   "licenseSha256": "67a5adfb62bada52970413032afa8c5dce450e09c32d5abe99b472c16f2d4e72",
-  "packageLockSha256": "06e88837cf56f399e173652a833d0008c011032a25dc91f4eea6ffff3158ecf1",
+  "packageLockSha256": "0033ebd6a6ee557c9933e27fcdfafe2fda9f8bdbb8e3d45c6958fd2ca47dbd90",
   "manualQaApproved": true,
   "legacyUpgradeApproved": false,
   "cleanWindows11Evidence": "docs/legal/PORTABLE_RELEASE_QA.json",
-  "cleanWindows11EvidenceSha256": "bae4db868770279921d686b3e89549841657c0f0cfa34312805c2b68da802453",
+  "cleanWindows11EvidenceSha256": "fe5f824c60167219ad09ea012b939c6e56ee33e7c6b9b7b5985e389a46e99980",
   "previousSignedUpgradeEvidence": null,
   "previousSignedUpgradeEvidenceSha256": null,
   "binaries": [
@@ -42,14 +42,14 @@
     }
   ],
   "scope": "stable-portable-only",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "unsignedAcknowledged": true,
   "stableWindowsCoverage": false,
   "standardUserCoverage": false,
-  "nativeSourceApprovalSha256": "45784883b1fecdb537989e81003714019ec5a4baa6cf758ccd2fe226d15dadec",
+  "nativeSourceApprovalSha256": "de1b3c0ffd0719b3084f5d18d62e358c49f0d78f3b58c94c5e06401fcbc10fd8",
   "decisionEvidence": "docs/legal/STABLE_PORTABLE_RELEASE_DECISION.md",
-  "decisionEvidenceSha256": "9a9b1b2d0ca01aebad1394e4e17c5445903d3bf6f93c242ca9fbd8ffebc3d7c1",
-  "correspondingNativeSourcesSha256": "794b58fc7d8b00b36fc7c970d38505f1a70cc3fd83f529d2c4ee2710727d3832",
+  "decisionEvidenceSha256": "67bb105933e3f3530d1eeb9ac0bfcea53423980a81a89d50c08668bf198df14e",
+  "correspondingNativeSourcesSha256": "16be473bef412824fb42ca272a30004cc334faf4ba63a7f07cbdfe395870b43b",
   "qaScope": "owner-accepted-targeted-portable-qa",
-  "productDraftReleaseId": 420326400
+  "productDraftReleaseId": 423835020
 }

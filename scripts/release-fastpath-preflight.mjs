@@ -7,6 +7,10 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+export function isCleanWorkingTreeStatus(statusOutput) {
+  return String(statusOutput ?? "").trim().length === 0;
+}
+
 export function parseArgs(argv) {
   let version = "";
   let published = false;
@@ -25,6 +29,15 @@ export function parseArgs(argv) {
   return { version, published, draft };
 }
 
+export function releaseLookupEndpoint(version, draft, approval) {
+  if (draft) {
+    if (!Number.isSafeInteger(approval?.productDraftReleaseId) || approval.productDraftReleaseId <= 0) {
+      throw new Error("Exact draft release ID required");
+    }
+    return "releases/" + approval.productDraftReleaseId;
+  }
+  return "releases/tags/v" + version;
+}
 export async function validateLocal(root, version) {
   const failures = [];
   const report = { version, checks: [] };
@@ -32,6 +45,13 @@ export async function validateLocal(root, version) {
     report.checks.push(ok ? { check: label, ok: true } : { check: label, ok: false, reason });
     if (!ok) failures.push(label + ": " + (reason || "failed"));
   };
+  try {
+    const status = exec("git", ["status", "--porcelain=v1", "--untracked-files=all"], root);
+    check("clean working tree", isCleanWorkingTreeStatus(status),
+      "uncommitted or untracked files present; prepare release from an isolated clean checkout");
+  } catch {
+    check("clean working tree", false, "could not inspect Git working-tree status");
+  }
   const read = (name) => readFile(path.join(root, name));
   const json = async (name) => JSON.parse((await read(name)).toString("utf8"));
   const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -152,11 +172,11 @@ async function main() {
       const fetch = (endpoint) => JSON.parse(exec("gh", ["api", "repos/" + repo + "/" + endpoint], root));
       const sha = exec("git", ["rev-parse", "HEAD"], root);
       const peeled = exec("git", ["ls-remote", "--tags", "origin", "refs/tags/v" + version + "^{}"], root);
-      const release = fetch("releases/tags/v" + version);
+      const approval = JSON.parse(await readFile(path.join(root, "build/release-approval.json"), "utf8"));
+      const release = fetch(releaseLookupEndpoint(version, draft, approval));
       const latest = published ? fetch("releases/latest") : null;
       const runs = fetch("actions/runs?head_sha=" + sha + "&per_page=100").workflow_runs;
-      const identity = (peeled.startsWith(sha + "\t") && release.id ===
-        (JSON.parse((await readFile(path.join(root, "build/release-approval.json"), "utf8")))).productDraftReleaseId);
+      const identity = peeled.startsWith(sha + "\t") && release.id === approval.productDraftReleaseId;
       const ci = validateSameCommitRuns(runs, sha);
       const stage = published ? validatePublishedRelease(release, latest, version) :
         validateDraftRelease(release, version);

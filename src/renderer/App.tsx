@@ -18,6 +18,7 @@ const defaultSettings: AppSettings = {
   startupSync: true,
   autoPlayOnOpen: true,
   seekStepSeconds: 10,
+  holdFastForwardSpeed: 3,
   coverFrameTimeSeconds: 5,
   playbackPreference: "auto",
   cloudDrive: {
@@ -36,8 +37,7 @@ const emptyNavigation: LibraryNavigationSnapshot = {
   pendingDeleteBytes: 0,
   pendingMetadataVideos: 0,
   scanFailureCount: 0,
-  healthIssueCount: 0,
-  directoryPaths: []
+  healthIssueCount: 0
 };
 
 const emptyCacheStatus: MediaCacheStatus = {
@@ -92,9 +92,7 @@ function areLibraryNavigationSnapshotsEqual(
     && left.pendingDeleteBytes === right.pendingDeleteBytes
     && left.pendingMetadataVideos === right.pendingMetadataVideos
     && left.scanFailureCount === right.scanFailureCount
-    && left.healthIssueCount === right.healthIssueCount
-    && left.directoryPaths.length === right.directoryPaths.length
-    && left.directoryPaths.every((directoryPath, index) => directoryPath === right.directoryPaths[index]);
+    && left.healthIssueCount === right.healthIssueCount;
 }
 
 export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
@@ -473,6 +471,11 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
         mediaUrl={playbackRoute === "native" ? `local-video://media/${encodeURIComponent(selectedVideo.id)}` : undefined}
         autoPlayOnOpen={settings.autoPlayOnOpen}
         seekStepSeconds={settings.seekStepSeconds}
+        holdFastForwardSpeed={settings.holdFastForwardSpeed}
+        onChangeHoldFastForwardSpeed={async (speed) => {
+          const nextSettings = await api.setHoldFastForwardSpeed(speed);
+          setSettings(nextSettings);
+        }}
         shortcuts={settings.shortcuts}
         hasPrevious={selectedIndex > 0}
         hasNext={selectedIndex < playerQueuedVideos.length - 1}
@@ -605,6 +608,8 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       onRecheckMissingVideos={api.recheckMissingVideos}
       onForgetMissingVideos={api.forgetMissingVideos}
       onLoadMetadataIssuePage={api.listMetadataIssuePage}
+      onLoadMetadataQueueStatus={api.getMetadataQueueStatus}
+      onLoadMediaCacheTaskStatus={api.getMediaCacheTaskStatus}
       onRefreshMetadataFileSizes={api.refreshMetadataFileSizes}
       onRetryScanFailure={(failureId) => api.retryScanFailure(failureId)}
       onDeleteScanFailureFile={(failureId) => api.deleteScanFailureFile(failureId)}
@@ -612,7 +617,7 @@ export function DesktopApp({ api }: { api: DesktopVideoManagerApi }) {
       onSubmitScanFailureBatch={(request) => api.submitScanFailureBatch(request)}
       onGetScanFailureBatch={(jobId) => api.getScanFailureBatch(jobId)}
       onCancelScanFailureBatch={(jobId) => api.cancelScanFailureBatch(jobId)}
-      onListScanFailureBatches={() => api.listScanFailureBatches()}
+      onListScanFailureBatches={api.listScanFailureBatches}
       onOpenScanFailureLocation={(failureId) => api.openScanFailureLocation(failureId)}
       onRefresh={refresh}
       onToggleFavorite={toggleFavorite}

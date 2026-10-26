@@ -10,6 +10,7 @@ const settings: AppSettings = {
   startupSync: true,
   autoPlayOnOpen: true,
   seekStepSeconds: 10,
+  holdFastForwardSpeed: 3,
   coverFrameTimeSeconds: 5,
   playbackPreference: "auto",
   cloudDrive: { endpoint: "http://127.0.0.1:19798", configured: false, timeoutMs: 20_000, mountMapJson: "" },
@@ -94,6 +95,23 @@ describe("desktop-only renderer runtime", () => {
     expect(setSession).toHaveBeenCalledTimes(1);
     view.unmount();
   });
+  it("saves long-press speed from the isolated player window using its narrow API", async () => {
+    const api = createDesktopApi();
+    const video = { id: "speed-test", filename: "speed-test.mp4", path: "F:/speed-test.mp4", directory: "F:/", extension: ".mp4", sizeBytes: 1024, durationMs: 90_000, metadataStatus: "ready", codecProbeStatus: "unprobed", updatedAt: "2026-10-24" } as VideoRecord;
+    const saveSpeed = vi.fn(async (speed: 1.5 | 2 | 3 | 4) => ({ ...settings, holdFastForwardSpeed: speed }));
+    Object.assign(api, { windowMode: "player", setHoldFastForwardSpeed: saveSpeed });
+    vi.mocked(api.getWindowSyncSnapshot).mockResolvedValue({ sequence: 0, playerSession: { sequence: 0, selectedVideoId: video.id, queueIds: [video.id], videos: [video] } });
+    vi.mocked(api.listVideoPage).mockResolvedValue({ videos: [video], page: 1, pageSize: 100, totalPages: 1, totalCount: 1 });
+    render(<DesktopApp api={api} />);
+    await screen.findByText("speed-test.mp4");
+    fireEvent.click(screen.getByRole("button", { name: "长按快进设置" }));
+    const speed = await screen.findByRole("combobox", { name: "长按快进倍速" });
+    fireEvent.change(speed, { target: { value: "2" } });
+    await waitFor(() => expect(saveSpeed).toHaveBeenCalledWith(2));
+    expect(speed).toHaveValue("2");
+    expect(screen.queryByText("保存失败，请稍后重试")).not.toBeInTheDocument();
+  });
+
   it("shows an unsupported-runtime page instead of a demo library without preload", () => {
     delete window.videoManager;
 
@@ -303,8 +321,7 @@ function createDesktopApi(): DesktopVideoManagerApi {
       pendingDeleteBytes: 0,
       pendingMetadataVideos: 0,
       scanFailureCount: 0,
-      healthIssueCount: 0,
-      directoryPaths: []
+      healthIssueCount: 0
     })),
     listFolderScanStatuses: vi.fn(async () => []),
     previewRemoveFolder: vi.fn(async () => ({ removedVideoCount: 0, retainedVideoCount: 0 })),

@@ -1,5 +1,6 @@
 import type { VideoRepository } from "../db/videoRepository.js";
 import type { StructuredLogger } from "../logging/logger.js";
+import type { VideoRecord } from "../../shared/videoTypes.js";
 import { readDuration, readMetadata, type MediaMetadata } from "./metadataService.js";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
@@ -9,6 +10,7 @@ import { mediaReadBudget } from "./mediaReadBudget.js";
 type MetadataReader = (filePath: string) => Promise<MediaMetadata>;
 type DurationReader = (filePath: string) => Promise<number | null>;
 type ContentInspector = (filePath: string) => Promise<KnownNonVideoContent | null>;
+type PendingMetadataLoader = (limit: number) => Promise<VideoRecord[]>;
 
 export interface MetadataQueueStatus {
   queued: number;
@@ -32,6 +34,9 @@ export class MetadataQueue {
   private playbackPaused = false;
   private resumePendingBatches = false;
   private pendingBatchSize = 1000;
+  private pendingBatchPromise: Promise<number> | undefined;
+  private completedSincePumpYield = 0;
+  private pumpYieldScheduled = false;
   private readonly idleWaiters = new Set<() => void>();
   private readonly videoWaiters = new Map<string, Set<() => void>>();
   private readonly sourceFolderProgress = new Map<string, { completed: number; lastNotified: number }>();
@@ -44,7 +49,8 @@ export class MetadataQueue {
     private readonly onVideoUpdated?: (videoId: string) => void,
     private readonly onSourceFolderUpdated?: (sourceFolderId: string) => void,
     private readonly durationReader: DurationReader = readDuration,
-    private readonly contentInspector: ContentInspector = detectKnownNonVideoContent
+    private readonly contentInspector: ContentInspector = detectKnownNonVideoContent,
+    private readonly pendingMetadataLoader?: PendingMetadataLoader
   ) {
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("Metadata queue concurrency must be at least 1");
   }
@@ -108,20 +114,49 @@ export class MetadataQueue {
     }
   }
 
-  enqueuePending(limit = 1000): number {
+  enqueuePending(limit = 1000): Promise<number> {
+    if (this.stopped) return Promise.resolve(0);
     this.resumePendingBatches = true;
     this.pendingBatchSize = limit;
     return this.loadPendingBatch();
   }
 
-  private loadPendingBatch(): number {
-    let count = 0;
-    for (const video of this.repo.listVideosPendingMetadata(this.pendingBatchSize)) {
-      if (this.enqueue(video.id)) count += 1;
-    }
-    return count;
+  private loadPendingBatch(): Promise<number> {
+    if (this.stopped) return Promise.resolve(0);
+    if (this.pendingBatchPromise) return this.pendingBatchPromise;
+    const limit = this.pendingBatchSize;
+    const pending = Promise.resolve()
+      .then(() => this.pendingMetadataLoader
+        ? this.pendingMetadataLoader(limit)
+        : this.repo.listVideosPendingMetadata(limit))
+      .then((videos) => {
+        if (this.stopped) return 0;
+        let count = 0;
+        for (const video of videos) {
+          if (this.enqueue(video.id)) count += 1;
+        }
+        return count;
+      })
+      .catch((error: unknown) => {
+        this.resumePendingBatches = false;
+        this.logger?.warn({
+          module: "media.metadata",
+          event: "pending_batch_load_failed",
+          message: "Unable to load pending metadata batch",
+          context: { error: error instanceof Error ? error.message : String(error) }
+        });
+        return 0;
+      })
+      .finally(() => {
+        if (this.pendingBatchPromise === pending) this.pendingBatchPromise = undefined;
+        if (this.active === 0 && this.waiting.length === 0 && !this.pendingBatchPromise) {
+          this.flushSourceFolderProgress();
+          this.resolveIdleWaiters();
+        }
+      });
+    this.pendingBatchPromise = pending;
+    return pending;
   }
-
   getStatus(): MetadataQueueStatus {
     return { queued: this.waiting.length, active: this.active };
   }
@@ -149,7 +184,7 @@ export class MetadataQueue {
   }
 
   whenIdle(): Promise<void> {
-    if (this.active === 0 && this.waiting.length === 0) return Promise.resolve();
+    if (this.active === 0 && this.waiting.length === 0 && !this.pendingBatchPromise) return Promise.resolve();
     return new Promise((resolve) => this.idleWaiters.add(resolve));
   }
 
@@ -167,10 +202,11 @@ export class MetadataQueue {
       this.resolveVideoWaiters(videoId);
     }
     this.waiting.length = 0;
-    if (this.active === 0) this.resolveIdleWaiters();
+    if (this.active === 0 && !this.pendingBatchPromise) this.resolveIdleWaiters();
   }
 
   private pump(): void {
+    if (this.pumpYieldScheduled) return;
     while (!this.stopped && !this.paused && !this.playbackPaused && this.active < this.concurrency && this.waiting.length > 0) {
       const videoId = this.waiting.shift()!;
       this.active += 1;
@@ -182,16 +218,33 @@ export class MetadataQueue {
         this.backgroundOwned.delete(videoId);
         this.explicitRetries.delete(videoId);
         this.resolveVideoWaiters(videoId);
-        this.pump();
+        this.completedSincePumpYield += 1;
+        if (this.completedSincePumpYield >= 500) {
+          this.completedSincePumpYield = 0;
+          if (this.waiting.length > 0) this.schedulePumpYield();
+          else this.pump();
+        } else {
+          this.pump();
+        }
         if (this.active === 0 && this.waiting.length === 0) {
-          const restored = this.resumePendingBatches && !this.stopped ? this.loadPendingBatch() : 0;
-          if (restored === 0) {
+          if (this.resumePendingBatches && !this.stopped) {
+            void this.loadPendingBatch();
+          } else {
             this.flushSourceFolderProgress();
             this.resolveIdleWaiters();
           }
         }
       });
     }
+  }
+
+  private schedulePumpYield(): void {
+    if (this.pumpYieldScheduled) return;
+    this.pumpYieldScheduled = true;
+    setImmediate(() => {
+      this.pumpYieldScheduled = false;
+      this.pump();
+    });
   }
 
   private waitForVideo(videoId: string): Promise<void> {
@@ -226,7 +279,11 @@ export class MetadataQueue {
 
     const readController = new AbortController();
     this.pendingReadControllers.set(videoId, readController);
-    const readSignal = AbortSignal.any([this.stopController.signal, readController.signal]);
+    const stopSignal = this.stopController.signal;
+    const abortReadOnStop = () => readController.abort();
+    if (stopSignal.aborted) readController.abort();
+    else stopSignal.addEventListener("abort", abortReadOnStop, { once: true });
+    const readSignal = readController.signal;
 
     try {
       if (video.sizeBytes === 0) {
@@ -287,6 +344,7 @@ export class MetadataQueue {
         error: failureError
       });
     } finally {
+      stopSignal.removeEventListener("abort", abortReadOnStop);
       this.pendingReadControllers.delete(videoId);
     }
   }

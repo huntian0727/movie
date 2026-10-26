@@ -101,11 +101,14 @@ describe("AssetCenterPage", () => {
     await waitFor(() => expect(screen.getByText("205,798")).toBeInTheDocument());
     expect(screen.getByText("18.60 TB")).toBeInTheDocument();
     expect(screen.getByText("正在处理媒体信息")).toBeInTheDocument();
+    expect(screen.getAllByText("最近扫描").length).toBeGreaterThan(0);
+    expect(screen.getByText("完成但有异常")).toBeInTheDocument();
+    expect(screen.getByText("打开扫描异常查看失败项，修复原因后再重新扫描。")).toBeInTheDocument();
     expect(screen.getByText("235")).toBeInTheDocument();
     expect(screen.getAllByText("最近可访问").length).toBeGreaterThan(0);
     expect(screen.getByText("Cloud archive")).toBeInTheDocument();
     expect(screen.getByText(/问题数量与可访问性分别统计/)).toBeInTheDocument();
-    expect(screen.getByText("待分析 3 · 分析失败 1")).toBeInTheDocument();
+    expect(screen.getByText("待处理（含暂缓） 3 · 分析失败 1")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /重复候选/ }));
     expect(onNavigate).toHaveBeenCalledWith("duplicates");
@@ -115,6 +118,34 @@ describe("AssetCenterPage", () => {
     expect(onOpenMissing).toHaveBeenCalledWith("source-1");
     fireEvent.click(screen.getByRole("button", { name: "查看 F:\\Cloud 的 4 条元数据异常" }));
     expect(onOpenMetadata).toHaveBeenCalledWith("source-1");
+  });
+
+  it("explains how to recover a scan interrupted by a previous application exit", async () => {
+    const interruptedSummary: AssetCenterSummary = {
+      ...summary,
+      latestCompletedScan: {
+        ...summary.latestCompletedScan!,
+        status: "error",
+        errorSummary: "应用上次退出时扫描未正常结束；本次启动不会自动继续扫描，请手动重新发起。"
+      }
+    };
+    render(
+      <AssetCenterPage
+        scanStatuses={[]}
+        refreshSequence={0}
+        loadSummary={vi.fn().mockResolvedValue(interruptedSummary)}
+        loadSources={vi.fn().mockResolvedValue(sourcePage)}
+        onNavigate={vi.fn()}
+        onOpenMissing={vi.fn()}
+        onOpenMetadata={vi.fn()}
+        onSelectSource={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText("扫描未正常结束")).toBeInTheDocument());
+    expect(screen.getByText("核对源目录和资料库状态后手动重新扫描；应用不会自动续跑上次未完成的扫描。")).toBeInTheDocument();
+    expect(screen.getByText(/应用上次退出时扫描未正常结束/)).toBeInTheDocument();
+    expect(screen.queryByText("最近完成")).not.toBeInTheDocument();
   });
 
   it("keeps source errors local, supports empty results, and retries only read-only loaders", async () => {
