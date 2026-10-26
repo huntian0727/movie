@@ -29,6 +29,15 @@ export function parseArgs(argv) {
   return { version, published, draft };
 }
 
+export function releaseLookupEndpoint(version, draft, approval) {
+  if (draft) {
+    if (!Number.isSafeInteger(approval?.productDraftReleaseId) || approval.productDraftReleaseId <= 0) {
+      throw new Error("Exact draft release ID required");
+    }
+    return "releases/" + approval.productDraftReleaseId;
+  }
+  return "releases/tags/v" + version;
+}
 export async function validateLocal(root, version) {
   const failures = [];
   const report = { version, checks: [] };
@@ -163,11 +172,11 @@ async function main() {
       const fetch = (endpoint) => JSON.parse(exec("gh", ["api", "repos/" + repo + "/" + endpoint], root));
       const sha = exec("git", ["rev-parse", "HEAD"], root);
       const peeled = exec("git", ["ls-remote", "--tags", "origin", "refs/tags/v" + version + "^{}"], root);
-      const release = fetch("releases/tags/v" + version);
+      const approval = JSON.parse(await readFile(path.join(root, "build/release-approval.json"), "utf8"));
+      const release = fetch(releaseLookupEndpoint(version, draft, approval));
       const latest = published ? fetch("releases/latest") : null;
       const runs = fetch("actions/runs?head_sha=" + sha + "&per_page=100").workflow_runs;
-      const identity = (peeled.startsWith(sha + "\t") && release.id ===
-        (JSON.parse((await readFile(path.join(root, "build/release-approval.json"), "utf8")))).productDraftReleaseId);
+      const identity = peeled.startsWith(sha + "\t") && release.id === approval.productDraftReleaseId;
       const ci = validateSameCommitRuns(runs, sha);
       const stage = published ? validatePublishedRelease(release, latest, version) :
         validateDraftRelease(release, version);

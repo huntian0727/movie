@@ -28,3 +28,5 @@ docs/legal/PORTABLE_RELEASE_QA.json text eol=lf
 native/embedded-mpv/NativeHost.cs text eol=lf
 # Approval binds the native source archive digest; exclude it from application-source ZIPs to avoid a self-referential hash cycle.
 build/release-approval.json export-ignore
+# Internal release worklog stays in the repository but is not part of the public application-source archive.
+docs/ai/deliveries/2026-10-26-v0.1.17-release.md export-ignore
