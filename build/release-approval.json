@@ -49,7 +49,7 @@
   "nativeSourceApprovalSha256": "de1b3c0ffd0719b3084f5d18d62e358c49f0d78f3b58c94c5e06401fcbc10fd8",
   "decisionEvidence": "docs/legal/STABLE_PORTABLE_RELEASE_DECISION.md",
   "decisionEvidenceSha256": "67bb105933e3f3530d1eeb9ac0bfcea53423980a81a89d50c08668bf198df14e",
-  "correspondingNativeSourcesSha256": "477fc3cb507b38c825b15afecb94f5857a2c9fc7aa6ff66e45768b06f42d78d6",
+  "correspondingNativeSourcesSha256": "57a90626f57fb772c66c251e7ed6f28e7239e9335794382dbde8a3361f42036d",
   "qaScope": "owner-accepted-targeted-portable-qa",
   "productDraftReleaseId": 423835020
 }
