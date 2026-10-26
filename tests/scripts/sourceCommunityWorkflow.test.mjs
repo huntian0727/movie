@@ -28,6 +28,8 @@ describe("source community workflow delivery boundaries", () => {
     expect(workflow).not.toMatch(/--testTimeout|--retry|--exclude|--passWithNoTests/);
     expect(workflow).toContain("npm run verify:zip");
     expect(workflow).toContain("npm run release:metadata -- --portable");
+    const pkg = JSON.parse(await readFile("package.json", "utf8"));
+    expect(pkg.scripts["release:metadata"]).toBe("node scripts/with-movie-storage.mjs node scripts/write-release-metadata.mjs");
     const builder = await readFile("scripts/run-electron-builder.mjs", "utf8");
     expect(builder).toContain('args.push("--publish", "never")');
     expect(builder.indexOf('args.push("--publish", "never")')).toBeLessThan(builder.indexOf('spawn(process.execPath'));

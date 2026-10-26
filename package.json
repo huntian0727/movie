@@ -91,7 +91,7 @@
     "test:packaged-smoke:inner": "npm run verify:environment && node scripts/run-packaged-smoke.mjs",
     "test:installer-smoke": "node scripts/with-movie-storage.mjs npm run test:installer-smoke:inner",
     "test:installer-smoke:inner": "npm run verify:environment && node scripts/run-installer-smoke.mjs",
-    "release:metadata": "node scripts/with-movie-storage.mjs npm run release:metadata:inner",
+    "release:metadata": "node scripts/with-movie-storage.mjs node scripts/write-release-metadata.mjs",
     "release:metadata:inner": "node scripts/write-release-metadata.mjs",
     "release:check": "node scripts/release-fastpath-preflight.mjs",
     "storage:check": "node scripts/check-local-storage.mjs",
