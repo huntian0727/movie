@@ -9,7 +9,7 @@ export type SearchLanguage = "any" | "chinese" | "bilingual" | "english";
 export interface ProviderCandidate extends SubtitleCandidate { sourceId: string; sourceFile: string }
 const name = z.string().max(2000).nullish();
 const assrtItem = z.object({ id: z.number().int().positive(), native_name: z.union([name, z.array(z.string())]), videoname: name,
-  subtype: name, lang: z.object({ desc: name, langlist: z.record(z.unknown()).optional() }).optional(),
+  subtype: name, lang: z.object({ desc: name, langlist: z.record(z.string(), z.unknown()).optional() }).optional(),
   filelist: z.array(z.object({ f: z.string().max(2000) })).max(500).optional() });
 const osItem = z.object({ attributes: z.object({ language: z.string(), release: name, download_count: z.number().nullable().optional(),
   moviehash_match: z.boolean().optional(), feature_details: z.object({ title: name, year: z.number().nullish() }).optional(),

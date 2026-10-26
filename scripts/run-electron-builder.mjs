@@ -55,12 +55,12 @@ flavor.complianceApprovalSha256 = await verifyFormalApproval(root, flavor);
 const buildDirectory = path.join(root, ".tmp", "release-engineering");
 await mkdir(buildDirectory, { recursive: true });
 await writeJson(path.join(buildDirectory, "build-flavor.json"), flavor);
-// Optional offline Electron runtime: only the verified 44.7.0 x64 release ZIP is accepted.
+// Optional offline Electron runtime: only the verified 44.9.3 x64 release ZIP is accepted.
 const offlineElectronZip = process.env.MOVIE_ELECTRON_DIST_ZIP;
 if (offlineElectronZip) {
-  if (path.basename(offlineElectronZip).toLowerCase() !== "electron-v44.7.0-win32-x64.zip" ||
-      await hashFile(offlineElectronZip) !== "eee30dc8fa1f5ea95490e59f44e46ea68dd24c6e93d22facf70fe5c2d4c2665c") {
-    throw new Error("Offline Electron ZIP does not match pinned Electron 44.7.0 Windows x64 release.");
+  if (path.basename(offlineElectronZip).toLowerCase() !== "electron-v44.9.3-win32-x64.zip" ||
+      await hashFile(offlineElectronZip) !== "41a1ffa0541cb0f2c9b9fe920dd2cef1793ad0ea2ada1a9582958880f4d1b23c") {
+    throw new Error("Offline Electron ZIP does not match pinned Electron 44.9.3 Windows x64 release.");
   }
 }
 const configuration = {

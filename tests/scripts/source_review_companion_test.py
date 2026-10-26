@@ -74,6 +74,13 @@ class CompanionTests(unittest.TestCase):
             second_zip = Path(directory) / "application-second.zip"
             module.archive_application_sources(root, second_commit, second_zip)
             self.assertNotEqual(first_commit, second_commit)
+            with zipfile.ZipFile(first_zip) as archive:
+                first_files = {name: archive.read(name) for name in archive.namelist()}
+                self.assertNotIn("build/release-approval.json", first_files)
+            with zipfile.ZipFile(second_zip) as archive:
+                second_files = {name: archive.read(name) for name in archive.namelist()}
+                self.assertNotIn("build/release-approval.json", second_files)
+            self.assertEqual(first_files, second_files)
             self.assertEqual(module.digest(first_zip), module.digest(second_zip))
     def test_utf8_json_reader_handles_non_ascii_content(self):
         with tempfile.TemporaryDirectory() as directory:

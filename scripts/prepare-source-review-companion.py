@@ -59,7 +59,7 @@ def validate_stable_release(approval, version, native_approval):
 
 def archive_application_sources(root, commit, output):
     tree = subprocess.check_output(["git", "rev-parse", commit + "^{tree}"], cwd=root, text=True).strip()
-    subprocess.run(["git", "archive", "--format=zip", "--output=" + str(output), tree], cwd=root, check=True)
+    subprocess.run(["git", "archive", "--format=zip", "--mtime=2000-01-01T00:00:00Z", "--output=" + str(output), tree], cwd=root, check=True)
 
 def prepare(source, output, public_test=False, stable_release=False):
     source, output = Path(source).resolve(), Path(output).resolve()

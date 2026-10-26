@@ -6,7 +6,7 @@
 
 PR 的 Windows CI 包含完整 Node release gate、独立 Electron native/security smoke、依赖审计和依赖上述检查的 unsigned x64 NSIS 安装 QA。独立安全工作流以非浅历史、固定版本 Gitleaks、全部 npm 依赖审计扫描 main/PR。Action 固定完整 commit SHA；checkout 不保留推送凭据。
 
-Node 22.23.1 / npm 10.9.8 / Electron 44.7.0 固定，N-API 13.0.3 的实际兼容性须运行验证；无 C++ 环境安装入口详见 [原生模块工作流](native-abi-workflow.md)。普通 npm ci 也在具备 C++ 工具的 CI 中覆盖，不用缓存的 node_modules 冒充完整安装。
+Node 22.23.1 / npm 10.9.8 / Electron 44.9.3 固定，N-API 13.0.3 的实际兼容性须运行验证；无 C++ 环境安装入口详见 [原生模块工作流](native-abi-workflow.md)。普通 npm ci 也在具备 C++ 工具的 CI 中覆盖，不用缓存的 node_modules 冒充完整安装。
 
 测试包始终使用 com.local.video.manager.unsignedtest、独立 NSIS GUID、独立 userData 与文件名，输出 release/unsigned-test-build/。正式 appId 为 com.local.video.manager；两类包不得混用。正式输出 release/signed-release/。旧 release/win-unpacked 与已有用户快捷方式不是本轮更新目标。
 
