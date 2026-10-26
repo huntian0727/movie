@@ -32,6 +32,7 @@ describe("release engineering trust boundaries", () => {
     const license = await readFile(path.resolve("LICENSE"), "utf8");
     const approval = JSON.parse(await readFile(path.resolve("build/release-approval.json"), "utf8"));
     const currentLockSha256 = await hashFile(path.resolve("package-lock.json"));
+    expect(await readFile(path.resolve("package-lock.json"), "utf8")).not.toContain("\r\n");
     expect(pkg.license).toBe("MIT");
     expect(lock.packages[""].license).toBe("MIT");
     expect(license).toMatch(/^MIT License\r?\n/);

@@ -36,7 +36,8 @@
     "PASS: npm run test:release-gate — exit code 0 (lint, build, Windows file safety, migrations, performance, Node, media candidate and native source build)",
     "PASS: npm run test:electron-smoke — Electron 44.9.3, native ABI 149, app startup, isolated SQLite/DPAPI/data-directory smoke",
     "PASS: npm run test:renderer-security-smoke — Electron 44.9.3, bridge, media origin, external files/scripts/network denial",
-    "PASS: npm audit — full dependency tree, 0 known vulnerabilities after Electron/Zod/fast-uri/undici security updates"
+    "PASS: npm audit — full dependency tree, 0 known vulnerabilities after Electron/Zod/fast-uri/undici security updates",
+    "PASS: package-lock.json remains LF-only so the approval SHA-256 is identical on Windows and GitHub runners"
   ],
   "requiredFinalArtifactChecks": [
     "Build unsigned-public-release portable ZIP on GitHub Actions",

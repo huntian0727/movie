@@ -4,11 +4,11 @@
   "ownersConfirmed": true,
   "applicationLicense": "MIT",
   "licenseSha256": "67a5adfb62bada52970413032afa8c5dce450e09c32d5abe99b472c16f2d4e72",
-  "packageLockSha256": "1e2848c86bba6c115addae7fed4cf0e733281bc10ae065e597145c8b44305d2d",
+  "packageLockSha256": "0033ebd6a6ee557c9933e27fcdfafe2fda9f8bdbb8e3d45c6958fd2ca47dbd90",
   "manualQaApproved": true,
   "legacyUpgradeApproved": false,
   "cleanWindows11Evidence": "docs/legal/PORTABLE_RELEASE_QA.json",
-  "cleanWindows11EvidenceSha256": "6f12b18b5513c7dd6e09caca45b00a9a3f395bf618bfd4634be6005b3ab93c35",
+  "cleanWindows11EvidenceSha256": "9b516f052912604c3b523f2a660d1f927959434795671a1586f4181791d85507",
   "previousSignedUpgradeEvidence": null,
   "previousSignedUpgradeEvidenceSha256": null,
   "binaries": [
